@@ -1,6 +1,6 @@
 # AGENTS.md — instructions for coding agents
 
-You are building **hostbud**. Read `ARCHITECTURE.md` (design, source of truth) and `ROADMAP.md` (milestones) before starting. Work milestone by milestone, in order. Don't start a milestone until the previous one meets its acceptance criteria.
+You are building **hostbud**. Read `docs/ARCHITECTURE.md` (design, source of truth) and `docs/ROADMAP.md` (milestones) before starting. Work milestone by milestone, in order. Don't start a milestone until the previous one meets its acceptance criteria.
 
 ## Hard rules — public repository
 This repo is **public**. Never commit:
@@ -24,7 +24,7 @@ All such values come from environment variables. **If you need a config value th
 - **Dockerize everything we can.** Build, test, lint and gitleaks all run in containers via `make`; don't assume Go, gitleaks or golangci-lint are installed on the host.
 - Local verification: `make test` (unit + integration against the `test/sshd` container), then `make deploy` and open `http://localhost:${HOSTBUD_LOCAL_PORT}`.
 
-## Stack (don't substitute without updating ARCHITECTURE.md)
+## Stack (don't substitute without updating docs/ARCHITECTURE.md)
 - Backend: Go (latest stable), `log/slog`, `creack/pty`, `pkg/sftp`, `kevinburke/ssh_config` (display only; later, multi-machine), `modernc.org/sqlite`, embedded migrations, a WebSocket library (`coder/websocket` preferred).
 - **Use the system `ssh` binary** with the generated config (`-F /data/ssh/config`). Do not use a Go SSH client library for connections.
 - Frontend: Vue 3 + Vite + TypeScript, Pinia, Tailwind, Reka UI, `@xterm/xterm` + addons, `splitpanes`, `vue-draggable-plus`. No runtime CDN assets.
@@ -49,7 +49,7 @@ All such values come from environment variables. **If you need a config value th
 - Commits: conventional commits (`feat:`, `fix:`, `chore:` …), small and focused.
 
 ## Definition of done (per milestone)
-1. Acceptance criteria in ROADMAP.md pass.
+1. Acceptance criteria in docs/ROADMAP.md pass.
 2. `make lint test` green; gitleaks clean.
 3. Docs updated (README usage, ARCHITECTURE if design changed, `.env.example` for new vars).
 4. A short summary listing: what changed, any new env vars the owner must set, and manual steps on the host.

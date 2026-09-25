@@ -326,5 +326,6 @@ hostbud/
 ├─ docker-compose.yml
 ├─ Makefile
 ├─ .env.example
-├─ ARCHITECTURE.md  ROADMAP.md  AGENTS.md  CLAUDE.md  README.md  LICENSE
+├─ docs/{ARCHITECTURE.md,ROADMAP.md}
+├─ AGENTS.md  CLAUDE.md  README.md  LICENSE
 ```
