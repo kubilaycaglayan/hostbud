@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func openTemp(t *testing.T, dir string) *Store {
@@ -142,6 +143,37 @@ func TestUIState(t *testing.T) {
 	}
 	if v, _ := s.UIState(ctx, "k"); string(v) != "2" {
 		t.Fatalf("overwrite: %s", v)
+	}
+}
+
+func TestSaveCapabilities(t *testing.T) {
+	ctx := context.Background()
+	s := openTemp(t, t.TempDir())
+	defer func() { _ = s.Close() }()
+	if _, err := s.EnsureHostMachine(ctx, "Host machine"); err != nil {
+		t.Fatal(err)
+	}
+	seen := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	c := Capabilities{OS: "Linux", Home: "/home/dev", TmuxVersion: "3.4"}
+	if err := s.SaveCapabilities(ctx, HostMachineID, c, seen); err != nil {
+		t.Fatal(err)
+	}
+	m, err := s.Machine(ctx, HostMachineID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.OS != "Linux" || m.Home != "/home/dev" || m.TmuxVersion != "3.4" || m.TmuxMissing ||
+		m.LastSeenAt == nil || !m.LastSeenAt.Equal(seen) {
+		t.Fatalf("machine after save: %+v", m)
+	}
+	if err := s.SaveCapabilities(ctx, HostMachineID, Capabilities{OS: "Linux", TmuxMissing: true}, seen); err != nil {
+		t.Fatal(err)
+	}
+	if m, _ := s.Machine(ctx, HostMachineID); !m.TmuxMissing || m.TmuxVersion != "" {
+		t.Fatalf("tmux_missing not saved: %+v", m)
+	}
+	if err := s.SaveCapabilities(ctx, "server-a", c, seen); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("unknown machine: %v", err)
 	}
 }
 

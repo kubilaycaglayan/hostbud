@@ -15,6 +15,8 @@ import (
 
 	"hostbud/internal/api"
 	"hostbud/internal/config"
+	"hostbud/internal/events"
+	"hostbud/internal/inventory"
 	"hostbud/internal/sshx"
 	"hostbud/internal/store"
 	"hostbud/web"
@@ -83,6 +85,16 @@ func run() error {
 		_ = ssh.Close(ctx)
 	}()
 
+	// Track the host's tmux sessions; every change goes out on the bus.
+	bus := events.NewBus()
+	inv := inventory.New(ssh, bus, inventory.Options{
+		MachineID: store.HostMachineID, Label: cfg.HostLabel, Interval: cfg.PollInterval,
+		Store: capabilityStore{st}, Log: log,
+	})
+	invDone := make(chan struct{})
+	go func() { inv.Run(ctx); close(invDone) }()
+	defer func() { <-invDone }()
+
 	srv := &http.Server{
 		Addr:              cfg.Listen,
 		Handler:           api.New(log, web.Dist()),
@@ -127,4 +139,13 @@ func backup(cfg config.Config, dest string) error {
 	}
 	defer func() { _ = st.Close() }()
 	return st.Backup(ctx, dest)
+}
+
+// capabilityStore saves the inventory's probe results on the machine row.
+type capabilityStore struct{ st *store.Store }
+
+func (c capabilityStore) SaveCapabilities(ctx context.Context, id string, caps inventory.Capabilities, seen time.Time) error {
+	return c.st.SaveCapabilities(ctx, id, store.Capabilities{
+		OS: caps.OS, Home: caps.Home, TmuxVersion: caps.TmuxVersion, TmuxMissing: caps.TmuxMissing,
+	}, seen)
 }

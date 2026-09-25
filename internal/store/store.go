@@ -43,6 +43,7 @@ type Machine struct {
 	SortOrder   int
 	Hidden      bool
 	OS          string
+	Home        string
 	TmuxVersion string
 	TmuxMissing bool
 	LastSeenAt  *time.Time
@@ -56,6 +57,8 @@ type Repository interface {
 	Machine(ctx context.Context, id string) (Machine, error)
 	// EnsureHostMachine creates the built-in host row, or updates its label.
 	EnsureHostMachine(ctx context.Context, label string) (Machine, error)
+	// SaveCapabilities records a machine's probe results and when it was seen.
+	SaveCapabilities(ctx context.Context, id string, c Capabilities, seen time.Time) error
 	// UIState returns the stored JSON for key, or ErrNotFound.
 	UIState(ctx context.Context, key string) (json.RawMessage, error)
 	PutUIState(ctx context.Context, key string, value json.RawMessage) error
@@ -162,14 +165,14 @@ func migrate(ctx context.Context, db *sql.DB) error {
 func (s *Store) Close() error { return s.db.Close() }
 
 const machineCols = `id, source, ssh_alias, label, active, sort_order, hidden,
-	os, tmux_version, tmux_missing, last_seen_at, created_at, updated_at`
+	os, home, tmux_version, tmux_missing, last_seen_at, created_at, updated_at`
 
 func scanMachine(row interface{ Scan(...any) error }) (Machine, error) {
 	var m Machine
 	var lastSeen sql.NullString
 	var created, updated string
 	err := row.Scan(&m.ID, &m.Source, &m.SSHAlias, &m.Label, &m.Active, &m.SortOrder, &m.Hidden,
-		&m.OS, &m.TmuxVersion, &m.TmuxMissing, &lastSeen, &created, &updated)
+		&m.OS, &m.Home, &m.TmuxVersion, &m.TmuxMissing, &lastSeen, &created, &updated)
 	if err != nil {
 		return m, err
 	}
@@ -232,6 +235,30 @@ func (s *Store) EnsureHostMachine(ctx context.Context, label string) (Machine, e
 		return Machine{}, fmt.Errorf("seed host machine: %w", err)
 	}
 	return s.Machine(ctx, HostMachineID)
+}
+
+// Capabilities are a machine's probe results.
+type Capabilities struct {
+	OS          string
+	Home        string
+	TmuxVersion string
+	TmuxMissing bool
+}
+
+// SaveCapabilities records probe results on the machine row.
+func (s *Store) SaveCapabilities(ctx context.Context, id string, c Capabilities, seen time.Time) error {
+	res, err := s.db.ExecContext(ctx, `
+		UPDATE machines SET os = $1, home = $2, tmux_version = $3, tmux_missing = $4,
+			last_seen_at = $5, updated_at = $6
+		WHERE id = $7`,
+		c.OS, c.Home, c.TmuxVersion, c.TmuxMissing, formatTime(seen), formatTime(s.now()), id)
+	if err != nil {
+		return fmt.Errorf("save capabilities: %w", err)
+	}
+	if n, err := res.RowsAffected(); err == nil && n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 // UIState returns the stored JSON value for key, or ErrNotFound.
