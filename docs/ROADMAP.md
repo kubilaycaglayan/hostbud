@@ -11,6 +11,8 @@ Each milestone is shippable and ends deployed on the host (`make deploy`). A mil
 
 When a milestone below is broken into tasks, spread its *E2E* line across those tasks. Don't collect it into a final "write e2e tests" task.
 
+**Every acceptance criterion is tested at three layers.** Each criterion in a milestone's `roadmap/M*-acceptance.md` gets a coverage line: **U** (unit: Go with fakes, Vitest), **I** (integration: against the `test/sshd` container or the real deploy config) and **E** (an e2e scenario), each naming the task that writes it. A layer is **n/a** only with a one-line reason; "manual" is allowed only where no automated layer can observe the behavior. The *Accept* line below each milestone becomes such criteria when the milestone is broken down, and no criterion is ticked until its tests exist and pass.
+
 Priority: **(1) a working tmux manager in the browser, (2) deployed on the domain**, then everything else.
 
 v1 has a **single target: the host machine** (ARCHITECTURE §1). Multi-machine support is listed under *Later*.

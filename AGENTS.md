@@ -27,6 +27,9 @@ All such values come from environment variables. **If you need a config value th
   - **Never defer e2e** to a later task or to the end of a milestone. If the behavior is reachable through the UI or the HTTP/WebSocket API through Caddy, it gets a scenario now (API-level before the UI exists).
   - Every task you plan or implement has an **E2E:** line (scenarios added, or why nothing is reachable), and every E2E item in `docs/roadmap/*-acceptance.md` is tagged with the task that adds it. When you split, add or reorder tasks, keep both true.
   - If a done task's E2E item is missing, fix that first, before starting the next task.
+- **Three test layers per acceptance criterion.** Every criterion in `docs/roadmap/*-acceptance.md` has a coverage line with **U** (unit), **I** (integration, against `test/sshd` or the real deploy config) and **E** (e2e) tests, each naming the task that writes it. n/a needs a one-line reason, and "manual" is only for what automation can't observe.
+  - Before starting a task, read which U/I/E tests the acceptance file assigns to it (and its **Tests:** / **E2E:** lines). Write them in the same commit(s) as the behavior.
+  - When you plan tasks or a milestone, or change what a task builds, write or update those coverage lines. Never add a criterion without them.
 
 ## Stack (don't substitute without updating docs/ARCHITECTURE.md)
 - Backend: Go (latest stable), `log/slog`, `creack/pty`, `pkg/sftp`, `kevinburke/ssh_config` (display only; later, multi-machine), `modernc.org/sqlite`, embedded migrations, a WebSocket library (`coder/websocket` preferred).
@@ -55,6 +58,6 @@ All such values come from environment variables. **If you need a config value th
 
 ## Definition of done (per milestone)
 1. Acceptance criteria in docs/ROADMAP.md pass.
-2. `make lint test` and `make e2e` green; gitleaks clean; every E2E item tagged with this milestone's tasks exists and passes (added task by task, not at the end).
+2. `make lint test` and `make e2e` green; gitleaks clean; every acceptance criterion's unit, integration and e2e tests (per its coverage line) exist and pass, added task by task, not at the end.
 3. Docs updated (README usage, ARCHITECTURE if design changed, `.env.example` for new vars).
 4. A short summary listing: what changed, any new env vars the owner must set, and manual steps on the host.

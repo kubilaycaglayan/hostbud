@@ -24,6 +24,8 @@ Work top to bottom; each task ends with a green `make lint test` **and `make e2e
 - "User-reachable" includes the HTTP/WebSocket API through Caddy, not only the UI. Backend tasks with an endpoint get API-level scenarios before the UI exists.
 - When you add or split a task, give it an E2E line and tag its items in the acceptance checklist.
 
+**Three-layer rule.** Every acceptance criterion in [M1-acceptance.md](M1-acceptance.md#test-coverage-rule) has a coverage line naming its **unit**, **integration** and **e2e** tests and the task that writes each (n/a only with a reason). Each task's **Tests:** line lists the unit and integration tests it owes; its **E2E:** line lists the scenarios. A task is done only when everything the acceptance file assigns to it exists and passes, all in the same commit(s) as the behavior. If you change what a task builds, update the coverage lines too.
+
 ---
 
 ## A. Repo and toolchain
@@ -80,6 +82,8 @@ Design: [ARCHITECTURE §13.1](../ARCHITECTURE.md#131-e2e-environment). Built now
   - `ui.*` page helpers, and a fixture that fails a test on console errors or failed requests.
 - `make e2e` builds, starts, runs both projects, collects `test/e2e/results/` (gitignored: traces, screenshots, videos on failure) and tears everything down (`down -v`), even on failure.
 
+**Tests:** the harness is the test. `test/sshd` also builds a tmux-less variant (build arg), used by T10's integration test and T15's e2e.
+
 **E2E:**
 - **Harness smoke (T5):** `target.tmux` can create, list and kill a session, and `target.capture` reads its pane.
 - **Open the app (T5):** the shell loads at `http://localhost:9055` through Caddy in both projects with no console errors; `GET /api/health` returns ok.
@@ -93,6 +97,8 @@ Design: [ARCHITECTURE §13.1](../ARCHITECTURE.md#131-e2e-environment). Built now
 - Embedded migrations (goose); `0001`: `machines`, `ui_state`; built-in `host` machine row seeded idempotently.
 - Repository interface; no SQL outside `store`.
 - `make backup` (`VACUUM INTO` → `./backups/`, gitignored).
+
+**Tests:** U: open/migrate/seed on a temp DB; data survives close + reopen; migration re-run is a no-op. I: n/a (local SQLite, no remote side).
 
 **E2E:** nothing user-visible yet. The e2e app now creates its DB on its data volume at startup; `make e2e` must stay green.
 
@@ -108,6 +114,8 @@ Design: [ARCHITECTURE §13.1](../ARCHITECTURE.md#131-e2e-environment). Built now
 - `Exec(ctx, machine, args…)` with default 10s timeout; context cancel kills the process.
 - Map common failures to actionable errors: agent socket missing/empty, permission denied (key not in `authorized_keys`), connection refused (sshd), host key mismatch.
 
+**Tests:** U: quoting (quotes, spaces, `$`, newlines); config generation and ordering; known_hosts built from `*.pub` only; error mapping (refused, permission denied, agent missing/empty, host-key mismatch); architecture test that `os/exec` is imported only by `sshx` and `term`. I: in T8, once the target is wired into `make test`.
+
 **E2E:** no endpoint yet. The e2e app now pins the target's host keys at startup and must still boot healthy (the *Open the app* scenario stays green). Mismatch rejection is an integration test (T8).
 
 **Done:** unit tests for quoting (incl. quotes, spaces, `$`, newlines), config ordering, known_hosts generation, error mapping.
@@ -116,6 +124,8 @@ Design: [ARCHITECTURE §13.1](../ARCHITECTURE.md#131-e2e-environment). Built now
 - Container `hostbud-test-sshd` from the `test/sshd` image built in T5; throwaway key generated at test time (never committed).
 - `make test` brings it up (compose profile), runs `-tags=integration` tests, tears it down.
 - sshx integration test: exec `echo`, ControlMaster reuse, host-key pin + mismatch rejection.
+
+**Tests:** I: exec `echo`; ControlMaster reuse; pinned key accepted, wrong key refused with the mapped error; quoting round-trip (`printf %s` with hostile args returns them verbatim); stopped sshd and missing agent socket ⇒ mapped actionable errors; deploy-config check on `docker compose config` (hostbud has no ports, every Caddy port is on `127.0.0.1`, `user` is set and the image's `USER` isn't root, mounts are only the data volume, agent socket and `*.pub`).
 
 **E2E:** none (integration-only); `make e2e` stays green.
 
@@ -127,6 +137,8 @@ Design: [ARCHITECTURE §13.1](../ARCHITECTURE.md#131-e2e-environment). Built now
 - Parser for the tab-separated list format; "no server running" ⇒ empty list.
 - `tmux -V` version parsing; `-e` only when ≥ 3.2.
 
+**Tests:** U: name validation; builders (`=` targets, `-c`, `-e` only on ≥ 3.2, command); list parser (attached, windows); "no server running" ⇒ empty; `tmux -V` parsing. I: on test sshd: list with no server ⇒ empty; create, list (name, attached while a PTY client is attached, window count), rename, kill.
+
 **E2E:** none (no endpoint yet; covered through the API in T12); `make e2e` stays green.
 
 **Done:** unit tests for builders/parser/validation; integration test creates, lists, renames, kills a session on the test sshd.
@@ -137,6 +149,8 @@ Design: [ARCHITECTURE §13.1](../ARCHITECTURE.md#131-e2e-environment). Built now
 - Poller for the host every `HOSTBUD_POLL_INTERVAL`: diff against cache, publish only on change; exponential backoff + `unreachable` on failure; recover automatically. Interface allows a control-mode implementation later.
 - `Refresh()` for an immediate re-poll after mutations.
 
+**Tests:** U: fake executor: diffing (add, remove, attached/windows change), publish only on change, backoff, `ok` ⇄ `unreachable` ⇄ `tmux_missing` transitions, `Refresh()`. I: the poller sees a create and a kill on test sshd within one interval; the probe against the tmux-less variant ⇒ `tmux_missing`.
+
 **E2E:** none yet (events become reachable at T12); `make e2e` stays green.
 
 **Done:** unit tests with a fake executor (diffing, backoff, status transitions).
@@ -145,6 +159,8 @@ Design: [ARCHITECTURE §13.1](../ARCHITECTURE.md#131-e2e-environment). Built now
 - Single `CreateSession(ctx, {machine, name, path, env, startCommand})`: default name from path basename (`-<n>` suffix on clash); path default = probed home; `~/` expanded against home; validate name; refresh after.
 - `RenameSession`, `KillSession` (service assumes UI confirmed); refresh after.
 - Actionable errors (duplicate name, path doesn't exist, tmux missing).
+
+**Tests:** U: fake executor: default name from basename, `-<n>` suffix on clash, `~/` expansion, validation, refresh after each mutation, error mapping. I: on test sshd: create with defaults (`#{session_path}` matches); create with start command (`#{pane_current_command}`); duplicate name and missing path ⇒ real tmux errors mapped to actionable ones.
 
 **E2E:** none yet (reachable through the API in T12); `make e2e` stays green.
 
@@ -160,12 +176,15 @@ Design: [ARCHITECTURE §13.1](../ARCHITECTURE.md#131-e2e-environment). Built now
 - Origin middleware: allowlist `https://${HOSTBUD_DOMAIN}` (if set) + `http://localhost:${HOSTBUD_LOCAL_PORT}`; applied to WebSocket upgrades and non-GET requests.
 - No user paths or command strings in info logs.
 
+**Tests:** U: `httptest` for every route, `{error, hint}` shape, validation 400s, Origin middleware (allowed, foreign, missing) on non-GET and upgrades, `/ws/events` snapshot then events; captured info-level logs from create/rename/kill contain no path or command. I: n/a (the API is covered by U with a fake service, and end to end by e2e).
+
 **E2E (API level, through Caddy, desktop project):**
 - **API list (T12):** a session made with `target.tmux` shows up in `GET …/sessions`.
 - **API mutations (T12):** create, rename and kill via the API are reflected in `tmux ls` on the target.
 - **API validation (T12):** an invalid name returns 400 `{error, hint}`.
 - **Events (T12):** `/ws/events` sends a snapshot, then `sessions.changed` within one poll interval of a real-terminal create.
 - **Origin (T12):** a foreign-`Origin` POST and WebSocket upgrade are rejected.
+- **Logs clean (T12):** after the run, `hostbud-e2e-app` info logs contain none of the scenarios' paths, commands or markers.
 
 **Done:** `httptest` tests incl. Origin rejection and validation errors.
 
@@ -174,6 +193,8 @@ Design: [ARCHITECTURE §13.1](../ARCHITECTURE.md#131-e2e-environment). Built now
 - Binary frames for I/O; JSON text control frames: `resize`, `ping`; server → `exit {code}`.
 - WS close ⇒ kill ssh process; bounded write buffer, drop stalled clients.
 - Origin-checked.
+
+**Tests:** U: frame codec (binary I/O, `resize`, `ping`, `exit`); attach-command builder; WS close cancels the process (fake); stalled client dropped. I: on test sshd: attach, send keys, read output; resize changes the window size; close ⇒ process gone, session alive; `detach-client` ⇒ `exit` frame; vim (`i` ⇒ `-- INSERT --`, `:q`) and htop (`q` quits) via `capture-pane`.
 
 **E2E (API level, through Caddy, desktop project):**
 - **Terminal WS (T13):** attach over `/ws/term`, send `echo e2e-<rand>` + Enter → the marker is in `target.capture`.
@@ -188,6 +209,8 @@ Design: [ARCHITECTURE §13.1](../ARCHITECTURE.md#131-e2e-environment). Built now
 ### T14 — Client and stores
 - Typed API client; Pinia `machines` and `sessions` stores updated from `/ws/events` (auto-reconnect with backoff, resync on snapshot). No polling.
 
+**Tests:** U (Vitest): store reducers for snapshot and `sessions.changed`; WS reconnect with backoff; resync on snapshot; typed client error shape. I: n/a (frontend; covered end to end by e2e).
+
 **E2E:** *Open the app* is extended (T14): on load the page connects to `/ws/events` with no console errors, and after `docker restart hostbud-e2e-app` it reconnects and resyncs.
 
 **Done:** Vitest for store reducers.
@@ -198,10 +221,12 @@ Design: [ARCHITECTURE §13.1](../ARCHITECTURE.md#131-e2e-environment). Built now
 - Banner for host `unreachable` / `tmux_missing` with the actionable hint.
 - Selecting a session opens it in the terminal view.
 
+**Tests:** U (Vitest): session list (name, dot, window count); banner texts for `unreachable` / `tmux_missing`; selection opens the terminal view. I: n/a (frontend).
+
 **E2E (both projects):**
 - **Empty list (T15):** a fresh target shows an empty list with no error.
 - **Real-terminal create/kill (T15):** a `tmux new -d` on the target appears within one poll interval; `tmux kill-session` removes it.
-- **Attached state (T15):** a second client attaching on the target flips the indicator.
+- **Attached state (T15):** a second client attaching on the target flips the indicator; `tmux new-window` updates the window count.
 - **App restart (T15):** after restarting `hostbud-e2e-app` the list recovers with the same sessions.
 - **Host unreachable (T15):** stopping sshd on the target shows the banner with its hint; starting it again recovers without a reload.
 - **tmux missing (T15):** adds `hostbud-e2e-target-notmux`; the UI shows the install hint.
@@ -210,6 +235,8 @@ Design: [ARCHITECTURE §13.1](../ARCHITECTURE.md#131-e2e-environment). Built now
 - Create dialog: name (optional), path (default `~`), start command (optional); inline validation matching the backend regex.
 - Rename (dialog or inline); Kill via Reka UI `AlertDialog` confirmation.
 - Error toasts showing the backend's actionable message.
+
+**Tests:** U (Vitest): create-dialog defaults and inline validation (same regex as the backend); error toast shows `{error, hint}`; rename dialog; kill dialog: Cancel makes no API call, Confirm calls DELETE. I: n/a (frontend).
 
 **E2E (both projects):**
 - **Create with defaults (T16):** path only → the session is named after the directory, and `#{session_path}` matches.
@@ -223,6 +250,8 @@ Design: [ARCHITECTURE §13.1](../ARCHITECTURE.md#131-e2e-environment). Built now
 - Connect `/ws/term`; `ResizeObserver` → `fit` → `resize` frame; show exit/disconnect state with a "Reconnect" button (auto-reconnect is M3).
 - One terminal at a time (tabs/splits are M3).
 - `window.__hostbud.termText()` (xterm buffer as text) only when built with `VITE_E2E=1` (Dockerfile build arg, set only by `test/e2e`); never in production builds.
+
+**Tests:** U (Vitest): terminal WS client with a fake socket (binary I/O, `exit` ⇒ exit state + Reconnect); ResizeObserver ⇒ fit ⇒ `resize` frame; `__hostbud` hook absent unless `VITE_E2E=1`. I: n/a (frontend).
 
 **E2E (both projects):**
 - **Attach and type (T17):** click a session, type `echo e2e-$RANDOM` + Enter → the marker is in `capture-pane` and in `termText()`.
@@ -241,5 +270,7 @@ Design: [ARCHITECTURE §13.1](../ARCHITECTURE.md#131-e2e-environment). Built now
 - README: M1 usage (port forward, `make deploy`, required `.env` vars) and host setup: dedicated `~/.ssh/hostbud_ed25519` key, `authorized_keys` entry with `from="172.16.0.0/12",no-agent-forwarding,no-port-forwarding,no-X11-forwarding`, and a systemd user unit (`hostbud-ssh-add.service`) that loads it into the stable agent socket at boot (needs `loginctl enable-linger`).
 - `.env.example` for any new vars; ARCHITECTURE updated if the design moved.
 - E2E audit: every item in the E2E section of [M1-acceptance.md](M1-acceptance.md) has its scenario (added by the task it's tagged with) and passes in both projects, twice in a row from a clean checkout. Any gap is a bug in the task that missed it: fix it there, don't just add it here.
+- Coverage audit: every functional and security criterion's U / I / E tests exist and pass; each n/a has its reason.
+- Manual-only checks: Claude Code, htop mouse clicks, `ss -ltn`, `docker compose exec hostbud id`.
 - Run the full [M1-acceptance.md](M1-acceptance.md) checklist.
 - Summary to the owner: what changed, env vars to set, manual host steps.

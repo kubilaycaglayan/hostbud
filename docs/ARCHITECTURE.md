@@ -305,9 +305,11 @@ All config comes from environment (`.env`, gitignored). See `.env.example` for t
 ## 13. Testing strategy
 
 - **Unit:** quoting/escaping, name validation, tmux output parsing, SSH config generation ordering, project-path matching.
-- **Integration:** `test/sshd/` — a disposable container with `openssh-server` + `tmux` and a generated throwaway key; the test suite runs hostbud's sshx/tmux/fsbrowse packages against it (probe, list, create, attach via PTY, mkdir, kill). Runs via `make test` in Docker.
+- **Integration:** `test/sshd/` — a disposable container with `openssh-server` + `tmux` (plus a tmux-less variant) and a generated throwaway key; the test suite runs hostbud's sshx/tmux/inventory/term/fsbrowse packages against it (probe, list, create, attach via PTY, mkdir, kill, error mapping). It also checks the real deploy config (`docker compose config`: published ports, `user`, mounts). Runs via `make test` in Docker.
 - **Frontend:** Vitest for stores/utilities. All run in containers.
 - **E2E (`make e2e`):** simulates a real user end to end — see §13.1.
+
+**Coverage rule — three layers per acceptance criterion.** Every acceptance criterion (`docs/roadmap/M*-acceptance.md`) names its unit, integration and e2e tests and the task that writes each. A layer is n/a only with a stated reason (e.g. pure byte passthrough has no unit logic, or a UI-only concern has no remote side). "Manual" is reserved for what no automated layer can observe (credentials, real iOS). Tests land in the same commit as the behavior they cover.
 
 ### 13.1 E2E environment
 A separate Compose project `hostbud-e2e` (`test/e2e/`), started, run and torn down by `make e2e`. It **never touches the real host**: the target is a throwaway container.
