@@ -8,6 +8,14 @@
 set -eu
 uid="${1:?usage: keygen.sh <client-uid>}"
 
+# Idempotent: `docker compose up` re-runs this one-shot on a persistent
+# stack, and new keys would no longer match the running target and agent.
+# A fresh stack (down -v) starts with empty volumes and gets new keys.
+if [ -f /keys/client/id_ed25519 ]; then
+	echo "keygen: keys already exist; keeping them"
+	exit 0
+fi
+
 # /keys/hostpub may be its own volume (a mount point): empty it, don't remove it.
 rm -rf /keys/host /keys/client /keys/known_hosts
 rm -f /keys/hostpub/*
