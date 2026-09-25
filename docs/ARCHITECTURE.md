@@ -332,6 +332,8 @@ A separate Compose project `hostbud-e2e` (`test/e2e/`), started, run and torn do
 - No real TUIs that need credentials (Claude Code, Codex); vim and htop cover full-screen apps. Claude Code stays a manual check.
 - Traces, screenshots and videos on failure → `test/e2e/results/` (gitignored).
 
+**Driver:** `test/e2e/run.sh` behind `make e2e` (fresh stack → run → `down -v`, even on failure), plus a persistent loop for development: `make e2e-up` / `e2e-run` / `e2e-down`. The runner idles (`sleep infinity`) and each run is a `docker exec`; the specs are bind-mounted, and images rebuild only when a content hash of their inputs changes (stamped in `.cache/e2e/`). The target's per-run keys come from a one-shot `hostbud-e2e-keygen` service; the app sees only the public host keys (`hostbud-e2e-hostpub` volume) and the agent socket.
+
 **When it runs:** not part of `make test`. It's required before every commit that changes behavior e2e can reach (UI, or HTTP/WebSocket API through Caddy), and for every milestone's definition of done.
 
 **When scenarios are written:** in the same commit as the behavior, never later. The harness exists from early M1 (before any feature), so there is no "e2e phase". API-level scenarios cover backend endpoints before their UI exists; UI scenarios follow with the UI task. Every roadmap task has an *E2E:* line, and every acceptance-checklist E2E item names the task that adds it.

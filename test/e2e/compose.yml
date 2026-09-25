@@ -1,0 +1,128 @@
+# hostbud-e2e — throwaway environment for `make e2e` (docs/ARCHITECTURE.md §13.1).
+# Nothing here publishes a port or touches the production `hostbud` project;
+# `make e2e` tears it all down (down -v) when it finishes, even on failure.
+name: hostbud-e2e
+
+x-app-uid: &app-uid "10001:10001"
+
+services:
+  # One-shot: fresh host keys + client key for this run (never committed).
+  hostbud-e2e-keygen:
+    build: { context: ../sshd, args: { WITH_TMUX: "1" } }
+    image: hostbud-e2e-target:local
+    container_name: hostbud-e2e-keygen
+    entrypoint: ["/usr/local/bin/keygen.sh", "10001"]
+    volumes:
+      - keys:/keys
+      - hostpub:/keys/hostpub
+      - agent:/agent
+
+  # The throwaway "host": sshd + tmux + vim + htop, user dev.
+  hostbud-e2e-target:
+    image: hostbud-e2e-target:local  # built by hostbud-e2e-keygen
+    pull_policy: never
+    container_name: hostbud-e2e-target
+    depends_on:
+      hostbud-e2e-keygen: { condition: service_completed_successfully }
+    volumes:
+      - keys:/keys:ro
+
+  # ssh-agent holding the client key; the app gets only its socket,
+  # mirroring the production agent-socket mount.
+  hostbud-e2e-agent:
+    image: hostbud-e2e-app:local  # built by hostbud-e2e-app
+    pull_policy: never
+    container_name: hostbud-e2e-agent
+    user: *app-uid
+    init: true  # the shell below is PID 1 otherwise and ignores SIGTERM
+    depends_on:
+      hostbud-e2e-keygen: { condition: service_completed_successfully }
+    entrypoint:
+      - sh
+      - -ec
+      - |
+        rm -f /run/agent/ssh-agent.sock
+        ssh-agent -D -a /run/agent/ssh-agent.sock &
+        while [ ! -S /run/agent/ssh-agent.sock ]; do sleep 0.1; done
+        SSH_AUTH_SOCK=/run/agent/ssh-agent.sock ssh-add -q /keys/client/id_ed25519
+        wait
+    healthcheck:
+      test: ["CMD", "sh", "-c", "SSH_AUTH_SOCK=/run/agent/ssh-agent.sock ssh-add -l"]
+      interval: 1s
+      retries: 30
+    volumes:
+      - keys:/keys:ro
+      - agent:/run/agent
+
+  # The real hostbud image, pointed at the throwaway target.
+  hostbud-e2e-app:
+    build:
+      context: ../..
+      args: { HOST_UID: "10001", HOST_GID: "10001" }
+    image: hostbud-e2e-app:local
+    container_name: hostbud-e2e-app
+    user: *app-uid
+    depends_on:
+      hostbud-e2e-target: { condition: service_healthy }
+      hostbud-e2e-agent: { condition: service_healthy }
+    environment:
+      HOSTBUD_LISTEN: ":8080"
+      HOSTBUD_DATA_DIR: /data
+      HOSTBUD_POLL_INTERVAL: 1s
+      HOSTBUD_LOG_LEVEL: info
+      HOSTBUD_LOCAL_PORT: "9055"
+      HOSTBUD_HOST_ADDR: hostbud-e2e-target
+      HOSTBUD_HOST_LABEL: E2E target
+      HOST_SSH_USER: dev
+      SSH_AUTH_SOCK: /run/agent/ssh-agent.sock
+    volumes:
+      - data:/data
+      - agent:/run/agent
+      - hostpub:/run/host-keys:ro
+    networks:
+      default:
+        # The production Caddyfile proxies to hostbud:8080.
+        aliases: [hostbud]
+
+  # The real Caddyfile (loopback-port site); the runner shares its network
+  # namespace, so the browser opens http://localhost:9055 like a port forward.
+  hostbud-e2e-caddy:
+    image: caddy:2.11.4
+    container_name: hostbud-e2e-caddy
+    depends_on: [hostbud-e2e-app]
+    environment:
+      HOSTBUD_LOCAL_PORT: "9055"
+    volumes:
+      - ../../deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+
+  # Playwright; idles until run.sh execs `playwright test` into it. Runs as
+  # root (the agent accepts root; the keys are root-readable).
+  hostbud-e2e-runner:
+    build: .
+    image: hostbud-e2e-runner:local
+    container_name: hostbud-e2e-runner
+    init: true
+    depends_on: [hostbud-e2e-caddy]
+    network_mode: service:hostbud-e2e-caddy
+    environment:
+      SSH_AUTH_SOCK: /run/agent/ssh-agent.sock
+      CI: "true"
+    volumes:
+      - keys:/keys:ro
+      - agent:/run/agent
+      - ./results:/e2e/results
+      - ./tests:/e2e/tests:ro
+      - ./helpers:/e2e/helpers:ro
+      - ./playwright.config.ts:/e2e/playwright.config.ts:ro
+      - ./global-setup.ts:/e2e/global-setup.ts:ro
+      - ./tsconfig.json:/e2e/tsconfig.json:ro
+
+networks:
+  default:
+    name: hostbud-e2e
+
+volumes:
+  keys: { name: hostbud-e2e-keys }
+  hostpub: { name: hostbud-e2e-hostpub }
+  agent: { name: hostbud-e2e-agent }
+  data: { name: hostbud-e2e-data }

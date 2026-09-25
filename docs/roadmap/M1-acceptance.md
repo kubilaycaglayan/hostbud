@@ -70,9 +70,9 @@ Every scenario passes in **both** Playwright projects (`desktop-chromium`, `ipho
 **Each item is tagged with the task that must add it, in the same commit as the behavior.** An unchecked item whose task is ✅ done in [M1-tasks.md](M1-tasks.md) is a bug in that task, not work for the end of the milestone.
 
 Harness
-- [ ] **(T5) `make e2e`** runs from a clean checkout. It tears down even on failure, leaves no `hostbud-e2e*` containers or volumes, and doesn't touch the production `hostbud` project.
-- [ ] **(T5) Harness smoke:** `target.tmux` creates, lists and kills a session; `target.capture` reads its pane.
-- [ ] **(T5) Open the app:** `http://localhost:9055` loads the shell through Caddy with no console errors; `/api/health` is ok.
+- [x] **(T5) `make e2e`** runs from a clean checkout. It tears down even on failure, leaves no `hostbud-e2e*` containers or volumes, and doesn't touch the production `hostbud` project.
+- [x] **(T5) Harness smoke:** `target.tmux` creates, lists and kills a session; `target.capture` reads its pane.
+- [x] **(T5) Open the app:** `http://localhost:9055` loads the shell through Caddy with no console errors; `/api/health` is ok.
 
 API (through Caddy)
 - [ ] **(T12) API list:** a session made with `target.tmux` shows up in `GET …/sessions`.

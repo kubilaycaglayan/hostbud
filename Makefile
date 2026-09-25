@@ -18,10 +18,15 @@ DOCKER_PNPM = docker run --rm -u $(UID):$(GID) -v "$(CURDIR)":/src -w /src/web \
 	-e HOME=/tmp -e CI=true -e COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
 	-e COREPACK_HOME=/src/.cache/corepack -e pnpm_config_store_dir=/src/.cache/pnpm-store \
 	$(NODE_IMAGE) corepack pnpm
+DOCKER_PNPM_E2E = docker run --rm -u $(UID):$(GID) -v "$(CURDIR)":/src -w /src/test/e2e \
+	-e HOME=/tmp -e CI=true -e COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
+	-e COREPACK_HOME=/src/.cache/corepack -e pnpm_config_store_dir=/src/.cache/pnpm-store \
+	$(NODE_IMAGE) corepack pnpm
 GITLEAKS = docker run --rm -v "$(CURDIR)":/repo $(GITLEAKS_IMAGE)
 
 .PHONY: help build test lint fmt tidy gitleaks gitleaks-staged hooks \
-	go-build go-test go-lint web-install web-build web-test web-lint deploy logs
+	go-build go-test go-lint web-install web-build web-test web-lint e2e e2e-up e2e-run e2e-down e2e-install e2e-lint \
+	deploy logs
 
 help: ## List targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-16s %s\n", $$1, $$2}'
@@ -30,7 +35,7 @@ build: web-build go-build ## Build the SPA and the hostbud binary (SPA embedded)
 
 test: go-test web-test ## Run Go and frontend unit tests
 
-lint: go-lint web-lint ## Run golangci-lint, eslint and vue-tsc
+lint: go-lint web-lint e2e-lint ## Run golangci-lint, eslint and vue-tsc (app and e2e suite)
 
 go-build: ## Build only the Go binary (embeds whatever is in web/dist)
 	$(DOCKER_GO) -e CGO_ENABLED=0 $(GO_IMAGE) go build -o bin/hostbud ./cmd/hostbud
@@ -52,6 +57,24 @@ web-test: web-install ## Run frontend unit tests (Vitest)
 
 web-lint: web-install ## Lint (eslint) and type-check (vue-tsc) the frontend
 	$(DOCKER_PNPM) run lint
+
+e2e: ## Simulated-user tests on a fresh throwaway stack, torn down after (ARGS=… for playwright)
+	test/e2e/run.sh full $(ARGS)
+
+e2e-up: ## Start/update a persistent hostbud-e2e stack (fast loop with e2e-run)
+	test/e2e/run.sh up
+
+e2e-run: ## Run Playwright against the persistent stack, leaving it up (ARGS=…)
+	test/e2e/run.sh run $(ARGS)
+
+e2e-down: ## Remove the persistent hostbud-e2e stack and its volumes
+	test/e2e/run.sh down
+
+e2e-install: ## Install the e2e suite's dependencies from the lockfile
+	$(DOCKER_PNPM_E2E) install --frozen-lockfile
+
+e2e-lint: e2e-install ## Lint (eslint) and type-check (tsc) the e2e suite
+	$(DOCKER_PNPM_E2E) run lint
 
 fmt: ## Format Go code
 	$(DOCKER_GO) $(LINT_IMAGE) golangci-lint fmt ./...
