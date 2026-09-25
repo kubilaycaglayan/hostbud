@@ -102,8 +102,8 @@ API (through Caddy)
 - [x] **(T12) API validation:** an invalid name returns 400 `{error, hint}`.
 - [x] **(T12) Events:** `/ws/events` sends a snapshot, then `sessions.changed` within one poll interval of a real-terminal create.
 - [x] **(T12) Origin:** a foreign-`Origin` POST and `/ws/events` upgrade are rejected.
-- [ ] **(T13) Terminal WS:** attach, send a marker (it shows up in `capture-pane`), resize (the window size changes), close (the session survives).
-- [ ] **(T13) Origin:** a foreign-`Origin` `/ws/term` upgrade is rejected.
+- [x] **(T13) Terminal WS:** attach, send a marker (it shows up in `capture-pane`), resize (the window size changes), close (the session survives).
+- [x] **(T13) Origin:** a foreign-`Origin` `/ws/term` upgrade is rejected.
 - [x] **(T12) Logs clean:** after the run, `hostbud-e2e-app` info-level logs contain none of the paths, commands or markers the scenarios used.
 
 UI
@@ -137,7 +137,7 @@ Overall
   - U: T8A config/redaction tests. I: T8A Compose/mount/port inspection. E: n/a (runner does not inspect the host network); **Manual** owner checks `.env` permissions and `ss -ltn`.
 - [ ] `ss -ltn` on the host: 9055 bound on `127.0.0.1` only; nothing on `0.0.0.0` from hostbud/Caddy; hostbud container publishes no ports.
   - U: n/a (no code). I: T8 deploy-config check: `docker compose config` shows `hostbud` with no ports and every Caddy port bound to `127.0.0.1` (or `${TAILSCALE_IP}` from M2). E: n/a (the e2e project publishes nothing by design). **Manual** `ss -ltn` (T4, T18).
-- [ ] A request with a foreign `Origin` (e.g. `curl -H 'Origin: http://evil.example.com' -X POST …`) and a WebSocket upgrade with a foreign Origin are rejected.
+- [x] A request with a foreign `Origin` (e.g. `curl -H 'Origin: http://evil.example.com' -X POST …`) and a WebSocket upgrade with a foreign Origin are rejected.
   - U: T12/T13 `httptest` Origin middleware (allowed, foreign, missing). I: n/a (pure HTTP middleware, no remote side). E: T12 and T13 *Origin*.
 - [ ] Remote commands only go through the `sshx` builder with quoted args (code review); session names validated server-side.
   - U: T7 quoting (quotes, spaces, `$`, newlines) · T7 architecture test: `os/exec` is imported only by `sshx` and `term` · T9 name validation. I: T8 quoting round-trip: `printf %s` with hostile args on test sshd returns them verbatim. E: T12 *API validation*.

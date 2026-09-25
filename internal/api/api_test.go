@@ -331,6 +331,30 @@ func TestEventsSocketSnapshotThenEvents(t *testing.T) {
 	}
 }
 
+func TestTerminalSocketIsOriginChecked(t *testing.T) {
+	reached := 0
+	h := New(Config{Dist: fstest.MapFS{}, Origins: AllowedOrigins("", 9055), Bus: events.NewBus(),
+		Terminal: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { reached++; w.WriteHeader(http.StatusTeapot) })})
+	e := &env{h: h}
+	up := map[string]string{"Upgrade": "websocket", "Connection": "Upgrade"}
+	for _, o := range []string{"http://evil.example.com", ""} {
+		hdr := map[string]string{"Origin": o}
+		for k, v := range up {
+			hdr[k] = v
+		}
+		if rec := e.do(t, http.MethodGet, "/ws/term?machine=host&session=a", "", hdr); rec.Code != http.StatusForbidden {
+			t.Fatalf("origin %q: %d", o, rec.Code)
+		}
+	}
+	hdr := map[string]string{"Origin": origin}
+	for k, v := range up {
+		hdr[k] = v
+	}
+	if rec := e.do(t, http.MethodGet, "/ws/term?machine=host&session=a", "", hdr); rec.Code != http.StatusTeapot || reached != 1 {
+		t.Fatalf("allowed origin: %d reached=%d", rec.Code, reached)
+	}
+}
+
 // Info-level logs of real create/rename/kill requests never contain the
 // path or start command (they may hold user paths and secrets).
 func TestInfoLogsHoldNoPathOrCommand(t *testing.T) {

@@ -20,6 +20,7 @@ import (
 	"hostbud/internal/session"
 	"hostbud/internal/sshx"
 	"hostbud/internal/store"
+	"hostbud/internal/term"
 	"hostbud/web"
 )
 
@@ -106,6 +107,7 @@ func run() error {
 			Bus:      bus,
 			Machines: []api.Snapshotter{inv},
 			Sessions: sessions,
+			Terminal: &term.Handler{SSH: ssh, Log: log},
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       2 * time.Minute,

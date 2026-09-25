@@ -28,6 +28,7 @@ type Config struct {
 	Bus      *events.Bus
 	Machines []Snapshotter // v1: the host only
 	Sessions SessionService
+	Terminal http.Handler // /ws/term (term.Handler)
 }
 
 // New returns the root HTTP handler.
@@ -50,6 +51,9 @@ func New(cfg Config) http.Handler {
 	mux.HandleFunc("PATCH /api/machines/{machine}/sessions/{name}", s.renameSession)
 	mux.HandleFunc("DELETE /api/machines/{machine}/sessions/{name}", s.killSession)
 	mux.HandleFunc("GET /ws/events", s.eventsSocket)
+	if cfg.Terminal != nil {
+		mux.Handle("GET /ws/term", cfg.Terminal)
+	}
 	mux.Handle("GET /", spaHandler(cfg.Dist))
 	return checkOrigin(cfg.Origins, mux)
 }
