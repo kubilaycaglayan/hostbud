@@ -1,6 +1,10 @@
 # hostbud — Architecture
 
-hostbud is a self-hosted web app for managing **tmux sessions across many machines** (the host itself plus any SSH target), built for terminal-first and agentic-coding workflows. It runs in Docker on a single host, is reachable only inside a Tailscale tailnet, and is served on a custom subdomain.
+hostbud is a self-hosted web app for managing **tmux sessions** from the browser, built for terminal-first and agentic-coding workflows. It runs in Docker on a single host. **v1 manages tmux on that host only**; the design keeps a `machine` abstraction so more SSH targets can be added later.
+
+It is reachable two ways:
+1. **Port forward:** Caddy serves plain HTTP on `127.0.0.1:${HOSTBUD_LOCAL_PORT}` (default `9055`); from another machine run `ssh -L 9055:localhost:9055 <host>` and open `http://localhost:9055`.
+2. **Domain:** `https://${HOSTBUD_DOMAIN}`, bound to the host's Tailscale IP, so it is only reachable inside the tailnet (e.g. from a phone).
 
 > The important state (tmux sessions and whatever runs in them) lives on the target machines. hostbud only remembers *metadata*: connections, projects (directories), UI layout — and in v2, tasks.
 
@@ -9,20 +13,20 @@ hostbud is a self-hosted web app for managing **tmux sessions across many machin
 ## 1. Goals and non-goals
 
 **v1 goals**
-- Auto-discover SSH hosts from the host's `~/.ssh/config`; let the user add more connections in the UI.
-- Activate/deactivate machines; while active, continuously read their tmux sessions.
-- Left-gutter tree: **Machine → Project → Session**, expandable/collapsible, sortable, renameable, persisted.
+- Single target: the **host machine**, reached over SSH from the container. It is always active; hostbud continuously reads its tmux sessions.
+- Left-gutter tree: **Project → Session**, expandable/collapsible, sortable, renameable, persisted. (The data model is Machine → Project → Session; the machine level is hidden while there is only one.)
 - Full-fidelity terminal in the browser (attach to tmux as if in a local terminal). Multiple tabs, split view, mobile-friendly.
-- File-system browser on any machine to pick a directory, create folders, and start a session there. Chosen directories become **projects**.
-- Deployed via Docker Compose, behind Caddy with TLS, reachable only on the tailnet.
+- File-system browser to pick a directory, create folders, and start a session there. Chosen directories become **projects**.
+- Deployed via Docker Compose behind Caddy: plain HTTP on loopback for port-forward access, TLS on the Tailscale IP for the domain.
 
 **v1 non-goals**
+- Multiple machines: `~/.ssh/config` discovery, custom connections, activation, host-key trust UI (deferred; see ROADMAP *Later*).
 - Storing terminal output, scrollback, or agent state.
 - Installing software on targets (missing tmux → warning only).
 - File editing / previews, git integration.
-- Multi-user. (Single user; tailnet + optional Tailscale identity allowlist is the auth boundary.)
+- Multi-user and app login. The host has a single user and the other tailnet members are trusted, so reachability (loopback via SSH, or the tailnet) is the auth boundary; an optional Tailscale identity allowlist exists for later.
 
-**v2 (design for it now, build later)** — see §10: task queue, per-machine capacity, hook-based session status, LLM supervisor (OpenAI first, pluggable), dispatcher that spawns sessions for queued tasks.
+**v2 (design only; not implemented)** — see §10: task queue, per-machine capacity, hook-based session status, LLM supervisor (OpenAI first, pluggable), dispatcher that spawns sessions for queued tasks.
 
 ---
 
@@ -30,9 +34,9 @@ hostbud is a self-hosted web app for managing **tmux sessions across many machin
 
 ```
  Browser (Vue SPA + xterm.js)
-   │  HTTPS / WSS  (tailnet only)
+   │  HTTPS/WSS on the domain (tailnet only)   or   HTTP/WS via ssh -L to 127.0.0.1:9055
    ▼
- Caddy  (bound to host's Tailscale IP :443, TLS via Cloudflare DNS-01)
+ Caddy  (Tailscale IP :443 with TLS via Cloudflare DNS-01;  127.0.0.1:${HOSTBUD_LOCAL_PORT} plain HTTP)
    │  http://hostbud:8080
    ▼
  hostbud  (single Go binary, SPA embedded)
@@ -47,7 +51,7 @@ hostbud is a self-hosted web app for managing **tmux sessions across many machin
    │
    │  ssh (multiplexed via ControlMaster sockets in /data/ssh/cm)
    ▼
- host machine (via host.docker.internal)   server-a   laptop   vps …
+ host machine (via host.docker.internal)          [later: other SSH targets]
 ```
 
 **Why this stack**
@@ -64,7 +68,7 @@ Services in `docker-compose.yml`:
 
 | Service | Image | Notes |
 |---|---|---|
-| `caddy` | custom build (`caddy:builder` + `xcaddy` + `caddy-dns/cloudflare`) | Publishes `${TAILSCALE_IP}:443:443` and `${TAILSCALE_IP}:80:80` **only** (never `0.0.0.0`). Obtains cert for `${HOSTBUD_DOMAIN}` via DNS-01 using `CLOUDFLARE_API_TOKEN`. Reverse-proxies to `hostbud:8080` (WebSocket upgrade supported by default). |
+| `caddy` | custom build (`caddy:builder` + `xcaddy` + `caddy-dns/cloudflare`) | Publishes `${TAILSCALE_IP}:443:443`, `${TAILSCALE_IP}:80:80` and `127.0.0.1:${HOSTBUD_LOCAL_PORT}:${HOSTBUD_LOCAL_PORT}` **only** (never `0.0.0.0`). Two sites: `${HOSTBUD_DOMAIN}` with a cert via DNS-01 using `CLOUDFLARE_API_TOKEN`, and `http://:${HOSTBUD_LOCAL_PORT}` (plain HTTP, loopback only, for SSH port forwarding). Both reverse-proxy to `hostbud:8080` (WebSocket upgrade supported by default). |
 | `hostbud` | built from repo `Dockerfile` | No published ports. Runs as `${HOST_UID}:${HOST_GID}`. |
 
 **DNS:** Cloudflare `A` record `${HOSTBUD_DOMAIN}` → host's Tailscale IP (100.x.y.z), **DNS only (grey cloud)**. Never proxied (orange) and never a Cloudflare Tunnel — both would expose the app publicly. The name resolves publicly but the address is only routable inside the tailnet.
@@ -72,17 +76,16 @@ Services in `docker-compose.yml`:
 **hostbud container mounts / settings**
 - `hostbud-data:/data` — SQLite DB, generated SSH config, ControlMaster sockets, app known_hosts.
 - ssh-agent socket: `${HOST_SSH_AUTH_SOCK}:/run/ssh-agent.sock` and `SSH_AUTH_SOCK=/run/ssh-agent.sock`. Private keys never enter the container. The host should use a **stable** agent socket path (e.g. systemd user `ssh-agent.socket`, or `ssh-agent -a ~/.ssh/agent.sock`) — document this in README.
-- User SSH config, **read-only, at the same absolute path as on the host**, with `HOME=${HOST_HOME}` inside the container so `~` and absolute `Include` paths resolve identically:
-  - `${HOST_HOME}/.ssh/config` (ro)
-  - `${HOST_HOME}/.ssh/known_hosts` (ro)
-  - optional `${HOST_HOME}/.ssh/config.d` (ro) — use long-syntax bind with `create_host_path: false`.
-  - Do **not** mount the whole `~/.ssh` (keeps private key files out).
+- The host's **public** host keys, read-only: `/etc/ssh/ssh_host_ed25519_key.pub`, `…_ecdsa_key.pub`, `…_rsa_key.pub` → `/run/host-keys/` (used to pin the host key, §4.3).
+- *Later (multi-machine):* user SSH config, **read-only, at the same absolute path as on the host**, with `HOME=${HOST_HOME}` inside the container so `~` and absolute `Include` paths resolve identically (`~/.ssh/config`, `~/.ssh/known_hosts`, optional `~/.ssh/config.d` via long-syntax bind with `create_host_path: false`). Never mount the whole `~/.ssh` (keeps private key files out).
 - `extra_hosts: ["host.docker.internal:host-gateway"]` — the host machine is reached over SSH like any other target (requires `sshd` on the host and the user's own key in `authorized_keys`).
-- Tailnet reachability from the container: traffic to 100.x routes through the host. Verify MagicDNS names resolve inside the container; if not, set `dns: [100.100.100.100]` on the service. Fallback (documented, not default): `network_mode: host`.
+- *Later (multi-machine):* tailnet reachability from the container — traffic to 100.x routes through the host. Verify MagicDNS names resolve inside the container; if not, set `dns: [100.100.100.100]` on the service. Fallback (documented, not default): `network_mode: host`.
 
 **Runtime image:** multi-stage — `node` (build SPA) → `golang` (build with SPA embedded via `go:embed`, `CGO_ENABLED=0`) → `debian:stable-slim` with `openssh-client`, `ca-certificates`, `tini`. Target arch: **linux/amd64**.
 
-**Build & deploy:** on the host, `git pull && docker compose up -d --build` (wrapped in `make deploy`). No registry.
+**Build & deploy:** the dev machine is the host; `docker compose up -d --build` (wrapped in `make deploy`). No registry.
+
+**Dockerized toolchain:** everything that can run in Docker does. `make build`, `test`, `lint` (golangci-lint, eslint/vue-tsc) and `gitleaks` run in containers, so the host needs only Docker. The gitleaks pre-commit hook also runs via Docker. No CI for now.
 
 ---
 
@@ -92,24 +95,23 @@ Services in `docker-compose.yml`:
 hostbud writes `/data/ssh/config` on startup and whenever custom connections change, and always invokes `ssh -F /data/ssh/config …`. Because OpenSSH uses the **first** value obtained for each option, order matters:
 
 ```sshconfig
-# 1. App-managed custom connections (from DB)
-Host hb-custom-<id>            # internal alias; UI shows the user's label
-  HostName …
-  User …
-  Port …
-  ProxyJump …
+# 1. Built-in host machine
+Host hb-host
+  HostName host.docker.internal
+  User ${HOST_SSH_USER}
+  HostKeyAlias hb-host          # pinned key is stored under this name
 
-# 2. The user's real config (read-only mount)
-Include ~/.ssh/config
+# (later) 2. App-managed custom connections (from DB): Host hb-custom-<id> …
+# (later) 3. The user's real config (read-only mount): Include ~/.ssh/config
 
-# 3. App defaults — last, so user settings win
+# 4. App defaults — last, so user settings win
 Host *
   ControlMaster auto
   ControlPath /data/ssh/cm/%C
   ControlPersist 10m
   ServerAliveInterval 15
   ServerAliveCountMax 3
-  UserKnownHostsFile /data/ssh/known_hosts ~/.ssh/known_hosts
+  UserKnownHostsFile /data/ssh/known_hosts
   StrictHostKeyChecking yes
   BatchMode yes                # never prompt inside non-interactive calls
 ```
@@ -117,26 +119,29 @@ Host *
 - `ControlPath` uses `%C` (hash) to stay under the Unix socket path length limit.
 - `BatchMode yes` for all non-interactive calls; interactive attach also relies on agent auth (no password prompts in v1).
 
-### 4.2 Host discovery
+### 4.2 Host discovery (later — multi-machine)
 - Parse the user's config with `github.com/kevinburke/ssh_config` **for display only** (list concrete `Host` aliases; skip wildcard/negated patterns). Resolve effective settings for display via `ssh -G <alias>`.
 - Machine sources: `host` (built-in, `host.docker.internal`, user `${HOST_SSH_USER}`, label `${HOSTBUD_HOST_LABEL}`), `sshconfig` (discovered; re-scanned on startup and via "Refresh"), `custom` (DB).
 - Discovered hosts are shown but **inactive by default**; activation state persists in DB.
 
 ### 4.3 Host-key trust
-First connection to an unknown host must not silently accept. Flow: `ssh-keyscan` → show fingerprints in UI → on user confirmation append to `/data/ssh/known_hosts`. Mismatch → hard error surfaced in UI.
+Never trust on first use.
+- **v1 (host machine):** on startup hostbud reads the read-only mounted `/run/host-keys/ssh_host_*_key.pub` and writes them to `/data/ssh/known_hosts` as `hb-host <key>`. The key comes from the host's filesystem, not from the network, so no UI confirmation is needed. Missing key files → startup error with instructions.
+- *Later (other machines):* `ssh-keyscan` → show fingerprints in UI → on user confirmation append to `/data/ssh/known_hosts`.
+- Mismatch → hard error surfaced in UI.
 
 ### 4.4 Command execution rules
 - Every remote command goes through one function that builds `ssh -F cfg <alias> -- <cmd>`; `<cmd>` is assembled only from **shell-quoted** arguments (single-quote escaping helper). Never interpolate user input unquoted.
 - Validate tmux session names: `^[A-Za-z0-9_-]{1,64}$` (tmux forbids `.` and `:`; we are stricter).
 - Per-command timeouts (default 10s); context cancellation kills the process.
-- Machine capability probe on activation: `uname -s; command -v tmux; tmux -V` → store `os`, `tmux_version`, `tmux_missing`. If tmux is missing, mark the machine and show the install command (`apt install tmux` / `brew install tmux`); never auto-install.
+- Machine capability probe on startup (and on activation, later): `uname -s; command -v tmux; tmux -V` → store `os`, `tmux_version`, `tmux_missing`. If tmux is missing, mark the machine and show the install command (`apt install tmux` / `brew install tmux`); never auto-install.
 
 ---
 
 ## 5. tmux integration (`tmux` + `inventory`)
 
 ### 5.1 Reading state
-Per **active** machine, one poller goroutine runs every `HOSTBUD_POLL_INTERVAL` (default 3s):
+Per **active** machine (v1: the host, always active), one poller goroutine runs every `HOSTBUD_POLL_INTERVAL` (default 3s):
 
 ```
 tmux list-sessions -F '#{session_id}\t#{session_name}\t#{session_path}\t#{session_attached}\t#{session_windows}\t#{session_created}\t#{session_activity}'
@@ -191,11 +196,12 @@ A session belongs to the project whose `path` is the **longest prefix** of the s
 - Migrations: embedded SQL files run at startup (`pressly/goose` or equivalent). Queries via `sqlc` or a hand-written repository interface — **no SQLite-specific SQL outside the store package**, so Postgres is a later swap.
 - IDs: ULIDs (text). Timestamps: UTC.
 
-**v1 schema (sketch)**
+**v1 schema (sketch)** — `machines` is seeded with the single built-in `host` row.
 ```sql
 machines(id, source TEXT CHECK(source IN ('host','sshconfig','custom')),
          ssh_alias, label, active BOOL, sort_order, hidden BOOL,
          os, tmux_version, tmux_missing BOOL, last_seen_at, created_at, updated_at)
+-- later (multi-machine): created by a future migration
 custom_connections(machine_id PK/FK, hostname, user, port, proxy_jump, identity_agent, extra_options_json)
 projects(id, machine_id FK, path, name, sort_order, pinned BOOL,
          last_used_at, created_at, UNIQUE(machine_id, path))
@@ -212,14 +218,7 @@ ui_state(key PK, value_json, updated_at)                    -- tree collapse sta
 
 REST (JSON), all under `/api`:
 ```
-GET    /api/machines                      list (with status)
-POST   /api/machines                      add custom connection
-PATCH  /api/machines/:id                  label, sort, hidden, connection fields
-DELETE /api/machines/:id                  custom only
-POST   /api/machines/:id/activate | /deactivate
-POST   /api/machines/refresh              re-scan ~/.ssh/config
-GET    /api/machines/:id/hostkey          keyscan fingerprints
-POST   /api/machines/:id/hostkey/trust
+GET    /api/machines                      list (with status) — v1: just the host
 GET    /api/machines/:id/sessions
 POST   /api/machines/:id/sessions         {name, path, startCommand?}
 PATCH  /api/machines/:id/sessions/:name   rename
@@ -231,12 +230,21 @@ GET    /api/machines/:id/fs/home
 GET|POST|PATCH|DELETE /api/projects[/:id]
 GET|PUT /api/ui-state/:key
 GET    /api/health
+
+# later (multi-machine)
+POST   /api/machines                      add custom connection
+PATCH  /api/machines/:id                  label, sort, hidden, connection fields
+DELETE /api/machines/:id                  custom only
+POST   /api/machines/:id/activate | /deactivate
+POST   /api/machines/refresh              re-scan ~/.ssh/config
+GET    /api/machines/:id/hostkey          keyscan fingerprints
+POST   /api/machines/:id/hostkey/trust
 ```
 WebSockets: `/ws/events` (server → client state events), `/ws/term` (interactive).
 
 **Security middleware (all routes):**
-- Reject WebSocket upgrades whose `Origin` ≠ `https://${HOSTBUD_DOMAIN}`.
-- Optional Tailscale identity allowlist: if `HOSTBUD_ALLOWED_TS_USERS` is set and the tailscaled socket is mounted, resolve the client IP (from Caddy's `X-Forwarded-For`, trusted only from the Caddy container) via Tailscale LocalAPI `whois` and reject unknown users.
+- Origin allowlist: `https://${HOSTBUD_DOMAIN}` and `http://localhost:${HOSTBUD_LOCAL_PORT}`. Reject WebSocket upgrades and state-changing requests whose `Origin` is not in it. (`localhost` is a secure context, so clipboard APIs work over plain HTTP.)
+- Optional Tailscale identity allowlist (off by default; the tailnet is trusted): if `HOSTBUD_ALLOWED_TS_USERS` is set and the tailscaled socket is mounted, resolve the client IP (from Caddy's `X-Forwarded-For`, trusted only from the Caddy container) via Tailscale LocalAPI `whois` and reject unknown users.
 - CSRF: JSON-only API + SameSite cookies + Origin check on state-changing requests.
 - Never log command strings containing user paths at info level.
 
@@ -281,8 +289,8 @@ machine_capacity(machine_id PK, max_concurrent_runs)
 - **Vue 3 + Vite + TypeScript**, Pinia stores, Vue Router (minimal).
 - **Tailwind CSS + Reka UI** (headless, accessible primitives) for an IDE-like dense dark UI; light theme too via CSS variables.
 - Layout: resizable left gutter (tree) | main area with **tabs**, each tab may be **split** (horizontal/vertical, via `splitpanes`). Layout persisted in `ui_state`.
-- Tree: machines → projects → sessions (→ windows, lazily). Status dots (● attached/active, ○ detached, grey = machine inactive, red = unreachable, amber = tmux missing). Drag-to-sort (`vue-draggable-plus`), inline rename, collapse state persisted, context menus (attach, attach in split, new session, rename, kill, open folder, save as project).
-- Command palette (⌘/Ctrl-K): jump to session/project/machine.
+- Tree: projects → sessions (→ windows, lazily); a machine level appears only once multiple machines exist. Status dots (● attached/active, ○ detached; a header banner for host unreachable / tmux missing). Drag-to-sort (`vue-draggable-plus`), inline rename, collapse state persisted, context menus (attach, attach in split, new session, rename, kill, open folder, save as project).
+- Command palette (⌘/Ctrl-K): jump to session/project.
 - **Mobile:** tree becomes a drawer; single terminal view; an on-screen key bar (Esc, Tab, Ctrl, Alt, arrows, `|`, `~`, `/`, Scroll-mode button → copy-mode API); larger touch targets.
 - No external CDNs at runtime (fonts and assets bundled).
 
@@ -297,8 +305,8 @@ All config comes from environment (`.env`, gitignored). See `.env.example` for t
 ## 13. Testing strategy
 
 - **Unit:** quoting/escaping, name validation, tmux output parsing, SSH config generation ordering, project-path matching.
-- **Integration:** `test/sshd/` — a disposable container with `openssh-server` + `tmux` and a generated throwaway key; the test suite runs hostbud's sshx/tmux/fsbrowse packages against it (activate, list, create, attach via PTY, mkdir, kill).
-- **Frontend:** Vitest for stores/utilities; Playwright smoke test (load app, tree renders, open terminal against the test sshd).
+- **Integration:** `test/sshd/` — a disposable container with `openssh-server` + `tmux` and a generated throwaway key; the test suite runs hostbud's sshx/tmux/fsbrowse packages against it (probe, list, create, attach via PTY, mkdir, kill). Runs via `make test` in Docker.
+- **Frontend:** Vitest for stores/utilities; Playwright smoke test (load app, tree renders, open terminal against the test sshd). All run in containers.
 - No committed fixtures containing real hostnames, usernames, or paths — use `example.com`, `server-a`, `/home/dev`.
 
 ---
