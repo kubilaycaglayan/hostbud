@@ -3,14 +3,16 @@ package api
 
 import (
 	"encoding/json"
+	"io/fs"
 	"log/slog"
 	"net/http"
 )
 
-// New returns the root HTTP handler.
-func New(log *slog.Logger) http.Handler {
+// New returns the root HTTP handler. dist is the built SPA (see package web).
+func New(log *slog.Logger, dist fs.FS) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", handleHealth)
+	mux.Handle("GET /", spaHandler(dist))
 	return mux
 }
 

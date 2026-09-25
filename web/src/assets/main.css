@@ -1,0 +1,51 @@
+@import 'tailwindcss';
+
+/* Theme tokens. Dark is the default; light follows the OS until a theme
+   toggle lands (stored in ui_state). */
+:root {
+  --hb-bg: #0f1115;
+  --hb-surface: #171a21;
+  --hb-border: #262a33;
+  --hb-fg: #d7dae0;
+  --hb-muted: #8b919c;
+  --hb-accent: #5fb3f9;
+  --hb-danger: #f47067;
+  --hb-ok: #57ab5a;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    --hb-bg: #ffffff;
+    --hb-surface: #f5f6f8;
+    --hb-border: #d8dbe0;
+    --hb-fg: #1f2328;
+    --hb-muted: #656d76;
+    --hb-accent: #0969da;
+    --hb-danger: #cf222e;
+    --hb-ok: #1a7f37;
+    color-scheme: light;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--hb-bg);
+  --color-surface: var(--hb-surface);
+  --color-border: var(--hb-border);
+  --color-fg: var(--hb-fg);
+  --color-muted: var(--hb-muted);
+  --color-accent: var(--hb-accent);
+  --color-danger: var(--hb-danger);
+  --color-ok: var(--hb-ok);
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  @apply bg-bg text-fg font-mono text-sm antialiased;
+}

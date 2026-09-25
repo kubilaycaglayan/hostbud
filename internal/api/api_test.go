@@ -7,10 +7,11 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"testing/fstest"
 )
 
 func TestHealth(t *testing.T) {
-	h := New(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	h := New(slog.New(slog.NewTextHandler(io.Discard, nil)), fstest.MapFS{})
 
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/health", nil))
@@ -27,7 +28,7 @@ func TestHealth(t *testing.T) {
 }
 
 func TestHealthRejectsPost(t *testing.T) {
-	h := New(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	h := New(slog.New(slog.NewTextHandler(io.Discard, nil)), fstest.MapFS{})
 
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/health", nil))

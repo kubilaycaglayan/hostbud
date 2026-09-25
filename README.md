@@ -18,5 +18,11 @@ Manage the tmux sessions on your server from a web UI: browse directories, organ
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for details.
 
+## Development
+Everything runs in containers; the host only needs Docker and `make` (`make help` lists targets).
+- `make build` — build the Vue app (`web/dist`) and the Go binary with it embedded (`bin/hostbud`). `make go-build` alone embeds whatever is in `web/dist` and serves a placeholder page if the frontend was never built.
+- `make lint test` — golangci-lint, eslint, vue-tsc; Go tests and Vitest.
+- `make hooks` — install the gitleaks pre-commit hook.
+
 ## License
 MIT

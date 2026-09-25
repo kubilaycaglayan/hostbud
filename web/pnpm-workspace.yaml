@@ -1,0 +1,4 @@
+# pnpm settings (pnpm reads them from here, not .npmrc).
+allowBuilds:
+  # Vue 2/3 compat shim pulled in by pinia's deps; its postinstall is not needed for Vue 3.
+  vue-demi: false

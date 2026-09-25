@@ -14,6 +14,7 @@ import (
 
 	"hostbud/internal/api"
 	"hostbud/internal/config"
+	"hostbud/web"
 )
 
 func main() {
@@ -37,7 +38,7 @@ func run() error {
 
 	srv := &http.Server{
 		Addr:              cfg.Listen,
-		Handler:           api.New(log),
+		Handler:           api.New(log, web.Dist()),
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       2 * time.Minute,
 	}
