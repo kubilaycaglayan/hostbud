@@ -21,7 +21,7 @@ func openTemp(t *testing.T, dir string) *Store {
 	}
 	password := os.Getenv("HOSTBUD_TEST_DB_PASSWORD")
 	if password == "" {
-		password = "hostbud-test-password"
+		password = "hostbud-test-password" //nolint:gosec // throwaway test database (scripts/test-sshd.sh), not a credential
 	}
 	schema := fmt.Sprintf("test_%x", sha256.Sum256([]byte(dir)))[:20]
 	s, err := Open(context.Background(), Config{

@@ -272,7 +272,7 @@ func (s *Store) Backup(ctx context.Context, dest string) error {
 		"--host", s.dbconf.Host, "--port", fmt.Sprint(s.dbconf.Port),
 		"--username", s.dbconf.User, s.dbconf.Name,
 	}
-	cmd := exec.CommandContext(ctx, "pg_dump", args...)
+	cmd := exec.CommandContext(ctx, "pg_dump", args...) //nolint:gosec // fixed binary; args are separate argv entries from operator config, no shell
 	cmd.Env = append(os.Environ(), "PGPASSWORD="+s.dbconf.Password, "PGSSLMODE="+s.dbconf.SSLMode)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("backup: %w", errors.Join(err, errors.New(strings.TrimSpace(string(output)))))
