@@ -81,11 +81,12 @@ Tasks: [roadmap/M1-tasks.md](roadmap/M1-tasks.md) · Checklist: [roadmap/M1-acce
 ### M6 — Tree customization and polish
 - Drag-to-sort projects; inline rename; hide/unhide; pin projects.
 - Collapse state persisted; lazily loaded windows/panes under sessions.
-- Command palette (Ctrl/⌘-K); keyboard shortcuts; light/dark theme.
+- Command palette (Ctrl/⌘-K); keyboard shortcuts.
+- Theme setting: **Dark / Light / System**. System follows the OS `prefers-color-scheme` and switches live when the OS changes. The setting applies to the whole UI and the xterm terminal palette, is persisted in `ui_state` (default: System), and is applied before first paint (no flash of the wrong theme).
 
-**E2E:** drag to reorder, rename, hide/unhide, pin, collapse — then reload **and** restart `hostbud-e2e-app` → everything is as the user left it; windows/panes load when a session is expanded; the palette jumps to a session; theme switch persists.
+**E2E:** drag to reorder, rename, hide/unhide, pin, collapse — then reload **and** restart `hostbud-e2e-app` → everything is as the user left it; windows/panes load when a session is expanded; the palette jumps to a session; theme: picking Dark or Light applies at once and survives reload and restart; with System, switching Playwright's emulated `colorScheme` flips the UI and terminal without a reload.
 
-**Accept:** every tree customization survives reload and container restart.
+**Accept:** every tree customization survives reload and container restart; the Dark / Light / System theme setting works for the UI and terminal, persists, and in System mode follows the OS live.
 
 ### M7 — Hardening
 - Timeouts/limits everywhere (exec, WS buffers, SFTP).

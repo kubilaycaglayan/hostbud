@@ -287,7 +287,7 @@ machine_capacity(machine_id PK, max_concurrent_runs)
 ## 11. Frontend
 
 - **Vue 3 + Vite + TypeScript**, Pinia stores, Vue Router (minimal).
-- **Tailwind CSS + Reka UI** (headless, accessible primitives) for an IDE-like dense dark UI; light theme too via CSS variables.
+- **Tailwind CSS + Reka UI** (headless, accessible primitives) for an IDE-like dense dark UI; light theme too via CSS variables. The theme setting is Dark / Light / System (default System, following `prefers-color-scheme` live), stored in `ui_state` and applied to the xterm palette as well.
 - Layout: resizable left gutter (tree) | main area with **tabs**, each tab may be **split** (horizontal/vertical, via `splitpanes`). Layout persisted in `ui_state`.
 - Tree: projects → sessions (→ windows, lazily); a machine level appears only once multiple machines exist. Status dots (● attached/active, ○ detached; a header banner for host unreachable / tmux missing). Drag-to-sort (`vue-draggable-plus`), inline rename, collapse state persisted, context menus (attach, attach in split, new session, rename, kill, open folder, save as project).
 - Command palette (⌘/Ctrl-K): jump to session/project.
