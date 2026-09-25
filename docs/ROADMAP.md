@@ -11,6 +11,8 @@ v1 has a **single target: the host machine** (ARCHITECTURE §1). Multi-machine s
 ## v1
 
 ### M1 — tmux manager in the browser (local access)
+Tasks: [roadmap/M1-tasks.md](roadmap/M1-tasks.md) · Checklist: [roadmap/M1-acceptance.md](roadmap/M1-acceptance.md)
+
 - Go module, `cmd/hostbud`, config from env, `log/slog`, `/api/health`.
 - SQLite store + migration runner; first migration creates `machines` (seeded with the built-in host machine) and `ui_state`.
 - Dockerized toolchain: `Makefile` targets `build`, `test`, `lint`, `gitleaks`, `deploy`, `logs`, `backup` all run in containers (no local Go needed). Pre-commit hook runs gitleaks via Docker.
