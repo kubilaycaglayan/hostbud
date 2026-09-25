@@ -33,8 +33,8 @@ lint: go-lint web-lint e2e-lint ## Run golangci-lint, eslint and vue-tsc (app an
 go-build: ## Build only the Go binary (embeds whatever is in web/dist)
 	$(GO) env CGO_ENABLED=0 go build -o bin/hostbud ./cmd/hostbud
 
-go-test: test-env ## Go unit + integration tests (-tags=integration, against test/sshd)
-	$(GO) go test -race -tags=integration ./...
+go-test: test-env ## Go unit + integration tests (-tags=integration, against test/sshd; packages serially, they share its tmux server)
+	$(GO) go test -race -tags=integration -p 1 ./...
 
 go-unit: ## Go unit tests only (no containers besides the toolbox)
 	$(GO) go test -race ./...
