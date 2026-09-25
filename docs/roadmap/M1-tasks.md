@@ -37,9 +37,9 @@ Work top to bottom; each task ends with a green `make lint test`, a clean `make 
 
 ### T4 — Container and compose
 - Multi-stage `Dockerfile` (node → golang `CGO_ENABLED=0` → `debian:stable-slim` + `openssh-client`, `ca-certificates`, `tini`), linux/amd64.
-- `docker-compose.yml`:
+- `docker-compose.yml` (`name: hostbud`; names per the AGENTS.md naming rule):
   - `hostbud`: no published ports; `user: ${HOST_UID}:${HOST_GID}`; `hostbud-data:/data`; agent socket `${HOST_SSH_AUTH_SOCK}:/run/ssh-agent.sock`; `/etc/ssh/ssh_host_*_key.pub` → `/run/host-keys/` (ro); `extra_hosts: host.docker.internal:host-gateway`.
-  - `caddy`: stock `caddy:2` image for now; publishes `127.0.0.1:${HOSTBUD_LOCAL_PORT}` only; `deploy/caddy/Caddyfile` with the `http://:{$HOSTBUD_LOCAL_PORT}` site → `hostbud:8080`.
+  - `hostbud-caddy`: stock `caddy:2` image for now; publishes `127.0.0.1:${HOSTBUD_LOCAL_PORT}` only; `deploy/caddy/Caddyfile` with the `http://:{$HOSTBUD_LOCAL_PORT}` site → `hostbud:8080`.
 - `make deploy` = `docker compose up -d --build`; `make logs`.
 
 **Done:** *(host)* `make deploy` → `curl http://localhost:9055/api/health` returns ok; `ss -ltn` shows 9055 on `127.0.0.1` only.
@@ -58,15 +58,15 @@ Work top to bottom; each task ends with a green `make lint test`, a clean `make 
 
 ### T6 — `sshx`
 - Single-quote shell-escaping helper; command builder `ssh -F /data/ssh/config <alias> -- <quoted args>` — the only way to run remote commands.
-- Generated `/data/ssh/config` (host entry `hb-host` with `HostKeyAlias`, then `Host *` defaults: ControlMaster, `ControlPath /data/ssh/cm/%C`, `StrictHostKeyChecking yes`, `BatchMode yes`, `UserKnownHostsFile /data/ssh/known_hosts`). Dirs `0700`.
-- Host-key pinning: read `/run/host-keys/*.pub` → write `hb-host <key>` lines; missing keys → startup error with instructions.
+- Generated `/data/ssh/config` (host entry `hostbud-host` with `HostKeyAlias`, then `Host *` defaults: ControlMaster, `ControlPath /data/ssh/cm/%C`, `StrictHostKeyChecking yes`, `BatchMode yes`, `UserKnownHostsFile /data/ssh/known_hosts`). Dirs `0700`.
+- Host-key pinning: read `/run/host-keys/*.pub` → write `hostbud-host <key>` lines; missing keys → startup error with instructions.
 - `Exec(ctx, machine, args…)` with default 10s timeout; context cancel kills the process.
 - Map common failures to actionable errors: agent socket missing/empty, permission denied (key not in `authorized_keys`), connection refused (sshd), host key mismatch.
 
 **Done:** unit tests for quoting (incl. quotes, spaces, `$`, newlines), config ordering, known_hosts generation, error mapping.
 
 ### T7 — Integration test target
-- `test/sshd/`: container with `openssh-server` + `tmux`, throwaway key generated at test time (never committed).
+- `test/sshd/`: container `hostbud-test-sshd` with `openssh-server` + `tmux`, throwaway key generated at test time (never committed).
 - `make test` brings it up (compose profile), runs `-tags=integration` tests, tears it down.
 - sshx integration test: exec `echo`, ControlMaster reuse, host-key pin + mismatch rejection.
 
@@ -108,7 +108,7 @@ Work top to bottom; each task ends with a green `make lint test`, a clean `make 
 **Done:** `httptest` tests incl. Origin rejection and validation errors.
 
 ### T12 — Terminal bridge
-- `internal/term`: `/ws/term?machine=&session=&cols=&rows=` → PTY (`creack/pty`) running `ssh -F … -tt hb-host -- tmux attach-session -t =<name>`, `TERM=xterm-256color`.
+- `internal/term`: `/ws/term?machine=&session=&cols=&rows=` → PTY (`creack/pty`) running `ssh -F … -tt hostbud-host -- tmux attach-session -t =<name>`, `TERM=xterm-256color`.
 - Binary frames for I/O; JSON text control frames: `resize`, `ping`; server → `exit {code}`.
 - WS close ⇒ kill ssh process; bounded write buffer, drop stalled clients.
 - Origin-checked.

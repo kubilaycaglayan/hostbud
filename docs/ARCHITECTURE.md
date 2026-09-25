@@ -64,11 +64,11 @@ It is reachable two ways:
 
 ## 3. Deployment topology (Docker)
 
-Services in `docker-compose.yml`:
+Services in `docker-compose.yml` (Compose project `hostbud`; everything named with the `hostbud` prefix):
 
 | Service | Image | Notes |
 |---|---|---|
-| `caddy` | custom build (`caddy:builder` + `xcaddy` + `caddy-dns/cloudflare`) | Publishes `${TAILSCALE_IP}:443:443`, `${TAILSCALE_IP}:80:80` and `127.0.0.1:${HOSTBUD_LOCAL_PORT}:${HOSTBUD_LOCAL_PORT}` **only** (never `0.0.0.0`). Two sites: `${HOSTBUD_DOMAIN}` with a cert via DNS-01 using `CLOUDFLARE_API_TOKEN`, and `http://:${HOSTBUD_LOCAL_PORT}` (plain HTTP, loopback only, for SSH port forwarding). Both reverse-proxy to `hostbud:8080` (WebSocket upgrade supported by default). |
+| `hostbud-caddy` | custom build (`caddy:builder` + `xcaddy` + `caddy-dns/cloudflare`) | Publishes `${TAILSCALE_IP}:443:443`, `${TAILSCALE_IP}:80:80` and `127.0.0.1:${HOSTBUD_LOCAL_PORT}:${HOSTBUD_LOCAL_PORT}` **only** (never `0.0.0.0`). Two sites: `${HOSTBUD_DOMAIN}` with a cert via DNS-01 using `CLOUDFLARE_API_TOKEN`, and `http://:${HOSTBUD_LOCAL_PORT}` (plain HTTP, loopback only, for SSH port forwarding). Both reverse-proxy to `hostbud:8080` (WebSocket upgrade supported by default). |
 | `hostbud` | built from repo `Dockerfile` | No published ports. Runs as `${HOST_UID}:${HOST_GID}`. |
 
 **DNS:** Cloudflare `A` record `${HOSTBUD_DOMAIN}` → host's Tailscale IP (100.x.y.z), **DNS only (grey cloud)**. Never proxied (orange) and never a Cloudflare Tunnel — both would expose the app publicly. The name resolves publicly but the address is only routable inside the tailnet.
@@ -96,12 +96,12 @@ hostbud writes `/data/ssh/config` on startup and whenever custom connections cha
 
 ```sshconfig
 # 1. Built-in host machine
-Host hb-host
+Host hostbud-host
   HostName host.docker.internal
   User ${HOST_SSH_USER}
-  HostKeyAlias hb-host          # pinned key is stored under this name
+  HostKeyAlias hostbud-host          # pinned key is stored under this name
 
-# (later) 2. App-managed custom connections (from DB): Host hb-custom-<id> …
+# (later) 2. App-managed custom connections (from DB): Host hostbud-custom-<id> …
 # (later) 3. The user's real config (read-only mount): Include ~/.ssh/config
 
 # 4. App defaults — last, so user settings win
@@ -126,7 +126,7 @@ Host *
 
 ### 4.3 Host-key trust
 Never trust on first use.
-- **v1 (host machine):** on startup hostbud reads the read-only mounted `/run/host-keys/ssh_host_*_key.pub` and writes them to `/data/ssh/known_hosts` as `hb-host <key>`. The key comes from the host's filesystem, not from the network, so no UI confirmation is needed. Missing key files → startup error with instructions.
+- **v1 (host machine):** on startup hostbud reads the read-only mounted `/run/host-keys/ssh_host_*_key.pub` and writes them to `/data/ssh/known_hosts` as `hostbud-host <key>`. The key comes from the host's filesystem, not from the network, so no UI confirmation is needed. Missing key files → startup error with instructions.
 - *Later (other machines):* `ssh-keyscan` → show fingerprints in UI → on user confirmation append to `/data/ssh/known_hosts`.
 - Mismatch → hard error surfaced in UI.
 

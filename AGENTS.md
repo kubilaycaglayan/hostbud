@@ -46,6 +46,7 @@ All such values come from environment variables. **If you need a config value th
 - Session creation goes through a single service function accepting `{machine, name, path, env, startCommand}`.
 - Context-aware, timeout-bounded exec everywhere.
 - Errors shown to the user are actionable (e.g. "tmux not found on the host — install with `sudo apt install tmux`").
+- **Naming:** use `hostbud` as the application name and as the prefix for everything we name: Compose project (`name: hostbud`), services/containers (`hostbud`, `hostbud-caddy`, `hostbud-test-sshd`), images, volumes (`hostbud-data`), networks, SSH aliases (`hostbud-host`), env vars (`HOSTBUD_*`), the Go module/binary, and the frontend package. Don't use abbreviations like `hb`.
 - Commits: conventional commits (`feat:`, `fix:`, `chore:` …), small and focused.
 
 ## Definition of done (per milestone)
