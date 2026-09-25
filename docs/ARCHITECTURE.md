@@ -85,7 +85,7 @@ Services in `docker-compose.yml` (Compose project `hostbud`; everything named wi
 
 **Build & deploy:** the dev machine is the host; `docker compose up -d --build` (wrapped in `make deploy`). No registry.
 
-**Dockerized toolchain:** everything that can run in Docker does. `make build`, `test`, `lint` (golangci-lint, eslint/vue-tsc) and `gitleaks` run in containers, so the host needs only Docker. The gitleaks pre-commit hook also runs via Docker. No CI for now.
+**Dockerized toolchain:** everything that can run in Docker does. `make build`, `test`, `lint` (golangci-lint, eslint/vue-tsc) and `gitleaks` run in containers, so the host needs only Docker. The gitleaks pre-commit hook also runs via Docker. Tools run in long-lived toolbox containers (`hostbud-tools-<tool>`, `scripts/tool.sh`) that `make` reaches with `docker exec`: creating a container costs seconds per call on a busy daemon, while an exec is near-instant. No CI for now.
 
 ---
 

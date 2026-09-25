@@ -19,7 +19,7 @@ Manage the tmux sessions on your server from a web UI: browse directories, organ
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for details.
 
 ## Development
-Everything runs in containers; the host only needs Docker and `make` (`make help` lists targets).
+Everything runs in containers; the host only needs Docker and `make` (`make help` lists targets). Tools run in long-lived `hostbud-tools-*` containers that `make` execs into (created on first use; `make tools-down` removes them).
 - `make build` — build the Vue app (`web/dist`) and the Go binary with it embedded (`bin/hostbud`). `make go-build` alone embeds whatever is in `web/dist` and serves a placeholder page if the frontend was never built.
 - `make lint test` — golangci-lint, eslint, vue-tsc; Go tests and Vitest.
 - `make e2e` — simulated-user tests (Playwright, desktop Chromium + iPhone 13 Pro/WebKit) against a throwaway target in a separate `hostbud-e2e` Compose project, never the real host. It starts a fresh stack, runs, and tears it all down; failure traces, screenshots and videos land in `test/e2e/results/`. For a fast edit/test loop, `make e2e-up` keeps the stack running, `make e2e-run` runs the suite against it (`ARGS="-g smoke"` filters), and `make e2e-down` removes it. Images rebuild only when their inputs change.
