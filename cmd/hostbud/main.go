@@ -17,6 +17,7 @@ import (
 	"hostbud/internal/config"
 	"hostbud/internal/events"
 	"hostbud/internal/inventory"
+	"hostbud/internal/session"
 	"hostbud/internal/sshx"
 	"hostbud/internal/store"
 	"hostbud/web"
@@ -95,9 +96,17 @@ func run() error {
 	go func() { inv.Run(ctx); close(invDone) }()
 	defer func() { <-invDone }()
 
+	sessions := session.New(ssh, map[string]session.Tracker{store.HostMachineID: inv}, log)
+
 	srv := &http.Server{
-		Addr:              cfg.Listen,
-		Handler:           api.New(log, web.Dist()),
+		Addr: cfg.Listen,
+		Handler: api.New(api.Config{
+			Log: log, Dist: web.Dist(),
+			Origins:  api.AllowedOrigins(cfg.Domain, cfg.LocalPort),
+			Bus:      bus,
+			Machines: []api.Snapshotter{inv},
+			Sessions: sessions,
+		}),
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       2 * time.Minute,
 	}

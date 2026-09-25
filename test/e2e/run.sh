@@ -64,6 +64,19 @@ playwright() {
 		-- "$@"
 }
 
+# logs_clean: "Logs clean" scenario. Fails if the app's (info-level) logs
+# contain any value a spec registered with forbidInLogs().
+logs_clean() {
+	[ -s results/log-markers.txt ] || return 0
+	docker logs hostbud-e2e-app >results/app.log 2>&1
+	if grep -F -f results/log-markers.txt results/app.log >results/log-leaks.txt; then
+		echo "e2e: FAIL logs clean: hostbud-e2e-app logs contain scenario paths/commands/markers:" >&2
+		cat results/log-leaks.txt >&2
+		return 1
+	fi
+	echo "e2e: logs clean ($(wc -l <results/log-markers.txt) markers checked)"
+}
+
 down() {
 	dc down -v --remove-orphans --timeout 5 >/dev/null 2>&1
 }
@@ -87,12 +100,16 @@ full)
 	trap 'exit 130' INT TERM
 	up
 	playwright "$@"
+	status=$?
+	logs_clean || status=1
+	exit "$status"
 	;;
 up) up ;;
 run)
 	up
 	playwright "$@"
 	status=$?
+	logs_clean || status=1
 	dc logs --no-color --timestamps >results/compose.log 2>&1
 	exit "$status"
 	;;

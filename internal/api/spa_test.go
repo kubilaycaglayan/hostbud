@@ -27,7 +27,7 @@ func builtDist() fstest.MapFS {
 }
 
 func TestSPA(t *testing.T) {
-	h := New(slog.New(slog.NewTextHandler(io.Discard, nil)), builtDist())
+	h := New(Config{Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Dist: builtDist()})
 
 	tests := []struct {
 		name, target string
@@ -61,7 +61,7 @@ func TestSPA(t *testing.T) {
 }
 
 func TestSPAPlaceholderWhenNotBuilt(t *testing.T) {
-	h := New(slog.New(slog.NewTextHandler(io.Discard, nil)), fstest.MapFS{".gitkeep": {}})
+	h := New(Config{Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Dist: fstest.MapFS{".gitkeep": {}}})
 
 	for _, target := range []string{"/", "/sessions/main"} {
 		rec := serve(t, h, http.MethodGet, target)
@@ -72,9 +72,14 @@ func TestSPAPlaceholderWhenNotBuilt(t *testing.T) {
 }
 
 func TestSPARejectsPost(t *testing.T) {
-	h := New(slog.New(slog.NewTextHandler(io.Discard, nil)), builtDist())
+	h := New(Config{Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Dist: builtDist(),
+		Origins: AllowedOrigins("", 9055)})
 
-	if rec := serve(t, h, http.MethodPost, "/"); rec.Code != http.StatusMethodNotAllowed {
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/", nil)
+	req.Header.Set("Origin", "http://localhost:9055")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("status = %d, want 405", rec.Code)
 	}
 }

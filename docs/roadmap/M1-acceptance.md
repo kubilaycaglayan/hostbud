@@ -97,14 +97,14 @@ Harness
 - [x] **(T5) Open the app:** `http://localhost:9055` loads the shell through Caddy with no console errors; `/api/health` is ok.
 
 API (through Caddy)
-- [ ] **(T12) API list:** a session made with `target.tmux` shows up in `GET …/sessions`.
-- [ ] **(T12) API mutations:** create, rename and kill via the API are reflected in `tmux ls`.
-- [ ] **(T12) API validation:** an invalid name returns 400 `{error, hint}`.
-- [ ] **(T12) Events:** `/ws/events` sends a snapshot, then `sessions.changed` within one poll interval of a real-terminal create.
-- [ ] **(T12) Origin:** a foreign-`Origin` POST and `/ws/events` upgrade are rejected.
+- [x] **(T12) API list:** a session made with `target.tmux` shows up in `GET …/sessions`.
+- [x] **(T12) API mutations:** create, rename and kill via the API are reflected in `tmux ls`.
+- [x] **(T12) API validation:** an invalid name returns 400 `{error, hint}`.
+- [x] **(T12) Events:** `/ws/events` sends a snapshot, then `sessions.changed` within one poll interval of a real-terminal create.
+- [x] **(T12) Origin:** a foreign-`Origin` POST and `/ws/events` upgrade are rejected.
 - [ ] **(T13) Terminal WS:** attach, send a marker (it shows up in `capture-pane`), resize (the window size changes), close (the session survives).
 - [ ] **(T13) Origin:** a foreign-`Origin` `/ws/term` upgrade is rejected.
-- [ ] **(T12) Logs clean:** after the run, `hostbud-e2e-app` info-level logs contain none of the paths, commands or markers the scenarios used.
+- [x] **(T12) Logs clean:** after the run, `hostbud-e2e-app` info-level logs contain none of the paths, commands or markers the scenarios used.
 
 UI
 - [ ] **(T14) Live connection:** the page connects to `/ws/events` on load, and reconnects and resyncs after `hostbud-e2e-app` restarts.
