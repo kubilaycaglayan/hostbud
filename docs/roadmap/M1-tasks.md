@@ -15,8 +15,9 @@ Update this table in the same commit that finishes a task.
 | T4 Container and compose | ✅ done |
 | T5 E2E harness | ✅ done |
 | T6 Store | ✅ done |
-| T7 `sshx` | ⏭ next |
-| T8–T18 | ⬜ todo |
+| T7 `sshx` | ✅ done |
+| T8 Integration test target | ⏭ next |
+| T9–T18 | ⬜ todo |
 
 Work top to bottom; each task ends with a green `make lint test` **and `make e2e`**, a clean `make gitleaks`, and its own conventional commit(s). Tasks marked *(host)* need the real host (agent socket, sshd) to verify.
 

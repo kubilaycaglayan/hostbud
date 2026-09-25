@@ -9,14 +9,19 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
 	"hostbud/internal/api"
 	"hostbud/internal/config"
+	"hostbud/internal/sshx"
 	"hostbud/internal/store"
 	"hostbud/web"
 )
+
+// hostKeysDir is where compose mounts the host's /etc/ssh/ssh_host_*_key.pub.
+const hostKeysDir = "/run/host-keys"
 
 func main() {
 	if err := run(); err != nil {
@@ -57,6 +62,18 @@ func run() error {
 	if _, err := st.EnsureHostMachine(ctx, cfg.HostLabel); err != nil {
 		return err
 	}
+
+	// Pins the host's key from the read-only mounted public host keys.
+	ssh, err := sshx.New(sshx.Config{
+		Dir:         filepath.Join(cfg.DataDir, "ssh"),
+		HostKeysDir: hostKeysDir,
+		HostAddr:    cfg.HostAddr,
+		HostUser:    cfg.HostSSHUser,
+	})
+	if err != nil {
+		return err
+	}
+	log.Debug("ssh config written", "path", ssh.ConfigPath())
 
 	srv := &http.Server{
 		Addr:              cfg.Listen,

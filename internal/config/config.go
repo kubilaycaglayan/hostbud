@@ -20,6 +20,7 @@ type Config struct {
 	LocalPort    int           // HOSTBUD_LOCAL_PORT
 	Domain       string        // HOSTBUD_DOMAIN (optional until M2)
 	HostSSHUser  string        // HOST_SSH_USER
+	HostAddr     string        // HOSTBUD_HOST_ADDR
 	HostLabel    string        // HOSTBUD_HOST_LABEL
 }
 
@@ -39,6 +40,7 @@ func Load(getenv func(string) string) (Config, error) {
 		DataDir:     get("HOSTBUD_DATA_DIR", "/data"),
 		Domain:      get("HOSTBUD_DOMAIN", ""),
 		HostSSHUser: get("HOST_SSH_USER", ""),
+		HostAddr:    get("HOSTBUD_HOST_ADDR", "host.docker.internal"),
 		HostLabel:   get("HOSTBUD_HOST_LABEL", "Host machine"),
 	}
 
@@ -63,6 +65,12 @@ func Load(getenv func(string) string) (Config, error) {
 
 	if strings.Contains(cfg.Domain, "/") || strings.Contains(cfg.Domain, ":") {
 		errs = append(errs, errors.New("HOSTBUD_DOMAIN: must be a bare hostname like hostbud.example.com (no scheme or port)"))
+	}
+	if strings.ContainsAny(cfg.HostAddr, " \t/@") {
+		errs = append(errs, errors.New("HOSTBUD_HOST_ADDR: must be a bare hostname or IP like host.docker.internal"))
+	}
+	if strings.ContainsAny(cfg.HostSSHUser, " \t@") {
+		errs = append(errs, errors.New("HOST_SSH_USER: must be a plain user name"))
 	}
 	if cfg.HostSSHUser == "" {
 		errs = append(errs, errors.New("HOST_SSH_USER: required — the user hostbud logs in as on the host (see .env.example)"))

@@ -23,6 +23,7 @@ func TestLoadDefaults(t *testing.T) {
 		LogLevel:     slog.LevelInfo,
 		LocalPort:    9055,
 		HostSSHUser:  "dev",
+		HostAddr:     "host.docker.internal",
 		HostLabel:    "Host machine",
 	}
 	if cfg != want {
@@ -40,13 +41,14 @@ func TestLoadOverrides(t *testing.T) {
 		"HOSTBUD_DOMAIN":        "hostbud.example.com",
 		"HOST_SSH_USER":         " dev ",
 		"HOSTBUD_HOST_LABEL":    "server-a",
+		"HOSTBUD_HOST_ADDR":     "hostbud-e2e-target",
 	}))
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
 	if cfg.Listen != ":9000" || cfg.DataDir != "/tmp/hb" || cfg.PollInterval != 1500*time.Millisecond ||
 		cfg.LogLevel != slog.LevelDebug || cfg.LocalPort != 9100 || cfg.Domain != "hostbud.example.com" ||
-		cfg.HostSSHUser != "dev" || cfg.HostLabel != "server-a" {
+		cfg.HostSSHUser != "dev" || cfg.HostLabel != "server-a" || cfg.HostAddr != "hostbud-e2e-target" {
 		t.Fatalf("unexpected config: %+v", cfg)
 	}
 }
@@ -57,11 +59,12 @@ func TestLoadReportsAllErrors(t *testing.T) {
 		"HOSTBUD_LOG_LEVEL":     "loud",
 		"HOSTBUD_LOCAL_PORT":    "70000",
 		"HOSTBUD_DOMAIN":        "https://hostbud.example.com",
+		"HOSTBUD_HOST_ADDR":     "dev@server-a",
 	}))
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	for _, key := range []string{"HOSTBUD_POLL_INTERVAL", "HOSTBUD_LOG_LEVEL", "HOSTBUD_LOCAL_PORT", "HOSTBUD_DOMAIN", "HOST_SSH_USER"} {
+	for _, key := range []string{"HOSTBUD_POLL_INTERVAL", "HOSTBUD_LOG_LEVEL", "HOSTBUD_LOCAL_PORT", "HOSTBUD_DOMAIN", "HOSTBUD_HOST_ADDR", "HOST_SSH_USER"} {
 		if !strings.Contains(err.Error(), key) {
 			t.Errorf("error does not mention %s: %v", key, err)
 		}

@@ -18,6 +18,8 @@ var allowed = map[string][]string{
 	"database/sql":                {"internal/store"},
 	"modernc.org/sqlite":          {"internal/store"},
 	"github.com/pressly/goose/v3": {"internal/store"},
+	// Remote commands only through sshx; term runs the interactive attach.
+	"os/exec": {"internal/sshx", "internal/term"},
 }
 
 func TestRestrictedImports(t *testing.T) {
