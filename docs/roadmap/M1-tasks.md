@@ -190,11 +190,11 @@ Design: [ARCHITECTURE §13.1](../ARCHITECTURE.md#131-e2e-environment). Built now
 **Done:** unit tests with a fake executor (diffing, backoff, status transitions).
 
 ### T11 — Session service
-- Single `CreateSession(ctx, {machine, name, path, env, startCommand})`: default name from path basename (`-<n>` suffix on clash); path default = probed home; `~/` expanded against home; validate name; refresh after.
+- Single `CreateSession(ctx, {machine, name, path, env, startCommand})`: custom name as given, else the default name: the directory's last path segment (`/root/docs/dev` → `dev`; characters a name can't hold become `-`); if taken, `dev-1`, `dev-2`, …; path default = probed home; `~/` expanded against home; validate name; refresh after.
 - `RenameSession`, `KillSession` (service assumes UI confirmed); refresh after.
 - Actionable errors (duplicate name, path doesn't exist, tmux missing).
 
-**Tests:** U: fake executor: default name from basename, `-<n>` suffix on clash, `~/` expansion, validation, refresh after each mutation, error mapping. I: on test sshd: create with defaults (`#{session_path}` matches); create with start command (`#{pane_current_command}`); duplicate name and missing path ⇒ real tmux errors mapped to actionable ones.
+**Tests:** U: fake executor: default name from the last path segment, `-1`, `-2`, … on clash, custom name kept, `~/` expansion, validation, refresh after each mutation, error mapping. I: on test sshd: create with defaults (`#{session_path}` matches); create with start command (`#{pane_current_command}`); duplicate name and missing path ⇒ real tmux errors mapped to actionable ones.
 
 **E2E:** none yet (reachable through the API in T12); `make e2e` stays green.
 

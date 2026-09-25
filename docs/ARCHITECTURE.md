@@ -155,7 +155,7 @@ The poller diffs against the in-memory cache and publishes `sessions.changed` / 
 *Later optimization:* tmux control mode (`tmux -C attach`) for push-based `%sessions-changed` notifications. The poller interface should allow swapping the implementation.
 
 ### 5.2 Mutations
-- **Create:** `tmux new-session -d -s <name> -c <path> [-e KEY=VAL …] [<start-cmd>]` then attach. Default name `<project-basename>` or `<project-basename>-<n>`. `-e` requires tmux ≥ 3.2 (needed in v2 for hook env vars; degrade gracefully).
+- **Create:** `tmux new-session -d -s <name> -c <path> [-e KEY=VAL …] [<start-cmd>]` then attach. The user may give a custom name; otherwise the default is the directory's last path segment (`/root/docs/dev` → `dev`; characters a name can't hold become `-`); if taken, `dev-1`, `dev-2`, …. `-e` requires tmux ≥ 3.2 (needed in v2 for hook env vars; degrade gracefully).
 - **Rename:** `tmux rename-session -t '=<old>' <new>`.
 - **Kill:** `tmux kill-session -t '=<name>'` — **always behind a confirmation dialog**.
 - **Copy/scroll mode** (for mobile): `tmux copy-mode -t '=<name>'` issued as a side-channel exec, so we never depend on the user's prefix key or `mouse` setting.

@@ -48,7 +48,7 @@ func errorf(code Code, hint, format string, args ...any) *Error {
 // Spec describes a session to create.
 type Spec struct {
 	Machine      string
-	Name         string            // optional: defaults to the directory's name
+	Name         string            // optional: defaults to the directory's last path segment
 	Path         string            // optional: defaults to the home dir; "~/x" allowed
 	Env          map[string]string // needs tmux ≥ 3.2
 	StartCommand string            // optional: run instead of the shell
@@ -261,8 +261,9 @@ func resolvePath(p, home string) (string, error) {
 
 var invalidNameChars = regexp.MustCompile(`[^A-Za-z0-9_-]+`)
 
-// defaultName derives a session name from the directory's base name
-// ("/home/dev/my.app" → "my-app", "/" → "root").
+// defaultName is the directory's last path segment ("/root/docs/dev" →
+// "dev"), with characters tmux names can't hold replaced ("my.app" →
+// "my-app"); "/" → "root".
 func defaultName(dir string) string {
 	base := path.Base(dir)
 	if base == "/" {
@@ -278,14 +279,14 @@ func defaultName(dir string) string {
 	return name
 }
 
-// uniqueName returns base, or base-2, base-3, … if taken.
+// uniqueName returns base, or base-1, base-2, … if taken.
 func uniqueName(base string, sessions []tmux.Session) string {
 	taken := map[string]bool{}
 	for _, s := range sessions {
 		taken[s.Name] = true
 	}
 	name := base
-	for n := 2; taken[name]; n++ {
+	for n := 1; taken[name]; n++ {
 		name = base + "-" + strconv.Itoa(n)
 	}
 	return name
@@ -293,11 +294,11 @@ func uniqueName(base string, sessions []tmux.Session) string {
 
 var suffixRE = regexp.MustCompile(`^(.*)-(\d+)$`)
 
-// nextName bumps a "-<n>" suffix (or adds "-2").
+// nextName bumps a "-<n>" suffix (or adds "-1").
 func nextName(name string) string {
 	if m := suffixRE.FindStringSubmatch(name); m != nil {
 		n, _ := strconv.Atoi(m[2])
 		return m[1] + "-" + strconv.Itoa(n+1)
 	}
-	return name + "-2"
+	return name + "-1"
 }

@@ -58,9 +58,9 @@ func TestIntegrationCreateWithDefaults(t *testing.T) {
 	if p := display(t, c, name, "#{session_path}"); p != "/home/dev/sess-it/proj.one" {
 		t.Fatalf("session_path = %q", p)
 	}
-	// Same directory again: suffixed name.
+	// Same directory again: numbered from -1.
 	again, err := svc.Create(context.Background(), session.Spec{Machine: sshx.HostMachineID, Path: "~/sess-it/proj.one"})
-	if err != nil || again != "proj-one-2" {
+	if err != nil || again != "proj-one-1" {
 		t.Fatalf("second create: %q, %v", again, err)
 	}
 }

@@ -41,8 +41,8 @@ A layer may be **n/a** only with a one-line reason (e.g. pure byte passthrough h
   - U: T9 parser (attached field) · T10 diff on attached change · T15 dot component. I: T9 list shows attached while a PTY client is attached on test sshd. E: T15 *Attached state*.
 
 ### Create / rename / kill
-- [ ] Create with only a path (default `~`) → session named after the directory, started in that directory.
-  - U: T11 default name from basename, `-<n>` suffix on clash, `~` expansion (fake executor) · T16 create-dialog defaults (Vitest). I: T11 create on test sshd; `#{session_path}` matches. E: T16 *Create with defaults*.
+- [ ] Create with only a path (default `~`) → session named after the directory's last path segment (`/root/docs/dev` → `dev`; `dev-1`, `dev-2`, … if taken), started in that directory. A custom name is used as given.
+  - U: T11 default name from the last path segment, `-1`, `-2`, … on clash, custom name kept, `~` expansion (fake executor) · T16 create-dialog defaults (Vitest). I: T11 create on test sshd; `#{session_path}` matches. E: T16 *Create with defaults*.
 - [ ] Create with a name, a path like `~/some/dir`, and a start command (e.g. `htop`) → session runs the command in that directory; `tmux ls` in the real terminal shows it.
   - U: T9 `new-session` builder (`-c`, `-e`, command, `=` targets) · T11 `~/` expansion. I: T11 create with start command on test sshd (`#{pane_current_command}`). E: T16 *Create with start command* · T17 visible in terminal.
 - [ ] Invalid name (e.g. `a.b`, `a:b`, a space) is rejected in the form and by the API.

@@ -103,8 +103,10 @@ func TestCreateNameFromPathWithSuffixOnClash(t *testing.T) {
 		taken      []string
 	}{
 		{"~/code/my.app", "my-app", nil},
-		{"/srv/api", "api-2", []string{"api"}},
-		{"/srv/api/", "api-3", []string{"api", "api-2"}},
+		{"/root/docs/dev", "dev", nil},
+		{"/srv/api", "api-1", []string{"api"}},
+		{"/srv/api/", "api-2", []string{"api", "api-1"}},
+		{"/srv/api", "api-1", []string{"api", "api-2"}},
 		{"~", "dev", nil},
 		{"/", "root", nil},
 		{"/srv/..hidden..", "hidden", nil},
@@ -142,7 +144,15 @@ func TestCreateAutoNameRetriesOnRace(t *testing.T) {
 		return nil
 	}}
 	name, err := newSvc(f, okHost()).Create(context.Background(), Spec{Machine: "host", Path: "/srv/api"})
-	if err != nil || name != "api-3" {
+	if err != nil || name != "api-2" {
+		t.Fatalf("got %q, %v", name, err)
+	}
+}
+
+func TestCreateCustomNameIsKept(t *testing.T) {
+	f := &fakeExec{}
+	name, err := newSvc(f, okHost("dev")).Create(context.Background(), Spec{Machine: "host", Name: "my-work", Path: "~"})
+	if err != nil || name != "my-work" {
 		t.Fatalf("got %q, %v", name, err)
 	}
 }
@@ -279,7 +289,7 @@ func TestKill(t *testing.T) {
 }
 
 func TestNextName(t *testing.T) {
-	for in, want := range map[string]string{"api": "api-2", "api-2": "api-3", "a-b-9": "a-b-10"} {
+	for in, want := range map[string]string{"api": "api-1", "api-1": "api-2", "a-b-9": "a-b-10"} {
 		if got := nextName(in); got != want {
 			t.Errorf("nextName(%q) = %q", in, got)
 		}
