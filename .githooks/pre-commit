@@ -1,0 +1,4 @@
+#!/bin/sh
+# Block commits that contain secrets. Runs gitleaks in Docker on staged changes.
+# Install with `make hooks`.
+exec make -s gitleaks-staged

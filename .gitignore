@@ -33,3 +33,6 @@ coverage/
 .idea/
 .vscode/
 *.swp
+
+# Toolchain caches (Go modules/build, lint) used by the dockerized Makefile
+/.cache/
