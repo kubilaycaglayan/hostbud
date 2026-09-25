@@ -4,6 +4,16 @@ Goal: from another machine, `ssh -L 9055:localhost:9055 <host>` → `http://loca
 
 Scope and acceptance: [../ROADMAP.md](../ROADMAP.md#m1--tmux-manager-in-the-browser-local-access) · checklist: [M1-acceptance.md](M1-acceptance.md).
 
+## Progress
+Update this table in the same commit that finishes a task.
+
+| Task | Status |
+|---|---|
+| T1 Go skeleton | ✅ done |
+| T2 Dockerized toolchain | ✅ done |
+| T3 Frontend scaffold | ⏭ next |
+| T4–T18 | ⬜ todo |
+
 Work top to bottom; each task ends with a green `make lint test` (and `make e2e` once it exists, for any change it can cover), a clean `make gitleaks`, and its own conventional commit(s). Tasks marked *(host)* need the real host (agent socket, sshd) to verify.
 
 ---
