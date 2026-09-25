@@ -1,0 +1,35 @@
+# Secrets & local config
+.env
+.env.*
+!.env.example
+
+# App data
+data/
+backups/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+
+# SSH material (never commit)
+*.pem
+*.key
+id_*
+known_hosts*
+test/sshd/keys/
+
+# Build output
+/bin/
+/dist/
+web/dist/
+web/node_modules/
+node_modules/
+coverage/
+*.out
+
+# Logs & OS/editor
+*.log
+.DS_Store
+.idea/
+.vscode/
+*.swp
