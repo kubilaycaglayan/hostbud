@@ -14,6 +14,20 @@ A layer may be **n/a** only with a one-line reason (e.g. pure byte passthrough h
 
 ## Functional
 
+### Authentication and PostgreSQL
+- [ ] PostgreSQL is the application database; the owner can connect using credentials from the untracked `.env` or through `docker compose exec hostbud-postgres psql`. The optional maintenance port is uncommon, configurable, loopback-only, and deployment requires verifying it is unused.
+  - U: T8A migration/config validation. I: T8A deploy-config and connection/backup checks. E: T8A authenticated E2E stack boots against disposable PostgreSQL. **Manual:** owner verifies the chosen host port with `ss -ltn` before deployment.
+- [ ] An email not present and enabled in `email_allowlist` cannot create an account; adding it with plain SQL permits registration.
+  - U: T8B email normalization and whitelist gating. I: T8B PostgreSQL migration and SQL update. E: T8B *Whitelist-gated registration*.
+- [ ] A whitelisted user can register with email and password, sign in, reach the app, and log out; protected API and WebSocket routes reject unauthenticated requests.
+  - U: T8B Argon2id, session creation/revocation, cookie flags and auth middleware. I: T8B PostgreSQL session persistence and protected-route checks. E: T8B *Registration/sign-in/logout*.
+- [ ] Disabling an existing email in `email_allowlist` prevents subsequent sign-in without deleting the account; responses do not reveal account or whitelist state.
+  - U: T8B generic auth errors and whitelist check. I: T8B SQL whitelist change against PostgreSQL. E: T8B *Whitelist-gated login*.
+- [ ] Repeated failed login/rate-limit hits produce HTTP `429` with increasing `Retry-After` values, bounded by the configured ceiling; changing only the email does not bypass the IP-wide bucket.
+  - U: T8B backoff and bucket logic. I: T8B concurrent PostgreSQL updates and trusted-proxy IP extraction. E: T8B *Escalating login rate limit*.
+- [ ] No password, session token, password hash, database credential, full email or whitelist contents appear in logs or tracked fixtures.
+  - U: T8B redaction tests. I: T8A/T8B deploy and log inspection. E: T8B *Authentication logs clean*.
+
 ### Session list
 - [ ] The UI lists every tmux session on the host (name, attached/detached, window count).
   - U: T9 list-format parser · T14 sessions store reducer · T15 session-list component (Vitest). I: T9 list on test sshd (name, attached, windows). E: T15 *Real-terminal create/kill*, *Attached state*.
@@ -69,6 +83,14 @@ Every scenario passes in **both** Playwright projects (`desktop-chromium`, `ipho
 
 **Each item is tagged with the task that must add it, in the same commit as the behavior.** An unchecked item whose task is ✅ done in [M1-tasks.md](M1-tasks.md) is a bug in that task, not work for the end of the milestone.
 
+Authentication and database
+- [ ] **(T8A) PostgreSQL stack:** the throwaway E2E app starts against its disposable PostgreSQL service; no production database volume or credentials are used.
+- [ ] **(T8B) Whitelist-gated registration:** an unlisted generated email is rejected; after the test inserts an enabled row through the owner SQL path, registration succeeds.
+- [ ] **(T8B) Registration/sign-in/logout:** the user registers, signs in, reaches the protected app, logs out, and is rejected from protected API/WebSocket routes afterward.
+- [ ] **(T8B) Whitelist-gated login:** disabling the generated email's allowlist row blocks a new sign-in without deleting the account.
+- [ ] **(T8B) Escalating login rate limit:** repeated invalid sign-ins return `429` and increasing `Retry-After` values, including when the email changes but the source IP remains the same.
+- [ ] **(T8B) Authentication logs clean:** test passwords, session tokens, database credentials and full test emails are absent from app logs and tracked fixtures.
+
 Harness
 - [x] **(T5) `make e2e`** runs from a clean checkout. It tears down even on failure, leaves no `hostbud-e2e*` containers or volumes, and doesn't touch the production `hostbud` project.
 - [x] **(T5) Harness smoke:** `target.tmux` creates, lists and kills a session; `target.capture` reads its pane.
@@ -109,6 +131,10 @@ Overall
 - [ ] **(T18) Stable:** two consecutive full runs pass (no flakes); failures leave traces/screenshots/videos in `test/e2e/results/`.
 
 ## Security (AGENTS.md checklist, M1 scope)
+- [ ] Authentication is required for all application API and WebSocket routes except health, registration and sign-in; sessions use opaque HttpOnly/SameSite cookies and passwords use Argon2id hashes.
+  - U: T8B auth middleware, cookie and password-hash tests. I: T8B protected-route and session persistence checks. E: T8B *Registration/sign-in/logout*.
+- [ ] PostgreSQL credentials never appear in tracked files, images or logs; the optional database port is uncommon, configurable, loopback-only and verified free before deployment.
+  - U: T8A config/redaction tests. I: T8A Compose/mount/port inspection. E: n/a (runner does not inspect the host network); **Manual** owner checks `.env` permissions and `ss -ltn`.
 - [ ] `ss -ltn` on the host: 9055 bound on `127.0.0.1` only; nothing on `0.0.0.0` from hostbud/Caddy; hostbud container publishes no ports.
   - U: n/a (no code). I: T8 deploy-config check: `docker compose config` shows `hostbud` with no ports and every Caddy port bound to `127.0.0.1` (or `${TAILSCALE_IP}` from M2). E: n/a (the e2e project publishes nothing by design). **Manual** `ss -ltn` (T4, T18).
 - [ ] A request with a foreign `Origin` (e.g. `curl -H 'Origin: http://evil.example.com' -X POST …`) and a WebSocket upgrade with a foreign Origin are rejected.
@@ -137,4 +163,5 @@ Process checks; they apply to the whole milestone, not to individual tests.
 - [ ] `make gitleaks` clean; pre-commit hook installed via `make hooks` and blocking a planted fake secret.
 - [ ] No real hostnames, domains, IPs, usernames or home paths in tracked files (`git grep` for the values in `.env`).
 - [ ] README documents M1 usage; `.env.example` lists every new variable; ARCHITECTURE matches what was built.
+- [ ] README documents PostgreSQL owner access, whitelist SQL, credential location, and the loopback-only uncommon-port requirement without containing real credentials.
 - [ ] Summary delivered: what changed, env vars the owner must set, manual host steps.

@@ -24,7 +24,7 @@ It is reachable two ways:
 - Storing terminal output, scrollback, or agent state.
 - Installing software on targets (missing tmux → warning only).
 - File editing / previews, git integration.
-- Multi-user and app login. The host has a single user and the other tailnet members are trusted, so reachability (loopback via SSH, or the tailnet) is the auth boundary; an optional Tailscale identity allowlist exists for later.
+- Multi-user authorization beyond the single-user v1 account model. v1 still has one trusted host machine, but the web app requires an account; reachability is not sufficient by itself.
 
 **v2 (design only; not implemented)** — see §10: task queue, per-machine capacity, hook-based session status, LLM supervisor (OpenAI first, pluggable), dispatcher that spawns sessions for queued tasks.
 
@@ -47,7 +47,8 @@ It is reachable two ways:
    ├─ tmux       tmux command builder/parser (list/new/kill/rename/copy-mode)
    ├─ fsbrowse   SFTP over `ssh -s sftp` (list, mkdir, stat, home dir)
    ├─ term       PTY ⇄ WebSocket bridge for interactive attach
-   └─ store      SQLite (migrations, repository layer; Postgres-ready)
+   ├─ auth       account registration, sign-in, sessions, whitelist and login throttling
+   └─ store      PostgreSQL (migrations and repository layer)
    │
    │  ssh (multiplexed via ControlMaster sockets in /data/ssh/cm)
    ▼
@@ -58,7 +59,7 @@ It is reachable two ways:
 - **Go backend, single binary.** Latency is dominated by network and PTY I/O, not compute, so WebAssembly or exotic runtimes buy nothing. Go gives first-class PTYs (`creack/pty`), WebSockets, SFTP (`pkg/sftp`), static builds, and a tiny container.
 - **System `ssh` binary, not a Go SSH library.** Gets `~/.ssh/config` semantics (ProxyJump, Include, Match, IdentityAgent, …), ssh-agent, and known_hosts for free and exactly as the user's terminal behaves. **ControlMaster** makes every non-interactive call (poll, list dir) reuse one TCP/SSH connection → millisecond-level round trips.
 - **xterm.js (WebGL renderer).** The same terminal engine as VS Code; handles full-screen TUIs (Claude Code, Codex, vim) correctly.
-- **SQLite behind a repository layer.** Zero-ops for a single-host app; migrations + a thin data-access layer keep a later Postgres move to a driver/dialect swap.
+- **PostgreSQL behind a repository layer.** Authentication needs durable, concurrent relational state and owner-managed SQL access to the email whitelist. The database is a Compose service with credentials supplied only through the untracked `.env`; the repository remains the only place with SQL.
 
 ---
 
@@ -70,11 +71,12 @@ Services in `docker-compose.yml` (Compose project `hostbud`; everything named wi
 |---|---|---|
 | `hostbud-caddy` | custom build (`caddy:builder` + `xcaddy` + `caddy-dns/cloudflare`) | Publishes `${TAILSCALE_IP}:443:443`, `${TAILSCALE_IP}:80:80` and `127.0.0.1:${HOSTBUD_LOCAL_PORT}:${HOSTBUD_LOCAL_PORT}` **only** (never `0.0.0.0`). Two sites: `${HOSTBUD_DOMAIN}` with a cert via DNS-01 using `CLOUDFLARE_API_TOKEN`, and `http://:${HOSTBUD_LOCAL_PORT}` (plain HTTP, loopback only, for SSH port forwarding). Both reverse-proxy to `hostbud:8080` (WebSocket upgrade supported by default). |
 | `hostbud` | built from repo `Dockerfile` | No published ports. Runs as `${HOST_UID}:${HOST_GID}`. |
+| `hostbud-postgres` | pinned official PostgreSQL image | No public or tailnet exposure. Owner maintenance access is optional and loopback-only at `127.0.0.1:${HOSTBUD_DB_LOCAL_PORT}:5432`; credentials come from the untracked `.env`. |
 
 **DNS:** Cloudflare `A` record `${HOSTBUD_DOMAIN}` → host's Tailscale IP (100.x.y.z), **DNS only (grey cloud)**. Never proxied (orange) and never a Cloudflare Tunnel — both would expose the app publicly. The name resolves publicly but the address is only routable inside the tailnet.
 
 **hostbud container mounts / settings**
-- `hostbud-data:/data` — SQLite DB, generated SSH config, ControlMaster sockets, app known_hosts.
+- `hostbud-data:/data` — generated SSH config, ControlMaster sockets and app known_hosts. PostgreSQL data lives in the separate `hostbud-postgres-data` volume.
 - ssh-agent socket: `${HOST_SSH_AUTH_SOCK}:/run/ssh-agent.sock` and `SSH_AUTH_SOCK=/run/ssh-agent.sock`. Private keys never enter the container. The host uses a **dedicated key** (`~/.ssh/hostbud_ed25519`) loaded into the agent at boot by a systemd user unit; its `authorized_keys` entry is restricted with `from="172.16.0.0/12"` (Docker networks) and `no-agent-forwarding,no-port-forwarding,no-X11-forwarding`, so the compose network uses a fixed subnet in that range. The host should use a **stable** agent socket path (e.g. systemd user `ssh-agent.socket`, or `ssh-agent -a ~/.ssh/agent.sock`) — document this in README.
 - The host's **public** host keys, read-only: `/etc/ssh/ssh_host_ed25519_key.pub`, `…_ecdsa_key.pub`, `…_rsa_key.pub` → `/run/host-keys/` (used to pin the host key, §4.3). Each file is bound individually with `create_host_path: false` (so a missing key fails loudly instead of Docker creating a directory).
 - *Later (multi-machine):* user SSH config, **read-only, at the same absolute path as on the host**, with `HOME=${HOST_HOME}` inside the container so `~` and absolute `Include` paths resolve identically (`~/.ssh/config`, `~/.ssh/known_hosts`, optional `~/.ssh/config.d` via long-syntax bind with `create_host_path: false`). Never mount the whole `~/.ssh` (keeps private key files out).
@@ -192,9 +194,11 @@ A session belongs to the project whose `path` is the **longest prefix** of the s
 
 ## 8. Persistence (`store`)
 
-- SQLite via `modernc.org/sqlite` (pure Go, no CGO), WAL mode, `busy_timeout`. File at `/data/hostbud.db`.
-- Migrations: embedded SQL files (`internal/store/migrations/`) run at startup with `pressly/goose`; append-only. Queries via `sqlc` or a hand-written repository interface — **no SQLite-specific SQL outside the store package**, so Postgres is a later swap.
+- PostgreSQL via a pinned official image, with the application connecting over the private Compose network. Database name, user, host, port and password come from `HOSTBUD_DB_*` environment variables. The password is never committed, logged or placed in an image.
+- Migrations: embedded SQL files (`internal/store/migrations/`) run at startup with `pressly/goose`; append-only. Queries via `sqlc` or a hand-written repository interface — **no SQL outside the store package**.
 - IDs: ULIDs (text). Timestamps: UTC.
+- The owner can inspect and maintain the database with `docker compose exec hostbud-postgres psql -U <HOSTBUD_DB_USER> -d <HOSTBUD_DB_NAME>` using values in the local `.env`, or from the host through the loopback-only `HOSTBUD_DB_LOCAL_PORT` mapping. This is an operator access path, not an application API.
+- The SQLite implementation currently present in the repository is provisional; the M1 persistence/auth work must migrate the store to PostgreSQL without destructive migrations or data loss.
 
 **v1 schema (sketch)** — `machines` is seeded with the single built-in `host` row.
 ```sql
@@ -208,9 +212,34 @@ projects(id, machine_id FK, path, name, sort_order, pinned BOOL,
 session_links(machine_id, session_name, project_id, created_at, PRIMARY KEY(machine_id, session_name))
 recent_commands(id, project_id, command, last_used_at)    -- start commands like `claude`, `codex`
 ui_state(key PK, value_json, updated_at)                    -- tree collapse state, tab/split layout, theme
+users(id, email, email_normalized UNIQUE, password_hash, created_at, updated_at,
+      last_login_at, disabled BOOL)
+email_allowlist(email_normalized PK, enabled BOOL, note, created_at, updated_at)
+auth_sessions(id_hash PK, user_id FK, expires_at, created_at, last_seen_at,
+              user_agent, created_ip)
+login_rate_limits(scope_key PK, failures INT, blocked_until, last_failure_at,
+                   updated_at)
 ```
 
-**Backups:** `make backup` runs `hostbud backup` in the running container (`VACUUM INTO`, a consistent copy) and copies the file to `./backups/` (gitignored).
+**Backups:** `make backup` runs a consistent PostgreSQL dump using the running database credentials and copies it to `./backups/` (gitignored). It must never print the password or include it in the backup command arguments shown in logs.
+
+### 8.1 Authentication
+
+- Registration and sign-in use email plus password. There is no password-reset, email-delivery or email-verification flow in M1.
+- Email is normalized before every lookup (trimmed and case-folded). Passwords are stored only as Argon2id password hashes; plaintext passwords never enter logs or the database.
+- An email must be enabled in `email_allowlist` before registration. The same whitelist check is required at sign-in, so disabling an address prevents it from creating a new session without deleting the account.
+- The owner manages the whitelist with plain SQL in PostgreSQL. There is deliberately no web UI or public API for modifying it. Documentation uses placeholders only; real addresses remain in the local database and are never committed.
+- Successful sign-in creates a server-side session. The browser receives only an opaque, high-entropy cookie marked `HttpOnly`, `Secure` when HTTPS is in use, `SameSite=Lax`, with a bounded expiry and rotation on sign-in. Store only a hash of the cookie token in `auth_sessions`.
+- All application API and WebSocket routes except health, registration and sign-in require an authenticated session. State-changing requests and WebSocket upgrades still enforce the Origin allowlist.
+- Registration and sign-in responses must not reveal whether an email is registered or whitelisted. Authentication failures use a generic message.
+
+### 8.2 Login rate limiting
+
+- Rate limiting applies to registration and sign-in, with the strictest policy on sign-in. Track failures by a privacy-preserving combination of normalized email and source IP, plus an IP-wide bucket to prevent rotating email addresses.
+- A failed sign-in increments the bucket. Repeated rate-limit hits increase the block duration exponentially with a configured ceiling; successful sign-in clears the email+IP failure bucket but does not clear an active IP-wide abuse block.
+- Return HTTP `429` with a generic error and `Retry-After`; do not disclose account or whitelist state. Apply the policy before password verification.
+- Rate-limit state is stored in PostgreSQL so all app instances share it. Expired buckets may be cleaned up safely.
+- Limits, backoff multiplier, ceiling and proxy/IP trust configuration are environment-backed with safe defaults. Never trust forwarded client IP headers except from the known Caddy proxy.
 
 ---
 
@@ -218,6 +247,10 @@ ui_state(key PK, value_json, updated_at)                    -- tree collapse sta
 
 REST (JSON), all under `/api`:
 ```
+POST   /api/auth/register             {email, password} — whitelist required
+POST   /api/auth/login                {email, password} — whitelist required
+POST   /api/auth/logout               revoke current session
+GET    /api/auth/me                   current account, or 401
 GET    /api/machines                      list (with status) — v1: just the host
 GET    /api/machines/:id/sessions
 POST   /api/machines/:id/sessions         {name, path, startCommand?}
@@ -243,10 +276,13 @@ POST   /api/machines/:id/hostkey/trust
 WebSockets: `/ws/events` (server → client state events), `/ws/term` (interactive).
 
 **Security middleware (all routes):**
+- Public routes are limited to `GET /api/health`, `POST /api/auth/register` and `POST /api/auth/login`. All other routes require the server-side session cookie.
+- Authentication cookies are opaque, HttpOnly, SameSite and Secure under HTTPS. Never put credentials, session cookies or bearer tokens in URLs, logs, WebSocket query parameters or client storage.
 - Origin allowlist: `https://${HOSTBUD_DOMAIN}` and `http://localhost:${HOSTBUD_LOCAL_PORT}`. Reject WebSocket upgrades and state-changing requests whose `Origin` is not in it. (`localhost` is a secure context, so clipboard APIs work over plain HTTP.)
 - Optional Tailscale identity allowlist (off by default; the tailnet is trusted): if `HOSTBUD_ALLOWED_TS_USERS` is set and the tailscaled socket is mounted, resolve the client IP (from Caddy's `X-Forwarded-For`, trusted only from the Caddy container) via Tailscale LocalAPI `whois` and reject unknown users.
 - CSRF: JSON-only API + SameSite cookies + Origin check on state-changing requests.
 - Never log command strings containing user paths at info level.
+- Never log passwords, session cookies, password hashes, database passwords, full email addresses or whitelist contents.
 
 ---
 
@@ -299,6 +335,16 @@ machine_capacity(machine_id PK, max_concurrent_runs)
 ## 12. Configuration (env)
 
 All config comes from environment (`.env`, gitignored). See `.env.example` for the full list. The app must start with sensible defaults and fail loudly (clear error) only for truly required values.
+
+Authentication/PostgreSQL configuration adds `HOSTBUD_DB_HOST`, `HOSTBUD_DB_PORT`,
+`HOSTBUD_DB_NAME`, `HOSTBUD_DB_USER`, `HOSTBUD_DB_PASSWORD`,
+`HOSTBUD_DB_LOCAL_PORT`, and the rate-limit settings. Real values belong only in
+the untracked `.env`; documentation and fixtures use placeholders. The database
+maintenance port is optional, loopback-only, and must use an uncommon operator
+chosen port. Before starting Compose, verify that the chosen host port is free
+(for example with `ss -ltn`); deployment must fail or be corrected rather than
+silently selecting or colliding with another service. It must never be published
+on `0.0.0.0`, the Tailscale address, or through Caddy.
 
 ---
 

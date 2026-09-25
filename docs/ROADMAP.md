@@ -25,7 +25,11 @@ v1 has a **single target: the host machine** (ARCHITECTURE §1). Multi-machine s
 Tasks: [roadmap/M1-tasks.md](roadmap/M1-tasks.md) · Checklist: [roadmap/M1-acceptance.md](roadmap/M1-acceptance.md)
 
 - Go module, `cmd/hostbud`, config from env, `log/slog`, `/api/health`.
-- SQLite store + migration runner; first migration creates `machines` (seeded with the built-in host machine) and `ui_state`.
+- PostgreSQL store + append-only migration runner; initial schema creates `machines` (seeded with the built-in host machine), `ui_state`, and authentication tables.
+- Email/password account creation and sign-in, both gated by an owner-managed PostgreSQL email whitelist. No password reset, email delivery or email verification in M1.
+- Server-side sessions in secure HttpOnly cookies and authentication required for the application API/UI.
+- Escalating login rate limits with email+IP and IP-wide buckets, `429`/`Retry-After`, and PostgreSQL-backed shared state.
+- PostgreSQL owner access documented through the untracked `.env`, `docker compose exec`, and an optional uncommon loopback-only maintenance port; no database port is exposed publicly or on the tailnet.
 - Dockerized toolchain: `Makefile` targets `build`, `test`, `lint`, `gitleaks`, `deploy`, `logs`, `backup` all run in containers (no local Go needed). Pre-commit hook runs gitleaks via Docker.
 - Multi-stage `Dockerfile` (linux/amd64), `docker-compose.yml` (hostbud + Caddy). Caddy serves plain HTTP on `127.0.0.1:${HOSTBUD_LOCAL_PORT}` only.
 - `sshx`: generated `/data/ssh/config` for the host, ControlMaster, host key pinned from the mounted `/etc/ssh/ssh_host_*_key.pub` (ARCHITECTURE §4.3).
@@ -38,9 +42,9 @@ Tasks: [roadmap/M1-tasks.md](roadmap/M1-tasks.md) · Checklist: [roadmap/M1-acce
 - `.env.example` updated; `.gitignore`.
 - E2E environment (`make e2e`, Compose project `hostbud-e2e`, Playwright desktop + iPhone 13 Pro): built **right after the container (T5), before any feature**. Each later task adds its own scenarios (API-level first, then UI).
 
-**E2E:** see the E2E section of [roadmap/M1-acceptance.md](roadmap/M1-acceptance.md) — list, real-terminal changes, create/rename/kill, attach and type, vim/htop, resize, restart/unreachable/tmux-missing recovery, Origin rejection.
+**E2E:** see the E2E section of [roadmap/M1-acceptance.md](roadmap/M1-acceptance.md) — account creation/sign-in/logout, whitelist gating and escalating login throttling, then list, real-terminal changes, create/rename/kill, attach and type, vim/htop, resize, restart/unreachable/tmux-missing recovery, and Origin rejection.
 
-**Accept:** from another machine, `ssh -L 9055:localhost:9055 <host>` then `http://localhost:9055` lists the host's tmux sessions; sessions created/killed in a real terminal appear/disappear within one poll interval; create/rename/kill work from the UI (kill asks first); attaching runs Claude Code, vim and htop correctly and resizing the browser resizes the tmux window; the app survives a container restart.
+**Accept:** from another machine, `ssh -L 9055:localhost:9055 <host>` then `http://localhost:9055` requires a whitelisted account; registration, sign-in and logout work; repeated failed logins receive progressively longer throttling; authenticated users can list the host's tmux sessions; sessions created/killed in a real terminal appear/disappear within one poll interval; create/rename/kill work from the UI (kill asks first); attaching runs Claude Code, vim and htop correctly and resizing the browser resizes the tmux window; the app survives a container restart.
 
 ### M2 — Deploy on the domain
 - Custom Caddy image (`caddy-dns/cloudflare`); TLS site for `${HOSTBUD_DOMAIN}` via DNS-01, published only on `${TAILSCALE_IP}:443` / `:80`.
