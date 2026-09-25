@@ -40,6 +40,7 @@ Work top to bottom; each task ends with a green `make lint test`, a clean `make 
 - `docker-compose.yml` (`name: hostbud`; names per the AGENTS.md naming rule):
   - `hostbud`: no published ports; `user: ${HOST_UID}:${HOST_GID}`; `hostbud-data:/data`; agent socket `${HOST_SSH_AUTH_SOCK}:/run/ssh-agent.sock`; `/etc/ssh/ssh_host_*_key.pub` → `/run/host-keys/` (ro); `extra_hosts: host.docker.internal:host-gateway`.
   - `hostbud-caddy`: stock `caddy:2` image for now; publishes `127.0.0.1:${HOSTBUD_LOCAL_PORT}` only; `deploy/caddy/Caddyfile` with the `http://:{$HOSTBUD_LOCAL_PORT}` site → `hostbud:8080`.
+- Compose network `hostbud` with a fixed subnet inside `172.16.0.0/12` (the host's `authorized_keys` entry for the hostbud key only allows that range).
 - `make deploy` = `docker compose up -d --build`; `make logs`.
 
 **Done:** *(host)* `make deploy` → `curl http://localhost:9055/api/health` returns ok; `ss -ltn` shows 9055 on `127.0.0.1` only.
@@ -142,7 +143,7 @@ Work top to bottom; each task ends with a green `make lint test`, a clean `make 
 ## F. Wrap-up
 
 ### T17 — Docs and release
-- README: M1 usage (port forward, `make deploy`, required `.env` vars, stable agent socket, own key in `authorized_keys`).
+- README: M1 usage (port forward, `make deploy`, required `.env` vars) and host setup: dedicated `~/.ssh/hostbud_ed25519` key, `authorized_keys` entry with `from="172.16.0.0/12",no-agent-forwarding,no-port-forwarding,no-X11-forwarding`, and a systemd user unit (`hostbud-ssh-add.service`) that loads it into the stable agent socket at boot (needs `loginctl enable-linger`).
 - `.env.example` for any new vars; ARCHITECTURE updated if the design moved.
 - Run the full [M1-acceptance.md](M1-acceptance.md) checklist.
 - Summary to the owner: what changed, env vars to set, manual host steps.
