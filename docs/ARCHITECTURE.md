@@ -198,7 +198,7 @@ A session belongs to the project whose `path` is the **longest prefix** of the s
 - Migrations: embedded SQL files (`internal/store/migrations/`) run at startup with `pressly/goose`; append-only. Queries via `sqlc` or a hand-written repository interface — **no SQL outside the store package**.
 - IDs: ULIDs (text). Timestamps: UTC.
 - The owner can inspect and maintain the database with `docker compose exec hostbud-postgres psql -U <HOSTBUD_DB_USER> -d <HOSTBUD_DB_NAME>` using values in the local `.env`, or from the host through the loopback-only `HOSTBUD_DB_LOCAL_PORT` mapping. This is an operator access path, not an application API.
-- The SQLite implementation currently present in the repository is provisional; the M1 persistence/auth work must migrate the store to PostgreSQL without destructive migrations or data loss.
+- PostgreSQL is initialized as a fresh application database for M1. The provisional SQLite database is not imported because the pre-M1 deployment is unused; if an old SQLite file remains in the app data volume, it is left untouched. PostgreSQL schema migrations are append-only.
 
 **v1 schema (sketch)** — `machines` is seeded with the single built-in `host` row.
 ```sql

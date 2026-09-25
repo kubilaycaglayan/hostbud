@@ -17,7 +17,7 @@ Update this table in the same commit that finishes a task.
 | T6 Store | ✅ done |
 | T7 `sshx` | ✅ done |
 | T8 Integration test target | ✅ done |
-| T8A PostgreSQL persistence | ⬜ todo |
+| T8A PostgreSQL persistence | ✅ done |
 | T8B Account authentication | ⬜ todo |
 | T9 `tmux` package | ✅ done (ahead of T8A/T8B, independent of them) |
 | T10 Events bus and inventory | 🚧 packages done; startup wiring and machine-row persistence wait for T8A |
@@ -145,7 +145,7 @@ Design: [ARCHITECTURE §13.1](../ARCHITECTURE.md#131-e2e-environment). Built now
 - The optional operator port uses `127.0.0.1:${HOSTBUD_DB_LOCAL_PORT}:5432`, with an uncommon, configurable default. Startup/deploy documentation requires checking that the chosen host port is unused; never auto-select a port or bind broadly.
 - Database name, user and password are supplied through `.env`-backed `HOSTBUD_DB_*` variables. Never commit, print or bake credentials into images. Document `docker compose exec hostbud-postgres psql ...` and the loopback connection path.
 
-**Tests:** U: migration/repository tests against disposable PostgreSQL; backup/restore smoke test. I: `docker compose config` verifies private networking, loopback-only optional port, non-secret environment wiring and persistent volume. E: no user-facing flow yet; the authenticated E2E stack must boot against PostgreSQL.
+**Tests:** U: migration/repository tests against disposable PostgreSQL; backup/restore smoke test. I: `docker compose config` verifies private networking, loopback-only optional port, non-secret environment wiring and persistent volume. E: stack boot check through Caddy and `/api/health` against disposable PostgreSQL, covered by the T5 *Open the app* smoke scenario.
 
 **E2E:** no user-visible behavior; update the E2E Compose stack so later authentication scenarios use a disposable PostgreSQL service and never the production volume.
 

@@ -16,7 +16,7 @@ A layer may be **n/a** only with a one-line reason (e.g. pure byte passthrough h
 
 ### Authentication and PostgreSQL
 - [ ] PostgreSQL is the application database; the owner can connect using credentials from the untracked `.env` or through `docker compose exec hostbud-postgres psql`. The optional maintenance port is uncommon, configurable, loopback-only, and deployment requires verifying it is unused.
-  - U: T8A migration/config validation. I: T8A deploy-config and connection/backup checks. E: T8A authenticated E2E stack boots against disposable PostgreSQL. **Manual:** owner verifies the chosen host port with `ss -ltn` before deployment.
+  - U: T8A migration and configuration validation. I: T8A disposable PostgreSQL connection/backup checks and deploy-config validation. E: T5 *Open the app*, extended by T8A, verifies the E2E app boots against its disposable PostgreSQL database and serves health through Caddy. **Manual:** owner verifies the chosen host port with `ss -ltn` before deployment.
 - [ ] An email not present and enabled in `email_allowlist` cannot create an account; adding it with plain SQL permits registration.
   - U: T8B email normalization and whitelist gating. I: T8B PostgreSQL migration and SQL update. E: T8B *Whitelist-gated registration*.
 - [ ] A whitelisted user can register with email and password, sign in, reach the app, and log out; protected API and WebSocket routes reject unauthenticated requests.

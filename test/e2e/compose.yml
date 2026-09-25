@@ -62,7 +62,7 @@ services:
       POSTGRES_USER: hostbud
       POSTGRES_PASSWORD: e2e-placeholder-password
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB && psql -U $$POSTGRES_USER -d $$POSTGRES_DB -c 'SELECT 1' >/dev/null"]
       start_period: 90s
       interval: 1s
       timeout: 5s
