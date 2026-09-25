@@ -43,6 +43,7 @@ build() {
 	build_if_changed hostbud-e2e-app hostbud-e2e-app:local \
 		Dockerfile .dockerignore go.mod go.sum cmd internal web test/e2e/compose.yml
 	build_if_changed hostbud-e2e-keygen hostbud-e2e-target:local test/sshd
+	build_if_changed hostbud-e2e-ctl hostbud-e2e-ctl:local test/e2e/ctl
 	build_if_changed hostbud-e2e-runner hostbud-e2e-runner:local \
 		test/e2e/Dockerfile test/e2e/package.json test/e2e/pnpm-lock.yaml test/e2e/pnpm-workspace.yaml
 }

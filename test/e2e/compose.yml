@@ -125,6 +125,19 @@ services:
     volumes:
       - ../../deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
 
+  # Failure switches for the runner (restart the app, stop/start sshd) via
+  # the Docker socket; fixed commands only (ctl/server.mjs).
+  hostbud-e2e-ctl:
+    build: ./ctl
+    image: hostbud-e2e-ctl:local
+    container_name: hostbud-e2e-ctl
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8090/health"]
+      interval: 1s
+      retries: 30
+
   # Playwright; idles until run.sh execs `playwright test` into it. Runs as
   # root (the agent accepts root; the keys are root-readable).
   hostbud-e2e-runner:
@@ -132,7 +145,7 @@ services:
     image: hostbud-e2e-runner:local
     container_name: hostbud-e2e-runner
     init: true
-    depends_on: [hostbud-e2e-caddy]
+    depends_on: [hostbud-e2e-caddy, hostbud-e2e-ctl]
     network_mode: service:hostbud-e2e-caddy
     environment:
       SSH_AUTH_SOCK: /run/agent/ssh-agent.sock

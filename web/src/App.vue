@@ -1,15 +1,24 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, onUnmounted, watch } from 'vue'
 import AuthView from '@/components/AuthView.vue'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
+import { useLiveStore } from '@/stores/live'
 
 const app = useAppStore()
 const auth = useAuthStore()
+const live = useLiveStore()
+
+// Live state only while signed in; the server pushes every change.
+watch(
+  () => auth.status,
+  (s) => (s === 'authenticated' ? live.start() : live.stop()),
+)
 
 onMounted(() => {
   auth.check().catch(() => auth.sessionEnded())
 })
+onUnmounted(() => live.stop())
 </script>
 
 <template>
@@ -32,6 +41,13 @@ onMounted(() => {
       <h1 class="font-bold text-accent">
         hostbud
       </h1>
+      <p
+        v-if="live.state === 'reconnecting' || live.state === 'connecting'"
+        role="status"
+        class="mt-1 text-muted"
+      >
+        {{ live.state === 'connecting' ? 'Connecting…' : 'Reconnecting…' }}
+      </p>
       <p class="mt-2 flex-1 text-muted">
         No sessions yet.
       </p>

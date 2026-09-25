@@ -107,7 +107,7 @@ API (through Caddy)
 - [x] **(T12) Logs clean:** after the run, `hostbud-e2e-app` info-level logs contain none of the paths, commands or markers the scenarios used.
 
 UI
-- [ ] **(T14) Live connection:** the page connects to `/ws/events` on load, and reconnects and resyncs after `hostbud-e2e-app` restarts.
+- [x] **(T14) Live connection:** the page connects to `/ws/events` on load, and reconnects and resyncs after `hostbud-e2e-app` restarts.
 - [ ] **(T15) Empty list:** a fresh target shows an empty session list, with no error.
 - [ ] **(T15) Real-terminal create/kill:** a session created with `tmux new -d` on the target appears within one poll interval; `tmux kill-session` makes it disappear.
 - [ ] **(T15) Attached state:** attaching from a second client on the target flips the attached indicator; `tmux new-window` updates the window count.

@@ -1,6 +1,8 @@
 // Typed client for hostbud's JSON API. Errors carry the server's
 // {error, hint} shape (and Retry-After for 429s).
 
+import type { Machine, Session } from './types'
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -41,6 +43,7 @@ export async function request<T>(method: Method, path: string, body?: unknown): 
   return (text ? JSON.parse(text) : undefined) as T
 }
 
+
 export interface Me {
   email: string
 }
@@ -51,4 +54,24 @@ export const authApi = {
   register: (email: string, password: string) =>
     request<void>('POST', '/api/auth/register', { email, password }),
   logout: () => request<void>('POST', '/api/auth/logout'),
+}
+
+export interface CreateSession {
+  name?: string
+  path?: string
+  startCommand?: string
+}
+
+const sessionsPath = (machine: string) => `/api/machines/${encodeURIComponent(machine)}/sessions`
+
+export const sessionsApi = {
+  machines: () => request<{ machines: Machine[] }>('GET', '/api/machines'),
+  list: (machine: string) => request<{ sessions: Session[] }>('GET', sessionsPath(machine)),
+  create: (machine: string, spec: CreateSession) =>
+    request<{ name: string }>('POST', sessionsPath(machine), spec),
+  rename: (machine: string, from: string, to: string) =>
+    request<{ name: string }>('PATCH', `${sessionsPath(machine)}/${encodeURIComponent(from)}`, { name: to }),
+  /** Kills a session: callers must have the user's confirmation. */
+  kill: (machine: string, name: string) =>
+    request<void>('DELETE', `${sessionsPath(machine)}/${encodeURIComponent(name)}`),
 }

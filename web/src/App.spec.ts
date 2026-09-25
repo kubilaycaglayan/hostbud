@@ -5,7 +5,28 @@ import App from './App.vue'
 import { useAppStore } from './stores/app'
 import { stubFetch } from './test-utils'
 
-beforeEach(() => setActivePinia(createPinia()))
+// A socket that stays "connecting": the live connection is covered by
+// api/live.spec.ts; here it only must not make real connections.
+class IdleSocket {
+  static instances: IdleSocket[] = []
+  onopen = null
+  onmessage = null
+  onclose = null
+  onerror = null
+  closed = false
+  constructor(readonly url: string) {
+    IdleSocket.instances.push(this)
+  }
+  close() {
+    this.closed = true
+  }
+}
+
+beforeEach(() => {
+  setActivePinia(createPinia())
+  IdleSocket.instances = []
+  vi.stubGlobal('WebSocket', IdleSocket)
+})
 afterEach(() => vi.unstubAllGlobals())
 
 const signedIn = () =>
@@ -30,6 +51,9 @@ describe('App shell', () => {
     expect(wrapper.get('aside[aria-label="Sessions"]').text()).toContain('hostbud')
     expect(wrapper.get('aside').text()).toContain('person@example.com')
     expect(wrapper.get('main').text()).toContain('Select a session')
+    // Signed in ⇒ live updates start (no polling).
+    expect(IdleSocket.instances.map((x) => x.url)).toEqual(['ws://localhost:3000/ws/events'])
+    expect(wrapper.get('[role=status]').text()).toBe('Connecting…')
   })
 
   it('hides the sidebar when toggled', async () => {
@@ -47,8 +71,9 @@ describe('App shell', () => {
     await flushPromises()
     await wrapper.get('button').trigger('click')
     await flushPromises()
-    expect(calls.at(-1)).toMatchObject({ method: 'POST', path: '/api/auth/logout' })
+    expect(calls).toContainEqual(expect.objectContaining({ method: 'POST', path: '/api/auth/logout' }))
     expect(wrapper.find('aside').exists()).toBe(false)
+    expect(IdleSocket.instances[0].closed).toBe(true) // live updates stop on sign-out
     expect(wrapper.find('input[type=password]').exists()).toBe(true)
   })
 })

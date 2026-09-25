@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, request } from './client'
+import { ApiError, request, sessionsApi } from './client'
 import { stubFetch } from '@/test-utils'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -27,5 +27,23 @@ describe('request', () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('oops', { status: 502 })))
     const err = await request('GET', '/api/x').catch((e) => e)
     expect(err).toMatchObject({ status: 502, message: 'request failed (502)', hint: undefined })
+  })
+})
+
+describe('sessionsApi', () => {
+  it('builds the documented routes', async () => {
+    const calls = stubFetch((method) => ({ status: method === 'DELETE' ? 204 : 200, body: method === 'DELETE' ? undefined : {} }))
+    await sessionsApi.machines()
+    await sessionsApi.list('host')
+    await sessionsApi.create('host', { path: '~/app', startCommand: 'htop' })
+    await sessionsApi.rename('host', 'a', 'b')
+    await sessionsApi.kill('host', 'b')
+    expect(calls).toEqual([
+      { method: 'GET', path: '/api/machines', body: undefined },
+      { method: 'GET', path: '/api/machines/host/sessions', body: undefined },
+      { method: 'POST', path: '/api/machines/host/sessions', body: { path: '~/app', startCommand: 'htop' } },
+      { method: 'PATCH', path: '/api/machines/host/sessions/a', body: { name: 'b' } },
+      { method: 'DELETE', path: '/api/machines/host/sessions/b', body: undefined },
+    ])
   })
 })
