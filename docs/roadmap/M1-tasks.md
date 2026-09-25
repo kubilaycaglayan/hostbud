@@ -20,7 +20,8 @@ Update this table in the same commit that finishes a task.
 | T8A PostgreSQL persistence | ⬜ todo |
 | T8B Account authentication | ⬜ todo |
 | T9 `tmux` package | ✅ done (ahead of T8A/T8B, independent of them) |
-| T10–T18 | ⬜ todo |
+| T10 Events bus and inventory | 🚧 packages done; startup wiring and machine-row persistence wait for T8A |
+| T11–T18 | ⬜ todo |
 
 Work top to bottom; each task ends with a green `make lint test` **and `make e2e`**, a clean `make gitleaks`, and its own conventional commit(s). Tasks marked *(host)* need the real host (agent socket, sshd) to verify.
 
