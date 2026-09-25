@@ -13,10 +13,16 @@ Update this table in the same commit that finishes a task.
 | T2 Dockerized toolchain | ✅ done |
 | T3 Frontend scaffold | ✅ done |
 | T4 Container and compose | ✅ done |
-| T5 Store | ⏭ next |
+| T5 E2E harness | ⏭ next |
 | T6–T18 | ⬜ todo |
 
-Work top to bottom; each task ends with a green `make lint test` (and `make e2e` once it exists, for any change it can cover), a clean `make gitleaks`, and its own conventional commit(s). Tasks marked *(host)* need the real host (agent socket, sshd) to verify.
+Work top to bottom; each task ends with a green `make lint test` **and `make e2e`**, a clean `make gitleaks`, and its own conventional commit(s). Tasks marked *(host)* need the real host (agent socket, sshd) to verify.
+
+**E2E rule — no deferral.** The e2e harness (T5) comes before any feature work, so every later task is covered from its first commit:
+- Every task has an **E2E:** line. It lists the scenarios that task adds (tagged with the same task number in [M1-acceptance.md](M1-acceptance.md#e2e-make-e2e-simulated-user)), or says why nothing user-reachable changed.
+- Scenarios land **in the same commit** as the behavior they cover, never in a later task. A task isn't done until they pass in both Playwright projects.
+- "User-reachable" includes the HTTP/WebSocket API through Caddy, not only the UI. Backend tasks with an endpoint get API-level scenarios before the UI exists.
+- When you add or split a task, give it an E2E line and tag its items in the acceptance checklist.
 
 ---
 
@@ -32,7 +38,7 @@ Work top to bottom; each task ends with a green `make lint test` (and `make e2e`
 **Done:** `make test` passes; binary serves `/api/health`.
 
 ### T2 — Dockerized toolchain
-- `Makefile` targets running in containers: `build`, `test`, `lint`, `fmt`, `tidy`, `gitleaks`, `gitleaks-staged`, `hooks` (`deploy`/`logs` arrive with T4, `backup` with T5).
+- `Makefile` targets running in containers: `build`, `test`, `lint`, `fmt`, `tidy`, `gitleaks`, `gitleaks-staged`, `hooks` (`deploy`/`logs` arrive with T4, `backup` with T6).
 - Pinned tool images (golang, golangci-lint, node/pnpm, gitleaks); Go module + pnpm caches in named volumes.
 - `.golangci.yml`.
 - `.githooks/pre-commit` running gitleaks via Docker on staged changes; `make hooks` sets `core.hooksPath` (repo-local).
@@ -55,21 +61,46 @@ Work top to bottom; each task ends with a green `make lint test` (and `make e2e`
 - Compose network `hostbud` with a fixed subnet inside `172.16.0.0/12` (the host's `authorized_keys` entry for the hostbud key only allows that range).
 - `make deploy` = `docker compose up -d --build`; `make logs`.
 
+**E2E:** none. The harness is built next (T5) on top of this image and Caddyfile.
+
 **Done:** *(host)* `make deploy` → `curl http://localhost:9055/api/health` returns ok; `ss -ltn` shows 9055 on `127.0.0.1` only.
+
+### T5 — E2E harness
+Design: [ARCHITECTURE §13.1](../ARCHITECTURE.md#131-e2e-environment). Built now, before any feature, so every later task adds its scenarios as it goes.
+- `test/sshd/`: target image (`openssh-server`, `tmux`, `vim`, `htop`, user `dev`). Host keys and the client key are generated per run and never committed. T8 reuses it for integration tests.
+- `test/e2e/`: Compose project `hostbud-e2e`, with no published ports and its own volumes, so it never touches the production `hostbud` project:
+  - `-target` (from `test/sshd`) and `-agent` (ssh-agent holding the client key);
+  - `-app`: the real image, with `HOSTBUD_HOST_ADDR=hostbud-e2e-target`, the target's host keys at `/run/host-keys`, the agent socket, and a short poll interval;
+  - `-caddy`: the real Caddyfile;
+  - `-runner`: pinned Playwright image, `network_mode: service:hostbud-e2e-caddy`.
+- Playwright + TypeScript with projects `desktop-chromium` and `iphone-13-pro` (WebKit). Specs are type-checked and linted by `make lint`.
+- Helpers:
+  - `target.tmux(...)`: SSH to the target, acting as "a real terminal";
+  - `target.capture(session)`: `tmux capture-pane -p`;
+  - `ui.*` page helpers, and a fixture that fails a test on console errors or failed requests.
+- `make e2e` builds, starts, runs both projects, collects `test/e2e/results/` (gitignored: traces, screenshots, videos on failure) and tears everything down (`down -v`), even on failure.
+
+**E2E:**
+- **Harness smoke (T5):** `target.tmux` can create, list and kill a session, and `target.capture` reads its pane.
+- **Open the app (T5):** the shell loads at `http://localhost:9055` through Caddy in both projects with no console errors; `GET /api/health` returns ok.
+
+**Done:** `make e2e` green twice in a row from a clean checkout. A deliberately broken assertion fails and leaves a trace in `test/e2e/results/`. After a run, no `hostbud-e2e*` containers or volumes remain, and the production `hostbud` containers are untouched.
 
 ## B. Persistence
 
-### T5 — Store
+### T6 — Store
 - `internal/store`: `modernc.org/sqlite`, WAL, `busy_timeout`, DB at `${HOSTBUD_DATA_DIR}/hostbud.db`.
 - Embedded migrations (goose); `0001`: `machines`, `ui_state`; built-in `host` machine row seeded idempotently.
 - Repository interface; no SQL outside `store`.
 - `make backup` (`VACUUM INTO` → `./backups/`, gitignored).
 
+**E2E:** nothing user-visible yet. The e2e app now creates its DB on its data volume at startup; `make e2e` must stay green.
+
 **Done:** unit tests against a temp DB; restart keeps data; migration re-run is a no-op.
 
 ## C. SSH and tmux backend
 
-### T6 — `sshx`
+### T7 — `sshx`
 - `HOSTBUD_HOST_ADDR` config (default `host.docker.internal`) for the host entry's `HostName`; e2e points it at its target container.
 - Single-quote shell-escaping helper; command builder `ssh -F /data/ssh/config <alias> -- <quoted args>` — the only way to run remote commands.
 - Generated `/data/ssh/config` (host entry `hostbud-host` with `HostKeyAlias`, then `Host *` defaults: ControlMaster, `ControlPath /data/ssh/cm/%C`, `StrictHostKeyChecking yes`, `BatchMode yes`, `UserKnownHostsFile /data/ssh/known_hosts`). Dirs `0700`.
@@ -77,41 +108,51 @@ Work top to bottom; each task ends with a green `make lint test` (and `make e2e`
 - `Exec(ctx, machine, args…)` with default 10s timeout; context cancel kills the process.
 - Map common failures to actionable errors: agent socket missing/empty, permission denied (key not in `authorized_keys`), connection refused (sshd), host key mismatch.
 
+**E2E:** no endpoint yet. The e2e app now pins the target's host keys at startup and must still boot healthy (the *Open the app* scenario stays green). Mismatch rejection is an integration test (T8).
+
 **Done:** unit tests for quoting (incl. quotes, spaces, `$`, newlines), config ordering, known_hosts generation, error mapping.
 
-### T7 — Integration test target
-- `test/sshd/`: container `hostbud-test-sshd` with `openssh-server` + `tmux`, throwaway key generated at test time (never committed).
+### T8 — Integration test target
+- Container `hostbud-test-sshd` from the `test/sshd` image built in T5; throwaway key generated at test time (never committed).
 - `make test` brings it up (compose profile), runs `-tags=integration` tests, tears it down.
 - sshx integration test: exec `echo`, ControlMaster reuse, host-key pin + mismatch rejection.
 
+**E2E:** none (integration-only); `make e2e` stays green.
+
 **Done:** `make test` runs unit + integration from a clean checkout.
 
-### T8 — `tmux` package
+### T9 — `tmux` package
 - Session-name validation `^[A-Za-z0-9_-]{1,64}$`.
 - Builders: `list-sessions -F …`, `new-session -d -s <name> -c <path> [-e K=V…] [cmd]`, `rename-session -t =<old> <new>`, `kill-session -t =<name>` — always `=` exact targets.
 - Parser for the tab-separated list format; "no server running" ⇒ empty list.
 - `tmux -V` version parsing; `-e` only when ≥ 3.2.
 
+**E2E:** none (no endpoint yet; covered through the API in T12); `make e2e` stays green.
+
 **Done:** unit tests for builders/parser/validation; integration test creates, lists, renames, kills a session on the test sshd.
 
-### T9 — Events bus and inventory
+### T10 — Events bus and inventory
 - `internal/events`: typed in-process pub/sub (`machine.status`, `sessions.changed`).
 - Capability probe on startup: `uname -s`, `command -v tmux`, `tmux -V`, home dir → stored on the machine row; status `ok | unreachable | tmux_missing`.
 - Poller for the host every `HOSTBUD_POLL_INTERVAL`: diff against cache, publish only on change; exponential backoff + `unreachable` on failure; recover automatically. Interface allows a control-mode implementation later.
 - `Refresh()` for an immediate re-poll after mutations.
 
+**E2E:** none yet (events become reachable at T12); `make e2e` stays green.
+
 **Done:** unit tests with a fake executor (diffing, backoff, status transitions).
 
-### T10 — Session service
+### T11 — Session service
 - Single `CreateSession(ctx, {machine, name, path, env, startCommand})`: default name from path basename (`-<n>` suffix on clash); path default = probed home; `~/` expanded against home; validate name; refresh after.
 - `RenameSession`, `KillSession` (service assumes UI confirmed); refresh after.
 - Actionable errors (duplicate name, path doesn't exist, tmux missing).
+
+**E2E:** none yet (reachable through the API in T12); `make e2e` stays green.
 
 **Done:** unit tests with fake executor; integration test for create with start command.
 
 ## D. API
 
-### T11 — REST + events WebSocket
+### T12 — REST + events WebSocket
 - `internal/api` (`coder/websocket`):
   - `GET /api/machines`, `GET /api/machines/:id/sessions`, `POST …/sessions`, `PATCH …/sessions/:name`, `DELETE …/sessions/:name`.
   - `/ws/events`: snapshot on connect, then bus events; ping/keepalive.
@@ -119,58 +160,86 @@ Work top to bottom; each task ends with a green `make lint test` (and `make e2e`
 - Origin middleware: allowlist `https://${HOSTBUD_DOMAIN}` (if set) + `http://localhost:${HOSTBUD_LOCAL_PORT}`; applied to WebSocket upgrades and non-GET requests.
 - No user paths or command strings in info logs.
 
+**E2E (API level, through Caddy, desktop project):**
+- **API list (T12):** a session made with `target.tmux` shows up in `GET …/sessions`.
+- **API mutations (T12):** create, rename and kill via the API are reflected in `tmux ls` on the target.
+- **API validation (T12):** an invalid name returns 400 `{error, hint}`.
+- **Events (T12):** `/ws/events` sends a snapshot, then `sessions.changed` within one poll interval of a real-terminal create.
+- **Origin (T12):** a foreign-`Origin` POST and WebSocket upgrade are rejected.
+
 **Done:** `httptest` tests incl. Origin rejection and validation errors.
 
-### T12 — Terminal bridge
+### T13 — Terminal bridge
 - `internal/term`: `/ws/term?machine=&session=&cols=&rows=` → PTY (`creack/pty`) running `ssh -F … -tt hostbud-host -- tmux attach-session -t =<name>`, `TERM=xterm-256color`.
 - Binary frames for I/O; JSON text control frames: `resize`, `ping`; server → `exit {code}`.
 - WS close ⇒ kill ssh process; bounded write buffer, drop stalled clients.
 - Origin-checked.
 
+**E2E (API level, through Caddy, desktop project):**
+- **Terminal WS (T13):** attach over `/ws/term`, send `echo e2e-<rand>` + Enter → the marker is in `target.capture`.
+- **Terminal WS (T13):** a `resize` frame changes `#{window_width}x#{window_height}`.
+- **Terminal WS (T13):** closing the socket leaves the session in `tmux ls`.
+- **Origin (T13):** a foreign `Origin` is rejected on `/ws/term` too.
+
 **Done:** integration test: attach, send keys, read output, resize, close ⇒ process gone, tmux session still alive.
 
 ## E. Frontend
 
-### T13 — Client and stores
+### T14 — Client and stores
 - Typed API client; Pinia `machines` and `sessions` stores updated from `/ws/events` (auto-reconnect with backoff, resync on snapshot). No polling.
+
+**E2E:** *Open the app* is extended (T14): on load the page connects to `/ws/events` with no console errors, and after `docker restart hostbud-e2e-app` it reconnects and resyncs.
 
 **Done:** Vitest for store reducers.
 
-### T14 — App shell and session list
+### T15 — App shell and session list
 - Accessible roles/labels on every control (e2e drives the UI by them); `data-testid` only where there is no accessible handle.
 - Left gutter: flat session list (name, attached/detached dot, window count); "Other sessions" grouping comes in M4.
 - Banner for host `unreachable` / `tmux_missing` with the actionable hint.
 - Selecting a session opens it in the terminal view.
 
-### T15 — Session actions
+**E2E (both projects):**
+- **Empty list (T15):** a fresh target shows an empty list with no error.
+- **Real-terminal create/kill (T15):** a `tmux new -d` on the target appears within one poll interval; `tmux kill-session` removes it.
+- **Attached state (T15):** a second client attaching on the target flips the indicator.
+- **App restart (T15):** after restarting `hostbud-e2e-app` the list recovers with the same sessions.
+- **Host unreachable (T15):** stopping sshd on the target shows the banner with its hint; starting it again recovers without a reload.
+- **tmux missing (T15):** adds `hostbud-e2e-target-notmux`; the UI shows the install hint.
+
+### T16 — Session actions
 - Create dialog: name (optional), path (default `~`), start command (optional); inline validation matching the backend regex.
 - Rename (dialog or inline); Kill via Reka UI `AlertDialog` confirmation.
 - Error toasts showing the backend's actionable message.
 
-### T16 — Terminal view
+**E2E (both projects):**
+- **Create with defaults (T16):** path only → the session is named after the directory, and `#{session_path}` matches.
+- **Create with start command (T16):** name + path + `htop` → `#{pane_current_command}` is `htop`.
+- **Invalid input (T16):** `a.b`, `a:b` and `a b` are rejected in the form; a duplicate name and a missing path show the actionable text.
+- **Rename (T16):** the new name shows in `tmux ls` and in the list.
+- **Kill (T16):** Cancel keeps the session; Confirm removes it from `tmux ls` and the list.
+
+### T17 — Terminal view
 - `@xterm/xterm` + `fit`, `webgl` (fallback), `web-links`, `unicode11`; bundled font.
 - Connect `/ws/term`; `ResizeObserver` → `fit` → `resize` frame; show exit/disconnect state with a "Reconnect" button (auto-reconnect is M3).
 - One terminal at a time (tabs/splits are M3).
-- `window.__hostbud.termText()` (xterm buffer as text) only when built with `VITE_E2E=1`; never in production builds.
+- `window.__hostbud.termText()` (xterm buffer as text) only when built with `VITE_E2E=1` (Dockerfile build arg, set only by `test/e2e`); never in production builds.
+
+**E2E (both projects):**
+- **Attach and type (T17):** click a session, type `echo e2e-$RANDOM` + Enter → the marker is in `capture-pane` and in `termText()`.
+- **Full-screen apps (T17):** in vim, insert text and `:wq` → the file is written on the target; htop renders and `q` quits.
+- **Resize (T17):** a viewport change updates `#{window_width}x#{window_height}`.
+- **Leave without killing (T17):** closing the page ends the attach; the session stays in `tmux ls`.
+- **Exit state (T17):** `prefix d` or the program exiting shows the exit state; Reconnect re-attaches.
+- **App restart (T17):** after restarting `hostbud-e2e-app` the terminal can reconnect.
+- **Create with start command (T17):** the htop session from T16 is visible in the terminal.
 
 **Done (E):** *(host)* manual pass of the functional section of [M1-acceptance.md](M1-acceptance.md).
 
-## F. E2E
-
-### T17 — E2E environment and scenarios
-Design: [ARCHITECTURE §13.1](../ARCHITECTURE.md#131-e2e-environment). Covers everything built in M1, simulating a real user.
-- `test/e2e/`: Compose project `hostbud-e2e` (`-target`, `-target-notmux`, `-agent`, `-app`, `-caddy`, `-runner`); per-run throwaway keys; reuses the `test/sshd` image as the target base.
-- Playwright + TypeScript; projects `desktop-chromium` and `iphone-13-pro` (WebKit).
-- Helpers: `target.tmux(...)` (SSH to the target — the "real terminal"), `target.capture(session)` (`tmux capture-pane -p`), `ui.termText()`.
-- `make e2e` builds, starts, runs both projects, collects `test/e2e/results/` (gitignored), tears down — even on failure.
-- Scenarios: every item in the E2E section of [M1-acceptance.md](M1-acceptance.md).
-
-**Done:** `make e2e` green on both projects from a clean checkout, twice in a row (no flakes).
-
-## G. Wrap-up
+## F. Wrap-up
 
 ### T18 — Docs and release
 - README: M1 usage (port forward, `make deploy`, required `.env` vars) and host setup: dedicated `~/.ssh/hostbud_ed25519` key, `authorized_keys` entry with `from="172.16.0.0/12",no-agent-forwarding,no-port-forwarding,no-X11-forwarding`, and a systemd user unit (`hostbud-ssh-add.service`) that loads it into the stable agent socket at boot (needs `loginctl enable-linger`).
 - `.env.example` for any new vars; ARCHITECTURE updated if the design moved.
-- Run `make e2e` and the full [M1-acceptance.md](M1-acceptance.md) checklist.
+- E2E audit: every item in the E2E section of [M1-acceptance.md](M1-acceptance.md) has its scenario (added by the task it's tagged with) and passes in both projects, twice in a row from a clean checkout. Any gap is a bug in the task that missed it: fix it there, don't just add it here.
+- Run the full [M1-acceptance.md](M1-acceptance.md) checklist.
 - Summary to the owner: what changed, env vars to set, manual host steps.

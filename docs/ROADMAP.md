@@ -4,6 +4,13 @@ Each milestone is shippable and ends deployed on the host (`make deploy`). A mil
 
 **E2E per milestone:** each milestone extends the e2e suite (ARCHITECTURE §13.1) with scenarios that simulate a real user doing everything that milestone added, in both the desktop and iPhone 13 Pro profiles, against the throwaway target. The *E2E* line under each milestone lists the minimum.
 
+**E2E is never deferred.** The e2e harness is built early in M1, before any feature work. From then on:
+- every **task** (not just every milestone) that adds or changes behavior e2e can reach adds its scenario in the same commit. "Reach" means through the UI or the HTTP/WebSocket API through Caddy;
+- every task in a `roadmap/M*-tasks.md` breakdown has an **E2E:** line, either the scenarios it adds or why nothing is reachable;
+- every E2E item in a `roadmap/M*-acceptance.md` checklist is tagged with the task that adds it.
+
+When a milestone below is broken into tasks, spread its *E2E* line across those tasks. Don't collect it into a final "write e2e tests" task.
+
 Priority: **(1) a working tmux manager in the browser, (2) deployed on the domain**, then everything else.
 
 v1 has a **single target: the host machine** (ARCHITECTURE §1). Multi-machine support is listed under *Later*.
@@ -27,7 +34,7 @@ Tasks: [roadmap/M1-tasks.md](roadmap/M1-tasks.md) · Checklist: [roadmap/M1-acce
 - Vue 3 + Vite + TS + Tailwind + Reka UI app, embedded via `go:embed`.
 - Origin check on WebSockets and state-changing requests.
 - `.env.example` updated; `.gitignore`.
-- E2E environment (`make e2e`, Compose project `hostbud-e2e`, Playwright desktop + iPhone 13 Pro) — built at the end of M1, covering all of M1.
+- E2E environment (`make e2e`, Compose project `hostbud-e2e`, Playwright desktop + iPhone 13 Pro): built **right after the container (T5), before any feature**. Each later task adds its own scenarios (API-level first, then UI).
 
 **E2E:** see the E2E section of [roadmap/M1-acceptance.md](roadmap/M1-acceptance.md) — list, real-terminal changes, create/rename/kill, attach and type, vim/htop, resize, restart/unreachable/tmux-missing recovery, Origin rejection.
 

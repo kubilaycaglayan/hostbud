@@ -330,7 +330,9 @@ A separate Compose project `hostbud-e2e` (`test/e2e/`), started, run and torn do
 - No real TUIs that need credentials (Claude Code, Codex); vim and htop cover full-screen apps. Claude Code stays a manual check.
 - Traces, screenshots and videos on failure → `test/e2e/results/` (gitignored).
 
-**When it runs:** not part of `make test`. Required for every milestone's definition of done, and after any new implementation or fix whose behavior e2e can cover — that change adds or updates its scenario.
+**When it runs:** not part of `make test`. It's required before every commit that changes behavior e2e can reach (UI, or HTTP/WebSocket API through Caddy), and for every milestone's definition of done.
+
+**When scenarios are written:** in the same commit as the behavior, never later. The harness exists from early M1 (before any feature), so there is no "e2e phase". API-level scenarios cover backend endpoints before their UI exists; UI scenarios follow with the UI task. Every roadmap task has an *E2E:* line, and every acceptance-checklist E2E item names the task that adds it.
 - No committed fixtures containing real hostnames, usernames, or paths — use `example.com`, `server-a`, `/home/dev`.
 
 ---
@@ -345,7 +347,8 @@ hostbud/
 ├─ migrations/                           # embedded SQL
 ├─ web/                                  # Vue app (built into web/dist, embedded)
 ├─ deploy/caddy/{Dockerfile,Caddyfile}
-├─ test/sshd/                            # integration-test target container
+├─ test/sshd/                            # target image (integration tests + e2e target)
+├─ test/e2e/                             # Playwright suite + hostbud-e2e Compose project
 ├─ Dockerfile
 ├─ docker-compose.yml
 ├─ Makefile
