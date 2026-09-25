@@ -20,7 +20,7 @@ Work top to bottom; each task ends with a green `make lint test`, a clean `make 
 **Done:** `make test` passes; binary serves `/api/health`.
 
 ### T2 — Dockerized toolchain
-- `Makefile` targets running in containers: `build`, `test`, `lint`, `fmt`, `gitleaks`, `deploy`, `logs`, `backup`, `hooks`.
+- `Makefile` targets running in containers: `build`, `test`, `lint`, `fmt`, `tidy`, `gitleaks`, `gitleaks-staged`, `hooks` (`deploy`/`logs` arrive with T4, `backup` with T5).
 - Pinned tool images (golang, golangci-lint, node/pnpm, gitleaks); Go module + pnpm caches in named volumes.
 - `.golangci.yml`.
 - `.githooks/pre-commit` running gitleaks via Docker on staged changes; `make hooks` sets `core.hooksPath` (repo-local).
