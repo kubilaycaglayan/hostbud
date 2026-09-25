@@ -8,7 +8,9 @@ NODE_IMAGE     ?= node:24.21.0-bookworm-slim
 
 # Tools run in long-lived toolbox containers (scripts/tool.sh): created on
 # first use, then reused via `docker exec`. `make tools-down` removes them.
-GO       = scripts/tool.sh go $(GO_IMAGE) .
+# The Go toolbox adds a passwd entry for your uid (ssh needs one) and joins the
+# hostbud-test network, where the integration targets run.
+GO       = TOOL_NETWORK=hostbud-test scripts/tool.sh go $$(scripts/go-toolbox-image.sh $(GO_IMAGE)) .
 GOLANGCI = scripts/tool.sh lint $(LINT_IMAGE) .
 # pnpm comes from corepack (version pinned by each package.json "packageManager").
 PNPM     = scripts/tool.sh node $(NODE_IMAGE) web corepack pnpm
@@ -16,7 +18,7 @@ PNPM_E2E = scripts/tool.sh node $(NODE_IMAGE) test/e2e corepack pnpm
 GITLEAKS = scripts/tool.sh gitleaks $(GITLEAKS_IMAGE) . gitleaks
 
 .PHONY: help build test lint fmt tidy gitleaks gitleaks-staged hooks \
-	go-build go-test go-lint web-install web-build web-test web-lint e2e e2e-up e2e-run e2e-down e2e-install e2e-lint \
+	go-build go-test go-unit test-env test-down go-lint web-install web-build web-test web-lint e2e e2e-up e2e-run e2e-down e2e-install e2e-lint \
 	deploy logs backup tools-down
 
 help: ## List targets
@@ -24,15 +26,25 @@ help: ## List targets
 
 build: web-build go-build ## Build the SPA and the hostbud binary (SPA embedded) into ./bin
 
-test: go-test web-test ## Run Go and frontend unit tests
+test: go-test web-test ## Go unit + integration tests (against test/sshd) and Vitest
 
 lint: go-lint web-lint e2e-lint ## Run golangci-lint, eslint and vue-tsc (app and e2e suite)
 
 go-build: ## Build only the Go binary (embeds whatever is in web/dist)
 	$(GO) env CGO_ENABLED=0 go build -o bin/hostbud ./cmd/hostbud
 
-go-test: ## Run Go unit tests
+go-test: test-env ## Go unit + integration tests (-tags=integration, against test/sshd)
+	$(GO) go test -race -tags=integration ./...
+
+go-unit: ## Go unit tests only (no containers besides the toolbox)
 	$(GO) go test -race ./...
+
+test-env: ## Start the integration targets (hostbud-test-sshd[-notmux]; kept running) and render the deploy config
+	scripts/test-sshd.sh up
+	scripts/compose-config.sh
+
+test-down: ## Remove the integration targets, their network and keys
+	scripts/test-sshd.sh down
 
 go-lint: ## Run golangci-lint (linters + formatting check)
 	$(GOLANGCI) golangci-lint run ./...

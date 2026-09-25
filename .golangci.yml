@@ -9,8 +9,18 @@ linters:
     - misspell
     - noctx
     - unconvert
+  exclusions:
+    rules:
+      # Tests and test infrastructure launch fixed tools (ssh, ssh-agent, …).
+      - path: (_test\.go|internal/testenv/)
+        linters: [gosec]
+        text: G204
 
 formatters:
   enable:
     - gofmt
     - goimports
+
+run:
+  # Lint the integration tests too (make test runs them with this tag).
+  build-tags: [integration]

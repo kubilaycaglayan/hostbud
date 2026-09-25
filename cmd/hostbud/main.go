@@ -74,6 +74,11 @@ func run() error {
 		return err
 	}
 	log.Debug("ssh config written", "path", ssh.ConfigPath())
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = ssh.Close(ctx)
+	}()
 
 	srv := &http.Server{
 		Addr:              cfg.Listen,

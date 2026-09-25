@@ -19,7 +19,8 @@ var allowed = map[string][]string{
 	"modernc.org/sqlite":          {"internal/store"},
 	"github.com/pressly/goose/v3": {"internal/store"},
 	// Remote commands only through sshx; term runs the interactive attach.
-	"os/exec": {"internal/sshx", "internal/term"},
+	// testenv is integration-test infrastructure (ssh-agent, ssh-keygen).
+	"os/exec": {"internal/sshx", "internal/term", "internal/testenv"},
 }
 
 func TestRestrictedImports(t *testing.T) {

@@ -142,3 +142,15 @@ func checkAgent() agentState {
 	}
 	return agentOK
 }
+
+// Close stops the host's ControlMaster, if one is running.
+func (c *Client) Close(ctx context.Context) error {
+	argv := []string{"-F", c.configPath, "-O", "exit", HostAlias}
+	cmd := exec.CommandContext(ctx, c.cfg.SSHBinary, argv...) //nolint:gosec // fixed argv
+	cmd.WaitDelay = time.Second
+	if out, err := cmd.CombinedOutput(); err != nil && !strings.Contains(string(out), "No such file") &&
+		!strings.Contains(string(out), "Control socket connect") {
+		return fmt.Errorf("stop ssh ControlMaster: %s", strings.TrimSpace(string(out)))
+	}
+	return nil
+}

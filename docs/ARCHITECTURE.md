@@ -305,7 +305,7 @@ All config comes from environment (`.env`, gitignored). See `.env.example` for t
 ## 13. Testing strategy
 
 - **Unit:** quoting/escaping, name validation, tmux output parsing, SSH config generation ordering, project-path matching.
-- **Integration:** `test/sshd/` — a disposable container with `openssh-server` + `tmux` (plus a tmux-less variant) and a generated throwaway key; the test suite runs hostbud's sshx/tmux/inventory/term/fsbrowse packages against it (probe, list, create, attach via PTY, mkdir, kill, error mapping). It also checks the real deploy config (`docker compose config`: published ports, `user`, mounts). Runs via `make test` in Docker.
+- **Integration:** `test/sshd/` — a disposable container with `openssh-server` + `tmux` (plus a tmux-less variant) and a generated throwaway key; the test suite runs hostbud's sshx/tmux/inventory/term/fsbrowse packages against it (probe, list, create, attach via PTY, mkdir, kill, error mapping). It also checks the real deploy config (`docker compose config`: published ports, `user`, mounts). Runs via `make test` in Docker: `scripts/test-sshd.sh` keeps `hostbud-test-sshd` (+ `-notmux`) running on the `hostbud-test` network with throwaway keys in `.cache/test-sshd/` (recreated only when `test/sshd` changes; `make test-down` removes them), and the Go toolbox joins that network. The deploy-config check reads `docker compose config` rendered with placeholder values, never the real `.env`.
 - **Frontend:** Vitest for stores/utilities. All run in containers.
 - **E2E (`make e2e`):** simulates a real user end to end — see §13.1.
 

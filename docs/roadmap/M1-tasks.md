@@ -16,8 +16,11 @@ Update this table in the same commit that finishes a task.
 | T5 E2E harness | ✅ done |
 | T6 Store | ✅ done |
 | T7 `sshx` | ✅ done |
-| T8 Integration test target | ⏭ next |
-| T9–T18 | ⬜ todo |
+| T8 Integration test target | ✅ done |
+| T8A PostgreSQL persistence | ⬜ todo |
+| T8B Account authentication | ⬜ todo |
+| T9 `tmux` package | ⏭ next after T8A/T8B |
+| T10–T18 | ⬜ todo |
 
 Work top to bottom; each task ends with a green `make lint test` **and `make e2e`**, a clean `make gitleaks`, and its own conventional commit(s). Tasks marked *(host)* need the real host (agent socket, sshd) to verify.
 
@@ -133,6 +136,32 @@ Design: [ARCHITECTURE §13.1](../ARCHITECTURE.md#131-e2e-environment). Built now
 **E2E:** none (integration-only); `make e2e` stays green.
 
 **Done:** `make test` runs unit + integration from a clean checkout.
+
+### T8A — PostgreSQL persistence and operator access
+- Replace the provisional SQLite implementation with PostgreSQL without destructive migrations.
+- Add a pinned `hostbud-postgres` Compose service and named data volume; hostbud reaches it only over the private Compose network.
+- The optional operator port uses `127.0.0.1:${HOSTBUD_DB_LOCAL_PORT}:5432`, with an uncommon, configurable default. Startup/deploy documentation requires checking that the chosen host port is unused; never auto-select a port or bind broadly.
+- Database name, user and password are supplied through `.env`-backed `HOSTBUD_DB_*` variables. Never commit, print or bake credentials into images. Document `docker compose exec hostbud-postgres psql ...` and the loopback connection path.
+
+**Tests:** U: migration/repository tests against disposable PostgreSQL; backup/restore smoke test. I: `docker compose config` verifies private networking, loopback-only optional port, non-secret environment wiring and persistent volume. E: no user-facing flow yet; the authenticated E2E stack must boot against PostgreSQL.
+
+**E2E:** no user-visible behavior; update the E2E Compose stack so later authentication scenarios use a disposable PostgreSQL service and never the production volume.
+
+**Done:** a fresh deployment starts PostgreSQL, hostbud connects, owner SQL access works through the documented loopback path, and no real credential appears in tracked files or logs.
+
+### T8B — Whitelist-gated account authentication
+- Add `users`, `email_allowlist`, `auth_sessions` and `login_rate_limits` migrations in PostgreSQL.
+- Add account creation and sign-in UI/API using normalized email and Argon2id password hashes. An enabled whitelist row is required both before registration and again at sign-in; disabling a row prevents new sessions. No password reset, email delivery or email verification in M1.
+- Use opaque, server-side sessions in an HttpOnly/SameSite cookie; require authentication for all routes except health, registration and sign-in. Preserve Origin checks for state-changing requests and WebSockets.
+- Owner-only whitelist maintenance is plain SQL; there is no whitelist admin endpoint. Generic responses must not disclose account or whitelist state.
+- Add escalating login throttling keyed by email+source-IP and an IP-wide bucket. Repeated rate-limit hits increase the block duration exponentially up to a configured ceiling; return `429` and `Retry-After`; successful login clears only the email+IP failure bucket.
+- Document all auth/rate-limit env vars without writing real values into tracked files.
+
+**Tests:** U: email normalization, Argon2id verification, session rotation/revocation, whitelist gating, generic errors, exponential backoff and `Retry-After`, trusted-proxy IP extraction. I: PostgreSQL migrations, concurrent rate-limit updates, cookie flags, and SQL whitelist changes. E: registration blocked before whitelist insertion; registration succeeds after insertion; login succeeds while whitelisted; disabling the row blocks subsequent login; repeated bad logins receive increasing `Retry-After`; valid login reaches the protected app; logout revokes access.
+
+**E2E:** desktop and iPhone projects add registration, sign-in, logout, whitelist-gated registration/login, and escalating login-rate-limit scenarios through Caddy against the throwaway PostgreSQL database. Test data uses generated example addresses and passwords only.
+
+**Done:** unauthenticated users cannot reach the tmux UI/API, the complete account flow works for whitelisted email addresses, owner SQL whitelist changes take effect, and rate limiting cannot be bypassed by changing only the email address.
 
 ### T9 — `tmux` package
 - Session-name validation `^[A-Za-z0-9_-]{1,64}$`.

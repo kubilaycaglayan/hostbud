@@ -26,6 +26,11 @@ for f in /keys/hostpub/*.pub; do
 	printf 'hostbud-e2e-target,hostbud-e2e-target-notmux %s\n' "$(cut -d' ' -f1,2 "$f")"
 done >/keys/known_hosts
 
+# Host keys and known_hosts belong to <client-uid> too, so a bind-mounted
+# /keys (integration tests) can be removed without root. The target copies
+# the host keys and fixes their modes itself.
+chown -R "$uid:$uid" /keys/host /keys/hostpub /keys/known_hosts
+
 if [ -d /agent ]; then
 	chown "$uid:$uid" /agent
 	chmod 700 /agent
