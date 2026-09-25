@@ -1,0 +1,81 @@
+# hostbud — `make deploy` (docker compose up -d --build). Values come from .env.
+name: hostbud
+
+services:
+  hostbud:
+    build:
+      context: .
+      args:
+        HOST_UID: ${HOST_UID:?set HOST_UID in .env}
+        HOST_GID: ${HOST_GID:?set HOST_GID in .env}
+    image: hostbud:local
+    container_name: hostbud
+    restart: unless-stopped
+    # No published ports: only reachable through hostbud-caddy.
+    user: ${HOST_UID}:${HOST_GID}
+    # Explicit list (no env_file) so unrelated secrets in .env never reach the app.
+    environment:
+      HOSTBUD_LISTEN: ":8080"
+      HOSTBUD_DATA_DIR: /data
+      HOSTBUD_POLL_INTERVAL: ${HOSTBUD_POLL_INTERVAL:-3s}
+      HOSTBUD_LOG_LEVEL: ${HOSTBUD_LOG_LEVEL:-info}
+      HOSTBUD_LOCAL_PORT: ${HOSTBUD_LOCAL_PORT:-9055}
+      HOSTBUD_DOMAIN: ${HOSTBUD_DOMAIN:-}
+      HOSTBUD_HOST_ADDR: ${HOSTBUD_HOST_ADDR:-host.docker.internal}
+      HOSTBUD_HOST_LABEL: ${HOSTBUD_HOST_LABEL:-Host machine}
+      HOST_SSH_USER: ${HOST_SSH_USER:?set HOST_SSH_USER in .env}
+      SSH_AUTH_SOCK: /run/ssh-agent.sock
+    volumes:
+      - hostbud-data:/data
+      # ssh-agent socket only; private keys never enter the container.
+      - type: bind
+        source: ${HOST_SSH_AUTH_SOCK:?set HOST_SSH_AUTH_SOCK in .env}
+        target: /run/ssh-agent.sock
+        bind: { create_host_path: false }
+      # The host's public host keys, used to pin its identity (no TOFU).
+      - type: bind
+        source: /etc/ssh/ssh_host_ed25519_key.pub
+        target: /run/host-keys/ssh_host_ed25519_key.pub
+        read_only: true
+        bind: { create_host_path: false }
+      - type: bind
+        source: /etc/ssh/ssh_host_ecdsa_key.pub
+        target: /run/host-keys/ssh_host_ecdsa_key.pub
+        read_only: true
+        bind: { create_host_path: false }
+      - type: bind
+        source: /etc/ssh/ssh_host_rsa_key.pub
+        target: /run/host-keys/ssh_host_rsa_key.pub
+        read_only: true
+        bind: { create_host_path: false }
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    networks: [hostbud]
+
+  hostbud-caddy:
+    # Stock image for now; M2 switches to a custom build with caddy-dns/cloudflare.
+    image: caddy:2.11.4
+    container_name: hostbud-caddy
+    restart: unless-stopped
+    depends_on: [hostbud]
+    environment:
+      HOSTBUD_LOCAL_PORT: ${HOSTBUD_LOCAL_PORT:-9055}
+    ports:
+      # Loopback only — never 0.0.0.0.
+      - 127.0.0.1:${HOSTBUD_LOCAL_PORT:-9055}:${HOSTBUD_LOCAL_PORT:-9055}
+    volumes:
+      - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+    networks: [hostbud]
+
+networks:
+  hostbud:
+    name: hostbud
+    # Fixed subnet inside 172.16.0.0/12: the host's authorized_keys entry for
+    # the hostbud key only accepts connections from that range.
+    ipam:
+      config:
+        - subnet: ${HOSTBUD_SUBNET:-172.29.55.0/24}
+
+volumes:
+  hostbud-data:
+    name: hostbud-data

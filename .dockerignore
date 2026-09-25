@@ -1,0 +1,10 @@
+# Keep the build context small and free of secrets/state.
+*
+!go.mod
+!go.sum
+!cmd/
+!internal/
+!web/
+web/node_modules/
+web/dist/
+**/*_test.go

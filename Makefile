@@ -21,7 +21,7 @@ DOCKER_PNPM = docker run --rm -u $(UID):$(GID) -v "$(CURDIR)":/src -w /src/web \
 GITLEAKS = docker run --rm -v "$(CURDIR)":/repo $(GITLEAKS_IMAGE)
 
 .PHONY: help build test lint fmt tidy gitleaks gitleaks-staged hooks \
-	go-build go-test go-lint web-install web-build web-test web-lint
+	go-build go-test go-lint web-install web-build web-test web-lint deploy logs
 
 help: ## List targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-16s %s\n", $$1, $$2}'
@@ -68,3 +68,9 @@ gitleaks-staged: ## Scan staged changes for secrets (used by the pre-commit hook
 hooks: ## Install the repo's git hooks (gitleaks pre-commit)
 	git config core.hooksPath .githooks
 	@echo "hooks installed from .githooks/"
+
+deploy: ## Build the image and (re)start hostbud + Caddy (docker compose up -d --build)
+	docker compose up -d --build
+
+logs: ## Follow the hostbud and Caddy logs
+	docker compose logs -f --tail=100

@@ -13,7 +13,7 @@ Manage the tmux sessions on your server from a web UI: browse directories, organ
 1. Prerequisites on the host: Docker + Compose (nothing else — build, tests and lint run in containers), Tailscale, `sshd` running (hostbud reaches the host over SSH too), a stable ssh-agent socket with your keys loaded, and your own public key in `~/.ssh/authorized_keys`.
 2. Cloudflare: create an `A` record for your subdomain → the host's Tailscale IP, **DNS only (grey cloud)**. Create an API token with `Zone:DNS:Edit` for that zone.
 3. `cp .env.example .env` and fill it in.
-4. `make deploy`
+4. `make deploy` (the host's `/etc/ssh/ssh_host_{ed25519,ecdsa,rsa}_key.pub` must exist; drop the mount in `docker-compose.yml` for any key type your sshd doesn't have).
 5. Open `https://<your subdomain>` from a device on your tailnet, or from any machine with SSH access: `ssh -L 9055:localhost:9055 <host>` → `http://localhost:9055`.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for details.
@@ -23,6 +23,7 @@ Everything runs in containers; the host only needs Docker and `make` (`make help
 - `make build` — build the Vue app (`web/dist`) and the Go binary with it embedded (`bin/hostbud`). `make go-build` alone embeds whatever is in `web/dist` and serves a placeholder page if the frontend was never built.
 - `make lint test` — golangci-lint, eslint, vue-tsc; Go tests and Vitest.
 - `make hooks` — install the gitleaks pre-commit hook.
+- `make deploy` — build the image and (re)start `hostbud` + `hostbud-caddy` (`docker compose up -d --build`); `make logs` follows their logs. Check with `curl http://localhost:9055/api/health`.
 
 ## License
 MIT

@@ -1,0 +1,10 @@
+# hostbud reverse proxy. The loopback-port site is plain HTTP; Compose
+# publishes it on 127.0.0.1 only (SSH port-forward access).
+# The TLS site for {$HOSTBUD_DOMAIN} on the Tailscale IP arrives in M2.
+{
+	admin off
+}
+
+http://:{$HOSTBUD_LOCAL_PORT} {
+	reverse_proxy hostbud:8080
+}
