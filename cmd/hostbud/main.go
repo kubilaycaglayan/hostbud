@@ -14,6 +14,7 @@ import (
 
 	"hostbud/internal/api"
 	"hostbud/internal/config"
+	"hostbud/internal/store"
 	"hostbud/web"
 )
 
@@ -30,11 +31,32 @@ func run() error {
 		return fmt.Errorf("invalid configuration:\n%w", err)
 	}
 
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "backup":
+			if len(os.Args) != 3 {
+				return errors.New("usage: hostbud backup <dest-file>")
+			}
+			return backup(cfg, os.Args[2])
+		default:
+			return fmt.Errorf("unknown command %q (commands: backup)", os.Args[1])
+		}
+	}
+
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: cfg.LogLevel}))
 	slog.SetDefault(log)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	st, err := store.Open(ctx, cfg.DataDir)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = st.Close() }()
+	if _, err := st.EnsureHostMachine(ctx, cfg.HostLabel); err != nil {
+		return err
+	}
 
 	srv := &http.Server{
 		Addr:              cfg.Listen,
@@ -65,4 +87,16 @@ func run() error {
 		return err
 	}
 	return nil
+}
+
+// backup writes a consistent copy of the database to dest (make backup).
+func backup(cfg config.Config, dest string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	st, err := store.Open(ctx, cfg.DataDir)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = st.Close() }()
+	return st.Backup(ctx, dest)
 }

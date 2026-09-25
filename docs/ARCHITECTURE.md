@@ -193,7 +193,7 @@ A session belongs to the project whose `path` is the **longest prefix** of the s
 ## 8. Persistence (`store`)
 
 - SQLite via `modernc.org/sqlite` (pure Go, no CGO), WAL mode, `busy_timeout`. File at `/data/hostbud.db`.
-- Migrations: embedded SQL files run at startup (`pressly/goose` or equivalent). Queries via `sqlc` or a hand-written repository interface — **no SQLite-specific SQL outside the store package**, so Postgres is a later swap.
+- Migrations: embedded SQL files (`internal/store/migrations/`) run at startup with `pressly/goose`; append-only. Queries via `sqlc` or a hand-written repository interface — **no SQLite-specific SQL outside the store package**, so Postgres is a later swap.
 - IDs: ULIDs (text). Timestamps: UTC.
 
 **v1 schema (sketch)** — `machines` is seeded with the single built-in `host` row.
@@ -210,7 +210,7 @@ recent_commands(id, project_id, command, last_used_at)    -- start commands like
 ui_state(key PK, value_json, updated_at)                    -- tree collapse state, tab/split layout, theme
 ```
 
-**Backups:** `make backup` copies the DB with `sqlite3 .backup` (or `VACUUM INTO`) to `./backups/` (gitignored).
+**Backups:** `make backup` runs `hostbud backup` in the running container (`VACUUM INTO`, a consistent copy) and copies the file to `./backups/` (gitignored).
 
 ---
 
@@ -347,8 +347,9 @@ A separate Compose project `hostbud-e2e` (`test/e2e/`), started, run and torn do
 hostbud/
 ├─ cmd/hostbud/main.go
 ├─ internal/{api,events,inventory,sshx,tmux,fsbrowse,term,store,config}/
+├─ internal/store/migrations/             # embedded SQL (goose), append-only
+├─ internal/archtest/                    # import-boundary tests (SQL only in store, …)
 ├─ internal/{llm,orchestrator}/          # v2
-├─ migrations/                           # embedded SQL
 ├─ web/                                  # Vue app (built into web/dist, embedded)
 ├─ deploy/caddy/{Dockerfile,Caddyfile}
 ├─ test/sshd/                            # target image (integration tests + e2e target)

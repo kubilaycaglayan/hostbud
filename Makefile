@@ -17,7 +17,7 @@ GITLEAKS = scripts/tool.sh gitleaks $(GITLEAKS_IMAGE) . gitleaks
 
 .PHONY: help build test lint fmt tidy gitleaks gitleaks-staged hooks \
 	go-build go-test go-lint web-install web-build web-test web-lint e2e e2e-up e2e-run e2e-down e2e-install e2e-lint \
-	deploy logs tools-down
+	deploy logs backup tools-down
 
 help: ## List targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-16s %s\n", $$1, $$2}'
@@ -88,6 +88,14 @@ deploy: ## Build the image and (re)start hostbud + Caddy (docker compose up -d -
 
 logs: ## Follow the hostbud and Caddy logs
 	docker compose logs -f --tail=100
+
+backup: ## Copy the running hostbud's database to ./backups/ (VACUUM INTO)
+	@mkdir -p backups
+	@name=hostbud-$$(date -u +%Y%m%dT%H%M%SZ).db; \
+	docker compose exec -T hostbud hostbud backup /data/$$name && \
+	docker compose cp hostbud:/data/$$name backups/$$name && \
+	docker compose exec -T hostbud rm -f /data/$$name && \
+	echo "backup written to backups/$$name"
 
 tools-down: ## Remove the toolbox containers (recreated on next use)
 	-docker rm -f $$(docker ps -aq --filter label=hostbud.tools=1) 2>/dev/null
