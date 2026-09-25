@@ -1,6 +1,8 @@
 # hostbud — Roadmap
 
-Each milestone is shippable and ends deployed on the host (`make deploy`). A milestone is **done** only when its acceptance criteria pass, tests are green, `gitleaks` is clean, and README/ARCHITECTURE are updated if behavior changed.
+Each milestone is shippable and ends deployed on the host (`make deploy`). A milestone is **done** only when its acceptance criteria pass, tests are green (`make lint test` **and `make e2e`**), `gitleaks` is clean, and README/ARCHITECTURE are updated if behavior changed.
+
+**E2E per milestone:** each milestone extends the e2e suite (ARCHITECTURE §13.1) with scenarios that simulate a real user doing everything that milestone added, in both the desktop and iPhone 13 Pro profiles, against the throwaway target. The *E2E* line under each milestone lists the minimum.
 
 Priority: **(1) a working tmux manager in the browser, (2) deployed on the domain**, then everything else.
 
@@ -25,6 +27,9 @@ Tasks: [roadmap/M1-tasks.md](roadmap/M1-tasks.md) · Checklist: [roadmap/M1-acce
 - Vue 3 + Vite + TS + Tailwind + Reka UI app, embedded via `go:embed`.
 - Origin check on WebSockets and state-changing requests.
 - `.env.example` updated; `.gitignore`.
+- E2E environment (`make e2e`, Compose project `hostbud-e2e`, Playwright desktop + iPhone 13 Pro) — built at the end of M1, covering all of M1.
+
+**E2E:** see the E2E section of [roadmap/M1-acceptance.md](roadmap/M1-acceptance.md) — list, real-terminal changes, create/rename/kill, attach and type, vim/htop, resize, restart/unreachable/tmux-missing recovery, Origin rejection.
 
 **Accept:** from another machine, `ssh -L 9055:localhost:9055 <host>` then `http://localhost:9055` lists the host's tmux sessions; sessions created/killed in a real terminal appear/disappear within one poll interval; create/rename/kill work from the UI (kill asks first); attaching runs Claude Code, vim and htop correctly and resizing the browser resizes the tmux window; the app survives a container restart.
 
@@ -34,11 +39,15 @@ Tasks: [roadmap/M1-tasks.md](roadmap/M1-tasks.md) · Checklist: [roadmap/M1-acce
 - Basic phone usability: terminal fits the viewport, on-screen keyboard input works.
 - README deployment guide (Cloudflare DNS-only record, token scope, stable ssh-agent socket, sshd on host, port-forward access).
 
+**E2E:** in the iPhone 13 Pro profile — open the app, attach, type a command and see its output, switch sessions, rotate portrait↔landscape and the tmux window resizes. The domain/TLS path itself (real cert, tailnet-only reachability) stays a manual check.
+
 **Accept:** from a phone on the tailnet, `https://${HOSTBUD_DOMAIN}` loads with a valid cert and can attach and type; unreachable from outside the tailnet; the `localhost` port-forward path still works.
 
 ### M3 — Terminal workspace
 - Tabs; split view (horizontal/vertical); layout persisted in `ui_state`.
 - Auto-reconnect with re-attach; copy/paste; link detection; search.
+
+**E2E:** open several sessions in tabs, split horizontally/vertically and type in each pane; reload → same layout; cut the app's network (`docker network disconnect`) and restore it → terminals re-attach on their own; copy text out and paste a command in; click a printed URL; search finds text in scrollback.
 
 **Accept:** killing the network and restoring it re-attaches without losing the session; tab/split layout survives reload.
 
@@ -48,11 +57,15 @@ Tasks: [roadmap/M1-tasks.md](roadmap/M1-tasks.md) · Checklist: [roadmap/M1-acce
 - Longest-prefix mapping of sessions to projects + `session_links`; "Other sessions" node with "Save as project".
 - Recent start commands per project (e.g. `claude`, `codex`).
 
+**E2E:** browse home → into a folder → create a folder → "Open as project" → "New session here" → session appears under that project with the right path; a session started from a real terminal inside a project dir lands under it; one outside lands in "Other sessions" and "Save as project" moves it; hidden-files toggle and path autocomplete work; recent start command is offered next time.
+
 **Accept:** tree renders Project → Session exactly as sessions are created.
 
 ### M5 — Mobile
 - Responsive layout: tree drawer, single-terminal view, larger touch targets.
 - On-screen key bar (Esc, Tab, Ctrl, Alt, arrows, common symbols) and Scroll button (copy-mode API).
+
+**E2E (iPhone 13 Pro):** open the drawer, pick a session, use the key bar (Ctrl-C interrupts a running command, Esc leaves vim insert mode, arrows recall history); Scroll puts the pane in copy mode (`#{pane_in_mode}` = 1) and scrolling shows earlier output; touch targets are usable without zoom.
 
 **Accept:** from a phone, attach to a session, type, scroll history, and switch sessions comfortably.
 
@@ -61,6 +74,8 @@ Tasks: [roadmap/M1-tasks.md](roadmap/M1-tasks.md) · Checklist: [roadmap/M1-acce
 - Collapse state persisted; lazily loaded windows/panes under sessions.
 - Command palette (Ctrl/⌘-K); keyboard shortcuts; light/dark theme.
 
+**E2E:** drag to reorder, rename, hide/unhide, pin, collapse — then reload **and** restart `hostbud-e2e-app` → everything is as the user left it; windows/panes load when a session is expanded; the palette jumps to a session; theme switch persists.
+
 **Accept:** every tree customization survives reload and container restart.
 
 ### M7 — Hardening
@@ -68,6 +83,8 @@ Tasks: [roadmap/M1-tasks.md](roadmap/M1-tasks.md) · Checklist: [roadmap/M1-acce
 - Optional Tailscale identity allowlist via LocalAPI whois.
 - `make backup` / restore docs.
 - Integration test suite against `test/sshd`.
+
+**E2E:** foreign-Origin requests and WebSockets rejected; a stalled terminal client is dropped and recovers by reconnecting; long-running exec/SFTP calls time out with a user-visible error instead of hanging; the full suite from all previous milestones still passes.
 
 **Accept:** security checklist in AGENTS.md fully satisfied; fresh-host install from README works end to end.
 

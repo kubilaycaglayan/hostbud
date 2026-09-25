@@ -97,7 +97,7 @@ hostbud writes `/data/ssh/config` on startup and whenever custom connections cha
 ```sshconfig
 # 1. Built-in host machine
 Host hostbud-host
-  HostName host.docker.internal
+  HostName ${HOSTBUD_HOST_ADDR}   # default host.docker.internal; e2e points it at the target container
   User ${HOST_SSH_USER}
   HostKeyAlias hostbud-host          # pinned key is stored under this name
 
@@ -306,7 +306,31 @@ All config comes from environment (`.env`, gitignored). See `.env.example` for t
 
 - **Unit:** quoting/escaping, name validation, tmux output parsing, SSH config generation ordering, project-path matching.
 - **Integration:** `test/sshd/` — a disposable container with `openssh-server` + `tmux` and a generated throwaway key; the test suite runs hostbud's sshx/tmux/fsbrowse packages against it (probe, list, create, attach via PTY, mkdir, kill). Runs via `make test` in Docker.
-- **Frontend:** Vitest for stores/utilities; Playwright smoke test (load app, tree renders, open terminal against the test sshd). All run in containers.
+- **Frontend:** Vitest for stores/utilities. All run in containers.
+- **E2E (`make e2e`):** simulates a real user end to end — see §13.1.
+
+### 13.1 E2E environment
+A separate Compose project `hostbud-e2e` (`test/e2e/`), started, run and torn down by `make e2e`. It **never touches the real host**: the target is a throwaway container.
+
+| Service | Role |
+|---|---|
+| `hostbud-e2e-target` | Throwaway "host": `openssh-server`, `tmux`, `vim`, `htop`, user `dev`; host keys and a client key generated per run. A variant without tmux is used for the "tmux missing" scenario. |
+| `hostbud-e2e-agent` | `ssh-agent` holding the throwaway client key; its socket is shared with the app, mirroring the production agent-socket mount. |
+| `hostbud-e2e-app` | The real hostbud image, with `HOSTBUD_HOST_ADDR=hostbud-e2e-target`, the target's host keys mounted at `/run/host-keys`, and a short poll interval. |
+| `hostbud-e2e-caddy` | The real Caddyfile (loopback-port site), so traffic goes through the production proxy path. |
+| `hostbud-e2e-runner` | Playwright. Uses `network_mode: service:hostbud-e2e-caddy`, so the browser opens `http://localhost:9055` exactly like the port-forward path (and the Origin check is exercised for real). Also has SSH access to the target to act as "a real terminal". |
+
+**Profiles:** Chromium desktop, and Playwright's `iPhone 13 Pro` device (WebKit, 390×844, touch). WebKit on Linux is not real iOS Safari; iOS-specific behavior (on-screen keyboard, gestures) stays on the manual checklist.
+
+**How tests simulate a user**
+- Drive the UI only through what a user sees: roles, labels, visible text; `data-testid` only where there is no accessible handle (e.g. the terminal container).
+- Out-of-band actions like a user's real terminal: the runner runs `tmux` on the target over SSH (create/kill/attach elsewhere) and asserts the UI follows within one poll interval.
+- Terminal content is asserted two ways: what tmux really shows (`tmux capture-pane -p` on the target, the ground truth) and what the browser shows (xterm buffer read through `window.__hostbud.termText()`, exposed only in builds with `VITE_E2E=1`).
+- Failure scenarios: restart `hostbud-e2e-app` (UI recovers), stop sshd on the target (unreachable banner, then recovery), tmux-less target (install hint).
+- No real TUIs that need credentials (Claude Code, Codex); vim and htop cover full-screen apps. Claude Code stays a manual check.
+- Traces, screenshots and videos on failure → `test/e2e/results/` (gitignored).
+
+**When it runs:** not part of `make test`. Required for every milestone's definition of done, and after any new implementation or fix whose behavior e2e can cover — that change adds or updates its scenario.
 - No committed fixtures containing real hostnames, usernames, or paths — use `example.com`, `server-a`, `/home/dev`.
 
 ---

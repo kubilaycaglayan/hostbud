@@ -4,7 +4,7 @@ Goal: from another machine, `ssh -L 9055:localhost:9055 <host>` → `http://loca
 
 Scope and acceptance: [../ROADMAP.md](../ROADMAP.md#m1--tmux-manager-in-the-browser-local-access) · checklist: [M1-acceptance.md](M1-acceptance.md).
 
-Work top to bottom; each task ends with a green `make lint test`, a clean `make gitleaks`, and its own conventional commit(s). Tasks marked *(host)* need the real host (agent socket, sshd) to verify.
+Work top to bottom; each task ends with a green `make lint test` (and `make e2e` once it exists, for any change it can cover), a clean `make gitleaks`, and its own conventional commit(s). Tasks marked *(host)* need the real host (agent socket, sshd) to verify.
 
 ---
 
@@ -58,6 +58,7 @@ Work top to bottom; each task ends with a green `make lint test`, a clean `make 
 ## C. SSH and tmux backend
 
 ### T6 — `sshx`
+- `HOSTBUD_HOST_ADDR` config (default `host.docker.internal`) for the host entry's `HostName`; e2e points it at its target container.
 - Single-quote shell-escaping helper; command builder `ssh -F /data/ssh/config <alias> -- <quoted args>` — the only way to run remote commands.
 - Generated `/data/ssh/config` (host entry `hostbud-host` with `HostKeyAlias`, then `Host *` defaults: ControlMaster, `ControlPath /data/ssh/cm/%C`, `StrictHostKeyChecking yes`, `BatchMode yes`, `UserKnownHostsFile /data/ssh/known_hosts`). Dirs `0700`.
 - Host-key pinning: read `/run/host-keys/*.pub` → write `hostbud-host <key>` lines; missing keys → startup error with instructions.
@@ -124,6 +125,7 @@ Work top to bottom; each task ends with a green `make lint test`, a clean `make 
 **Done:** Vitest for store reducers.
 
 ### T14 — App shell and session list
+- Accessible roles/labels on every control (e2e drives the UI by them); `data-testid` only where there is no accessible handle.
 - Left gutter: flat session list (name, attached/detached dot, window count); "Other sessions" grouping comes in M4.
 - Banner for host `unreachable` / `tmux_missing` with the actionable hint.
 - Selecting a session opens it in the terminal view.
@@ -137,13 +139,26 @@ Work top to bottom; each task ends with a green `make lint test`, a clean `make 
 - `@xterm/xterm` + `fit`, `webgl` (fallback), `web-links`, `unicode11`; bundled font.
 - Connect `/ws/term`; `ResizeObserver` → `fit` → `resize` frame; show exit/disconnect state with a "Reconnect" button (auto-reconnect is M3).
 - One terminal at a time (tabs/splits are M3).
+- `window.__hostbud.termText()` (xterm buffer as text) only when built with `VITE_E2E=1`; never in production builds.
 
 **Done (E):** *(host)* manual pass of the functional section of [M1-acceptance.md](M1-acceptance.md).
 
-## F. Wrap-up
+## F. E2E
 
-### T17 — Docs and release
+### T17 — E2E environment and scenarios
+Design: [ARCHITECTURE §13.1](../ARCHITECTURE.md#131-e2e-environment). Covers everything built in M1, simulating a real user.
+- `test/e2e/`: Compose project `hostbud-e2e` (`-target`, `-target-notmux`, `-agent`, `-app`, `-caddy`, `-runner`); per-run throwaway keys; reuses the `test/sshd` image as the target base.
+- Playwright + TypeScript; projects `desktop-chromium` and `iphone-13-pro` (WebKit).
+- Helpers: `target.tmux(...)` (SSH to the target — the "real terminal"), `target.capture(session)` (`tmux capture-pane -p`), `ui.termText()`.
+- `make e2e` builds, starts, runs both projects, collects `test/e2e/results/` (gitignored), tears down — even on failure.
+- Scenarios: every item in the E2E section of [M1-acceptance.md](M1-acceptance.md).
+
+**Done:** `make e2e` green on both projects from a clean checkout, twice in a row (no flakes).
+
+## G. Wrap-up
+
+### T18 — Docs and release
 - README: M1 usage (port forward, `make deploy`, required `.env` vars) and host setup: dedicated `~/.ssh/hostbud_ed25519` key, `authorized_keys` entry with `from="172.16.0.0/12",no-agent-forwarding,no-port-forwarding,no-X11-forwarding`, and a systemd user unit (`hostbud-ssh-add.service`) that loads it into the stable agent socket at boot (needs `loginctl enable-linger`).
 - `.env.example` for any new vars; ARCHITECTURE updated if the design moved.
-- Run the full [M1-acceptance.md](M1-acceptance.md) checklist.
+- Run `make e2e` and the full [M1-acceptance.md](M1-acceptance.md) checklist.
 - Summary to the owner: what changed, env vars to set, manual host steps.

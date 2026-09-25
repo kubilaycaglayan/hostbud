@@ -25,6 +25,8 @@ web/dist/
 web/node_modules/
 node_modules/
 coverage/
+test/e2e/results/
+test/e2e/playwright-report/
 *.out
 
 # Logs & OS/editor

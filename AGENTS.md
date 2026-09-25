@@ -22,7 +22,8 @@ All such values come from environment variables. **If you need a config value th
   - never change users' tmux configs, shell configs, or `~/.ssh` files; `~/.ssh` is mounted read-only;
   - migrations are append-only and must not drop user data.
 - **Dockerize everything we can.** Build, test, lint and gitleaks all run in containers via `make`; don't assume Go, gitleaks or golangci-lint are installed on the host.
-- Local verification: `make test` (unit + integration against the `test/sshd` container), then `make deploy` and open `http://localhost:${HOSTBUD_LOCAL_PORT}`.
+- Local verification: `make test` (unit + integration against the `test/sshd` container), `make e2e` (simulated user against a throwaway target; see below), then `make deploy` and open `http://localhost:${HOSTBUD_LOCAL_PORT}`.
+- **E2E tests** (`make e2e`, docs/ARCHITECTURE.md §13.1) simulate a real user in the browser (desktop Chromium + iPhone 13 Pro/WebKit) against the throwaway `hostbud-e2e-target` — **never the real host's tmux**. Any new implementation or fix whose behavior e2e can cover must add or update its scenario and run `make e2e` before committing.
 
 ## Stack (don't substitute without updating docs/ARCHITECTURE.md)
 - Backend: Go (latest stable), `log/slog`, `creack/pty`, `pkg/sftp`, `kevinburke/ssh_config` (display only; later, multi-machine), `modernc.org/sqlite`, embedded migrations, a WebSocket library (`coder/websocket` preferred).
@@ -51,6 +52,6 @@ All such values come from environment variables. **If you need a config value th
 
 ## Definition of done (per milestone)
 1. Acceptance criteria in docs/ROADMAP.md pass.
-2. `make lint test` green; gitleaks clean.
+2. `make lint test` and `make e2e` green; gitleaks clean.
 3. Docs updated (README usage, ARCHITECTURE if design changed, `.env.example` for new vars).
 4. A short summary listing: what changed, any new env vars the owner must set, and manual steps on the host.
