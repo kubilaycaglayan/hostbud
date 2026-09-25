@@ -54,7 +54,10 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	st, err := store.Open(ctx, cfg.DataDir)
+	st, err := store.Open(ctx, store.Config{
+		Host: cfg.DBHost, Port: cfg.DBPort, Name: cfg.DBName, User: cfg.DBUser,
+		Password: cfg.DBPassword, SSLMode: cfg.DBSSLMode,
+	})
 	if err != nil {
 		return err
 	}
@@ -115,7 +118,10 @@ func run() error {
 func backup(cfg config.Config, dest string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-	st, err := store.Open(ctx, cfg.DataDir)
+	st, err := store.Open(ctx, store.Config{
+		Host: cfg.DBHost, Port: cfg.DBPort, Name: cfg.DBName, User: cfg.DBUser,
+		Password: cfg.DBPassword, SSLMode: cfg.DBSSLMode,
+	})
 	if err != nil {
 		return err
 	}

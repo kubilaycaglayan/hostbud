@@ -15,12 +15,12 @@ import (
 // repo root) that may use it in non-test code.
 var allowed = map[string][]string{
 	// store is the only place with SQL.
-	"database/sql":                {"internal/store"},
-	"modernc.org/sqlite":          {"internal/store"},
-	"github.com/pressly/goose/v3": {"internal/store"},
+	"database/sql":                   {"internal/store"},
+	"github.com/jackc/pgx/v5/stdlib": {"internal/store"},
+	"github.com/pressly/goose/v3":    {"internal/store"},
 	// Remote commands only through sshx; term runs the interactive attach.
 	// testenv is integration-test infrastructure (ssh-agent, ssh-keygen).
-	"os/exec": {"internal/sshx", "internal/term", "internal/testenv"},
+	"os/exec": {"internal/sshx", "internal/term", "internal/store", "internal/testenv"},
 }
 
 func TestRestrictedImports(t *testing.T) {

@@ -28,6 +28,15 @@ target() {
 	fi
 }
 
+postgres() {
+	if [ "$(docker inspect -f '{{.Config.Image}} {{.State.Running}}' hostbud-test-postgres 2>/dev/null)" != "postgres:15.13-bookworm true" ]; then
+		docker rm -f hostbud-test-postgres >/dev/null 2>&1 || true
+		docker run -d --name hostbud-test-postgres --network "$net" --label hostbud.test=1 \
+			-e POSTGRES_DB=hostbud_test -e POSTGRES_USER=hostbud_test \
+			-e POSTGRES_PASSWORD=hostbud-test-password postgres:15.13-bookworm >/dev/null
+	fi
+}
+
 wait_healthy() {
 	for name in "$@"; do
 		i=0
@@ -53,10 +62,14 @@ up)
 	fi
 	target hostbud-test-sshd 1
 	target hostbud-test-sshd-notmux 0
+	postgres
+	until docker exec hostbud-test-postgres psql -U hostbud_test -d hostbud_test -c 'SELECT 1' >/dev/null 2>&1; do
+		sleep 0.5
+	done
 	wait_healthy hostbud-test-sshd hostbud-test-sshd-notmux
 	;;
 down)
-	docker rm -f hostbud-test-sshd hostbud-test-sshd-notmux >/dev/null 2>&1 || true
+	docker rm -f hostbud-test-sshd hostbud-test-sshd-notmux hostbud-test-postgres >/dev/null 2>&1 || true
 	# Keys are root-owned in part; remove them from a container.
 	[ -d "$keys" ] && docker run --rm -v "$root/.cache/test-sshd":/d --entrypoint rm debian:stable-slim -rf /d/keys
 	docker network rm "$net" >/dev/null 2>&1 || true

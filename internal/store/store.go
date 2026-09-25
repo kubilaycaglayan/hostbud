@@ -1,5 +1,5 @@
-// Package store is hostbud's persistence layer: SQLite (modernc.org/sqlite,
-// pure Go) with embedded goose migrations. It is the only package with SQL.
+// Package store is hostbud's PostgreSQL persistence layer with embedded goose
+// migrations. It is the only package with SQL.
 package store
 
 import (
@@ -10,12 +10,15 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net/url"
 	"os"
-	"path/filepath"
+	"os/exec"
+	"regexp"
+	"strings"
 	"time"
 
+	_ "github.com/jackc/pgx/v5/stdlib" // registers the "pgx" driver
 	"github.com/pressly/goose/v3"
-	_ "modernc.org/sqlite" // registers the "sqlite" driver
 )
 
 //go:embed migrations/*.sql
@@ -61,38 +64,83 @@ type Repository interface {
 	Close() error
 }
 
-// Store implements Repository on SQLite.
+// Config contains the connection settings for PostgreSQL.
+type Config struct {
+	Host     string
+	Port     int
+	Name     string
+	User     string
+	Password string
+	SSLMode  string
+	// Schema is intended for isolated tests. Production uses the public schema.
+	Schema string
+}
+
+func (c Config) dsn() string {
+	q := url.Values{"sslmode": {c.SSLMode}}
+	if c.Schema != "" {
+		q.Set("search_path", c.Schema)
+	}
+	u := url.URL{Scheme: "postgres", User: url.UserPassword(c.User, c.Password), Host: fmt.Sprintf("%s:%d", c.Host, c.Port), Path: "/" + c.Name, RawQuery: q.Encode()}
+	return u.String()
+}
+
+var identifierRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+func quoteIdentifier(name string) (string, error) {
+	if !identifierRE.MatchString(name) {
+		return "", fmt.Errorf("invalid PostgreSQL identifier %q", name)
+	}
+	return `"` + name + `"`, nil
+}
+
+// Store implements Repository on PostgreSQL.
 type Store struct {
-	db  *sql.DB
-	now func() time.Time
+	db     *sql.DB
+	now    func() time.Time
+	dbconf Config
 }
 
 var _ Repository = (*Store)(nil)
 
-// DBFile is the database file name inside the data dir.
-const DBFile = "hostbud.db"
-
-// Open opens (creating if needed) ${dataDir}/hostbud.db and applies pending
-// migrations.
-func Open(ctx context.Context, dataDir string) (*Store, error) {
-	if err := os.MkdirAll(dataDir, 0o700); err != nil {
-		return nil, fmt.Errorf("create data dir: %w", err)
+// Open connects to PostgreSQL and applies pending embedded migrations.
+func Open(ctx context.Context, conf Config) (*Store, error) {
+	if conf.Host == "" || conf.Port < 1 || conf.Name == "" || conf.User == "" {
+		return nil, errors.New("database configuration is incomplete")
 	}
-	dsn := "file:" + filepath.Join(dataDir, DBFile) +
-		"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)&_pragma=synchronous(NORMAL)"
-	db, err := sql.Open("sqlite", dsn)
+	db, err := sql.Open("pgx", conf.dsn())
 	if err != nil {
-		return nil, fmt.Errorf("open database: %w", err)
+		return nil, fmt.Errorf("open PostgreSQL: %w", err)
 	}
 	if err := db.PingContext(ctx); err != nil {
 		_ = db.Close()
-		return nil, fmt.Errorf("open database %s: %w", filepath.Join(dataDir, DBFile), err)
+		return nil, fmt.Errorf("connect to PostgreSQL: %w", err)
+	}
+	if conf.Schema != "" {
+		ident, err := quoteIdentifier(conf.Schema)
+		if err != nil {
+			_ = db.Close()
+			return nil, err
+		}
+		if _, err := db.ExecContext(ctx, `CREATE SCHEMA IF NOT EXISTS `+ident); err != nil {
+			_ = db.Close()
+			return nil, fmt.Errorf("create PostgreSQL schema: %w", err)
+		}
+		_ = db.Close()
+		db, err = sql.Open("pgx", conf.dsn())
+		if err != nil {
+			return nil, fmt.Errorf("open PostgreSQL schema: %w", err)
+		}
+		if err := db.PingContext(ctx); err != nil {
+			_ = db.Close()
+			return nil, fmt.Errorf("connect to PostgreSQL schema: %w", err)
+		}
 	}
 	if err := migrate(ctx, db); err != nil {
 		_ = db.Close()
 		return nil, err
 	}
-	return &Store{db: db, now: func() time.Time { return time.Now().UTC() }}, nil
+	return &Store{db: db, now: func() time.Time { return time.Now().UTC() }, dbconf: conf}, nil
 }
 
 func migrate(ctx context.Context, db *sql.DB) error {
@@ -100,7 +148,7 @@ func migrate(ctx context.Context, db *sql.DB) error {
 	if err != nil {
 		return err
 	}
-	p, err := goose.NewProvider(goose.DialectSQLite3, db, fsys)
+	p, err := goose.NewProvider(goose.DialectPostgres, db, fsys)
 	if err != nil {
 		return fmt.Errorf("migrations: %w", err)
 	}
@@ -163,7 +211,7 @@ func (s *Store) Machines(ctx context.Context) ([]Machine, error) {
 
 // Machine returns one machine or ErrNotFound.
 func (s *Store) Machine(ctx context.Context, id string) (Machine, error) {
-	m, err := scanMachine(s.db.QueryRowContext(ctx, `SELECT `+machineCols+` FROM machines WHERE id = ?`, id))
+	m, err := scanMachine(s.db.QueryRowContext(ctx, `SELECT `+machineCols+` FROM machines WHERE id = $1`, id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return m, ErrNotFound
 	}
@@ -176,7 +224,7 @@ func (s *Store) EnsureHostMachine(ctx context.Context, label string) (Machine, e
 	now := formatTime(s.now())
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO machines (id, source, ssh_alias, label, active, created_at, updated_at)
-		VALUES (?, 'host', ?, ?, TRUE, ?, ?)
+		VALUES ($1, 'host', $2, $3, TRUE, $4, $5)
 		ON CONFLICT (id) DO UPDATE SET label = excluded.label, updated_at = excluded.updated_at
 		WHERE machines.label <> excluded.label`,
 		HostMachineID, HostSSHAlias, label, now, now)
@@ -189,7 +237,7 @@ func (s *Store) EnsureHostMachine(ctx context.Context, label string) (Machine, e
 // UIState returns the stored JSON value for key, or ErrNotFound.
 func (s *Store) UIState(ctx context.Context, key string) (json.RawMessage, error) {
 	var v string
-	err := s.db.QueryRowContext(ctx, `SELECT value_json FROM ui_state WHERE key = ?`, key).Scan(&v)
+	err := s.db.QueryRowContext(ctx, `SELECT value_json FROM ui_state WHERE key = $1`, key).Scan(&v)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -202,19 +250,32 @@ func (s *Store) PutUIState(ctx context.Context, key string, value json.RawMessag
 		return errors.New("ui state: value is not valid JSON")
 	}
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO ui_state (key, value_json, updated_at) VALUES (?, ?, ?)
+		INSERT INTO ui_state (key, value_json, updated_at) VALUES ($1, $2, $3)
 		ON CONFLICT (key) DO UPDATE SET value_json = excluded.value_json, updated_at = excluded.updated_at`,
 		key, string(value), formatTime(s.now()))
 	return err
 }
 
-// Backup writes a consistent, compacted copy of the database to dest.
+// Backup writes a consistent PostgreSQL custom-format dump to dest. The
+// password is passed through the child process environment, never argv.
 func (s *Store) Backup(ctx context.Context, dest string) error {
+	if strings.TrimSpace(dest) == "" {
+		return errors.New("backup: destination is required")
+	}
 	if _, err := os.Stat(dest); err == nil {
 		return fmt.Errorf("backup: %s already exists", dest)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("backup: check destination: %w", err)
 	}
-	if _, err := s.db.ExecContext(ctx, `VACUUM INTO ?`, dest); err != nil {
-		return fmt.Errorf("backup: %w", err)
+	args := []string{
+		"--format=custom", "--no-password", "--file", dest,
+		"--host", s.dbconf.Host, "--port", fmt.Sprint(s.dbconf.Port),
+		"--username", s.dbconf.User, s.dbconf.Name,
+	}
+	cmd := exec.CommandContext(ctx, "pg_dump", args...)
+	cmd.Env = append(os.Environ(), "PGPASSWORD="+s.dbconf.Password, "PGSSLMODE="+s.dbconf.SSLMode)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("backup: %w", errors.Join(err, errors.New(strings.TrimSpace(string(output)))))
 	}
 	return nil
 }

@@ -25,6 +25,12 @@ func TestLoadDefaults(t *testing.T) {
 		HostSSHUser:  "dev",
 		HostAddr:     "host.docker.internal",
 		HostLabel:    "Host machine",
+		DBHost:       "hostbud-postgres",
+		DBPort:       5432,
+		DBName:       "hostbud",
+		DBUser:       "hostbud",
+		DBSSLMode:    "disable",
+		DBLocalPort:  9543,
 	}
 	if cfg != want {
 		t.Fatalf("got %+v, want %+v", cfg, want)
@@ -42,6 +48,13 @@ func TestLoadOverrides(t *testing.T) {
 		"HOST_SSH_USER":         " dev ",
 		"HOSTBUD_HOST_LABEL":    "server-a",
 		"HOSTBUD_HOST_ADDR":     "hostbud-e2e-target",
+		"HOSTBUD_DB_HOST":       "server-a",
+		"HOSTBUD_DB_PORT":       "55432",
+		"HOSTBUD_DB_NAME":       "example",
+		"HOSTBUD_DB_USER":       "dev",
+		"HOSTBUD_DB_PASSWORD":   "secret-placeholder",
+		"HOSTBUD_DB_SSLMODE":    "require",
+		"HOSTBUD_DB_LOCAL_PORT": "19543",
 	}))
 	if err != nil {
 		t.Fatalf("Load: %v", err)
@@ -50,6 +63,10 @@ func TestLoadOverrides(t *testing.T) {
 		cfg.LogLevel != slog.LevelDebug || cfg.LocalPort != 9100 || cfg.Domain != "hostbud.example.com" ||
 		cfg.HostSSHUser != "dev" || cfg.HostLabel != "server-a" || cfg.HostAddr != "hostbud-e2e-target" {
 		t.Fatalf("unexpected config: %+v", cfg)
+	}
+	if cfg.DBHost != "server-a" || cfg.DBPort != 55432 || cfg.DBName != "example" || cfg.DBUser != "dev" ||
+		cfg.DBPassword != "secret-placeholder" || cfg.DBSSLMode != "require" || cfg.DBLocalPort != 19543 {
+		t.Fatalf("unexpected database config: %+v", cfg)
 	}
 }
 

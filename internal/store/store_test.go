@@ -2,16 +2,32 @@ package store
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 )
 
 func openTemp(t *testing.T, dir string) *Store {
 	t.Helper()
-	s, err := Open(context.Background(), dir)
+	host := os.Getenv("HOSTBUD_TEST_DB_HOST")
+	if host == "" {
+		host = "hostbud-test-postgres"
+	}
+	password := os.Getenv("HOSTBUD_TEST_DB_PASSWORD")
+	if password == "" {
+		password = "hostbud-test-password"
+	}
+	schema := fmt.Sprintf("test_%x", sha256.Sum256([]byte(dir)))[:20]
+	s, err := Open(context.Background(), Config{
+		Host: host, Port: 5432, Name: "hostbud_test", User: "hostbud_test",
+		Password: password, SSLMode: "disable", Schema: schema,
+	})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -34,9 +50,9 @@ func TestOpenMigratesAndSeedsHost(t *testing.T) {
 		t.Fatalf("timestamps: %+v", m)
 	}
 
-	var mode string
-	if err := s.db.QueryRowContext(ctx, `PRAGMA journal_mode`).Scan(&mode); err != nil || mode != "wal" {
-		t.Fatalf("journal_mode = %q, %v; want wal", mode, err)
+	var schema string
+	if err := s.db.QueryRowContext(ctx, `SELECT current_schema()`).Scan(&schema); err != nil || schema == "public" {
+		t.Fatalf("current_schema = %q, %v; want isolated test schema", schema, err)
 	}
 }
 
@@ -145,19 +161,17 @@ func TestBackup(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Back up straight into a fresh data dir, then open that as a store.
-	dir := t.TempDir()
-	dest := filepath.Join(dir, DBFile)
+	if _, err := exec.LookPath("pg_dump"); err != nil {
+		t.Skip("pg_dump is not available in this test environment")
+	}
+	dest := filepath.Join(t.TempDir(), "hostbud.dump")
 	if err := s.Backup(ctx, dest); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.Backup(ctx, dest); err == nil {
 		t.Fatal("backup overwrote an existing file")
 	}
-
-	b := openTemp(t, dir)
-	defer func() { _ = b.Close() }()
-	if v, err := b.UIState(ctx, "k"); err != nil || string(v) != `"v"` {
-		t.Fatalf("backup content: %s, %v", v, err)
+	if out, err := exec.CommandContext(ctx, "pg_restore", "--list", dest).CombinedOutput(); err != nil {
+		t.Fatalf("restore smoke test: %v: %s", err, out)
 	}
 }

@@ -24,7 +24,7 @@ RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/hostbud ./cmd/host
 # ── 3. Runtime ───────────────────────────────────────────────
 FROM --platform=linux/amd64 debian:stable-slim
 RUN apt-get update \
- && apt-get install -y --no-install-recommends openssh-client ca-certificates tini \
+ && apt-get install -y --no-install-recommends openssh-client postgresql-client ca-certificates tini \
  && rm -rf /var/lib/apt/lists/*
 
 # ssh refuses to run for a uid without a passwd entry, so create the host

@@ -6,7 +6,7 @@ FROM ${GO_IMAGE}
 ARG UID=1000
 ARG GID=1000
 RUN apt-get update \
- && apt-get install -y --no-install-recommends openssh-client \
+ && apt-get install -y --no-install-recommends openssh-client postgresql-client \
  && rm -rf /var/lib/apt/lists/* \
  && (getent group "${GID}" || groupadd -o -g "${GID}" hostbud) \
  && useradd -o -u "${UID}" -g "${GID}" -M -d /tmp -s /bin/sh hostbud

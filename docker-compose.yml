@@ -11,6 +11,8 @@ services:
     image: hostbud:local
     container_name: hostbud
     restart: unless-stopped
+    depends_on:
+      hostbud-postgres: { condition: service_healthy }
     # No published ports: only reachable through hostbud-caddy.
     user: ${HOST_UID}:${HOST_GID}
     # Explicit list (no env_file) so unrelated secrets in .env never reach the app.
@@ -23,6 +25,12 @@ services:
       HOSTBUD_DOMAIN: ${HOSTBUD_DOMAIN:-}
       HOSTBUD_HOST_ADDR: ${HOSTBUD_HOST_ADDR:-host.docker.internal}
       HOSTBUD_HOST_LABEL: ${HOSTBUD_HOST_LABEL:-Host machine}
+      HOSTBUD_DB_HOST: ${HOSTBUD_DB_HOST:-hostbud-postgres}
+      HOSTBUD_DB_PORT: ${HOSTBUD_DB_PORT:-5432}
+      HOSTBUD_DB_NAME: ${HOSTBUD_DB_NAME:?set HOSTBUD_DB_NAME in .env}
+      HOSTBUD_DB_USER: ${HOSTBUD_DB_USER:?set HOSTBUD_DB_USER in .env}
+      HOSTBUD_DB_PASSWORD: ${HOSTBUD_DB_PASSWORD:?set HOSTBUD_DB_PASSWORD in .env}
+      HOSTBUD_DB_SSLMODE: ${HOSTBUD_DB_SSLMODE:-disable}
       HOST_SSH_USER: ${HOST_SSH_USER:?set HOST_SSH_USER in .env}
       SSH_AUTH_SOCK: /run/ssh-agent.sock
     volumes:
@@ -52,6 +60,26 @@ services:
       - host.docker.internal:host-gateway
     networks: [hostbud]
 
+  hostbud-postgres:
+    image: postgres:15.13-bookworm
+    container_name: hostbud-postgres
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+    environment:
+      POSTGRES_DB: ${HOSTBUD_DB_NAME:?set HOSTBUD_DB_NAME in .env}
+      POSTGRES_USER: ${HOSTBUD_DB_USER:?set HOSTBUD_DB_USER in .env}
+      POSTGRES_PASSWORD: ${HOSTBUD_DB_PASSWORD:?set HOSTBUD_DB_PASSWORD in .env}
+    ports:
+      # Optional operator access; verify this uncommon port is unused first.
+      - 127.0.0.1:${HOSTBUD_DB_LOCAL_PORT:-9543}:5432
+    volumes:
+      - hostbud-postgres-data:/var/lib/postgresql/data
+    networks: [hostbud]
+
   hostbud-caddy:
     # Stock image for now; M2 switches to a custom build with caddy-dns/cloudflare.
     image: caddy:2.11.4
@@ -79,3 +107,5 @@ networks:
 volumes:
   hostbud-data:
     name: hostbud-data
+  hostbud-postgres-data:
+    name: hostbud-postgres-data

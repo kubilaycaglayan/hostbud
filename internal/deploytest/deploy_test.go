@@ -85,12 +85,26 @@ func TestCaddyBindsLoopbackOnly(t *testing.T) {
 		}
 	}
 	for name, s := range c.Services {
-		if name == "hostbud-caddy" {
+		if name == "hostbud-caddy" || name == "hostbud-postgres" {
 			continue
 		}
 		if len(s.Ports) != 0 {
 			t.Errorf("service %s publishes ports", name)
 		}
+	}
+}
+
+func TestPostgresIsPrivateAndLoopbackOnly(t *testing.T) {
+	c := load(t)
+	db, ok := c.Services["hostbud-postgres"]
+	if !ok {
+		t.Fatal("no hostbud-postgres service")
+	}
+	if len(db.Ports) != 1 || db.Ports[0].HostIP != "127.0.0.1" || db.Ports[0].Target != 5432 {
+		t.Fatalf("postgres ports = %+v; want one loopback-only 5432 mapping", db.Ports)
+	}
+	if len(db.Volumes) != 1 || db.Volumes[0].Target != "/var/lib/postgresql/data" || db.Volumes[0].Type != "volume" {
+		t.Fatalf("postgres volumes = %+v; want one named data volume", db.Volumes)
 	}
 }
 
