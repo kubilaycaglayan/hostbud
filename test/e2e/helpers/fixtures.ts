@@ -5,12 +5,13 @@ import { UI } from './ui.ts'
 interface Fixtures {
   target: Target
   ui: UI
-  /** Browser problems a test expects (matched against the report line). */
-  allowedBrowserErrors: RegExp[]
+  /** Browser problems a test expects, matched against the report line. One
+   * RegExp (use alternation): test.use() would read an array as a tuple. */
+  allowedBrowserErrors: RegExp | undefined
 }
 
 export const test = base.extend<Fixtures>({
-  allowedBrowserErrors: [[], { option: true }],
+  allowedBrowserErrors: [undefined, { option: true }],
 
   // Playwright requires a destructuring pattern even with no dependencies.
   // eslint-disable-next-line no-empty-pattern
@@ -23,7 +24,7 @@ export const test = base.extend<Fixtures>({
   page: async ({ page, allowedBrowserErrors }, use) => {
     const problems: string[] = []
     const report = (line: string) => {
-      if (!allowedBrowserErrors.some((re) => re.test(line))) problems.push(line)
+      if (!allowedBrowserErrors?.test(line)) problems.push(line)
     }
     page.on('console', (m) => {
       if (m.type() === 'error') report(`console error: ${m.text()}`)

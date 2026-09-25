@@ -44,8 +44,9 @@ export function forbidInLogs(...values: string[]): void {
   appendFileSync('results/log-markers.txt', values.map((v) => v + '\n').join(''))
 }
 
-/** Raw WebSocket upgrade with an arbitrary Origin; resolves the HTTP status. */
-export function upgradeStatus(path: string, origin: string): Promise<number> {
+/** Raw WebSocket upgrade with an arbitrary Origin (and optional Cookie
+ * header); resolves the HTTP status. */
+export function upgradeStatus(path: string, origin: string, cookie?: string): Promise<number> {
   return new Promise((resolve, reject) => {
     const req = httpRequest({
       host: 'localhost',
@@ -57,6 +58,7 @@ export function upgradeStatus(path: string, origin: string): Promise<number> {
         'Sec-WebSocket-Version': '13',
         'Sec-WebSocket-Key': randomBytes(16).toString('base64'),
         Origin: origin,
+        ...(cookie ? { Cookie: cookie } : {}),
       },
     })
     req.on('response', (res) => {

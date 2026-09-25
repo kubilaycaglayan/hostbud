@@ -31,6 +31,16 @@ func TestLoadDefaults(t *testing.T) {
 		DBUser:       "hostbud",
 		DBSSLMode:    "disable",
 		DBLocalPort:  9543,
+
+		SessionTTL:          720 * time.Hour,
+		LoginMaxFailures:    5,
+		RegisterMaxFailures: 10,
+		IPMaxFailures:       20,
+		LoginBlockBase:      30 * time.Second,
+		LoginBlockMax:       time.Hour,
+		LoginBlockFactor:    2,
+		LoginFailureWindow:  time.Hour,
+		TrustedProxies:      DefaultTrustedProxies,
 	}
 	if cfg != want {
 		t.Fatalf("got %+v, want %+v", cfg, want)
@@ -92,5 +102,44 @@ func TestLoadRejectsTinyPollInterval(t *testing.T) {
 	_, err := Load(envFrom(map[string]string{"HOST_SSH_USER": "dev", "HOSTBUD_POLL_INTERVAL": "10ms"}))
 	if err == nil || !strings.Contains(err.Error(), "at least 500ms") {
 		t.Fatalf("expected minimum interval error, got %v", err)
+	}
+}
+
+func TestLoadAuthSettings(t *testing.T) {
+	cfg, err := Load(envFrom(map[string]string{
+		"HOST_SSH_USER":                  "dev",
+		"HOSTBUD_SESSION_TTL":            "12h",
+		"HOSTBUD_LOGIN_MAX_FAILURES":     "3",
+		"HOSTBUD_REGISTER_MAX_FAILURES":  "4",
+		"HOSTBUD_IP_MAX_FAILURES":        "6",
+		"HOSTBUD_LOGIN_BLOCK_BASE":       "1s",
+		"HOSTBUD_LOGIN_BLOCK_MAX":        "8s",
+		"HOSTBUD_LOGIN_BLOCK_MULTIPLIER": "1.5",
+		"HOSTBUD_LOGIN_FAILURE_WINDOW":   "10m",
+		"HOSTBUD_TRUSTED_PROXIES":        "172.29.55.0/24",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.SessionTTL != 12*time.Hour || cfg.LoginMaxFailures != 3 || cfg.RegisterMaxFailures != 4 ||
+		cfg.IPMaxFailures != 6 || cfg.LoginBlockBase != time.Second || cfg.LoginBlockMax != 8*time.Second ||
+		cfg.LoginBlockFactor != 1.5 || cfg.LoginFailureWindow != 10*time.Minute || cfg.TrustedProxies != "172.29.55.0/24" {
+		t.Fatalf("got %+v", cfg)
+	}
+
+	_, err = Load(envFrom(map[string]string{
+		"HOST_SSH_USER":                  "dev",
+		"HOSTBUD_SESSION_TTL":            "soon",
+		"HOSTBUD_LOGIN_MAX_FAILURES":     "0",
+		"HOSTBUD_LOGIN_BLOCK_BASE":       "10s",
+		"HOSTBUD_LOGIN_BLOCK_MAX":        "5s",
+		"HOSTBUD_LOGIN_BLOCK_MULTIPLIER": "0.5",
+		"HOSTBUD_TRUSTED_PROXIES":        "not-a-cidr",
+	}))
+	for _, key := range []string{"HOSTBUD_SESSION_TTL", "HOSTBUD_LOGIN_MAX_FAILURES", "HOSTBUD_LOGIN_BLOCK_MAX",
+		"HOSTBUD_LOGIN_BLOCK_MULTIPLIER", "HOSTBUD_TRUSTED_PROXIES"} {
+		if err == nil || !strings.Contains(err.Error(), key) {
+			t.Errorf("error does not mention %s: %v", key, err)
+		}
 	}
 }

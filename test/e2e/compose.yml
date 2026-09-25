@@ -98,6 +98,13 @@ services:
       HOSTBUD_DB_SSLMODE: disable
       HOST_SSH_USER: dev
       SSH_AUTH_SOCK: /run/agent/ssh-agent.sock
+      # Small, fast throttling so the rate-limit scenarios finish quickly.
+      HOSTBUD_LOGIN_MAX_FAILURES: "3"
+      HOSTBUD_REGISTER_MAX_FAILURES: "5"
+      HOSTBUD_IP_MAX_FAILURES: "6"
+      HOSTBUD_LOGIN_BLOCK_BASE: 1s
+      HOSTBUD_LOGIN_BLOCK_MAX: 8s
+      HOSTBUD_LOGIN_BLOCK_MULTIPLIER: "2"
     volumes:
       - data:/data
       - agent:/run/agent
@@ -130,6 +137,11 @@ services:
     environment:
       SSH_AUTH_SOCK: /run/agent/ssh-agent.sock
       CI: "true"
+      # The owner's SQL path (allowlist, rate-limit rows) on the disposable DB.
+      E2E_DB_URL: postgres://hostbud:e2e-placeholder-password@hostbud-e2e-postgres:5432/hostbud
+      # Mirrors the app's limits above.
+      E2E_LOGIN_MAX_FAILURES: "3"
+      E2E_IP_MAX_FAILURES: "6"
     volumes:
       - keys:/keys:ro
       - agent:/run/agent

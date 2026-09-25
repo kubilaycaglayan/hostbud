@@ -17,9 +17,11 @@ import (
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 
+	"hostbud/internal/auth"
 	"hostbud/internal/events"
 	"hostbud/internal/inventory"
 	"hostbud/internal/session"
+	"hostbud/internal/store"
 	"hostbud/internal/tmux"
 )
 
@@ -74,6 +76,42 @@ func (f *fakeService) Kill(_ context.Context, m, name string) error {
 	return f.err
 }
 
+const testToken = "test-session-token"
+
+// fakeAuth accepts testToken; Login succeeds for the password "good-password".
+type fakeAuth struct {
+	registered []string
+	loggedOut  []string
+	err        error
+}
+
+func (f *fakeAuth) Register(_ context.Context, email, _, ip string) error {
+	f.registered = append(f.registered, email+" "+ip)
+	return f.err
+}
+
+func (f *fakeAuth) Login(_ context.Context, _, password, _, _, _ string) (string, time.Time, error) {
+	if f.err != nil {
+		return "", time.Time{}, f.err
+	}
+	if password != "good-password" {
+		return "", time.Time{}, auth.ErrInvalidCredentials
+	}
+	return "new-token", time.Now().Add(time.Hour), nil
+}
+
+func (f *fakeAuth) Logout(_ context.Context, token string) error {
+	f.loggedOut = append(f.loggedOut, token)
+	return nil
+}
+
+func (f *fakeAuth) Authenticate(_ context.Context, token string) (store.User, error) {
+	if token == testToken || token == "new-token" {
+		return store.User{ID: "u1", Email: "Person@example.com"}, nil
+	}
+	return store.User{}, auth.ErrUnauthenticated
+}
+
 type env struct {
 	h   http.Handler
 	svc *fakeService
@@ -87,7 +125,7 @@ func newEnv(t *testing.T) *env {
 	e.h = New(Config{
 		Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Dist: fstest.MapFS{},
 		Origins: AllowedOrigins("hostbud.example.com", 9055), Bus: e.bus,
-		Machines: []Snapshotter{e.m}, Sessions: e.svc,
+		Machines: []Snapshotter{e.m}, Sessions: e.svc, Auth: &fakeAuth{},
 	})
 	return e
 }
@@ -100,6 +138,9 @@ func (e *env) do(t *testing.T, method, path, body string, hdr map[string]string)
 	}
 	if _, ok := hdr["Origin"]; !ok && method != http.MethodGet {
 		req.Header.Set("Origin", origin)
+	}
+	if _, ok := hdr["Cookie"]; !ok {
+		req.AddCookie(&http.Cookie{Name: SessionCookie, Value: testToken})
 	}
 	for k, v := range hdr {
 		if v != "" {
@@ -267,7 +308,7 @@ func TestEventsSocketOrigin(t *testing.T) {
 	defer srv.Close()
 	url := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws/events"
 	for _, o := range []string{"http://evil.example.com", ""} {
-		hdr := http.Header{}
+		hdr := http.Header{"Cookie": {SessionCookie + "=" + testToken}}
 		if o != "" {
 			hdr.Set("Origin", o)
 		}
@@ -292,7 +333,8 @@ func TestEventsSocketSnapshotThenEvents(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	url := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws/events"
-	c, resp, err := websocket.Dial(ctx, url, &websocket.DialOptions{HTTPHeader: http.Header{"Origin": {origin}}})
+	c, resp, err := websocket.Dial(ctx, url, &websocket.DialOptions{HTTPHeader: http.Header{
+		"Origin": {origin}, "Cookie": {SessionCookie + "=" + testToken}}})
 	if resp != nil && resp.Body != nil {
 		_ = resp.Body.Close()
 	}
@@ -333,7 +375,7 @@ func TestEventsSocketSnapshotThenEvents(t *testing.T) {
 
 func TestTerminalSocketIsOriginChecked(t *testing.T) {
 	reached := 0
-	h := New(Config{Dist: fstest.MapFS{}, Origins: AllowedOrigins("", 9055), Bus: events.NewBus(),
+	h := New(Config{Dist: fstest.MapFS{}, Origins: AllowedOrigins("", 9055), Bus: events.NewBus(), Auth: &fakeAuth{},
 		Terminal: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { reached++; w.WriteHeader(http.StatusTeapot) })})
 	e := &env{h: h}
 	up := map[string]string{"Upgrade": "websocket", "Connection": "Upgrade"}
@@ -363,7 +405,7 @@ func TestInfoLogsHoldNoPathOrCommand(t *testing.T) {
 	m := host()
 	svc := session.New(nopExec{}, map[string]session.Tracker{"host": m}, log)
 	h := New(Config{Log: log, Dist: fstest.MapFS{}, Origins: AllowedOrigins("", 9055),
-		Bus: events.NewBus(), Machines: []Snapshotter{m}, Sessions: svc})
+		Bus: events.NewBus(), Machines: []Snapshotter{m}, Sessions: svc, Auth: &fakeAuth{}})
 
 	e := &env{h: h}
 	markPath, markCmd := "~/private-project-dir", "run-deploy --marker=zq7"

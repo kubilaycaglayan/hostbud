@@ -41,8 +41,9 @@ func TestSPA(t *testing.T) {
 		{"hashed asset is immutable", "/assets/app-abc.js", 200, "console.log(1)", "public, max-age=31536000, immutable"},
 		{"other static file", "/favicon.svg", 200, "<svg/>", ""},
 		{"missing asset is 404", "/assets/missing.js", 404, "", ""},
-		{"unknown api is 404", "/api/nope", 404, "", ""},
-		{"unknown ws is 404", "/ws/nope", 404, "", ""},
+		// Without a session, /api and /ws answer 401 before routing (fail closed).
+		{"unknown api needs a session", "/api/nope", 401, "", "no-store"},
+		{"unknown ws needs a session", "/ws/nope", 401, "", "no-store"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -67,6 +68,19 @@ func TestSPAPlaceholderWhenNotBuilt(t *testing.T) {
 		rec := serve(t, h, http.MethodGet, target)
 		if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "web UI was not built") {
 			t.Fatalf("%s: status = %d, body = %q", target, rec.Code, rec.Body.String())
+		}
+	}
+}
+
+func TestUnknownAPIRouteIs404WithSession(t *testing.T) {
+	h := New(Config{Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Dist: builtDist(), Auth: &fakeAuth{}})
+	for _, target := range []string{"/api/nope", "/ws/nope"} {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, target, nil)
+		req.AddCookie(&http.Cookie{Name: SessionCookie, Value: testToken})
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("%s = %d, want 404", target, rec.Code)
 		}
 	}
 }

@@ -1,3 +1,4 @@
+import { sessionCookieHeader } from '../helpers/auth.ts'
 import { expect, test } from '../helpers/fixtures.ts'
 import { uniqueName } from '../helpers/target.ts'
 import {
@@ -119,6 +120,6 @@ test('origin: foreign-Origin POST and /ws/events upgrade are rejected', async ({
   expect(res.status()).toBe(403)
   expect(await target.sessions()).not.toContain(name)
 
-  expect(await upgradeStatus('/ws/events', FOREIGN_ORIGIN)).toBe(403)
-  expect(await upgradeStatus('/ws/events', 'http://localhost:9055')).toBe(101)
+  expect(await upgradeStatus('/ws/events', FOREIGN_ORIGIN, sessionCookieHeader())).toBe(403)
+  expect(await upgradeStatus('/ws/events', 'http://localhost:9055', sessionCookieHeader())).toBe(101)
 })

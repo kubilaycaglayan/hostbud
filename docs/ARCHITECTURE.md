@@ -232,6 +232,7 @@ login_rate_limits(scope_key PK, failures INT, blocked_until, last_failure_at,
 - Successful sign-in creates a server-side session. The browser receives only an opaque, high-entropy cookie marked `HttpOnly`, `Secure` when HTTPS is in use, `SameSite=Lax`, with a bounded expiry and rotation on sign-in. Store only a hash of the cookie token in `auth_sessions`.
 - All application API and WebSocket routes except health, registration and sign-in require an authenticated session. State-changing requests and WebSocket upgrades still enforce the Origin allowlist.
 - Registration and sign-in responses must not reveal whether an email is registered or whitelisted. Authentication failures use a generic message.
+- Implementation (`internal/auth`): the cookie is `hostbud_session` (256-bit random token; `auth_sessions` stores its SHA-256). Argon2id uses 64 MiB, t=3, p=2 in PHC format; sign-in for an unknown address verifies a dummy hash so timing doesn't reveal accounts, and registration hashes before checking the whitelist for the same reason. Registration doesn't sign in; the UI signs in right after. The SPA's static files are public (they hold no data and render the sign-in screen); every other `/api/*` and `/ws/*` route answers 401 without a session, including unknown ones (fail closed).
 
 ### 8.2 Login rate limiting
 
@@ -239,6 +240,7 @@ login_rate_limits(scope_key PK, failures INT, blocked_until, last_failure_at,
 - A failed sign-in increments the bucket. Repeated rate-limit hits increase the block duration exponentially with a configured ceiling; successful sign-in clears the email+IP failure bucket but does not clear an active IP-wide abuse block.
 - Return HTTP `429` with a generic error and `Retry-After`; do not disclose account or whitelist state. Apply the policy before password verification.
 - Rate-limit state is stored in PostgreSQL so all app instances share it. Expired buckets may be cleaned up safely.
+- Implementation: bucket keys are HMAC-SHA256 of (scope, email, IP) or (IP) with an install-local key (`/data/auth-key`, created on first start), so rows hold no raw emails or IPs. A bucket blocks once its failures reach the limit (`HOSTBUD_LOGIN_MAX_FAILURES`, `HOSTBUD_REGISTER_MAX_FAILURES`, `HOSTBUD_IP_MAX_FAILURES`); every further attempt, including one made while blocked, blocks for `BLOCK_BASE × MULTIPLIER^n` up to `BLOCK_MAX`. Failures older than `HOSTBUD_LOGIN_FAILURE_WINDOW` are forgotten. Updates lock the row (`SELECT … FOR UPDATE`), so concurrent attempts all count. The client IP comes from `X-Forwarded-For` only when the direct peer is in `HOSTBUD_TRUSTED_PROXIES`.
 - Limits, backoff multiplier, ceiling and proxy/IP trust configuration are environment-backed with safe defaults. Never trust forwarded client IP headers except from the known Caddy proxy.
 
 ---

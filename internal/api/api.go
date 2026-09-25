@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"net/netip"
 
 	"hostbud/internal/events"
 	"hostbud/internal/inventory"
@@ -29,6 +30,10 @@ type Config struct {
 	Machines []Snapshotter // v1: the host only
 	Sessions SessionService
 	Terminal http.Handler // /ws/term (term.Handler)
+	// Auth guards every /api and /ws route but health, register and login.
+	// Nil fails closed (those routes answer 401).
+	Auth           Authenticator
+	TrustedProxies []netip.Prefix // peers whose X-Forwarded-* headers count (Caddy)
 }
 
 // New returns the root HTTP handler.
@@ -45,6 +50,12 @@ func New(cfg Config) http.Handler {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", handleHealth)
+	if cfg.Auth != nil {
+		mux.HandleFunc("POST /api/auth/register", s.register)
+		mux.HandleFunc("POST /api/auth/login", s.login)
+		mux.HandleFunc("POST /api/auth/logout", s.logout)
+		mux.HandleFunc("GET /api/auth/me", s.me)
+	}
 	mux.HandleFunc("GET /api/machines", s.listMachines)
 	mux.HandleFunc("GET /api/machines/{machine}/sessions", s.listSessions)
 	mux.HandleFunc("POST /api/machines/{machine}/sessions", s.createSession)
@@ -55,7 +66,7 @@ func New(cfg Config) http.Handler {
 		mux.Handle("GET /ws/term", cfg.Terminal)
 	}
 	mux.Handle("GET /", spaHandler(cfg.Dist))
-	return checkOrigin(cfg.Origins, mux)
+	return checkOrigin(cfg.Origins, requireAuth(cfg.Auth, mux))
 }
 
 type server struct {

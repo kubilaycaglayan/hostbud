@@ -29,7 +29,15 @@ INSERT INTO email_allowlist (email_normalized, enabled, note, created_at, update
 VALUES ('owner@example.com', TRUE, 'owner', now(), now())
 ON CONFLICT (email_normalized) DO UPDATE
 SET enabled = EXCLUDED.enabled, updated_at = EXCLUDED.updated_at;
+
+-- Stop an address from signing in again (the account is kept):
+UPDATE email_allowlist SET enabled = FALSE, updated_at = now() WHERE email_normalized = 'owner@example.com';
+
+-- Lift sign-in throttling (e.g. after locking yourself out):
+DELETE FROM login_rate_limits;
 ```
+
+Run it with `docker compose exec hostbud-postgres psql -U hostbud -d hostbud` (the values of `HOSTBUD_DB_USER` / `HOSTBUD_DB_NAME`). Addresses are stored lowercased; sign-in throttling settings are in `.env.example`.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for details.
 

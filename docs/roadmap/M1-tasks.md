@@ -18,7 +18,7 @@ Update this table in the same commit that finishes a task.
 | T7 `sshx` | ✅ done |
 | T8 Integration test target | ✅ done |
 | T8A PostgreSQL persistence | ✅ done |
-| T8B Account authentication | ⬜ todo |
+| T8B Account authentication | ✅ done |
 | T9 `tmux` package | ✅ done (ahead of T8A/T8B, independent of them) |
 | T10 Events bus and inventory | ✅ done |
 | T11 Session service | ✅ done |

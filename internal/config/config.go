@@ -4,6 +4,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"hostbud/internal/auth"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -29,7 +30,22 @@ type Config struct {
 	DBPassword   string        // HOSTBUD_DB_PASSWORD
 	DBSSLMode    string        // HOSTBUD_DB_SSLMODE
 	DBLocalPort  int           // HOSTBUD_DB_LOCAL_PORT (Compose only)
+
+	// Authentication (docs/ARCHITECTURE.md §8).
+	SessionTTL          time.Duration // HOSTBUD_SESSION_TTL
+	LoginMaxFailures    int           // HOSTBUD_LOGIN_MAX_FAILURES
+	RegisterMaxFailures int           // HOSTBUD_REGISTER_MAX_FAILURES
+	IPMaxFailures       int           // HOSTBUD_IP_MAX_FAILURES
+	LoginBlockBase      time.Duration // HOSTBUD_LOGIN_BLOCK_BASE
+	LoginBlockMax       time.Duration // HOSTBUD_LOGIN_BLOCK_MAX
+	LoginBlockFactor    float64       // HOSTBUD_LOGIN_BLOCK_MULTIPLIER
+	LoginFailureWindow  time.Duration // HOSTBUD_LOGIN_FAILURE_WINDOW
+	TrustedProxies      string        // HOSTBUD_TRUSTED_PROXIES (CIDRs, comma-separated)
 }
+
+// DefaultTrustedProxies are the private ranges Docker networks use: hostbud
+// publishes no ports, so its only peer is Caddy on the Compose network.
+const DefaultTrustedProxies = "127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
 
 // Load reads the configuration using getenv (usually os.Getenv).
 // It returns all validation problems at once.
@@ -54,6 +70,41 @@ func Load(getenv func(string) string) (Config, error) {
 		DBUser:      get("HOSTBUD_DB_USER", "hostbud"),
 		DBPassword:  getenv("HOSTBUD_DB_PASSWORD"),
 		DBSSLMode:   get("HOSTBUD_DB_SSLMODE", "disable"),
+
+		TrustedProxies: get("HOSTBUD_TRUSTED_PROXIES", DefaultTrustedProxies),
+	}
+
+	duration := func(key, def string, minimum time.Duration) time.Duration {
+		d, err := time.ParseDuration(get(key, def))
+		if err != nil || d < minimum {
+			errs = append(errs, fmt.Errorf("%s: must be a duration of at least %s (like %s)", key, minimum, def))
+		}
+		return d
+	}
+	count := func(key, def string) int {
+		n, err := strconv.Atoi(get(key, def))
+		if err != nil || n < 1 {
+			errs = append(errs, fmt.Errorf("%s: must be a whole number of at least 1", key))
+		}
+		return n
+	}
+	cfg.SessionTTL = duration("HOSTBUD_SESSION_TTL", "720h", time.Minute)
+	cfg.LoginMaxFailures = count("HOSTBUD_LOGIN_MAX_FAILURES", "5")
+	cfg.RegisterMaxFailures = count("HOSTBUD_REGISTER_MAX_FAILURES", "10")
+	cfg.IPMaxFailures = count("HOSTBUD_IP_MAX_FAILURES", "20")
+	cfg.LoginBlockBase = duration("HOSTBUD_LOGIN_BLOCK_BASE", "30s", time.Second)
+	cfg.LoginBlockMax = duration("HOSTBUD_LOGIN_BLOCK_MAX", "1h", time.Second)
+	cfg.LoginFailureWindow = duration("HOSTBUD_LOGIN_FAILURE_WINDOW", "1h", time.Second)
+	if cfg.LoginBlockMax < cfg.LoginBlockBase {
+		errs = append(errs, errors.New("HOSTBUD_LOGIN_BLOCK_MAX: must not be below HOSTBUD_LOGIN_BLOCK_BASE"))
+	}
+	factor, err := strconv.ParseFloat(get("HOSTBUD_LOGIN_BLOCK_MULTIPLIER", "2"), 64)
+	if err != nil || factor < 1 || factor > 10 {
+		errs = append(errs, errors.New("HOSTBUD_LOGIN_BLOCK_MULTIPLIER: must be a number between 1 and 10"))
+	}
+	cfg.LoginBlockFactor = factor
+	if _, err := auth.ParsePrefixes(cfg.TrustedProxies); err != nil {
+		errs = append(errs, fmt.Errorf("HOSTBUD_TRUSTED_PROXIES: %w (use CIDRs like 172.16.0.0/12)", err))
 	}
 
 	poll, err := time.ParseDuration(get("HOSTBUD_POLL_INTERVAL", "3s"))

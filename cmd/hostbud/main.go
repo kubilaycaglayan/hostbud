@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"hostbud/internal/api"
+	"hostbud/internal/auth"
 	"hostbud/internal/config"
 	"hostbud/internal/events"
 	"hostbud/internal/inventory"
@@ -99,15 +101,38 @@ func run() error {
 
 	sessions := session.New(ssh, map[string]session.Tracker{store.HostMachineID: inv}, log)
 
+	authKey, err := loadOrCreateKey(filepath.Join(cfg.DataDir, "auth-key"))
+	if err != nil {
+		return err
+	}
+	proxies, err := auth.ParsePrefixes(cfg.TrustedProxies)
+	if err != nil {
+		return err
+	}
+	accounts, err := auth.New(st, auth.Config{
+		SessionTTL: cfg.SessionTTL,
+		Limits: auth.Limits{
+			LoginMax: cfg.LoginMaxFailures, RegisterMax: cfg.RegisterMaxFailures, IPMax: cfg.IPMaxFailures,
+			BlockBase: cfg.LoginBlockBase, BlockMax: cfg.LoginBlockMax, Multiplier: cfg.LoginBlockFactor,
+			Window: cfg.LoginFailureWindow,
+		},
+		Key: authKey, Log: log,
+	})
+	if err != nil {
+		return err
+	}
+
 	srv := &http.Server{
 		Addr: cfg.Listen,
 		Handler: api.New(api.Config{
 			Log: log, Dist: web.Dist(),
-			Origins:  api.AllowedOrigins(cfg.Domain, cfg.LocalPort),
-			Bus:      bus,
-			Machines: []api.Snapshotter{inv},
-			Sessions: sessions,
-			Terminal: &term.Handler{SSH: ssh, Log: log},
+			Origins:        api.AllowedOrigins(cfg.Domain, cfg.LocalPort),
+			Bus:            bus,
+			Machines:       []api.Snapshotter{inv},
+			Sessions:       sessions,
+			Terminal:       &term.Handler{SSH: ssh, Log: log},
+			Auth:           accounts,
+			TrustedProxies: proxies,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       2 * time.Minute,
@@ -159,4 +184,20 @@ func (c capabilityStore) SaveCapabilities(ctx context.Context, id string, caps i
 	return c.st.SaveCapabilities(ctx, id, store.Capabilities{
 		OS: caps.OS, Home: caps.Home, TmuxVersion: caps.TmuxVersion, TmuxMissing: caps.TmuxMissing,
 	}, seen)
+}
+
+// loadOrCreateKey returns the install-local secret that keys rate-limit
+// bucket hashes, creating it (0600) on first start.
+func loadOrCreateKey(path string) ([]byte, error) {
+	if b, err := os.ReadFile(path); err == nil && len(b) >= 32 { //nolint:gosec // path under the data dir
+		return b, nil
+	}
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return nil, err
+	}
+	if err := os.WriteFile(path, b, 0o600); err != nil {
+		return nil, fmt.Errorf("write %s: %w", path, err)
+	}
+	return b, nil
 }

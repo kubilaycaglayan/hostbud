@@ -19,6 +19,8 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
+    // Signed in as the account global setup creates (helpers/auth.ts).
+    storageState: 'results/.auth.json',
   },
   projects: [
     { name: 'desktop-chromium', use: { ...devices['Desktop Chrome'] } },

@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test'
+import { sessionCookieHeader } from '../helpers/auth.ts'
 import { expect, test } from '../helpers/fixtures.ts'
 import { uniqueName } from '../helpers/target.ts'
 import { FOREIGN_ORIGIN, MACHINE, forbidInLogs, upgradeStatus } from '../helpers/api.ts'
@@ -74,6 +75,6 @@ test('origin: a foreign-Origin /ws/term upgrade is rejected', async ({ target })
   const name = uniqueName('e2e-evil-term')
   await target.tmux('new-session', '-d', '-s', name)
   const path = `/ws/term?machine=${MACHINE}&session=${name}&cols=80&rows=24`
-  expect(await upgradeStatus(path, FOREIGN_ORIGIN)).toBe(403)
+  expect(await upgradeStatus(path, FOREIGN_ORIGIN, sessionCookieHeader())).toBe(403)
   expect(await target.display(name, '#{session_attached}')).toBe('0')
 })
