@@ -108,7 +108,7 @@ Tasks: [roadmap/M6-tasks.md](roadmap/M6-tasks.md) · Checklist: [roadmap/M6-acce
 - Inline rename; hide/unhide; pin projects. M4 provides drag-to-sort and persistent manual ordering for projects and sessions; M6 must preserve it and must not introduce automatic re-sorting.
 - Collapse state persisted; lazily loaded windows/panes under sessions.
 - Visual tree hierarchy: projects (and Other sessions) render as parent headers with icon, name and `~`-shortened path; child rows are indented with a guide line.
-- Command palette (Ctrl/⌘-K); keyboard shortcuts, including next/previous tab with Ctrl+Shift+] / Ctrl+Shift+[ (on macOS too, since ⌘⇧]/[ belong to the browser).
+- Command palette (Ctrl/⌘-K); keyboard shortcuts, including next/previous tab with Ctrl+Shift+] / Ctrl+Shift+[ (on macOS too, since ⌘⇧]/[ belong to the browser), and Ctrl+Shift+D to switch between the two most recently selected tabs (Ctrl on macOS too, never ⌘).
 - Theme setting: **Dark / Light / System**. System follows the OS `prefers-color-scheme` and switches live when the OS changes. The setting applies to the whole UI and the xterm terminal palette, is persisted in `ui_state` (default: System), and is applied before first paint (no flash of the wrong theme).
 
 **E2E:** drag to reorder, rename, hide/unhide, pin, collapse — then reload **and** restart `hostbud-e2e-app` → everything is as the user left it; windows/panes load when a session is expanded; project headers are visually distinct and sessions indented beneath them; the palette jumps to a session; theme: picking Dark or Light applies at once and survives reload and restart; with System, switching Playwright's emulated `colorScheme` flips the UI and terminal without a reload.

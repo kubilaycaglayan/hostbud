@@ -192,6 +192,10 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
   - U: T8 next/previous with wrap-around, the single-tab no-op, and focus moving to the new tab's focused pane; xterm's custom key handler returns `false` for both chords (Vitest).
   - I: n/a (frontend only).
   - E: T8 *Switch tabs from the keyboard* (desktop) · T8 *Shortcuts don't reach the program* (desktop).
+- [ ] Ctrl+Shift+D (Ctrl on every platform, never ⌘) switches to the previously selected tab, and pressing it again switches back, even from a focused terminal. If that tab was closed, it goes to the most recently selected tab that's still open; with one tab it does nothing. The new tab's focused pane gets focus, and the key never reaches the program or the browser's own Ctrl+Shift+D.
+  - U: T8 the most-recently-selected list (click, chords, palette and opening a session all count; closing drops the tab), the toggle, the closed-tab fallback, the single-tab no-op, `preventDefault()`, xterm's custom key handler returns `false`, ⌘⇧D unbound (Vitest).
+  - I: n/a (frontend only; the list is in memory, not persisted).
+  - E: T8 *Toggle to the last tab* (desktop).
 - [ ] No global shortcut takes a key a terminal program needs: registry entries that fire while the terminal is focused use ⌘ or Ctrl+Shift only, never plain Ctrl+letter, Alt+letter or function keys, and don't collide with M3's keys (Ctrl/⌘+Shift+C/V/F, Mac editing keys). Browser-reserved chords (Ctrl+T, Ctrl+W, Ctrl+N, Ctrl+Tab) aren't used.
   - U: T8 a registry test fails on any terminal-scope chord that is plain Ctrl/Alt+key, a duplicate, or one of M3's keys; `terminalKeys.ts` tests pass unchanged (Vitest).
   - I: n/a (frontend only).
@@ -252,6 +256,7 @@ Profiles: `desktop-chromium`, `iphone-13-pro` (`http://localhost:9055`) and `iph
 - [ ] **(T7) No flash of the wrong theme:** with Light saved and the emulated OS dark, the root background at the first animation frame of a reload is already the light token (desktop).
 - [ ] **(T8) Keyboard shortcuts help:** Ctrl+Shift+/ and `?` from the tree open it; it lists the registry's entries; Escape closes and restores focus (desktop).
 - [ ] **(T8) Switch tabs from the keyboard:** with three tabs open and the last one focused, Ctrl+Shift+] wraps to the first tab and Ctrl+Shift+[ wraps back to the last; after each switch, typing in the terminal reaches that tab's shell (`capture-pane`); with one tab, the chords leave it focused and send nothing to the shell (desktop).
+- [ ] **(T8) Toggle to the last tab:** with three tabs, select tab 1 then tab 3: Ctrl+Shift+D focuses tab 1, again focuses tab 3, and typing after each reaches that tab's shell (`capture-pane`); after closing tab 1 it goes to the next most recent open tab; with one tab it does nothing and sends nothing to the shell (desktop).
 - [ ] **(T8) Shortcuts don't reach the program:** with vim in one tab and a shell in another, Ctrl+Shift+] / [ switch tabs, and vim's buffer and mode are unchanged; Ctrl+Shift+E moves focus to the tree and back (desktop).
 - [ ] **(T9) Palette opens without stealing Ctrl+K:** in a shell, Ctrl+K deletes to the end of the line (`capture-pane`); Ctrl+Shift+K opens the palette (desktop).
 - [ ] **(T9) Palette jumps to a session:** type part of a name, Enter → its tab is focused (or opened) and the terminal is focused; Escape without choosing returns focus (desktop and `iphone-13-pro`).
@@ -263,7 +268,7 @@ Profiles: `desktop-chromium`, `iphone-13-pro` (`http://localhost:9055`) and `iph
 
 On a desktop browser (port forward, a Mac if available) and the owner's iPhone over `https://${HOSTBUD_DOMAIN}`. These are the owner's backlog, not blockers: they don't hold back M6's done state or the next milestone, and no agent waits for them. Record the date and the result here when the owner does one; an unchecked item stays open in the summary.
 
-- [ ] macOS: ⌘K opens the palette from a terminal in Chrome and Safari; ⌘/ opens the help; ⌘⇧E moves focus; Ctrl+Shift+] / [ switch to the next/previous hostbud tab from a focused terminal (while ⌘⇧]/[ still switch browser tabs); Ctrl+K in a shell still kills to the end of the line.
+- [ ] macOS: ⌘K opens the palette from a terminal in Chrome and Safari; ⌘/ opens the help; ⌘⇧E moves focus; Ctrl+Shift+] / [ switch to the next/previous hostbud tab from a focused terminal (while ⌘⇧]/[ still switch browser tabs); Ctrl+Shift+D toggles between the last two hostbud tabs in Chrome and Safari (⌘⇧D keeps the browser's behavior), and on Linux/Windows Chrome it doesn't open the bookmark-all-tabs dialog; Ctrl+K in a shell still kills to the end of the line.
 - [ ] Theme: switch macOS appearance with hostbud in System mode, and the UI and a running vim/htop repaint without a reload; Dark and Light ignore the OS switch.
 - [ ] No flash: hard-reload in Light with the OS in dark (and the reverse), and nothing dark (or light) flashes.
 - [ ] iPhone: Light and Dark look right in Safari and in the installed app (status bar color, sheets, drawer, key bar); System follows iOS appearance.
