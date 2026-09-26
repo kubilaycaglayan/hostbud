@@ -77,6 +77,8 @@ Tasks: [roadmap/M3-tasks.md](roadmap/M3-tasks.md) · Checklist: [roadmap/M3-acce
 **Accept:** killing the network and restoring it re-attaches without losing the session; tab/split layout survives reload.
 
 ### M4 — Projects and file browser
+Tasks: [roadmap/M4-tasks.md](roadmap/M4-tasks.md) · Checklist: [roadmap/M4-acceptance.md](roadmap/M4-acceptance.md)
+
 - SFTP-based browser: home, list, hidden toggle, breadcrumbs, path autocomplete, mkdir.
 - "Open as project", "New session here"; projects persisted; recents.
 - Longest-prefix mapping of sessions to projects + `session_links`; "Other sessions" node with "Save as project".
