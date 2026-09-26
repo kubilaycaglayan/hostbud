@@ -84,3 +84,23 @@ test('Project persists and updates live', async ({ page, request, target }) => {
   await expect(page.getByRole('button', { name: 'Open project' }).first()).toBeVisible()
   await second.close()
 })
+
+test('(T4) Hidden toggle and lazy symlink status in the browser', async ({ page, target }) => {
+  const name = uniqueName('e2e-browser-links')
+  const dir = `/home/dev/${name}`
+  await target.run(`mkdir -p ${shq(dir)}; touch ${shq(`${dir}/.hidden`)}; ln -s missing ${shq(`${dir}/broken-link`)}`)
+  try {
+    await page.goto('/')
+    await page.getByRole('button', { name: 'Browse files' }).click()
+    await page.getByLabel('Current path').fill(dir)
+    await page.getByRole('button', { name: 'Go' }).click()
+    await expect(page.getByText('broken-link (unresolved)')).toBeVisible()
+    await expect(page.getByText('.hidden')).toHaveCount(0)
+    await page.getByRole('button', { name: 'Check link' }).click()
+    await expect(page.getByText('broken-link (broken)')).toBeVisible()
+    await page.getByLabel('Show hidden files').check()
+    await expect(page.getByText('.hidden')).toBeVisible()
+  } finally {
+    await target.run(`rm -rf ${shq(dir)}`)
+  }
+})

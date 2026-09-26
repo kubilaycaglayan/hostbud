@@ -91,7 +91,7 @@ export const filesystemApi = {
   list: (machine: string, path: string, hidden: boolean) => request<{ path: string; entries: FileEntry[] }>(
     'GET', `/api/machines/${encodeURIComponent(machine)}/fs?path=${encodeURIComponent(path)}&hidden=${hidden}`,
   ),
-  stat: (machine: string, path: string) => request<{ entry: FileEntry; symlink: boolean }>(
+  stat: (machine: string, path: string) => request<FileEntry & { symlink: boolean }>(
     'GET', `/api/machines/${encodeURIComponent(machine)}/fs/stat?path=${encodeURIComponent(path)}`,
   ),
   mkdir: (machine: string, path: string, name: string) => request<{ path: string }>(

@@ -12,6 +12,8 @@ const emit = defineEmits<{ created: [name: string] }>()
 const path = ref('')
 const pathInput = ref('')
 const entries = ref<FileEntry[]>([])
+const resolvingLinks = ref(new Set<string>())
+const linkErrors = ref<Record<string, string>>({})
 const projectStore = useProjectsStore()
 const projects = computed(() => projectStore.items)
 const hidden = ref(false)
@@ -72,6 +74,22 @@ async function createFolder() {
   try { await filesystemApi.mkdir(props.machine, path.value, name); folderName.value = ''; await navigate(path.value) }
   catch (e) { folderError.value = describeError(e).message }
   finally { busy.value = false }
+}
+
+async function resolveLink(entry: FileEntry) {
+  if (resolvingLinks.value.has(entry.path)) return
+  resolvingLinks.value = new Set(resolvingLinks.value).add(entry.path)
+  delete linkErrors.value[entry.path]
+  try {
+    const result = await filesystemApi.stat(props.machine, entry.path)
+    entries.value = entries.value.map((row) => row.path === entry.path ? { ...row, symlinkState: result.symlinkState } : row)
+  } catch (e) {
+    linkErrors.value[entry.path] = describeError(e).message
+  } finally {
+    const next = new Set(resolvingLinks.value)
+    next.delete(entry.path)
+    resolvingLinks.value = next
+  }
 }
 
 async function beginSession(project: Project) {
@@ -221,6 +239,23 @@ async function createSession() {
           v-if="entry.symlinkState"
           class="text-muted"
         > ({{ entry.symlinkState }})</span></span>
+        <button
+          v-if="entry.kind === 'symlink' && entry.symlinkState === 'unresolved'"
+          type="button"
+          :aria-label="`Check link ${entry.name}`"
+          class="min-h-11 rounded border border-border px-3"
+          :disabled="resolvingLinks.has(entry.path)"
+          @click="resolveLink(entry)"
+        >
+          {{ resolvingLinks.has(entry.path) ? 'Checking link…' : 'Check link' }}
+        </button>
+        <span
+          v-if="linkErrors[entry.path]"
+          role="alert"
+          class="w-full text-danger"
+        >
+          {{ linkErrors[entry.path] }}
+        </span>
         <button
           v-if="entry.kind === 'directory'"
           type="button"

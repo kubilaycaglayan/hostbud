@@ -14,7 +14,13 @@ describe('FileBrowser', () => {
       const parsed = new URL(String(url), 'http://localhost')
       let body: unknown = {}
       if (parsed.pathname.endsWith('/fs/home')) body = { path: '/home/dev' }
-      else if (parsed.pathname.endsWith('/fs')) body = { path: parsed.searchParams.get('path'), entries: [{ name: 'work', path: '/home/dev/work', kind: 'directory' }, { name: 'notes', path: '/home/dev/notes', kind: 'directory' }] }
+      else if (parsed.pathname.endsWith('/fs/stat')) body = { name: 'broken-link', path: '/home/dev/broken-link', kind: 'symlink', symlink: true, symlinkState: 'broken' }
+      else if (parsed.pathname.endsWith('/fs')) body = { path: parsed.searchParams.get('path'), entries: [
+        { name: 'work', path: '/home/dev/work', kind: 'directory' },
+        { name: 'notes', path: '/home/dev/notes', kind: 'directory' },
+        { name: 'broken-link', path: '/home/dev/broken-link', kind: 'symlink', symlinkState: 'unresolved' },
+        ...(parsed.searchParams.get('hidden') === 'true' ? [{ name: '.hidden', path: '/home/dev/.hidden', kind: 'file' }] : []),
+      ] }
       else if (parsed.pathname.endsWith('/fs/mkdir')) body = { path: '/home/dev/new-folder' }
       else if (parsed.pathname === '/api/projects' && init?.method === 'POST') body = { id: 'p1', machineId: 'host', path: '/home/dev/work', name: 'work' }
       else if (parsed.pathname === '/api/projects' && init?.method === 'GET') body = { projects: [] }
@@ -63,5 +69,20 @@ describe('FileBrowser', () => {
     await flushPromises()
     expect(fetchMock).toHaveBeenCalledWith('/api/projects/p1/sessions', expect.objectContaining({ method: 'POST', body: JSON.stringify({ name: undefined, startCommand: 'make test' }) }))
     expect(wrapper.emitted('created')?.[0]).toEqual(['work'])
+  })
+
+  it('shows hidden entries on request and resolves symlink state lazily', async () => {
+    const wrapper = mount(FileBrowser, { props: { machine: 'host' } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('broken-link (unresolved)')
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/fs/stat?path=%2Fhome%2Fdev%2Fbroken-link'))).toBe(false)
+    await wrapper.get('button[aria-label="Check link broken-link"]').trigger('click')
+    await flushPromises()
+    expect(fetchMock).toHaveBeenCalledWith('/api/machines/host/fs/stat?path=%2Fhome%2Fdev%2Fbroken-link', expect.objectContaining({ method: 'GET' }))
+    expect(wrapper.text()).toContain('broken-link (broken)')
+    expect(wrapper.text()).not.toContain('.hidden')
+    await wrapper.get('input[type="checkbox"]').setValue(true)
+    await flushPromises()
+    expect(wrapper.text()).toContain('.hidden')
   })
 })

@@ -70,7 +70,7 @@ Tasks proceed in order. Before implementation, re-check M3's acceptance gates an
 
 **Tests:** U (Vitest): breadcrumb/path input, autocomplete and keyboard behavior, error recovery, hidden toggle, folder form validation, duplicate project selection, project action exact path, session action calls service and handles errors without phantom projects. I: T1/T2/T3 integration contracts cover remote path and persistence; no additional I test unless UI introduces a new server behavior.
 
-**E2E:** add **(T4) Path autocomplete and invalid paths**, **Create folder**, **Open as project and persist**, **Project persists and updates live**, and **New session here** to [M4-acceptance.md](M4-acceptance.md#e2e-scenarios-make-e2e-simulated-user), desktop and phone where specified. Type-check only.
+**E2E:** add **(T4) Path autocomplete and invalid paths**, **Hidden toggle and lazy symlink status in the browser**, **Create folder**, **Open as project and persist**, **Project persists and updates live**, and **New session here** to [M4-acceptance.md](M4-acceptance.md#e2e-scenarios-make-e2e-simulated-user), desktop and phone where specified. Type-check only.
 
 **Done:** browse, mkdir, save project and create-in-project flows work in both responsive profiles; scenarios compile.
 

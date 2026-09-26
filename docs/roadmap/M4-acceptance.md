@@ -10,14 +10,14 @@ Each criterion names **U** (unit), **I** (integration against `test/sshd`, Postg
 
 ## File browser and SFTP
 
-- [ ] The authenticated file browser opens at the target user's SFTP home directory, displays a breadcrumb and current path, and can navigate into and back out of directories. Paths containing spaces, quotes, Unicode and shell metacharacters remain literal paths.
+- [x] The authenticated file browser opens at the target user's SFTP home directory, displays a breadcrumb and current path, and can navigate into and back out of directories. Paths containing spaces, quotes, Unicode and shell metacharacters remain literal paths.
   - U: T1 path normalization/validation and SFTP entry mapping; `sshx` arguments remain separated and safely quoted.
   - I: T1 against `test/sshd`: home, list, nested navigation and hostile-but-valid path names through the production SFTP client.
   - E: T1 *Browse home and navigate* API scenario through Caddy; T4 exercises the responsive browser UI (desktop and iPhone 13 Pro).
-- [ ] Directory listings show directories before files and are stable-sorted by name; hidden entries are omitted by default and appear when the hidden toggle is enabled. Symlink metadata is represented safely, and resolution is lazy with loops/errors surfaced as actionable row state.
+- [x] Directory listings show directories before files and are stable-sorted by name; hidden entries are omitted by default and appear when the hidden toggle is enabled. Symlink metadata is represented safely, and resolution is lazy with loops/errors surfaced as actionable row state.
   - U: T1 sorting, hidden filtering, file metadata and symlink policy cases.
   - I: T1 against `test/sshd`: visible/hidden files, directory ordering, valid symlink and broken symlink; no traversal outside the target filesystem is introduced by path handling.
-  - E: T1 *Hidden entries and symlinks* API scenario through Caddy; T4 exercises the rendered row state (desktop).
+  - E: T1 *Hidden entries and symlinks* API scenario through Caddy; T4 *Hidden toggle and lazy symlink status in the browser* (desktop).
 - [ ] Path input supports autocomplete from the current directory, keyboard selection/navigation and submitting a typed path. Invalid, missing and non-directory paths give actionable errors without losing the current browser location.
   - U: T4 autocomplete filtering, keyboard state and path input/error states.
   - I: T1 SFTP stat/list error mapping for missing path and non-directory path.
@@ -122,6 +122,7 @@ Projects remain `desktop-chromium` and `iphone-13-pro` against the throwaway tar
 - [ ] **(T3) Project API access control and events:** auth and Origin enforcement through Caddy; successful create is returned by the API and published to the event stream.
 - [ ] **(T1) SFTP unavailable recovery:** failure is actionable and browsing works after target recovery.
 - [ ] **(T4) Path autocomplete and invalid paths:** choose an autocomplete result, submit an existing typed path, and recover from missing/non-directory paths (desktop and phone).
+- [ ] **(T4) Hidden toggle and lazy symlink status in the browser:** hidden entries appear only when requested, and checking a symlink lazily shows its broken/resolved/loop status (desktop).
 - [ ] **(T4) Create folder:** create a nested folder, see it in the listing, reject invalid names (desktop and phone).
 - [ ] **(T4) Open as project and persist:** create from a chosen folder, observe its tree entry; reload and app restart retain it (desktop and phone).
 - [ ] **(T4) Project persists and updates live:** another authenticated browser creates a project and the first view updates without reload (desktop).
