@@ -103,8 +103,12 @@ func TestProjectRepositoriesAndMachineScoping(t *testing.T) {
 	if err != nil || updated.Name != "Renamed app" || !updated.UpdatedAt.After(first.UpdatedAt) {
 		t.Fatalf("rename = %+v, %v", updated, err)
 	}
+	nested, err := s.CreateProject(ctx, HostMachineID, "/home/dev/app/nested", "Renamed app")
+	if err != nil || nested.ID == first.ID {
+		t.Fatalf("nested project with the same display name = %+v, %v", nested, err)
+	}
 	projects, err := s.Projects(ctx, HostMachineID)
-	if err != nil || len(projects) != 1 || projects[0].ID != first.ID {
+	if err != nil || len(projects) != 2 || projects[0].ID != first.ID || projects[1].ID != nested.ID || projects[0].Name != projects[1].Name {
 		t.Fatalf("host projects = %+v, %v", projects, err)
 	}
 	if got, err := s.Project(ctx, first.ID); err != nil || got.Name != "Renamed app" {

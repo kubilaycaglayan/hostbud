@@ -57,7 +57,7 @@ Each criterion names **U** (unit), **I** (integration against `test/sshd`, Postg
   - U: T3 unmatched grouping and save action state; assert it calls project creation only.
   - I: T3 PostgreSQL project insert and session cache remains unchanged; target `#{session_id}` and `#{session_path}` are unchanged.
   - E: T5 *Other sessions and Save as project* (desktop and iPhone 13 Pro).
-- [ ] Project names and saved user order are rendered from persisted metadata; projects with equal or nested paths remain distinct entries.
+- [x] Project names and saved user order are rendered from persisted metadata; projects with equal or nested paths remain distinct entries.
   - U: T3 tree projection and deterministic ordering for equal names/paths.
   - I: T2 project list repository order and uniqueness constraints.
   - E: T5 *Distinct project tree entries* (desktop).
@@ -130,7 +130,7 @@ Projects remain `desktop-chromium` and `iphone-13-pro` against the throwaway tar
 - [x] **(T5) Longest-prefix project mapping:** sessions at nested, sibling-prefix and unrelated paths land in the correct project or Other sessions (desktop).
 - [x] **(T5) Linked session rename and cleanup:** project-created session link follows UI rename and is removed/invalidated after session end (desktop).
 - [x] **(T5) Other sessions and Save as project:** unmatched session is grouped separately; save it, see it move under a project, and verify tmux session id is unchanged (desktop and phone).
-- [ ] **(T5) Distinct project tree entries:** nested paths and similar names remain separate, deterministic entries (desktop).
+- [x] **(T5) Distinct project tree entries:** nested paths and similar names remain separate, deterministic entries (desktop).
 - [ ] **(T5) Left bar custom order:** reorder projects and sessions, add new rows, and verify existing custom order persists through reload and restart (desktop and phone).
 - [ ] **(T5) Left bar session actions:** the ×, ⋯ and pencil sit directly to the right of the title; rename works; × prompts before kill (desktop and phone).
 - [ ] **(T5) Account controls in app header:** email and Sign out appear top-right whether the left bar is open or closed; sign out revokes the session (desktop and phone).

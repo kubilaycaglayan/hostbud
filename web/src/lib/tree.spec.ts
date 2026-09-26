@@ -29,6 +29,15 @@ describe('project session tree', () => {
     expect(projection.groups.map((group) => group.project.id)).toEqual(['third', 'first', 'second'])
   })
 
+  it('keeps nested projects with equal display names as distinct groups', () => {
+    const projects = [project('parent', '/work', 'Work'), project('nested', '/work/app', 'Work')]
+    const projection = projectTree(projects, [], emptyTreeOrder())
+    expect(projection.groups.map((group) => [group.project.id, group.project.path, group.project.name])).toEqual([
+      ['parent', '/work', 'Work'],
+      ['nested', '/work/app', 'Work'],
+    ])
+  })
+
   it('uses an explicit linked project before path-prefix matches', () => {
     const linked = session('linked', '/work/app')
     linked.projectId = 'root'
