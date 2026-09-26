@@ -300,7 +300,7 @@ defineExpose({ refit, reconnect, showKeyboard })
       <button
         v-if="props.narrow && props.paneCount > 1"
         type="button"
-        class="shrink-0 rounded border border-border px-2"
+        class="touch-target shrink-0 rounded border border-border px-2"
         :aria-label="`Pane ${props.paneIndex} of ${props.paneCount}: show the next pane`"
         @click="emit('cyclePane')"
       >
@@ -326,7 +326,7 @@ defineExpose({ refit, reconnect, showKeyboard })
       <button
         type="button"
         aria-label="Search"
-        class="rounded border border-border px-2"
+        class="touch-target rounded border border-border px-2"
         @click="openSearch"
       >
         🔍
@@ -335,7 +335,7 @@ defineExpose({ refit, reconnect, showKeyboard })
       <button
         type="button"
         aria-label="Show keyboard"
-        class="hidden rounded border border-border px-2 pointer-coarse:inline-block"
+        class="touch-target hidden rounded border border-border px-2 pointer-coarse:inline-block"
         @click="showKeyboard"
       >
         ⌨
@@ -344,7 +344,7 @@ defineExpose({ refit, reconnect, showKeyboard })
         type="button"
         aria-label="Close pane"
         title="Close pane (the session keeps running)"
-        class="rounded px-2 text-muted hover:text-fg"
+        class="touch-target rounded px-2 text-muted hover:text-fg"
         @click="emit('close')"
       >
         ×
@@ -385,7 +385,7 @@ defineExpose({ refit, reconnect, showKeyboard })
           <span>Reconnecting… (attempt {{ attempt }})</span>
           <button
             type="button"
-            class="rounded border border-border px-2"
+            class="touch-target rounded border border-border px-2"
             @click="retryNow"
           >
             Retry now
@@ -401,7 +401,7 @@ defineExpose({ refit, reconnect, showKeyboard })
       <span>{{ state === 'exited' ? 'Session detached or ended.' : 'Disconnected: the session is gone.' }}</span>
       <button
         type="button"
-        class="rounded bg-accent px-3 py-1 font-bold text-bg"
+        class="touch-target rounded bg-accent px-3 py-1 font-bold text-bg"
         @click="reconnect"
       >
         Reconnect

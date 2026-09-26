@@ -23,6 +23,8 @@ describe('TabBar', () => {
     expect(t.map((x) => x.attributes('aria-selected'))).toEqual(['false', 'true', 'false'])
     expect(t.map((x) => x.attributes('tabindex'))).toEqual(['-1', '0', '-1'])
     expect(t[1].attributes('aria-controls')).toBe('tabpanel-2')
+    expect(t.every((tab) => tab.classes().includes('touch-target'))).toBe(true)
+    expect(w.findAll('[aria-label^="Close "]').every((button) => button.classes().includes('touch-target'))).toBe(true)
     w.unmount()
   })
 

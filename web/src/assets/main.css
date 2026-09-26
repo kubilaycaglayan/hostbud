@@ -1,5 +1,12 @@
 @import 'tailwindcss';
 
+@utility touch-target {
+  @media (pointer: coarse) {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+}
+
 /* Theme tokens. Dark is the default; light follows the OS until a theme
    toggle lands (stored in ui_state). */
 :root {
@@ -58,6 +65,27 @@ body {
   top: var(--app-top, 0px);
   height: var(--app-height, 100dvh);
   overflow: hidden;
+  touch-action: manipulation;
+}
+
+@media (pointer: coarse) {
+  button,
+  a[href],
+  [role='tab'],
+  [role='menuitem'],
+  [role='treeitem'],
+  input,
+  textarea,
+  select {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
 }
 
 /* The terminal's hidden input: iOS zooms into inputs under 16px on focus. */

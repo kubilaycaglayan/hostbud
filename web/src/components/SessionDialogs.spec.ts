@@ -55,6 +55,8 @@ describe('CreateSessionDialog', () => {
     const dialogs = [...document.body.querySelectorAll('[role="dialog"]')]
     expect(dialogs.length).toBeGreaterThanOrEqual(2)
     expect(dialogs.every((dialog) => dialog.className.includes('bottom-0'))).toBe(true)
+    expect([...document.body.querySelectorAll('button')].every((button) => button.classList.contains('touch-target'))).toBe(true)
+    expect([...document.body.querySelectorAll('input')].every((field) => field.classList.contains('text-base'))).toBe(true)
     create.unmount()
     rename.unmount()
     kill.unmount()

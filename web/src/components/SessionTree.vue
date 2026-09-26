@@ -70,7 +70,7 @@ async function saveAsProject(session: Session) {
         <div class="flex items-center gap-1 px-1">
           <button
             type="button"
-            class="project-drag-handle min-h-11 min-w-8 cursor-grab rounded text-muted"
+            class="touch-target project-drag-handle min-h-11 min-w-8 cursor-grab rounded text-muted"
             :aria-label="`Drag to reorder project ${group.project.name}`"
             title="Drag to reorder projects"
           >
@@ -85,7 +85,7 @@ async function saveAsProject(session: Session) {
           </span>
           <button
             type="button"
-            class="min-h-11 rounded px-2"
+            class="touch-target min-h-11 rounded px-2"
             :aria-label="`New session in ${group.project.name}`"
             @click="emit('sessionInProject', group.project)"
           >

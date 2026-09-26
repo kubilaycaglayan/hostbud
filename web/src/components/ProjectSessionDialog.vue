@@ -62,11 +62,11 @@ async function createSession() {
       </h2>
       <label class="mt-3 block">Name <input
         v-model="sessionName"
-        class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3"
+        class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 text-base"
       ></label>
       <label class="mt-3 block">Start command <input
         v-model="command"
-        class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3"
+        class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 text-base"
       ></label>
       <p
         v-if="recentCommandsError"
@@ -89,7 +89,7 @@ async function createSession() {
           >
             <button
               type="button"
-              class="min-h-11 w-full truncate px-2 text-left text-sm hover:bg-bg"
+              class="touch-target min-h-11 w-full truncate px-2 text-left text-sm hover:bg-bg"
               :aria-label="`Use recent command ${recent}`"
               @click="command = recent"
             >
@@ -111,14 +111,14 @@ async function createSession() {
       <div class="mt-4 flex justify-end gap-2">
         <button
           type="button"
-          class="min-h-11 px-3"
+          class="touch-target min-h-11 px-3"
           @click="project = null"
         >
           Cancel
         </button><button
           type="submit"
           :disabled="busy"
-          class="min-h-11 rounded bg-accent px-3 font-bold text-bg"
+          class="touch-target min-h-11 rounded bg-accent px-3 font-bold text-bg"
         >
           Create session
         </button>

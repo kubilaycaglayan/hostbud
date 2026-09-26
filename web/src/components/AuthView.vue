@@ -76,13 +76,13 @@ function switchMode(m: string | number) {
         >
           <TabsTrigger
             value="signin"
-            class="flex-1 rounded px-3 py-2 data-[state=active]:bg-bg data-[state=active]:text-fg text-muted"
+            class="touch-target flex-1 rounded px-3 py-2 data-[state=active]:bg-bg data-[state=active]:text-fg text-muted"
           >
             Sign in
           </TabsTrigger>
           <TabsTrigger
             value="register"
-            class="flex-1 rounded px-3 py-2 data-[state=active]:bg-bg data-[state=active]:text-fg text-muted"
+            class="touch-target flex-1 rounded px-3 py-2 data-[state=active]:bg-bg data-[state=active]:text-fg text-muted"
           >
             Create account
           </TabsTrigger>
@@ -141,7 +141,7 @@ function switchMode(m: string | number) {
             <button
               type="submit"
               :disabled="busy"
-              class="rounded bg-accent px-3 py-2 font-bold text-bg disabled:opacity-60"
+              class="touch-target rounded bg-accent px-3 py-2 font-bold text-bg disabled:opacity-60"
             >
               {{ m === 'signin' ? 'Sign in' : 'Create account' }}
             </button>

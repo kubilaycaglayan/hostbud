@@ -112,7 +112,7 @@ async function openProject(entry: FileEntry) {
         v-for="crumb in crumbs"
         :key="crumb.path"
         type="button"
-        class="min-h-11 rounded px-2 text-accent"
+        class="touch-target min-h-11 rounded px-2 text-accent"
         @click="navigate(crumb.path)"
       >
         {{ crumb.name }}
@@ -137,7 +137,7 @@ async function openProject(entry: FileEntry) {
         @keydown.enter.prevent="suggestions.length ? (pathInput = suggestions[0].path, navigate(pathInput)) : navigate(pathInput)"
       >
       <button
-        class="min-h-11 rounded border border-border px-3"
+        class="touch-target min-h-11 rounded border border-border px-3"
         type="submit"
       >
         Go
@@ -154,7 +154,7 @@ async function openProject(entry: FileEntry) {
           <button
             type="button"
             role="option"
-            class="min-h-11 w-full px-3 text-left"
+            class="touch-target min-h-11 w-full px-3 text-left"
             @click="pathInput = entry.path; navigate(entry.path)"
           >
             {{ entry.path }}
@@ -192,7 +192,7 @@ async function openProject(entry: FileEntry) {
         <button
           v-if="entry.kind === 'directory'"
           type="button"
-          class="min-h-11 min-w-0 flex-1 truncate text-left"
+          class="touch-target min-h-11 min-w-0 flex-1 truncate text-left"
           @click="navigate(entry.path)"
         >
           {{ entry.name }}/
@@ -208,7 +208,7 @@ async function openProject(entry: FileEntry) {
           v-if="entry.kind === 'symlink' && entry.symlinkState === 'unresolved'"
           type="button"
           :aria-label="`Check link ${entry.name}`"
-          class="min-h-11 rounded border border-border px-3"
+          class="touch-target min-h-11 rounded border border-border px-3"
           :disabled="resolvingLinks.has(entry.path)"
           @click="resolveLink(entry)"
         >
@@ -225,7 +225,7 @@ async function openProject(entry: FileEntry) {
           v-if="entry.kind === 'directory'"
           type="button"
           :disabled="busy"
-          class="inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border"
+          class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border"
           :aria-label="projects.some((p) => p.path === entry.path) ? `Open project ${entry.name}` : `Add ${entry.name} as project`"
           :title="projects.some((p) => p.path === entry.path) ? `Open project ${entry.name}` : `Add ${entry.name} as project`"
           @click="openProject(entry)"
@@ -265,7 +265,7 @@ async function openProject(entry: FileEntry) {
       <button
         type="submit"
         :disabled="busy"
-        class="min-h-11 rounded border border-border px-3"
+        class="touch-target min-h-11 rounded border border-border px-3"
       >
         Create folder
       </button>
@@ -284,7 +284,7 @@ async function openProject(entry: FileEntry) {
       <span class="min-w-0 truncate">Project: {{ selectedProject.name }}</span>
       <button
         type="button"
-        class="min-h-11 rounded bg-accent px-3 font-bold text-bg"
+        class="touch-target min-h-11 rounded bg-accent px-3 font-bold text-bg"
         @click="sessionProject = selectedProject"
       >
         New session here

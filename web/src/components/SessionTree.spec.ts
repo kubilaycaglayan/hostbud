@@ -36,6 +36,8 @@ describe('SessionTree', () => {
     const wrapper = mount(SessionTree)
     expect(wrapper.find('button[aria-label="Move project b up"]').exists()).toBe(false)
     expect(wrapper.get('button[aria-label="Drag to reorder project b"]').attributes('title')).toBe('Drag to reorder projects')
+    expect(wrapper.get('button[aria-label="Drag to reorder project b"]').classes()).toContain('touch-target')
+    expect(wrapper.get('button[aria-label="New session in a"]').classes()).toContain('touch-target')
     useTreeStore().reorderProjects(['b', 'a'])
     expect(useTreeStore().groups.groups.map((g) => g.project.id)).toEqual(['b', 'a'])
     useTreeStore().reorderSessions('a', ['two', 'one'])

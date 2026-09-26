@@ -126,7 +126,7 @@ defineExpose({ focus })
       <button
         type="button"
         aria-label="Previous match"
-        class="rounded border border-border px-2 py-1"
+        class="touch-target rounded border border-border px-2 py-1"
         @click="run('previous')"
       >
         ↑
@@ -134,7 +134,7 @@ defineExpose({ focus })
       <button
         type="button"
         aria-label="Next match"
-        class="rounded border border-border px-2 py-1"
+        class="touch-target rounded border border-border px-2 py-1"
         @click="run('next')"
       >
         ↓
@@ -142,7 +142,7 @@ defineExpose({ focus })
       <button
         type="button"
         aria-label="Close search"
-        class="rounded px-2 py-1 text-muted"
+        class="touch-target rounded px-2 py-1 text-muted"
         @click="close"
       >
         ✕

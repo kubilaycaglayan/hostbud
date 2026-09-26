@@ -125,14 +125,14 @@ async function submit() {
           <div class="mt-2 flex justify-end gap-2">
             <DialogClose
               type="button"
-              class="rounded border border-border px-3 py-2"
+              class="touch-target rounded border border-border px-3 py-2"
             >
               Cancel
             </DialogClose>
             <button
               type="submit"
               :disabled="busy"
-              class="rounded bg-accent px-3 py-2 font-bold text-bg disabled:opacity-60"
+              class="touch-target rounded bg-accent px-3 py-2 font-bold text-bg disabled:opacity-60"
             >
               Create
             </button>

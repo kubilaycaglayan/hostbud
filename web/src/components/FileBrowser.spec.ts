@@ -50,6 +50,8 @@ describe('FileBrowser', () => {
   it('navigates by breadcrumb, filters autocomplete and switches hidden entries', async () => {
     const wrapper = mount(FileBrowser, { props: { machine: 'host' } })
     await flushPromises()
+    expect(wrapper.get('#browser-path').classes()).toContain('text-base')
+    expect(wrapper.get('button[type="submit"]').classes()).toContain('touch-target')
     expect(wrapper.get('[aria-label="Breadcrumbs"]').text()).toContain('home')
     await wrapper.get('#browser-path').setValue('/work')
     expect(wrapper.findAll('[role="option"]')).toHaveLength(1)

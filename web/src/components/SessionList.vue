@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { DropdownMenuContent, DropdownMenuItem, DropdownMenuPortal, DropdownMenuRoot, DropdownMenuTrigger } from 'reka-ui'
 import { VueDraggable } from 'vue-draggable-plus'
-import { computed } from 'vue'
+import { computed, onScopeDispose, ref } from 'vue'
 import type { Session } from '@/api/types'
 import type { SplitDir } from '@/lib/layout'
 
@@ -23,6 +23,47 @@ const emit = defineEmits<{
 }>()
 
 const item = 'cursor-pointer rounded px-2 py-1 outline-none data-highlighted:bg-bg'
+const openMenuName = ref('')
+const longPressTimer = ref<ReturnType<typeof setTimeout> | null>(null)
+const pointerStart = ref<{ x: number; y: number; name: string } | null>(null)
+const longPressedName = ref('')
+
+function clearLongPress() {
+  if (longPressTimer.value) clearTimeout(longPressTimer.value)
+  longPressTimer.value = null
+  pointerStart.value = null
+}
+
+function startLongPress(event: PointerEvent, name: string) {
+  if (event.pointerType !== 'touch') return
+  longPressedName.value = ''
+  clearLongPress()
+  pointerStart.value = { x: event.clientX, y: event.clientY, name }
+  longPressTimer.value = setTimeout(() => {
+    longPressedName.value = name
+    openMenuName.value = name
+    longPressTimer.value = null
+  }, 500)
+}
+
+function moveLongPress(event: PointerEvent) {
+  if (!pointerStart.value) return
+  if (Math.hypot(event.clientX - pointerStart.value.x, event.clientY - pointerStart.value.y) > 10) clearLongPress()
+}
+
+function finishLongPress() {
+  clearLongPress()
+}
+
+function selectSession(name: string) {
+  if (longPressedName.value === name) {
+    longPressedName.value = ''
+    return
+  }
+  emit('select', name)
+}
+
+onScopeDispose(clearLongPress)
 const sortableSessions = computed({
   get: () => props.sessions,
   set: (items: Session[]) => emit('reorder', items.map((s) => s.name)),
@@ -58,7 +99,7 @@ const sortableSessions = computed({
       <button
         v-if="props.sortable"
         type="button"
-        class="session-drag-handle min-h-8 min-w-6 cursor-grab rounded text-muted"
+        class="session-drag-handle touch-target cursor-grab rounded text-muted"
         :aria-label="`Drag to reorder session ${s.name}`"
         title="Drag to reorder sessions"
       >
@@ -76,8 +117,13 @@ const sortableSessions = computed({
         data-session-row
         :aria-label="s.name"
         :aria-current="s.name === props.selected ? 'true' : undefined"
-        class="min-w-0 flex-1 truncate py-1 text-left"
-        @click="emit('select', s.name)"
+        class="touch-target min-w-0 flex-1 truncate text-left"
+        @pointerdown="startLongPress($event, s.name)"
+        @pointermove="moveLongPress"
+        @pointerup="finishLongPress"
+        @pointercancel="finishLongPress"
+        @pointerleave="finishLongPress"
+        @click="selectSession(s.name)"
       >
         {{ s.name }}
       </button>
@@ -86,16 +132,16 @@ const sortableSessions = computed({
           type="button"
           :aria-label="`Kill ${s.name}`"
           title="Kill"
-          class="min-h-8 min-w-7 rounded px-1 text-muted hover:text-danger"
+          class="touch-target rounded px-1 text-muted hover:text-danger"
           @click="emit('kill', s.name)"
         >
           ✕
         </button>
-        <DropdownMenuRoot>
+        <DropdownMenuRoot :open="openMenuName === s.name" @update:open="(open) => openMenuName = open ? s.name : ''">
           <DropdownMenuTrigger
             :aria-label="`More actions for ${s.name}`"
             title="More"
-            class="min-h-8 min-w-7 rounded px-1 text-muted hover:text-fg"
+            class="touch-target rounded px-1 text-muted hover:text-fg"
           >
             ⋯
           </DropdownMenuTrigger>
@@ -131,7 +177,7 @@ const sortableSessions = computed({
           type="button"
           :aria-label="`Rename ${s.name}`"
           title="Rename"
-          class="min-h-8 min-w-7 rounded px-1 text-muted hover:text-fg"
+          class="touch-target rounded px-1 text-muted hover:text-fg"
           @click="emit('rename', s.name)"
         >
           ✎

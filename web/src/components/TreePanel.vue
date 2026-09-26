@@ -20,10 +20,10 @@ const emit = defineEmits<{
   <section class="flex min-h-0 flex-1 flex-col" aria-label="Sessions">
     <h2 class="mb-2 px-1 text-sm font-semibold">Projects &amp; sessions</h2>
     <div class="flex items-center gap-2">
-      <button type="button" class="min-h-10 min-w-0 whitespace-nowrap rounded border border-border px-2 text-xs" @click="emit('create')">
+      <button type="button" class="touch-target min-h-10 min-w-0 whitespace-nowrap rounded border border-border px-2 text-xs" @click="emit('create')">
         New session
       </button>
-      <button type="button" aria-label="Browse files" title="Browse files" class="inline-flex min-h-10 min-w-10 items-center justify-center rounded border border-border" @click="emit('browse')">
+      <button type="button" aria-label="Browse files" title="Browse files" class="touch-target inline-flex min-h-10 min-w-10 items-center justify-center rounded border border-border" @click="emit('browse')">
         <FolderPlus :size="18" aria-hidden="true" />
       </button>
     </div>

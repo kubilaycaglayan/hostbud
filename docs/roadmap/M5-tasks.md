@@ -12,7 +12,7 @@ Update this table in the same commit that finishes a task.
 |---|---|
 | T1 Copy-mode API | Done |
 | T2 Compact layout and tree drawer | Done |
-| T3 Touch targets and phone polish | Not started |
+| T3 Touch targets and phone polish | Done |
 | T4 On-screen key bar | Not started |
 | T5 Scroll mode | Not started |
 | T6 Unreachable state | Not started |

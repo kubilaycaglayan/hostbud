@@ -163,6 +163,12 @@ async function mountTerm(props: { active?: boolean; focused?: boolean } = {}) {
 }
 
 describe('TerminalView', () => {
+  it('marks terminal header controls as touch targets', async () => {
+    const w = await mountTerm()
+    expect(w.get('button[aria-label="Search"]').classes()).toContain('touch-target')
+    expect(w.get('button[aria-label="Show keyboard"]').classes()).toContain('touch-target')
+  })
+
   it('attaches with the fitted size and bridges bytes both ways', async () => {
     const w = await mountTerm()
     const ws = FakeWS.all[0]

@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import SessionList from './SessionList.vue'
 import type { Session } from '@/api/types'
 
@@ -8,6 +8,7 @@ const s = (name: string, attached = 0, windows = 1): Session => ({
 })
 
 describe('SessionList', () => {
+  afterEach(() => vi.useRealTimers())
   it('shows an empty state, not an error', () => {
     const w = mount(SessionList, { props: { sessions: [] } })
     expect(w.text()).toContain('No tmux sessions yet.')
@@ -29,6 +30,10 @@ describe('SessionList', () => {
     expect(w.find('button[aria-label="Move session b up"]').exists()).toBe(false)
     expect(w.find('button[aria-label="Move session b down"]').exists()).toBe(false)
     expect(w.get('button[aria-label="Drag to reorder session b"]').attributes('title')).toBe('Drag to reorder sessions')
+    expect(w.get('button[aria-label="Drag to reorder session b"]').classes()).toContain('touch-target')
+    expect(w.get('button[aria-label="b"]').classes()).toContain('touch-target')
+    expect(w.get('button[aria-label="Kill b"]').classes()).toContain('touch-target')
+    expect(w.get('button[aria-label="Rename b"]').classes()).toContain('touch-target')
     expect(w.get('li').classes()).toContain('py-0.5')
   })
 
@@ -50,6 +55,34 @@ describe('SessionList', () => {
     expect(w.get('button[aria-label="a"]').attributes('aria-current')).toBeUndefined()
     await w.get('button[aria-label="a"]').trigger('click')
     expect(w.emitted('select')).toEqual([['a']])
+  })
+
+  it('opens the existing row menu after a long press and cancels when the finger moves', async () => {
+    vi.useFakeTimers()
+    const w = mount(SessionList, { props: { sessions: [s('a')] }, attachTo: document.body })
+    const row = w.get('button[aria-label="a"]')
+    const pointer = (type: string, x: number, y: number) => {
+      const event = new Event(type, { bubbles: true })
+      Object.defineProperties(event, { pointerType: { value: 'touch' }, clientX: { value: x }, clientY: { value: y } })
+      return event
+    }
+    row.element.dispatchEvent(pointer('pointerdown', 20, 20))
+    await vi.advanceTimersByTimeAsync(500)
+    await w.vm.$nextTick()
+    expect(document.body.querySelector('[role="menu"]')).not.toBeNull()
+    row.element.dispatchEvent(pointer('pointerup', 20, 20))
+    await row.trigger('click')
+    expect(w.emitted('select')).toBeUndefined()
+    w.unmount()
+
+    const short = mount(SessionList, { props: { sessions: [s('b')] } })
+    const shortRow = short.get('button[aria-label="b"]')
+    shortRow.element.dispatchEvent(pointer('pointerdown', 20, 20))
+    shortRow.element.dispatchEvent(pointer('pointermove', 31, 20))
+    await vi.advanceTimersByTimeAsync(600)
+    shortRow.element.dispatchEvent(pointer('pointerup', 31, 20))
+    await shortRow.trigger('click')
+    expect(short.emitted('select')).toEqual([['b']])
   })
 
   it('offers rename and kill per session', async () => {

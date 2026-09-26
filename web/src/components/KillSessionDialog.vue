@@ -49,12 +49,12 @@ async function confirm() {
           This ends every program running in it. It can't be undone.
         </AlertDialogDescription>
         <div class="mt-4 flex justify-end gap-2">
-          <AlertDialogCancel class="rounded border border-border px-3 py-2">
+          <AlertDialogCancel class="touch-target rounded border border-border px-3 py-2">
             Cancel
           </AlertDialogCancel>
           <AlertDialogAction
             :disabled="busy"
-            class="rounded bg-danger px-3 py-2 font-bold text-bg"
+            class="touch-target rounded bg-danger px-3 py-2 font-bold text-bg"
             @click.prevent="confirm"
           >
             Kill session

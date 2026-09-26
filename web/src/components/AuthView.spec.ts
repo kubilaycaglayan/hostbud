@@ -16,6 +16,12 @@ async function fill(wrapper: ReturnType<typeof mount>, email: string, password: 
 }
 
 describe('AuthView', () => {
+  it('uses touch targets for account tabs and 16px controls', () => {
+    const wrapper = mount(AuthView)
+    expect(wrapper.findAll('[role=tab]').every((tab) => tab.classes().includes('touch-target'))).toBe(true)
+    expect(wrapper.findAll('input').every((input) => input.classes().includes('text-base'))).toBe(true)
+  })
+
   it('signs in and becomes authenticated', async () => {
     const calls = stubFetch((_m, path) =>
       path === '/api/auth/me' ? { status: 200, body: { email: 'person@example.com' } } : { status: 200, body: {} },

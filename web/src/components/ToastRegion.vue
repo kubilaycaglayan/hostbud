@@ -26,7 +26,7 @@ const toasts = useToastsStore()
         <button
           type="button"
           aria-label="Dismiss"
-          class="text-muted"
+          class="touch-target text-muted"
           @click="toasts.dismiss(t.id)"
         >
           ✕

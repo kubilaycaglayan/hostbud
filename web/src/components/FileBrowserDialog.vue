@@ -24,7 +24,7 @@ const emit = defineEmits<{ created: [name: string] }>()
           <DialogClose
             aria-label="Close file browser"
             title="Close"
-            class="min-h-11 min-w-11 rounded border border-border"
+            class="touch-target min-h-11 min-w-11 rounded border border-border"
           >
             ×
           </DialogClose>

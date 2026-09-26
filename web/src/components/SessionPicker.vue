@@ -57,7 +57,7 @@ function create() {
           >
             <button
               type="button"
-              class="w-full truncate rounded px-2 py-1 text-left hover:bg-bg"
+              class="touch-target w-full truncate rounded px-2 py-1 text-left hover:bg-bg"
               @click="pick(s)"
             >
               {{ s }}
@@ -66,7 +66,7 @@ function create() {
         </ul>
         <button
           type="button"
-          class="mt-1 w-full rounded border-t border-border px-2 py-1 text-left hover:bg-bg"
+          class="touch-target mt-1 w-full rounded border-t border-border px-2 py-1 text-left hover:bg-bg"
           @click="create"
         >
           New session…

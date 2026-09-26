@@ -23,6 +23,8 @@ describe('FileBrowserDialog', () => {
     const dialog = document.body.querySelector('[role="dialog"]') as HTMLElement
     expect(dialog.className).toContain('bottom-0')
     expect(dialog.className).toContain('w-full')
+    expect([...dialog.querySelectorAll('button')].every((button) => button.classList.contains('touch-target'))).toBe(true)
+    expect([...dialog.querySelectorAll('input:not([type="checkbox"])')].every((field) => field.classList.contains('text-base'))).toBe(true)
     wrapper.unmount()
   })
 })

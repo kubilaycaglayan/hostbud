@@ -47,18 +47,18 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 
 ## Touch and readability
 
-- [ ] Under a coarse pointer, every interactive control (tree rows and their actions, header buttons, tab switcher, pane cycler, search buttons, dialog/sheet controls, file browser rows and breadcrumbs, toast actions, key bar and Scroll bar keys) has a hit area of at least 44×44 CSS px, without overlapping its neighbors.
+- [x] Under a coarse pointer, every interactive control (tree rows and their actions, header buttons, tab switcher, pane cycler, search buttons, dialog/sheet controls, file browser rows and breadcrumbs, toast actions, key bar and Scroll bar keys) has a hit area of at least 44×44 CSS px, without overlapping its neighbors.
   - U: T3 the `touch-target` utility is applied in each interactive component under coarse pointer (Vitest); T4/T5 key bar and Scroll bar keys (Vitest).
   - I: n/a (presentation only).
-  - E: T3 *Touch targets* (both phone projects; bounding boxes measured on the tree, drawer, terminal header, each sheet and the file browser, with any exception listed in the scenario with its reason) · T4 *Key bar keeps the keyboard* also measures the key bar.
-- [ ] The app is usable without zoom: the visual viewport scale stays 1, no screen scrolls horizontally in portrait or landscape, and every form control uses a font size of at least 16 px, so iOS doesn't zoom on focus. User zoom stays allowed.
+  - E: T3 *Touch targets* (`touch.phone.spec.ts`, both phone projects; bounding boxes measured on the tree, drawer, terminal header, each sheet and the file browser, with any exception listed in the scenario with its reason) · T4 *Key bar keeps the keyboard* also measures the key bar.
+- [x] The app is usable without zoom: the visual viewport scale stays 1, no screen scrolls horizontally in portrait or landscape, and every form control uses a font size of at least 16 px, so iOS doesn't zoom on focus. User zoom stays allowed.
   - U: T3 inputs carry the 16 px class; truncation classes on long names (Vitest).
   - I: n/a (presentation only).
-  - E: T3 *Usable without zoom* (both phone projects). **Manual (T9):** focus each input on the iPhone and check that no zoom happens.
-- [ ] Long-pressing a session row in the tree opens that row's ⋯ menu; a short tap still opens the session; moving the finger cancels the long press.
+  - E: T3 *Usable without zoom* (`touch.phone.spec.ts`, both phone projects). **Manual (T9):** focus each input on the iPhone and check that no zoom happens.
+- [x] Long-pressing a session row in the tree opens that row's ⋯ menu; a short tap still opens the session; moving the finger cancels the long press.
   - U: T3 long-press timing and cancellation (Vitest, fake timers).
   - I: n/a (frontend only).
-  - E: T3 *Long-press row menu* (`iphone-13-pro`).
+  - E: T3 *Long-press row menu* (`touch.phone.spec.ts`, `iphone-13-pro`).
 
 ## On-screen key bar
 
@@ -154,9 +154,9 @@ Profiles: `desktop-chromium`, `iphone-13-pro` (`http://localhost:9055`) and `iph
 - [x] **(T2) Single terminal view and rotation:** with two tabs and a split tab only one terminal is visible; portrait → landscape → portrait keeps the same client PID while `#{client_width}x#{client_height}` follows the orientation (both phone projects).
 - [x] **(T2) Account menu on the phone:** the Account menu shows the email and Sign out without opening the drawer; Sign out returns to the sign-in form (both phone projects).
 - [x] **(T2) Wide layout unchanged:** on desktop the sidebar, tab bar and splits are present, and there is no drawer dialog or key bar (desktop).
-- [ ] **(T3) Touch targets:** every visible interactive element on the tree, drawer, terminal header, each sheet and the file browser is at least 44×44 px (both phone projects).
-- [ ] **(T3) Usable without zoom:** viewport scale 1, no horizontal overflow in either orientation on each screen, form controls ≥ 16 px (both phone projects).
-- [ ] **(T3) Long-press row menu:** long-pressing a session row opens its ⋯ menu; a tap still opens the session (`iphone-13-pro`).
+- [x] **(T3) Touch targets:** every visible interactive element on the tree, drawer, terminal header, each sheet and the file browser is at least 44×44 px (both phone projects).
+- [x] **(T3) Usable without zoom:** viewport scale 1, no horizontal overflow in either orientation on each screen, form controls ≥ 16 px (both phone projects).
+- [x] **(T3) Long-press row menu:** long-pressing a session row opens its ⋯ menu; a tap still opens the session (`iphone-13-pro`).
 - [ ] **(T4) Ctrl-C interrupts:** `sleep 1000`, Ctrl then `c` → the prompt returns and `sleep` is no longer the pane's command (both phone projects).
 - [ ] **(T4) Esc leaves vim insert mode:** in vim, insert text, Esc, then `dd` deletes the line (checked with `capture-pane`) (both phone projects).
 - [ ] **(T4) Arrows recall history:** ↑ recalls the previous command and ← edits within the line (both phone projects).
