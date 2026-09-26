@@ -47,6 +47,8 @@ Tasks: [roadmap/M1-tasks.md](roadmap/M1-tasks.md) · Checklist: [roadmap/M1-acce
 **Accept:** from another machine, `ssh -L 9055:localhost:9055 <host>` then `http://localhost:9055` requires a whitelisted account; registration, sign-in and logout work; repeated failed logins receive progressively longer throttling; authenticated users can list the host's tmux sessions; sessions created/killed in a real terminal appear/disappear within one poll interval; create/rename/kill work from the UI (kill asks first); attaching runs Claude Code, vim and htop correctly and resizing the browser resizes the tmux window; the app survives a container restart.
 
 ### M2 — Deploy on the domain
+Tasks: [roadmap/M2-tasks.md](roadmap/M2-tasks.md) · Checklist: [roadmap/M2-acceptance.md](roadmap/M2-acceptance.md)
+
 - Custom Caddy image (`caddy-dns/cloudflare`); TLS site for `${HOSTBUD_DOMAIN}` via DNS-01, published only on `${TAILSCALE_IP}:443` / `:80`.
 - Origin allowlist covers both `https://${HOSTBUD_DOMAIN}` and `http://localhost:${HOSTBUD_LOCAL_PORT}`.
 - Basic phone usability: terminal fits the viewport, on-screen keyboard input works.
