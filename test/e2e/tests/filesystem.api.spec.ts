@@ -70,7 +70,7 @@ test('filesystem API: browse home, literal paths, hidden files and symlink state
   }
 })
 
-test('filesystem API: auth and Origin checks, with no delete or remote rename', async ({ request, target, baseURL }) => {
+test('(T1) filesystem API: auth and Origin checks, with no delete or remote rename', async ({ request, target, baseURL }) => {
   const dir = uniqueName('e2e-fs-safe')
   const path = `/home/dev/${dir}`
   forbidInLogs(path)
@@ -78,15 +78,13 @@ test('filesystem API: auth and Origin checks, with no delete or remote rename', 
   const anonymous = await playwrightRequest.newContext({ baseURL, storageState: { cookies: [], origins: [] } })
   try {
     expect((await anonymous.get(homePath)).status()).toBe(401)
-    expect(
-      (
-        await anonymous.post(mkdirPath, {
-          data: { path, name: 'unauthorized' },
-          headers: { Origin: ORIGIN },
-        })
-      ).status(),
-    ).toBe(401)
+    const unauthenticatedMkdir = await anonymous.post(mkdirPath, {
+      data: { path, name: 'unauthorized' },
+      headers: { Origin: ORIGIN },
+    })
+    expect(unauthenticatedMkdir.status()).toBe(401)
     expect((await mutate(request, 'POST', mkdirPath, { path, name: 'foreign' }, FOREIGN_ORIGIN)).status()).toBe(403)
+    expect((await mutate(request, 'POST', mkdirPath, { path, name: 'allowed' }, ORIGIN)).status()).toBe(201)
 
     expect((await mutate(request, 'DELETE', fsPath, undefined)).status()).toBe(405)
     expect((await mutate(request, 'PATCH', fsPath, { path, name: 'renamed' })).status()).toBe(405)
@@ -94,7 +92,15 @@ test('filesystem API: auth and Origin checks, with no delete or remote rename', 
       (await mutate(request, 'POST', `${fsPath}/rename`, { from: path, to: `${path}-renamed` })).status(),
     )
     const stillThere = await request.get(fsPath, { params: { path: '/home/dev' } })
-    expect((await stillThere.json()).entries.some((e: { name: string }) => e.name === dir)).toBe(true)
+    const homeEntries = (await stillThere.json()).entries as { name: string }[]
+    expect(homeEntries.some((entry) => entry.name === dir)).toBe(true)
+    const createdEntries = await request.get(fsPath, { params: { path } })
+    const names = ((await createdEntries.json()).entries as { name: string }[]).map((entry) => entry.name)
+    expect(names).toContain('allowed')
+    expect(names).not.toContain('unauthorized')
+    expect(names).not.toContain('foreign')
+    const allowed = await request.get(fsPath, { params: { path: `${path}/allowed` } })
+    expect(allowed.status()).toBe(200)
   } finally {
     await anonymous.dispose()
     await target.run(`rm -rf ${shq(path)}`)

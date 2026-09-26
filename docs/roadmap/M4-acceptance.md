@@ -98,7 +98,7 @@ Each criterion names **U** (unit), **I** (integration against `test/sshd`, Postg
 
 ## Security and compatibility
 
-- [ ] All new filesystem routes require an authenticated account and enforce the existing Origin allowlist for mkdir. Unauthenticated calls fail before remote SFTP work is opened.
+- [x] All new filesystem routes require an authenticated account and enforce the existing Origin allowlist for mkdir. Unauthenticated calls fail before remote SFTP work is opened.
   - U: T1 filesystem handler auth/Origin/method tests.
   - I: T1 route tests against the running app and `test/sshd`; unauthenticated calls do not open remote SFTP.
   - E: T1 *Filesystem API access control* (API-level through Caddy): signed-out request gets 401; foreign-Origin mkdir gets 403; allowed Origin works.
@@ -123,7 +123,7 @@ Projects remain `desktop-chromium` and `iphone-13-pro` against the throwaway tar
 - [ ] **(T1) Hidden entries and symlinks:** API hidden toggle and directory-first ordering work; symlinks remain unresolved in listings and explicit stat reports resolved, broken or looping state (desktop API).
 - [ ] **(T1) No destructive file actions:** API attempts cannot mutate or remove target entries; there is no delete or remote rename route.
 - [ ] **(T4) File browser dialog and icon actions:** open/close the modal from the FolderPlus header button outside the left gutter; project actions use icon buttons with accessible labels (desktop and iPhone 13 Pro).
-- [ ] **(T1) Filesystem API access control:** auth and Origin enforcement through Caddy; unauthorized requests do not initiate SFTP.
+- [x] **(T1) Filesystem API access control:** auth and Origin enforcement through Caddy; unauthorized requests do not initiate SFTP.
 - [ ] **(T3) Project API access control and events:** auth and Origin enforcement through Caddy; successful create is returned by the API and published to the event stream.
 - [ ] **(T1) SFTP unavailable recovery:** failure is actionable and browsing works after target recovery.
 - [ ] **(T4) Path autocomplete and invalid paths:** choose an autocomplete result, submit an existing typed path, and recover from missing/non-directory paths (desktop and phone).
