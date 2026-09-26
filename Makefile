@@ -120,5 +120,5 @@ docker-clean: ## Free hostbud's Docker disk: untagged images, the e2e stack and 
 	-docker rmi hostbud-e2e-app:local hostbud-e2e-target:local hostbud-e2e-target-notmux:local \
 		hostbud-e2e-caddy:local hostbud-e2e-ctl:local hostbud-e2e-runner:local 2>/dev/null
 	docker image prune -f --filter label=hostbud.image=1
-	@if [ "$(CACHE)" = 1 ]; then docker builder prune -f --filter until=72h; fi
+	@if [ "$(CACHE)" = 1 ]; then docker builder prune -af --filter until=72h; fi
 	@docker system df
