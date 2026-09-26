@@ -121,7 +121,7 @@ Projects remain `desktop-chromium` and `iphone-13-pro` against the throwaway tar
 
 - [x] **(T1) Browse home and navigate:** authenticated API returns the target home and navigates nested paths containing spaces, quotes, Unicode and shell metacharacters through Caddy. T4 adds the desktop and phone UI navigation.
 - [x] **(T1) Hidden entries and symlinks:** API hidden toggle and directory-first ordering work; symlinks remain unresolved in listings and explicit stat reports resolved, broken or looping state (desktop API).
-- [ ] **(T1) No destructive file actions:** API attempts cannot mutate or remove target entries; there is no delete or remote rename route.
+- [x] **(T1) No destructive file actions:** API attempts cannot mutate or remove target entries; there is no delete or remote rename route.
 - [ ] **(T4) File browser dialog and icon actions:** open/close the modal from the FolderPlus header button outside the left gutter; project actions use icon buttons with accessible labels (desktop and iPhone 13 Pro).
 - [x] **(T1) Filesystem API access control:** auth and Origin enforcement through Caddy; unauthorized requests do not initiate SFTP.
 - [x] **(T3) Project API access control and events:** auth and Origin enforcement through Caddy; successful create is returned by the API and published to the event stream.
