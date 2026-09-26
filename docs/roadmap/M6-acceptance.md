@@ -1,0 +1,271 @@
+# M6 — Tree customization and polish: acceptance checklist
+
+M6 is done when every box is ticked. Tasks: [M6-tasks.md](M6-tasks.md).
+
+M6 lets each account shape its left-bar tree and adds keyboard-first polish. The tree becomes an accessible tree view with persistent collapse state, lazily loaded windows and panes under sessions, inline rename, hide/unhide and pinned projects. It adds a command palette, a keyboard shortcut set with a help dialog, and a Dark / Light / System theme setting for the UI and the terminal.
+
+It adds two server routes: listing a session's windows and panes, and selecting a window or pane. It also allows one new `ui_state` key (`theme`). It adds no migration, no env var and no published port. Every customization is **per account** and lives in `ui_state` (`tree` and `theme`), like M4's order. The global `projects.pinned` and `machines.hidden` columns stay unused by the UI, as M4 did with `projects.sort_order`. M4's drag-to-sort and "new rows append, nothing auto-sorts" rule still hold. Authentication, the Origin allowlist, `sshx`, the single session service and event-driven UI rules still apply. M5's compact layout (drawer, sheets, key bar, touch targets) must keep working with every new control.
+
+Setup for the manual checks: `make deploy` on the host; a desktop browser on the port-forward path and the owner's iPhone on `https://${HOSTBUD_DOMAIN}`; a few projects and tmux sessions on the host, one with several windows and a split window.
+
+## Test coverage rule
+
+Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every criterion names its **U** (unit: Go with fakes, Vitest, node build checks), **I** (integration: `test/sshd`, PostgreSQL or the rendered deploy config) and **E** (e2e) tests and the task that writes each. n/a needs a one-line reason, and "manual" is used only where automation can't observe the behavior (a real macOS keyboard's ⌘ shortcuts inside Safari, the real OS appearance switch, real iOS). E2E scenarios are written with the behavior and type-checked, but `make e2e` doesn't run until M7's final task. A ticked box means its U/I tests pass and its E scenario exists and type-checks; the e2e pass is recorded at M7.
+
+"Survives reload and restart" in the criteria below always means both: a page reload, **and** `ctl.restartApp()` (`docker restart hostbud-e2e-app`) followed by a reload, with the same account signed in.
+
+## Tree state and persistence
+
+- [ ] The `tree` UI-state value moves to version 2: M4's `projects` and `sessions` order, plus `pinned` (project ids), `hidden` (project ids and session keys), `collapsed` (project ids and `__other__`), `expanded` (session keys and window keys) and `showHidden`. A session key is `<machineId>/<sessionName>` and a window key is `<machineId>/<sessionName>/<windowId>`, so multi-machine can return without a format change. A saved version 1 value loads and is upgraded with its order unchanged. An invalid value falls back to the empty state with a console warning, as in M4.
+  - U: T2 `lib/tree.ts` validator: v1 → v2 upgrade keeps order; v2 round-trip; rejects wrong types, bad keys (`__proto__`, missing `/`), oversize lists; unknown version → empty (Vitest).
+  - I: T2 per-account `tree` round-trip through PostgreSQL with a v2 value, and a v1 value stored by M4 still reads back byte-identical (the server stores it uninterpreted) (Go, PostgreSQL).
+  - E: T2 *Tree state upgrades from M4* (desktop; seed a v1 value through the API, reload, the M4 order is shown, and the next save is v2).
+- [ ] Session-keyed state (order, hidden, expanded) is pruned only from a list reported by a **reachable** host. The empty first snapshot after an app restart, an unreachable host's stale list and the pre-live empty list at sign-in never drop saved entries. Project-keyed state is pruned only after `projects.load` succeeds.
+  - U: T2 `sync()` with machine status `unknown`/`unreachable` keeps every entry; `ok` with the session gone prunes it; the sign-in path (`tree.load` → `sync` before `live.start`) keeps entries (Vitest). This includes the regression test for the M4 pruning bug, committed failing before the fix.
+  - I: n/a (client-side decision; the server's snapshot and status behavior is M1's integration coverage).
+  - E: T2 *Tree state survives an app restart* (desktop; custom session order, `ctl.restartApp()`, the order is unchanged once the host is reachable again).
+- [ ] Changes are saved with `PUT /api/ui-state/tree`, debounced 500 ms, and a pending save is flushed on `pagehide` (a keep-alive request), so a reload right after a change keeps it. The serialized value never exceeds the server's 64 KiB limit: stale entries are pruned first, and a value that is still too large isn't sent (console warning, the previous saved value stays).
+  - U: T2 debounce and flush (fake timers, `pagehide`); the size guard with 500 projects × 20 sessions of 64-byte names; the oversize path doesn't call `putUIState` (Vitest).
+  - I: T2 a 64 KiB + 1 body still gets 413 (existing M1/M3 handler test extended to `tree`) (Go).
+  - E: T2 *Tree state survives an app restart* reloads immediately after a change.
+- [ ] Customization is per account: pins, hidden rows, collapse state, order and theme saved by one account never show for another account on the same host.
+  - U: T2 the store resets on sign-out (Vitest).
+  - I: T2 two accounts' `tree` and T7 two accounts' `theme` values are isolated (Go, PostgreSQL; extends the M3/M4 per-user UI-state test).
+  - E: T6 *Customizations are per account* (desktop; account B sees none of account A's pins, hidden rows, collapse state or order) · T7 *Theme persists* (a second account still starts in System after account A picked Light).
+- [ ] No automatic re-sorting is introduced: newly observed projects and sessions append to the end of their section, pinning keeps the manual order inside each section, unhiding puts a row back at its saved position, and renaming keeps the row's position.
+  - U: T2 `projectTree` with pins/hidden keeps relative order; T4 rename re-keys in place; T5 unhide restores position; T6 pin/unpin keeps relative order (Vitest).
+  - I: n/a (presentation state; persistence is covered above).
+  - E: T6 *Every customization survives reload and restart* (desktop; checks the full order after each step).
+
+## Accessible tree and collapse
+
+- [ ] The left bar is a WAI-ARIA tree (`role="tree"`, labelled "Projects and sessions"): projects, the Other sessions group, sessions, windows and panes are `treeitem`s with `aria-level`, `aria-expanded` where they have children, `aria-selected` for the focused session, and one roving `tabindex`. M4's drag handles, row actions (×, ⋯, pencil) and M5's touch targets stay.
+  - U: T2 roles, levels, `aria-expanded`, roving tabindex after re-render and after the focused row disappears (Vitest).
+  - I: n/a (frontend only).
+  - E: T2 *Keyboard tree navigation* (desktop); every M4/M5 scenario that located tree rows still type-checks against the updated `helpers/ui.ts`.
+- [ ] Keyboard navigation in the tree: ↑/↓ move, → expands or moves to the first child, ← collapses or moves to the parent, Home/End, Enter opens a session (M3 rules: focus its tab or open one), Enter on a project or Other toggles it, and Alt+↑/↓ moves the focused project or session one place within its section (the keyboard equivalent of drag, saved like a drag).
+  - U: T2 key handler table on a fixture tree, including Alt+↑/↓ at section edges (no-op) and across a pinned boundary (no-op) (Vitest).
+  - I: n/a (frontend only).
+  - E: T2 *Keyboard tree navigation* (desktop; walk the tree, open a session with Enter, reorder with Alt+↓, reload, the order persists).
+- [ ] Projects and the Other sessions group collapse and expand from a chevron (**Collapse**/**Expand** `<name>`), a click on the row, or ←/→. The collapse state survives reload and restart. Collapsing a group never closes or detaches a terminal showing one of its sessions.
+  - U: T2 toggle, persistence into `collapsed`, default expanded, collapsed group hides its rows but keeps them in the order (Vitest).
+  - I: n/a (per-account presentation stored through the existing UI-state route; T2's I test covers the round-trip).
+  - E: T2 *Collapse state persists* (desktop and `iphone-13-pro` in the drawer; collapse a project and Other, reload, restart, still collapsed; an open terminal of a collapsed session keeps its tmux client PID).
+
+## Windows and panes
+
+- [ ] `GET /api/machines/:id/sessions/:name/windows` returns the session's windows in index order, each with `id` (`@n`), `index`, `name`, `active` and its panes in index order (`id` `%n`, `index`, `active`, `command`, `width`, `height`). It reads them in one side-channel exec (`list-windows` and `list-panes -s` on the `=<name>` target), parses free-form fields (window name, command) safely, and caps the reply at 256 windows and 64 panes per window with `truncated: true`.
+  - U: T1 `ListWindowsArgs` argv, parser (tabs and newlines in names are replaced by spaces, empty session, caps), handler validation (Go).
+  - I: T1 against `test/sshd`: a session with 3 windows, one split into 2 panes, running `vim` in one pane; names with spaces and Unicode; a session that ends mid-request returns 404 (Go).
+  - E: T1 *Windows and panes API* (API-level through Caddy).
+- [ ] `POST /api/machines/:id/sessions/:name/select` with `{window: "@n", pane?: "%n"}` makes that window current in the session (`select-window`) and, with a pane, makes it the active pane (`select-pane`). Ids must match `^@[0-9]+$` / `^%[0-9]+$`, and the server checks that they belong to the named session before selecting, so a pane of another session is a 404. It returns the refreshed window list.
+  - U: T1 `SelectArgs` argv, id validation, membership check, handler 400/404 (Go).
+  - I: T1 against `test/sshd`: select window 2 then pane 1 → `display -p '#{window_index} #{pane_index}'` reports them; a pane id from another session is rejected and changes nothing (Go).
+  - E: T1 *Windows and panes API* (select through Caddy, checked with `display -p` on the target).
+- [ ] Both routes require authentication; the POST also requires an allowed Origin. Session names are validated before any ssh exec, commands go through `tmux` builders and `sshx` with the default timeout, errors are actionable (unknown session 404, tmux missing → M1's install hint), and info logs never include the session, window or pane names or the pane's command. They publish no event (ARCHITECTURE §9 records why: windows aren't hostbud state).
+  - U: T1 401/403/400/404 handler tests, log redaction (Go); `internal/archtest` still passes.
+  - I: T1 an invalid name is rejected before ssh runs; the tmux-less target returns the install hint (Go).
+  - E: T1 *Windows and panes API* (401 signed out, 403 foreign Origin, 404 unknown session).
+- [ ] Expanding a session in the tree loads its windows lazily (one request on first expand, a spinner row meanwhile, an actionable error row with **Retry** on failure). A window with more than one pane expands to its panes. Nothing is fetched for collapsed sessions.
+  - U: T3 windows store: fetch on first expand only, no fetch while collapsed, error row and retry, a response for a collapsed or renamed session is dropped (Vitest).
+  - I: T1's integration tests cover the server side; n/a beyond that (the client adds no server behavior).
+  - E: T3 *Windows load when a session is expanded* (desktop and `iphone-13-pro`; no `/windows` request before expanding, one after, the rows match `tmux list-windows` on the target).
+- [ ] Window rows stay current without polling: while a session is expanded, its window list is re-fetched (debounced 300 ms, one request in flight) when a `sessions.changed` event changes that session's `windows` count or `activity`, and when it is expanded again. A `sessions.changed` that removes the session drops its window rows.
+  - U: T3 refresh triggers (count change, activity change, unrelated session change ignored, removal) with fake timers; no timers run while nothing is expanded (Vitest).
+  - I: n/a (client reacts to existing events; M1 integration covers the events).
+  - E: T3 *Window rows follow the real terminal* (desktop; `tmux new-window` on the target makes a new row appear within one poll interval, `kill-window` removes it).
+- [ ] Clicking (or Enter on) a window row opens the session (M3 rules) and selects that window through the select route; a pane row also selects the pane. The attached terminal shows the selected window.
+  - U: T3 row actions call `layout.open` then `select` with the right ids; an error toast on 404 refreshes the list (Vitest).
+  - I: T1 select integration.
+  - E: T3 *Open at a window and pane* (desktop and `iphone-13-pro`; target `#{window_index}`/`#{pane_index}` match the clicked rows, and the browser terminal shows a marker printed in that window).
+- [ ] Session and window expand state is saved in `expanded` and restored after reload and restart; window keys whose window no longer exists are pruned when the refreshed list arrives from a reachable host.
+  - U: T3 expand persistence, restore on load (fetches only the restored expanded sessions), pruning of stale window keys (Vitest).
+  - I: n/a (per-account presentation; T2's I test covers the round-trip).
+  - E: T3 *Windows load when a session is expanded* reloads and restarts with the session still expanded and its windows shown.
+
+## Inline rename
+
+- [ ] Projects and sessions rename inline in the tree: the pencil, F2 on a focused row, or a double-click on the name (fine pointer) turns the name into a text field with the current name selected. Enter or blur saves, Escape cancels, and an unchanged or empty value cancels without a request. The row keeps its position and focus returns to it.
+  - U: T4 `InlineRename` component: start paths, Enter/blur/Escape, unchanged/empty cancel, focus return, one request per commit even when Enter is followed by blur (Vitest).
+  - I: n/a for the component (frontend only); the endpoints' integration tests are M1 (session rename) and M4 T3 (project rename).
+  - E: T4 *Inline rename a project* and *Inline rename a session* (desktop and `iphone-13-pro` in the drawer).
+- [ ] Session renames use the existing `PATCH /api/machines/:id/sessions/:name` and validate the name client-side with the server's rule (`^[A-Za-z0-9_-]{1,64}$`) before sending. A server error (taken name, invalid name, session gone) keeps the field open with the message inline, and the old name stays. On success, every open pane relabels without re-attaching (M3), the session link follows (M4), and its tree order, hidden and expanded keys move to the new name.
+  - U: T4 validation messages; error keeps editing; `tree.renameSession` re-keys order/hidden/expanded (including window keys) in one change (Vitest).
+  - I: M1's rename integration and M4 T3's link rename stay authoritative; n/a for new server behavior (none).
+  - E: T4 *Inline rename a session* (the target shows the new name, the open terminal's tmux client PID is unchanged, the row stays in place and stays hidden/expanded as before; a taken name shows the inline error).
+- [ ] Project renames use the existing `PATCH /api/projects/:id` (`{name}`, trimmed, 1–255 bytes); other signed-in browsers update from the `projects.changed` event. Renaming a project never changes its path or its sessions' placement.
+  - U: T4 trimming, byte-length validation, error display (Vitest).
+  - I: M4 T3's project rename integration; n/a beyond it.
+  - E: T4 *Inline rename a project* (a second page sees the new name without reload; the project's sessions stay under it; reload and restart keep the name).
+- [ ] The old Rename dialog is no longer used from the tree. Rename from other entry points (the ⋯ menu, the M5 long-press menu, the command palette) starts the same inline edit, revealing and expanding the row first (in compact layout it opens the drawer).
+  - U: T4 the menu item starts inline edit on the right row; T9 the palette's Rename action does too (Vitest).
+  - I: n/a (frontend only).
+  - E: T4 *Inline rename a session* starts from the ⋯ menu on the phone.
+
+## Hide and unhide
+
+- [ ] Projects and sessions can be hidden from their ⋯ menu (and with `H` on the focused row). A hidden project hides its whole group, including sessions that start in it later. Hiding never kills, detaches or closes anything: open tabs of a hidden session stay open and attached.
+  - U: T5 `projectTree` with hidden projects and sessions; a new session placed in a hidden project stays hidden; hiding doesn't touch the layout store (Vitest).
+  - I: n/a (per-account presentation; T2's I test covers the round-trip).
+  - E: T5 *Hide and unhide* (desktop and `iphone-13-pro`; the target session still exists and its open terminal keeps its tmux client PID).
+- [ ] The tree header shows **Show hidden (n)** when anything is hidden. Turning it on shows hidden rows dimmed, labelled "hidden", with **Unhide** in place of Hide; turning it off hides them again. The toggle is saved (`showHidden`). Unhiding returns the row to its saved position.
+  - U: T5 count, toggle, dimmed rendering and accessible label, unhide position (Vitest).
+  - I: n/a (frontend only).
+  - E: T5 *Hide and unhide* (reload and restart keep hidden rows hidden and the toggle state).
+- [ ] Hidden sessions still count everywhere else: they appear in the command palette marked "hidden", in the split session picker, and in `/api/machines/:id/sessions`. A hidden session that ends is pruned from `hidden` (only from a reachable-host list, per T2).
+  - U: T5 pruning; T9 palette includes hidden rows with the marker (Vitest).
+  - I: n/a (no server change).
+  - E: T5 *Hide and unhide* ends the hidden session from the target and checks that a new session with the same name is **not** hidden.
+
+## Pinned projects
+
+- [ ] Projects can be pinned and unpinned from their ⋯ menu (and with `P` on the focused project). Pinned projects show first in a **Pinned** section in their manual order, then the other projects in theirs, then Other sessions. Pinning and unpinning move a project to the end of the target section and change nothing else.
+  - U: T6 `projectTree` sections; pin/unpin placement; stale pinned ids pruned only after projects load (Vitest); `PATCH /api/projects/:id` with a `pinned` field doesn't change `projects.pinned` (Go).
+  - I: n/a (per-account presentation stored through the existing UI-state route; T2's I test covers the round-trip).
+  - E: T6 *Pin projects* (desktop and `iphone-13-pro`).
+- [ ] Drag-to-sort (M4) and Alt+↑/↓ (T2) reorder within a section only; dropping across the Pinned boundary snaps back without changing order. The pin icon (**Pinned**) is visible on pinned rows and meets M5's touch target on coarse pointers.
+  - U: T6 drag between sections is rejected; keyboard move stops at the boundary; icon label (Vitest).
+  - I: n/a (frontend only).
+  - E: T6 *Pin projects* (a drag across the boundary leaves the order unchanged).
+- [ ] Every tree customization survives reload and container restart together: order, collapse, expanded sessions/windows, renames, hidden rows, the Show hidden toggle and pins.
+  - U: covered by the T2–T6 criteria above.
+  - I: T2 PostgreSQL round-trip.
+  - E: T6 *Every customization survives reload and restart* (desktop and `iphone-13-pro`): the ROADMAP's combined scenario.
+
+## Theme
+
+- [ ] A **Theme** setting with **Dark**, **Light** and **System** (default System) sits in the account menu (M4 header, M5 compact **Account** menu) as a radio group, and in the command palette. Choosing one applies at once, without a reload, to the whole UI (every surface, dialog, sheet, menu, toast, drag ghost, split divider, focus ring) and to every mounted terminal.
+  - U: T7 `stores/theme`: resolve mode + OS preference → `dark`/`light`; `data-theme` on `<html>`; radio group state (Vitest).
+  - I: n/a (frontend presentation; the stored value's round-trip is below).
+  - E: T7 *Pick Dark and Light* (desktop and `iphone-13-pro`; `<html data-theme>`, the body background token and the terminal's theme background change at once).
+- [ ] The terminal follows the theme: each theme has its own xterm palette (background, foreground, cursor, selection, 16 ANSI colors) and search-highlight colors. Both palettes meet contrast checks: foreground on background ≥ 7:1, every ANSI color except black/white variants ≥ 3:1 against its background, selection keeps the text ≥ 4.5:1. A running full-screen program (vim, htop) repaints in the new palette without re-attaching.
+  - U: T7 `lib/theme.ts` WCAG contrast tests on both palettes; `TerminalView` sets `term.options.theme` on change; `TerminalSearch` decorations switch (Vitest).
+  - I: n/a (frontend only).
+  - E: T7 *Pick Dark and Light* (`window.__hostbud.termTheme()` reports the new background; the tmux client PID is unchanged).
+- [ ] The choice is saved per account in `PUT /api/ui-state/theme` as `{version: 1, mode}` and restored after reload and restart. The server allowlist gains `theme` (ARCHITECTURE §9), with the same JSON/size rules; any other value read back is ignored (System).
+  - U: T7 `uiStateKeys` includes `theme`; unknown keys still 404 (Go); the client validator (Vitest).
+  - I: T7 per-account `theme` round-trip through PostgreSQL (Go).
+  - E: T7 *Theme persists* (desktop; Light survives reload and `ctl.restartApp()`).
+- [ ] System follows the OS live: with System selected, a `prefers-color-scheme` change flips the UI and every terminal without a reload. With Dark or Light selected, an OS change does nothing.
+  - U: T7 `matchMedia` change listener applies only in System mode, and is removed on sign-out (Vitest).
+  - I: n/a (browser media query).
+  - E: T7 *System follows the OS* (desktop and `iphone-13-pro`; `page.emulateMedia({colorScheme})` flips it). **Manual (T10):** switch macOS and iOS appearance with hostbud open.
+- [ ] No flash of the wrong theme: a tiny inline script in `index.html` applies the last resolved mode (a per-browser `localStorage` mirror, `hostbud.theme`) before the stylesheet paints, including on the sign-in screen and the M5 unreachable screen. After sign-in the account's saved setting wins and updates the mirror. A browser without storage (blocked, private mode) falls back to System without errors.
+  - U: T7 the boot script's logic as a pure function (mirror present/absent/invalid, storage throwing); `check-dist` asserts the inline script is present, under 1 KiB, and runs before the stylesheet link (Vitest/node).
+  - I: n/a (browser-side).
+  - E: T7 *No flash of the wrong theme* (desktop; saved Light with an OS in dark: an init script records the root background at the first animation frame, and it's already light).
+- [ ] The `theme-color` meta follows the resolved theme at runtime (M5's light/dark `media` variants are replaced by one value the app updates), so the phone's status bar and the installed app's chrome match.
+  - U: T7 meta updated on each change (Vitest).
+  - I: n/a (browser-side).
+  - E: T7 *Pick Dark and Light* checks the meta's `content` in both phone projects. **Manual (T10):** the installed app's status bar on the iPhone in both themes.
+- [ ] The light theme is complete: every UI token has a light value that meets WCAG AA (text ≥ 4.5:1 on its surface, UI borders and icons ≥ 3:1), and no component uses a hard-coded dark color (a lint check fails on hex colors in `.vue` files outside `lib/theme.ts` and `main.css`).
+  - U: T7 token contrast tests; the hex-color check runs in `make lint` (Vitest/node).
+  - I: n/a (presentation only).
+  - E: T7 *Pick Dark and Light* screenshots the tree, a dialog and the terminal in Light as a trace artifact (no pixel diff; inspected at M7).
+
+## Command palette
+
+- [ ] ⌘K (macOS) or Ctrl+Shift+K (everywhere) opens the palette from anywhere, including a focused terminal. Plain Ctrl+K opens it only when focus is outside the terminal; inside the terminal it stays the program's (readline kill-line). A **Command palette** header button opens it on touch screens and in compact layout.
+  - U: T9 chord handling by focus target and platform; the terminal's key handler doesn't swallow ⌘K/Ctrl+Shift+K and passes plain Ctrl+K through (Vitest).
+  - I: n/a (frontend only).
+  - E: T9 *Palette opens without stealing Ctrl+K* (desktop; Ctrl+K in a shell deletes to the end of the line, checked with `capture-pane`, and Ctrl+Shift+K opens the palette) · T9 *Palette on the phone* (both phone projects, header button).
+- [ ] The palette is a modal combobox (Reka UI `Dialog` + `Combobox`, labelled "Command palette") that lists sessions (open or focus), windows of expanded sessions, projects (reveal and expand in the tree), and actions: New session, New session in <project>, Browse files, Rename, Hide/Unhide, Pin/Unpin, Collapse all, Expand all, Show hidden, Split right/down, Close tab, Theme: Dark/Light/System, Keyboard shortcuts, Sign out. Kill session is listed but still goes through the confirmation dialog.
+  - U: T9 item sources, action dispatch to the same store functions the tree uses, Kill opens the confirmation (Vitest).
+  - I: n/a (frontend only; actions reuse existing API calls).
+  - E: T9 *Palette jumps to a session* (desktop and `iphone-13-pro`) · T9 *Palette runs actions* (desktop; theme change, hide/unhide, new session in a project, kill asks for confirmation).
+- [ ] Fuzzy matching is a pure function (`lib/fuzzy.ts`): case-insensitive subsequence with word-start and contiguity bonuses and a stable tie-break by list order (no recency sort). ↑/↓ move, Enter runs, Escape closes and restores the previous focus, results are capped at 50, and hidden rows show a "hidden" marker. Each action shows its shortcut from the T8 registry.
+  - U: T9 `fuzzy` ranking table, stability, cap; keyboard handling and focus restore (Vitest).
+  - I: n/a (frontend only).
+  - E: T9 *Palette jumps to a session* (typing part of a session name and Enter focuses its tab; Escape returns focus to the terminal).
+
+## Keyboard shortcuts
+
+- [ ] One registry (`lib/shortcuts.ts`) defines every app shortcut, its label and platform variants; the global handler, the help dialog and the palette hints all read it. The set: command palette (⌘K / Ctrl+Shift+K), keyboard shortcuts help (⌘/ / Ctrl+Shift+/, and `?` outside text fields and the terminal), focus tree ↔ terminal (⌘⇧E / Ctrl+Shift+E), next/previous tab (Ctrl+Shift+] / Ctrl+Shift+[ on every platform), plus the tree keys from T2, T4, T5 and T6.
+  - U: T8 registry is the only source (the help dialog renders every entry; the palette hint matches); platform formatting (⌘ vs Ctrl) (Vitest).
+  - I: n/a (frontend only).
+  - E: T8 *Keyboard shortcuts help* (desktop).
+- [ ] No global shortcut takes a key a terminal program needs: registry entries that fire while the terminal is focused use ⌘ or Ctrl+Shift only, never plain Ctrl+letter, Alt+letter or function keys, and don't collide with M3's keys (Ctrl/⌘+Shift+C/V/F, Mac editing keys). Browser-reserved chords (Ctrl+T, Ctrl+W, Ctrl+N, Ctrl+Tab) aren't used.
+  - U: T8 a registry test fails on any terminal-scope chord that is plain Ctrl/Alt+key, a duplicate, or one of M3's keys; `terminalKeys.ts` tests pass unchanged (Vitest).
+  - I: n/a (frontend only).
+  - E: T8 *Shortcuts don't reach the program* (desktop; Ctrl+Shift+] switches tabs while vim runs, and vim's buffer is unchanged, checked with `capture-pane`).
+- [ ] The help dialog (**Keyboard shortcuts**) lists every shortcut grouped (General, Tabs, Tree), shows the current platform's keys, and closes on Escape with focus restored. Shortcuts are not customizable in M6 (documented).
+  - U: T8 grouping, platform keys, focus restore (Vitest).
+  - I: n/a (frontend only).
+  - E: T8 *Keyboard shortcuts help* (opened with the chord and with `?` from the tree; Escape closes).
+
+## Phone and compact layout (M5 compatibility)
+
+- [ ] Every new control works in M5's compact layout: tree chevrons, window/pane rows, the Pinned icon, Show hidden, inline rename fields (16 px font, no zoom), the palette button, the theme radio group. Each meets the 44×44 px target on coarse pointers. The M5 long-press row menu gains Rename, Hide/Unhide and (projects) Pin/Unpin.
+  - U: T3–T9 the `touch-target` utility on each new control; inline rename input carries the 16 px class; long-press menu items (Vitest).
+  - I: n/a (presentation only).
+  - E: T10 extends M5's *Touch targets* and *Usable without zoom* scenarios to the new controls (both phone projects).
+- [ ] Opening a window row or a palette result in compact layout closes the drawer or palette and shows the terminal, without re-attaching other terminals (M5 rule).
+  - U: T3/T9 drawer close on open (Vitest).
+  - I: n/a (frontend only).
+  - E: T3 *Open at a window and pane* and T9 *Palette on the phone* (both phone projects).
+
+## Security and compatibility
+
+- [ ] M6 adds no migration, env var, published port or remote command path outside `internal/tmux` + `sshx`. The global `projects.pinned`, `projects.sort_order` and `machines.hidden` columns aren't written by M6 (ARCHITECTURE §8 notes them as reserved for a later shared/multi-machine use).
+  - U: T1 the new builders live in `internal/tmux`, and `internal/archtest` still passes (no exec outside `sshx`, no SQL outside `store`) (Go).
+  - I: the existing deploy-config check still passes unchanged (T10 CP5); no new file in `internal/store/migrations/` (T10 audit).
+  - E: n/a: nothing new is reachable beyond the routes covered above.
+- [ ] The `ui_state` route keeps its rules for the new key: authentication, Origin on PUT, JSON only, 64 KiB, per-account namespacing, no event.
+  - U: T7 handler tests for `theme` (401, 403, 400, 413) (Go).
+  - I: T7 per-account round-trip (above).
+  - E: T7 *Theme persists* also checks a foreign-Origin PUT gets 403.
+- [ ] The inline theme boot script reads only `localStorage` and sets one attribute; it holds no data and needs no network. ARCHITECTURE §11 notes that a future CSP (M7) must allow it by hash.
+  - U: T7 `check-dist` content check (node).
+  - I: n/a (static file).
+  - E: n/a: covered by *No flash of the wrong theme*.
+
+## E2E scenarios (`make e2e`, simulated user)
+
+Profiles: `desktop-chromium`, `iphone-13-pro` (`http://localhost:9055`) and `iphone-13-pro-domain`, against the throwaway `hostbud-e2e-target` only, never the real host. Tree customization scenarios live in `tree.custom.spec.ts` (desktop) and `tree.custom.phone.spec.ts` (phones), windows in `tree.windows.spec.ts` / `tree.windows.phone.spec.ts`, the API in `windows.api.spec.ts`, theme in `theme.spec.ts` / `theme.phone.spec.ts`, and palette/shortcuts in `palette.spec.ts` / `palette.phone.spec.ts`. "Restart" means `ctl.restartApp()` then reload. Each scenario uses its own account (`newAccount()`), so per-account state never leaks between scenarios. Each scenario is tagged with the task that writes it. During M6 the suite is only type-checked; it runs in M7's final task.
+
+- [ ] **(T1) Windows and panes API:** through Caddy, a session with 3 windows (one split) lists them in order with ids, names, active flags and panes; `select` a window and a pane, and `display -p` on the target agrees; a pane id from another session → 404; signed out → 401; foreign Origin on `select` → 403; unknown session → 404 (desktop, API-level).
+- [ ] **(T2) Tree state upgrades from M4:** a v1 `tree` value seeded through the API loads with its order; after a reorder, `GET /api/ui-state/tree` returns version 2 with that order (desktop).
+- [ ] **(T2) Tree state survives an app restart:** reorder sessions, reload immediately (flush on `pagehide`), then restart; the order is unchanged after the host is reachable again, and no saved session entry was pruned by the first empty snapshot (desktop).
+- [ ] **(T2) Keyboard tree navigation:** focus the tree, walk it with the arrow keys, Home/End, open a session with Enter, move a session with Alt+↓, reload → the order persists (desktop).
+- [ ] **(T2) Collapse state persists:** collapse a project and Other sessions, reload and restart → still collapsed; a terminal open on a collapsed session keeps its tmux client PID (desktop and `iphone-13-pro` in the drawer).
+- [ ] **(T3) Windows load when a session is expanded:** no `/windows` request before expanding; expanding shows the target's windows and a split window's panes; reload and restart → still expanded with rows loaded (desktop and `iphone-13-pro`).
+- [ ] **(T3) Window rows follow the real terminal:** `tmux new-window` / `kill-window` on the target add/remove the row within one poll interval, without a reload (desktop).
+- [ ] **(T3) Open at a window and pane:** clicking window 2's row opens the session at window 2, and a pane row makes that pane active (`display -p` on the target, and a marker printed there shows in the browser terminal) (desktop and `iphone-13-pro`).
+- [ ] **(T4) Inline rename a project:** pencil → type → Enter; a second page sees the name without reload; Escape cancels another edit; reload and restart keep the name; its sessions stay under it (desktop and `iphone-13-pro`).
+- [ ] **(T4) Inline rename a session:** F2 (desktop) / ⋯ → Rename (phone); the target has the new name, the open terminal's client PID is unchanged, the row keeps its position and its expanded state; a taken name shows the inline error and keeps the old name (desktop and `iphone-13-pro`).
+- [ ] **(T5) Hide and unhide:** hide a session and a project; they leave the tree, their terminal stays attached and the target still has them; Show hidden shows them dimmed; Unhide restores the saved position; reload and restart keep all of it; a hidden session that ends and is recreated with the same name is visible (desktop and `iphone-13-pro`).
+- [ ] **(T6) Pin projects:** pin two projects → a Pinned section in their manual order; unpin → back at the end of the unpinned section; a drag across the boundary changes nothing (desktop and `iphone-13-pro`).
+- [ ] **(T6) Every customization survives reload and restart:** drag to reorder, rename, hide/unhide, pin, collapse and expand, then reload **and** restart → everything is as the user left it (desktop and `iphone-13-pro`).
+- [ ] **(T6) Customizations are per account:** account B, signed in on the same stack, sees none of account A's pins, hidden rows, collapse state or order (desktop).
+- [ ] **(T7) Pick Dark and Light:** each choice applies at once to `<html data-theme>`, the background token, `theme-color` and the terminal's theme (`__hostbud.termTheme()`), with the terminal still attached (desktop and `iphone-13-pro`).
+- [ ] **(T7) Theme persists:** Light survives reload and restart; a second account still starts in System; a foreign-Origin `PUT /api/ui-state/theme` → 403 (desktop).
+- [ ] **(T7) System follows the OS:** in System mode, `page.emulateMedia({colorScheme: 'light'})` then `'dark'` flips the UI and terminal without a reload; in Dark mode it doesn't (desktop and `iphone-13-pro`).
+- [ ] **(T7) No flash of the wrong theme:** with Light saved and the emulated OS dark, the root background at the first animation frame of a reload is already the light token (desktop).
+- [ ] **(T8) Keyboard shortcuts help:** Ctrl+Shift+/ and `?` from the tree open it; it lists the registry's entries; Escape closes and restores focus (desktop).
+- [ ] **(T8) Shortcuts don't reach the program:** with vim in one tab and a shell in another, Ctrl+Shift+] / [ switch tabs, and vim's buffer and mode are unchanged; Ctrl+Shift+E moves focus to the tree and back (desktop).
+- [ ] **(T9) Palette opens without stealing Ctrl+K:** in a shell, Ctrl+K deletes to the end of the line (`capture-pane`); Ctrl+Shift+K opens the palette (desktop).
+- [ ] **(T9) Palette jumps to a session:** type part of a name, Enter → its tab is focused (or opened) and the terminal is focused; Escape without choosing returns focus (desktop and `iphone-13-pro`).
+- [ ] **(T9) Palette runs actions:** Theme: Light applies; Hide then Unhide a session; New session in <project> lands under the project; Kill asks for confirmation and Cancel leaves the session alive (desktop).
+- [ ] **(T9) Palette on the phone:** the header button opens it; picking a session closes it and shows the terminal (both phone projects).
+- [ ] **(T10) Touch targets and zoom for M6 controls:** M5's *Touch targets* and *Usable without zoom* checks extended to chevrons, window rows, Pinned, Show hidden, inline rename, the palette button and the theme menu (both phone projects).
+
+## Manual checks (owner, T10)
+
+On a desktop browser (port forward, a Mac if available) and the owner's iPhone over `https://${HOSTBUD_DOMAIN}`. Record the date and the result here; an unchecked item stays open in the summary.
+
+- [ ] macOS: ⌘K opens the palette from a terminal in Chrome and Safari; ⌘/ opens the help; ⌘⇧E moves focus; Ctrl+K in a shell still kills to the end of the line.
+- [ ] Theme: switch macOS appearance with hostbud in System mode, and the UI and a running vim/htop repaint without a reload; Dark and Light ignore the OS switch.
+- [ ] No flash: hard-reload in Light with the OS in dark (and the reverse), and nothing dark (or light) flashes.
+- [ ] iPhone: Light and Dark look right in Safari and in the installed app (status bar color, sheets, drawer, key bar); System follows iOS appearance.
+- [ ] iPhone: inline rename in the drawer doesn't zoom; hide, pin and collapse by long-press menu; the palette button jumps to a session.
+- [ ] Real host: expanding a session with Claude Code running shows its windows; clicking a window switches the attached terminal to it.
+
+## Definition of done
+
+- [ ] Every functional and security criterion above is satisfied: its U/I tests pass and its E scenario exists and type-checks.
+- [ ] M6 scenarios are part of the M7 full e2e run; no e2e run happened during M6.
+- [ ] `make lint test` and `make gitleaks` are green (CP1–CP5); no secrets, real hostnames, IPs or owner paths are tracked.
+- [ ] README has the tree customization, windows, palette, shortcuts and theme sections; ARCHITECTURE §5.1, §8, §9, §11 and §13.1 match what was built; `.env.example` is unchanged (or updated if a variable was really needed); no new migration.
+- [ ] *(host)* `make deploy` done; the owner's manual checks are recorded above or listed as open.
+- [ ] T11 safe Docker cleanup done: the production stack and all volumes intact and healthy, nothing outside hostbud touched, reclaimed space reported.
+- [ ] Summary delivered: what changed, new env vars (expected none), manual steps on the host, desktop and phone.

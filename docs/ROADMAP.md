@@ -101,6 +101,8 @@ Tasks: [roadmap/M5-tasks.md](roadmap/M5-tasks.md) · Checklist: [roadmap/M5-acce
 **Accept:** from a phone, attach to a session, type, scroll history, and switch sessions comfortably; hostbud installs to the phone's home screen from the domain and opens full-screen (manual check on the owner's iPhone: Safari → Share → Add to Home Screen).
 
 ### M6 — Tree customization and polish
+Tasks: [roadmap/M6-tasks.md](roadmap/M6-tasks.md) · Checklist: [roadmap/M6-acceptance.md](roadmap/M6-acceptance.md)
+
 - Inline rename; hide/unhide; pin projects. M4 provides drag-to-sort and persistent manual ordering for projects and sessions; M6 must preserve it and must not introduce automatic re-sorting.
 - Collapse state persisted; lazily loaded windows/panes under sessions.
 - Command palette (Ctrl/⌘-K); keyboard shortcuts.
