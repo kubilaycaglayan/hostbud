@@ -13,10 +13,10 @@ Update this table in the same commit that finishes a task.
 | T1 SFTP service and API | Done |
 | T2 Project and recent-command persistence | Done |
 | T3 Project API, events and session placement service | Done |
-| T4 File browser and project actions | In progress |
+| T4 File browser and project actions | Done |
 | T5 Project tree and unmatched sessions | Done |
 | T6 Recent start commands | Done |
-| T7 Documentation, audit and release | In progress |
+| T7 Documentation, audit and release | Done |
 
 Tasks proceed in order. Before implementation, re-check M3's acceptance gates and the M4 acceptance coverage below. Every behavior-changing task writes its unit, integration and e2e coverage in the same commit. Run `make lint test` and `make gitleaks` per repository rules; from M4 onward do not run `make e2e`, `e2e-up` or `e2e-run` before M7. Each task that changes e2e files only type-checks the suite with `tsc` as part of lint. E2E scenarios are authored now and run once with the full suite in M7.
 

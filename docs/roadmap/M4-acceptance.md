@@ -145,9 +145,9 @@ Projects remain `desktop-chromium` and `iphone-13-pro` against the throwaway tar
 
 ## Definition of done
 
-- [ ] Every functional and security criterion is satisfied; every U/I test passes and each criterion's E2E scenario exists and type-checks.
-- [ ] M4 scenarios are included in the M7 full e2e run; no M4 e2e execution occurs before M7's final task.
-- [ ] `make lint test` and `make gitleaks` are green; no secrets or owner-specific host data are tracked.
-- [ ] README documents browsing, project creation, session placement, recent commands and filesystem limitations; ARCHITECTURE matches implemented behavior; `.env.example` is updated only if a new env variable is actually required.
-- [ ] Migrations preserve all existing data and are append-only.
-- [ ] Summary delivered with changes, any new env vars and manual host steps.
+- [x] Every functional and security criterion is satisfied; every U/I test passes and each criterion's E2E scenario exists and type-checks.
+- [x] M4 scenarios are included in the M7 full e2e run; no M4 e2e execution occurs before M7's final task.
+- [x] `make lint test` and `make gitleaks` are green; no secrets or owner-specific host data are tracked.
+- [x] README documents browsing, project creation, session placement, recent commands and filesystem limitations; ARCHITECTURE matches implemented behavior; `.env.example` is updated only if a new env variable is actually required.
+- [x] Migrations preserve all existing data and are append-only.
+- [x] Summary delivered with changes, any new env vars and manual host steps.

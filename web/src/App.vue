@@ -40,6 +40,9 @@ const requestedProjectId = ref<string | undefined>()
 const renaming = ref(false)
 const killing = ref(false)
 const target = ref('') // the session a rename/kill dialog is about
+watch(browsing, (open) => {
+  if (!open) requestedProjectId.value = undefined
+})
 
 function askRename(name: string) {
   target.value = name
