@@ -128,11 +128,6 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
   - U: T7 root safe-area CSS and inherited header/key-bar insets, plus drawer and sheet edge padding (node fixture check).
   - I: n/a (CSS only).
   - E: n/a: Playwright always reports 0 insets, so it can't observe them. **Manual (T9):** portrait and landscape on the iPhone, installed and in Safari.
-- [ ] hostbud installs to the iPhone's home screen from `https://${HOSTBUD_DOMAIN}` (Safari → Share → Add to Home Screen), shows its icon and name, and opens full-screen without Safari's UI; the installed app asks to sign in once and then works like the browser (attach, type, key bar, Scroll, drawer).
-  - U: covered by the T7/T8 criteria above.
-  - I: n/a (installation is an iOS feature).
-  - E: n/a: Add to Home Screen and standalone launch don't exist in Playwright; T7/T8 e2e cover the manifest and worker that make it possible. **Manual (T9):** the owner's iPhone.
-
 ## Security and compatibility
 
 - [x] The new static files (`manifest.webmanifest`, `sw.js`, icons, favicon) are public like the rest of the SPA and hold no data. Every `/api/*` and `/ws/*` route keeps its authentication and Origin behavior, and the worker can't bypass it (it never answers those requests).
@@ -183,7 +178,10 @@ On the owner's iPhone over `https://${HOSTBUD_DOMAIN}` on the tailnet, and a rea
 - [ ] Drawer: a left swipe closes it; the terminal doesn't flicker or re-attach.
 - [ ] Key bar: the keyboard stays open while tapping Esc, Ctrl and arrows; Ctrl + `c` interrupts; holding ↑ repeats; Esc works in vim; Tab completes.
 - [ ] Scroll history: swipe up and down through tmux history in a session with long output (and in Claude Code's session); Done and typing leave it.
-- [ ] Install: Share → Add to Home Screen shows hostbud's icon and name; the app opens full-screen, with nothing under the notch, status bar or home indicator (portrait and landscape); sign in once, then attach and type.
+- [ ] Install: from `https://${HOSTBUD_DOMAIN}`, Safari → Share → Add to Home Screen shows hostbud's icon and name; the app opens full-screen without Safari's UI or content under the notch, status bar or home indicator (portrait and landscape); sign in once, then verify attach, type, key bar, Scroll and drawer.
+  - U: covered by the T7/T8 manifest, icon, safe-area and worker criteria above.
+  - I: n/a (Add to Home Screen and standalone launch are iOS features).
+  - E: n/a: Playwright can't install an iOS home-screen app or observe its standalone mode; T7/T8 scenarios cover the manifest and worker that support it.
 - [ ] Offline launch: in airplane mode the installed app shows **Can't reach hostbud** (no sign-in form, no stale sessions) and recovers after the connection returns.
 - [ ] Update: after a `make deploy` with a visible change, the installed app shows the new version on its next launch.
 
