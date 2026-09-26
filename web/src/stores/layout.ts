@@ -6,6 +6,8 @@ import { useToastsStore } from './toasts'
 
 /** Saves wait this long after the last change. */
 export const SAVE_DEBOUNCE_MS = 500
+/** A failed save is tried again after this long. */
+export const SAVE_RETRY_MS = 5_000
 
 /**
  * The open tabs (lib/layout.ts), loaded on sign-in before any terminal
@@ -54,18 +56,41 @@ export const useLayoutStore = defineStore('layout', () => {
     layout.value = L.emptyLayout()
   }
 
+  function send(keepalive = false) {
+    const gen = generation
+    putUIState('layout', layout.value, { keepalive }).catch((e) => {
+      console.warn("hostbud: can't save the layout", e)
+      // hostbud restarting, say: try again unless a newer save is pending
+      // or the user signed out.
+      if (timer === undefined && gen === generation) timer = setTimeout(() => ((timer = undefined), send()), SAVE_RETRY_MS)
+    })
+  }
+
   function save() {
     clearTimeout(timer)
     timer = setTimeout(() => {
       timer = undefined
-      putUIState('layout', layout.value).catch((e) => console.warn("hostbud: can't save the layout", e))
+      send()
     }, SAVE_DEBOUNCE_MS)
   }
 
-  // Changes made after loading are saved; the load itself isn't.
-  watch(layout, () => {
-    if (loaded.value) save()
-  })
+  /** Sends a pending save now (the page is going away). */
+  function flush() {
+    if (timer === undefined) return
+    clearTimeout(timer)
+    timer = undefined
+    send(true)
+  }
+
+  // Changes made after loading are saved; the load itself isn't (a sync
+  // watcher sees the layout change while `loaded` is still false).
+  watch(
+    layout,
+    () => {
+      if (loaded.value) save()
+    },
+    { flush: 'sync' },
+  )
 
   /** Shows a session (existing tab, or a new one). False when at the limit. */
   function open(machine: string, session: string): boolean {
@@ -140,6 +165,7 @@ export const useLayoutStore = defineStore('layout', () => {
     focused,
     load,
     reset,
+    flush,
     open,
     activate,
     closeTab,

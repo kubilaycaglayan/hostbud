@@ -39,7 +39,8 @@ async function tapSession(ui: UI, target: Target, name: string) {
 /** Taps the terminal (which focuses its input: the keyboard comes up), then
  * types the line like an on-screen keyboard and presses Enter. */
 async function softType(page: Page, line: string) {
-  await page.getByTestId('terminal').tap()
+  // The shown terminal (other tabs' terminals stay mounted, hidden).
+  await page.getByRole('region', { name: /^Terminal: / }).getByTestId('terminal').tap()
   await expect(input(page)).toBeFocused()
   await page.keyboard.insertText(line)
   await page.keyboard.press('Enter')

@@ -17,8 +17,9 @@ export class ApiError extends Error {
 
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
-export async function request<T>(method: Method, path: string, body?: unknown): Promise<T> {
+export async function request<T>(method: Method, path: string, body?: unknown, init: RequestInit = {}): Promise<T> {
   const res = await fetch(path, {
+    ...init,
     method,
     credentials: 'same-origin',
     headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
@@ -90,7 +91,8 @@ export async function getUIState<T = unknown>(key: UIStateKey): Promise<T | null
   }
 }
 
-/** Saves the account's UI state (JSON, ≤ 64 KiB). */
-export function putUIState(key: UIStateKey, value: unknown): Promise<void> {
-  return request<void>('PUT', `/api/ui-state/${key}`, value)
+/** Saves the account's UI state (JSON, ≤ 64 KiB). `keepalive` lets the
+ * request outlive the page (a save on pagehide). */
+export function putUIState(key: UIStateKey, value: unknown, opts: { keepalive?: boolean } = {}): Promise<void> {
+  return request<void>('PUT', `/api/ui-state/${key}`, value, opts.keepalive ? { keepalive: true } : {})
 }

@@ -73,10 +73,16 @@ watch(
   },
 )
 
+// A reload right after a change still finds it saved.
+const flushLayout = () => layout.flush()
 onMounted(() => {
   auth.check().catch(() => auth.sessionEnded())
+  window.addEventListener('pagehide', flushLayout)
 })
-onUnmounted(() => live.stop())
+onUnmounted(() => {
+  window.removeEventListener('pagehide', flushLayout)
+  live.stop()
+})
 </script>
 
 <template>

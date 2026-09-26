@@ -23,7 +23,7 @@ Update this table in the same commit that finishes a task.
 
 | Checkpoint | After | Runs | Status |
 |---|---|---|---|
-| CP1 | T6 + T7 (UI state API and tabs) | `make lint test`, `make e2e` (all projects) | |
+| CP1 | T6 + T7 (UI state API and tabs) | `make lint test`, `make e2e` (all projects) | ✅ green: the full run found 6 failures (a save fired by the layout load itself, a reload test that didn't wait for the active tab, a phone helper hitting a hidden tab's terminal, and a legitimate save racing an app restart); fixed with regression tests, and the failed files re-ran green |
 | CP2 | T8 (split view) | `make lint test`, `make e2e` (all projects) | |
 | CP3 | T9 (audit) | `make lint test`, `make e2e` twice in a row from a clean checkout | |
 

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { MAX_PANES } from '@/lib/layout'
 import { stubFetch } from '@/test-utils'
-import { SAVE_DEBOUNCE_MS, useLayoutStore } from './layout'
+import { SAVE_DEBOUNCE_MS, SAVE_RETRY_MS, useLayoutStore } from './layout'
 import { useToastsStore } from './toasts'
 
 beforeEach(() => setActivePinia(createPinia()))
@@ -78,6 +78,46 @@ describe('save', () => {
     expect(calls[0]).toMatchObject({ method: 'PUT', path: '/api/ui-state/layout' })
     const body = calls[0].body as { tabs: { root: { session: string } }[] }
     expect(body.tabs.map((t) => t.root.session)).toEqual(['a', 'b'])
+  })
+
+  it('loading saves nothing, even once the debounce has passed', async () => {
+    vi.useFakeTimers()
+    const calls = stubFetch((m) => (m === 'GET' ? { status: 200, body: saved([{ session: 'a' }]) } : { status: 204 }))
+    await useLayoutStore().load()
+    await nextTick()
+    vi.advanceTimersByTime(SAVE_DEBOUNCE_MS * 2)
+    expect(calls.filter((c) => c.method === 'PUT')).toEqual([])
+  })
+
+  it('flush sends a pending save right away (keepalive), and only a pending one', async () => {
+    const layout = await loaded()
+    vi.useFakeTimers()
+    const init: RequestInit[] = []
+    vi.stubGlobal('fetch', vi.fn(async (_p: string, i: RequestInit) => (init.push(i), new Response(null, { status: 204 }))))
+    layout.flush()
+    expect(init).toEqual([])
+    layout.open('host', 'a')
+    layout.flush()
+    expect(init).toHaveLength(1)
+    expect(init[0]).toMatchObject({ method: 'PUT', keepalive: true })
+    vi.advanceTimersByTime(SAVE_DEBOUNCE_MS * 2)
+    expect(init).toHaveLength(1)
+  })
+
+  it('a failed save is tried again', async () => {
+    const layout = await loaded()
+    vi.useFakeTimers()
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    let status = 502
+    const calls = stubFetch(() => ({ status }))
+    layout.open('host', 'a')
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    expect(calls).toHaveLength(1)
+    status = 204
+    await vi.advanceTimersByTimeAsync(SAVE_RETRY_MS)
+    expect(calls).toHaveLength(2)
+    await vi.advanceTimersByTimeAsync(SAVE_RETRY_MS * 2)
+    expect(calls).toHaveLength(2)
   })
 
   it('loading or signing out saves nothing', async () => {

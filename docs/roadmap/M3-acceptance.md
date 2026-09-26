@@ -46,7 +46,7 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
   - U: T5 key mapping (plain Ctrl+F unmapped) · `TerminalSearch` (options, count, invalid regex, Escape, selection pre-fill) · tmux output reaches the scrollback (`scrollback.spec.ts`, real xterm) (Vitest). I: n/a (client-side buffer). E: T5 *Search scrollback* · T5 *Search options* · T5 *Search on the phone*.
 
 ### Tabs and splits
-- [ ] Several sessions can be open at once in tabs; picking an already open session focuses its tab; each tab's input reaches its own session.
+- [x] Several sessions can be open at once in tabs; picking an already open session focuses its tab; each tab's input reaches its own session.
   - U: T7 layout store open/activate/close, the 16-terminal limit; tab bar roles and keys (Vitest). I: n/a (each pane is M1 T13's attach). E: T7 *Tabs*.
 - [ ] Closing a tab or pane only detaches the view (the tmux session keeps running; no confirmation).
   - U: T7 close · T8 close with collapse (Vitest). I: n/a (closing a socket ends only the attach; M1 T13). E: T7 *Close tab detaches* · T8 *Close pane*.
@@ -60,7 +60,7 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
   - U: T8 pane cycler (Vitest). I: n/a (frontend). E: T7 *Tabs on the phone* · T8 *Split on the phone*. **Manual (T9):** a real phone.
 
 ### UI state API
-- [ ] `GET|PUT /api/ui-state/{key}` stores JSON per account, only for allowlisted keys, up to 64 KiB.
+- [x] `GET|PUT /api/ui-state/{key}` stores JSON per account, only for allowlisted keys, up to 64 KiB.
   - U: T6 handler (allowlist, 400/404/413, namespacing, auth, Origin) (Go) · client helpers (Vitest). I: T6 store round-trip for two users (PostgreSQL). E: T6 *UI state API*.
 
 ## E2E (`make e2e`, simulated user)
@@ -82,12 +82,12 @@ Projects as in M2: `desktop-chromium` and `iphone-13-pro` on `http://localhost:9
 - [x] **(T5) Search scrollback:** a marker scrolled off screen is found (1 of 1) and scrolled into view; Escape returns input to the shell.
 - [x] **(T5) Search options:** match case and regex change the counts; an invalid regex says so.
 - [x] **(T5) Search on the phone:** the 🔍 button opens search and finds a marker (`iphone-13-pro`).
-- [ ] **(T6) UI state API:** put/get round-trip; another account gets 404; foreign Origin 403; unknown key 404; oversize 413 (API level).
-- [ ] **(T7) Tabs:** three sessions in three tabs; input lands in each; re-picking an open session focuses its tab.
-- [ ] **(T7) Close tab detaches:** the session stays listed with no client attached; no dialog.
-- [ ] **(T7) Tabs follow rename and kill:** a UI rename relabels the tab; an out-of-band kill closes it with a notice.
-- [ ] **(T7) Tabs survive reload:** the same tabs, order and active tab after reload and after an app restart; a missing session's tab is dropped.
-- [ ] **(T7) Tabs on the phone:** two tabs switched and typed into from the compact tab bar (`iphone-13-pro`).
+- [x] **(T6) UI state API:** put/get round-trip; another account gets 404; foreign Origin 403; unknown key 404; oversize 413 (API level).
+- [x] **(T7) Tabs:** three sessions in three tabs; input lands in each; re-picking an open session focuses its tab.
+- [x] **(T7) Close tab detaches:** the session stays listed with no client attached; no dialog.
+- [x] **(T7) Tabs follow rename and kill:** a UI rename relabels the tab; an out-of-band kill closes it with a notice.
+- [x] **(T7) Tabs survive reload:** the same tabs, order and active tab after reload and after an app restart; a missing session's tab is dropped.
+- [x] **(T7) Tabs on the phone:** two tabs switched and typed into from the compact tab bar (`iphone-13-pro`).
 - [ ] **(T8) Split and type:** a nested split of three panes; each pane's input reaches its session.
 - [ ] **(T8) Resize split:** dragging a divider changes both panes' tmux `#{window_width}`.
 - [ ] **(T8) Close pane:** panes close down to one; closed sessions stay listed, detached.
@@ -101,7 +101,7 @@ Projects as in M2: `desktop-chromium` and `iphone-13-pro` on `http://localhost:9
   - U: T2 provider refuses reads (Vitest). I: n/a (client decision). E: T2 *OSC 52 read refused*.
 - [x] Terminal links open only `http`/`https`, with `noopener,noreferrer`.
   - U: T4 allowlist (Vitest). I: n/a. E: T4 *OSC 8 link* (`javascript:` target).
-- [ ] `PUT /api/ui-state/{key}` requires a signed-in session and an allowed `Origin`; values are size-limited and scoped to the account.
+- [x] `PUT /api/ui-state/{key}` requires a signed-in session and an allowed `Origin`; values are size-limited and scoped to the account.
   - U: T6 handler (Go). I: T6 store (PostgreSQL). E: T6 *UI state API*.
 - [ ] The new e2e ctl actions (network cut/restore) are fixed commands on the throwaway stack only, like the existing ones.
   - U: n/a (a fixed table in `ctl/server.mjs`). I: n/a. E: T3 *Network cut re-attach* uses them; reviewed in T9's audit.

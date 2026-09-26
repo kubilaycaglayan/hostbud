@@ -6,7 +6,7 @@ import { uniqueName } from '../helpers/target.ts'
 // answers 502: expected here, and only here.
 test.use({
   allowedBrowserErrors:
-    /WebSocket connection to 'ws:\/\/localhost:9055\/ws\/events' failed|^HTTP 502: GET http:\/\/localhost:9055\/api\/auth\/me|status of 502/,
+    /WebSocket connection to 'ws:\/\/localhost:9055\/ws\/events' failed|^HTTP 502: (GET http:\/\/localhost:9055\/api\/auth\/me|PUT http:\/\/localhost:9055\/api\/ui-state\/layout)|status of 502/,
 })
 
 // Live connection (T14): extends "Open the app".

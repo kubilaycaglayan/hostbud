@@ -41,12 +41,13 @@ async function typeInTab(ui: UI, target: Target, name: string, tap = false) {
   return marker
 }
 
-/** The layout the server holds for this account (saves are debounced). */
+/** The layout the server holds for this account (saves are debounced):
+ * the tabs' sessions, the active one marked with `*`. */
 async function savedTabs(page: Page): Promise<string[]> {
   const res = await page.request.get('/api/ui-state/layout')
   if (!res.ok()) return []
-  const l = (await res.json()) as { tabs: { root: { session: string } }[] }
-  return l.tabs.map((t) => t.root.session)
+  const l = (await res.json()) as { tabs: { id: string; root: { session: string } }[]; activeTab: string }
+  return l.tabs.map((t) => (t.id === l.activeTab ? '*' : '') + t.root.session)
 }
 
 test.describe('desktop', () => {
@@ -124,7 +125,7 @@ test.describe('reload', () => {
     await openAll(ui, target, [a, b, c])
     await ui.tab(b).click()
     await ui.waitForTerminal(b)
-    await expect.poll(() => savedTabs(ui.page)).toEqual([a, b, c])
+    await expect.poll(() => savedTabs(ui.page)).toEqual([a, '*' + b, c])
 
     const check = async (names: string[], active: string) => {
       await expect.poll(() => ui.tabNames(), { timeout: 30_000 }).toEqual(names)
