@@ -3,29 +3,39 @@
 
 # ── 1. SPA ───────────────────────────────────────────────────
 FROM --platform=linux/amd64 node:24.21.0-bookworm-slim AS web
-ENV CI=true COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+ENV CI=true COREPACK_ENABLE_DOWNLOAD_PROMPT=0 COREPACK_HOME=/cache/corepack
 WORKDIR /src/web
-COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./
-RUN corepack pnpm install --frozen-lockfile
 COPY web/ ./
 # "1" only for the e2e image (test/e2e/compose.yml): adds window.__hostbud
 # test hooks. Production builds leave it empty.
 ARG VITE_E2E=""
-RUN VITE_E2E="$VITE_E2E" corepack pnpm run build
+# Caches live in BuildKit cache mounts (reused in place by every build,
+# production and e2e alike), not in layers: a rebuild adds only web/dist.
+RUN --mount=type=cache,id=hostbud-corepack,target=/cache/corepack,sharing=locked \
+    --mount=type=cache,id=hostbud-pnpm-store,target=/cache/pnpm-store,sharing=locked \
+    --mount=type=cache,id=hostbud-pnpm-cache,target=/root/.cache/pnpm,sharing=locked \
+    --mount=type=cache,id=hostbud-web-node-modules,target=/src/web/node_modules,sharing=locked \
+    corepack pnpm install --frozen-lockfile --store-dir /cache/pnpm-store \
+ && VITE_E2E="$VITE_E2E" corepack pnpm run build
 
 # ── 2. Go binary with the SPA embedded ───────────────────────
 FROM --platform=linux/amd64 golang:1.27.1-bookworm AS go
 WORKDIR /src
 COPY go.* ./
-RUN go mod download
 COPY cmd/ cmd/
 COPY internal/ internal/
 COPY web/embed.go web/
 COPY --from=web /src/web/dist/ web/dist/
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/hostbud ./cmd/hostbud
+# Module and build caches in cache mounts (see above): incremental compiles,
+# and a rebuild adds only the binary.
+RUN --mount=type=cache,id=hostbud-gomod,target=/go/pkg/mod \
+    --mount=type=cache,id=hostbud-gobuild,target=/root/.cache/go-build \
+    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/hostbud ./cmd/hostbud
 
 # ── 3. Runtime ───────────────────────────────────────────────
 FROM --platform=linux/amd64 debian:stable-slim
+# Lets `make deploy` / `make docker-clean` prune only hostbud's untagged images.
+LABEL hostbud.image="1"
 RUN apt-get update \
  && apt-get install -y --no-install-recommends openssh-client postgresql-client ca-certificates tini \
  && rm -rf /var/lib/apt/lists/*

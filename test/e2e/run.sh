@@ -36,6 +36,8 @@ build_if_changed() {
 	fi
 	echo "e2e: building $svc"
 	dc build "$svc" || exit 1
+	# The image it replaced is now untagged; drop it instead of accumulating.
+	docker image prune -f --filter label=hostbud.image=1 >/dev/null
 	mkdir -p "$stamps" && echo "$h" >"$stamps/$svc"
 }
 

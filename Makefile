@@ -19,7 +19,7 @@ GITLEAKS = scripts/tool.sh gitleaks $(GITLEAKS_IMAGE) . gitleaks
 
 .PHONY: help build test lint fmt tidy gitleaks gitleaks-staged hooks \
 	go-build go-test go-unit test-env test-down go-lint web-install web-build web-test web-lint e2e e2e-up e2e-run e2e-down e2e-install e2e-lint \
-	deploy logs backup tools-down
+	deploy logs backup tools-down docker-clean
 
 help: ## List targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-16s %s\n", $$1, $$2}'
@@ -96,8 +96,9 @@ hooks: ## Install the repo's git hooks (gitleaks pre-commit)
 	git config core.hooksPath .githooks
 	@echo "hooks installed from .githooks/"
 
-deploy: ## Build the image and (re)start hostbud + Caddy (docker compose up -d --build)
+deploy: ## Build the image and (re)start hostbud + Caddy (docker compose up -d --build), then drop the images it replaced
 	docker compose up -d --build
+	@docker image prune -f --filter label=hostbud.image=1 >/dev/null
 
 logs: ## Follow the hostbud and Caddy logs
 	docker compose logs -f --tail=100
@@ -112,3 +113,12 @@ backup: ## Copy the running hostbud's database to ./backups/ (VACUUM INTO)
 
 tools-down: ## Remove the toolbox containers (recreated on next use)
 	-docker rm -f $$(docker ps -aq --filter label=hostbud.tools=1) 2>/dev/null
+
+docker-clean: ## Free hostbud's Docker disk: untagged images, the e2e stack and images, toolbox containers (CACHE=1 also prunes build cache >72h, all projects)
+	-test/e2e/run.sh down
+	-docker rm -f $$(docker ps -aq --filter label=hostbud.tools=1) 2>/dev/null
+	-docker rmi hostbud-e2e-app:local hostbud-e2e-target:local hostbud-e2e-target-notmux:local \
+		hostbud-e2e-caddy:local hostbud-e2e-ctl:local hostbud-e2e-runner:local 2>/dev/null
+	docker image prune -f --filter label=hostbud.image=1
+	@if [ "$(CACHE)" = 1 ]; then docker builder prune -f --filter until=72h; fi
+	@docker system df

@@ -2,6 +2,7 @@
 # The specs are bind-mounted by compose.yml, so editing them needs no rebuild.
 # Keep the image tag in sync with @playwright/test in package.json.
 FROM mcr.microsoft.com/playwright:v1.63.0-noble
+LABEL hostbud.image="1"
 ENV CI=true COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 WORKDIR /e2e
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./

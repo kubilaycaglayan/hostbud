@@ -67,12 +67,16 @@ up)
 		sleep 0.5
 	done
 	wait_healthy hostbud-test-sshd hostbud-test-sshd-notmux
+	# Images of older test/sshd versions are no longer used by anything.
+	docker images hostbud-test-sshd --format '{{.Repository}}:{{.Tag}}' | grep -v ":$hash-" |
+		xargs -r docker rmi >/dev/null 2>&1 || true
 	;;
 down)
 	docker rm -f hostbud-test-sshd hostbud-test-sshd-notmux hostbud-test-postgres >/dev/null 2>&1 || true
 	# Keys are root-owned in part; remove them from a container.
 	[ -d "$keys" ] && docker run --rm -v "$root/.cache/test-sshd":/d --entrypoint rm debian:stable-slim -rf /d/keys
 	docker network rm "$net" >/dev/null 2>&1 || true
+	docker images hostbud-test-sshd -q | xargs -r docker rmi >/dev/null 2>&1 || true
 	;;
 *)
 	echo "usage: test-sshd.sh up|down" >&2

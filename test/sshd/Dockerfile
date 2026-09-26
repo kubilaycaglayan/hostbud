@@ -3,6 +3,7 @@
 # (see keygen.sh) and never committed.
 #   WITH_TMUX=0 builds the tmux-less variant ("tmux missing" scenarios).
 FROM debian:stable-slim
+LABEL hostbud.image="1"
 
 ARG WITH_TMUX=1
 RUN apt-get update \

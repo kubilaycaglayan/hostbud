@@ -3,6 +3,10 @@
 # tests run the system ssh against test/sshd).
 ARG GO_IMAGE
 FROM ${GO_IMAGE}
+LABEL hostbud.image="1"
+# Same caches as scripts/tool.sh passes, so a `docker exec` without them still
+# writes to ./.cache instead of growing the container's own layer.
+ENV GOMODCACHE=/src/.cache/gomod GOCACHE=/src/.cache/gobuild GOLANGCI_LINT_CACHE=/src/.cache/golangci
 ARG UID=1000
 ARG GID=1000
 RUN apt-get update \
