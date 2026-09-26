@@ -73,6 +73,7 @@ The domain works only inside your tailnet: its DNS record points at the host's T
   - When a program captures the mouse (tmux `set -g mouse on`, vim, htop), hold **Shift** while dragging (**Option** on a Mac) to select anyway, and Shift/Option+right-click for the menu.
   - Text copied inside the terminal reaches your browser clipboard over OSC 52: tmux copy-mode yanks work with tmux's defaults; for vim, Claude Code and other programs *inside* tmux, add `set -g set-clipboard on` to your `~/.tmux.conf` (hostbud never changes it). Programs can't read your clipboard: OSC 52 queries are ignored.
   - The browser allows clipboard access only on `http://localhost:…` (the port forward) and the HTTPS domain, not on a plain-HTTP LAN address.
+- **Search:** Ctrl+Shift+F (Cmd+F on a Mac) or 🔍 searches the terminal's output since you attached, with Match case and Regex; Enter/Shift+Enter jump between matches, Escape closes. For older tmux history use copy mode (`prefix [`, then `?`). The mouse wheel scrolls back through the same output when tmux's `mouse` is off.
 - **Links:** click (tap) a URL in the terminal to open it in a new tab; only `http`/`https` links open. OSC 8 hyperlinks (`ls --hyperlink`, Claude Code) show their real target on hover; inside tmux they need `set -as terminal-features ',xterm*:hyperlinks'` in your `~/.tmux.conf`.
 - On a phone, the list and the terminal take turns (← goes back to the list). Tap the terminal (or ⌨) to bring up the keyboard; the terminal shrinks to stay above it, and rotating the phone resizes the tmux window.
 

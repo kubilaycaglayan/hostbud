@@ -10,6 +10,8 @@ export interface HostbudHooks {
   termSize: () => { cols: number; rows: number }
   /** The terminal's selected text ('' without a selection). */
   termSelection: () => string
+  /** The rows currently in view (after scrolling), as text. */
+  termViewport: () => string
   /** Where the last on-screen occurrence of `needle` is drawn (page px). */
   termTextRect: (needle: string) => { x: number; y: number; width: number; height: number } | null
 }

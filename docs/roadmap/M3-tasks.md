@@ -13,8 +13,8 @@ Update this table in the same commit that finishes a task.
 | T2 Copy and paste | ✅ done (owner checks in T9) |
 | T3 Auto-reconnect | ✅ done (owner check in T9) |
 | T4 Links | ✅ done |
-| T5 Search | next |
-| T6 UI state API | |
+| T5 Search | ✅ done |
+| T6 UI state API | next |
 | T7 Tabs | |
 | T8 Split view | |
 | T9 Docs, audit and release | |
@@ -137,6 +137,8 @@ A terminal whose socket drops re-attaches by itself. The tmux session never noti
 - **Open it** with Ctrl+Shift+F / Cmd+F / Cmd+Shift+F (a new `clipboardKey`-style mapping; plain Ctrl+F stays readline's forward-char) or a 🔍 button in the terminal header, which is also the way in on phones. Opening pre-fills the field with the current selection.
 - **Keys in the field:** Enter = next, Shift+Enter = previous, Escape closes the bar, clears the highlights and refocuses the terminal. An invalid regex shows "Invalid pattern" instead of throwing.
 - **Scope:** xterm's buffer, meaning the screen plus the scrollback the browser received since attaching (5000 lines). tmux history from before the attach isn't in it. That's tmux copy mode's job (`prefix [`, then `?`, and M5's Scroll button). The bar's empty state says so briefly, and README documents it.
+- *(Built:)* tmux draws in the alternate screen, where xterm keeps no scrollback, so the browser had nothing to search. `web/src/lib/scrollback.ts` makes xterm ignore the alternate-screen switches (tmux then draws on the normal screen, whose scrolled-off lines are kept) and saves the lines of tmux's `CSI n S` bursts as a line feed would. Nothing on the host changes. Unit tests run against the real xterm (`scrollback.spec.ts`), and the M1/M2 terminal scenarios stay green.
+- *(Built:)* the search addon only re-highlights when the term changes, so toggling an option clears its cache first.
 - ARCHITECTURE §6 and §11: search scope.
 
 **Tests:** U (Vitest): the search key mapping (Ctrl+F unmapped); `TerminalSearch` calls `findNext`/`findPrevious` with the case/regex options, shows the count, handles an invalid regex, and closes on Escape with the highlights cleared and focus back on the terminal; opening pre-fills the selection. I: n/a (client-side buffer only).

@@ -9,6 +9,7 @@ describe('e2e hooks', () => {
       termText: () => 'buffer',
       termSize: () => ({ cols: 80, rows: 24 }),
       termSelection: () => '',
+      termViewport: () => '',
       termTextRect: () => null,
     })
     expect(window.__hostbud?.termText()).toBe('buffer')

@@ -1,0 +1,101 @@
+import { flushPromises, mount } from '@vue/test-utils'
+import type { SearchAddon } from '@xterm/addon-search'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import TerminalSearch from './TerminalSearch.vue'
+
+afterEach(() => {
+  document.body.innerHTML = ''
+})
+
+function fakeSearch() {
+  let listener: (e: { resultIndex: number; resultCount: number }) => void = () => {}
+  const dispose = vi.fn()
+  return {
+    findNext: vi.fn(() => true),
+    findPrevious: vi.fn(() => true),
+    clearDecorations: vi.fn(),
+    onDidChangeResults: (fn: typeof listener) => {
+      listener = fn
+      return { dispose }
+    },
+    fire: (resultIndex: number, resultCount: number) => listener({ resultIndex, resultCount }),
+    dispose,
+  }
+}
+
+async function mountSearch(initial = '') {
+  const search = fakeSearch()
+  const w = mount(TerminalSearch, {
+    props: { search: search as unknown as SearchAddon, initial },
+    attachTo: document.body,
+  })
+  await flushPromises()
+  return { w, search, field: w.get('input[aria-label=Find]') }
+}
+
+const lastOpts = (fn: ReturnType<typeof vi.fn>) => fn.mock.calls.at(-1)![1]
+
+describe('TerminalSearch', () => {
+  it('searches as you type, with the case and regex options', async () => {
+    const { w, search, field } = await mountSearch()
+    expect(document.activeElement).toBe(field.element)
+    expect(w.text()).toContain('received since attaching') // the scope hint
+    await field.setValue('foo')
+    expect(search.findNext).toHaveBeenLastCalledWith('foo', expect.objectContaining({ caseSensitive: false, regex: false, incremental: true }))
+    expect(lastOpts(search.findNext).decorations).toBeDefined()
+    search.clearDecorations.mockClear()
+    await w.get('label:nth-of-type(1) input').setValue(true) // Match case
+    expect(lastOpts(search.findNext)).toMatchObject({ caseSensitive: true, regex: false })
+    expect(search.clearDecorations).toHaveBeenCalled() // re-highlight with the new options
+    await w.findAll('input[type=checkbox]')[1].setValue(true) // Regex
+    expect(lastOpts(search.findNext)).toMatchObject({ caseSensitive: true, regex: true })
+  })
+
+  it('Enter = next, Shift+Enter = previous, and the buttons', async () => {
+    const { w, search, field } = await mountSearch('x')
+    search.findNext.mockClear()
+    await field.trigger('keydown', { key: 'Enter' })
+    expect(search.findNext).toHaveBeenLastCalledWith('x', expect.objectContaining({ incremental: false }))
+    await field.trigger('keydown', { key: 'Enter', shiftKey: true })
+    expect(search.findPrevious).toHaveBeenCalledTimes(1)
+    await w.get('button[aria-label="Previous match"]').trigger('click')
+    await w.get('button[aria-label="Next match"]').trigger('click')
+    expect(search.findPrevious).toHaveBeenCalledTimes(2)
+    expect(search.findNext).toHaveBeenCalledTimes(2)
+  })
+
+  it('shows the match count', async () => {
+    const { w, search } = await mountSearch('x')
+    const results = () => w.get('[data-testid=search-results]').text()
+    search.fire(2, 12)
+    await flushPromises()
+    expect(results()).toBe('3 of 12')
+    search.fire(-1, 0)
+    await flushPromises()
+    expect(results()).toBe('No results')
+  })
+
+  it('an invalid regex says so instead of throwing', async () => {
+    const { w, search, field } = await mountSearch()
+    await w.findAll('input[type=checkbox]')[1].setValue(true)
+    await field.setValue('(')
+    expect(w.get('[data-testid=search-results]').text()).toBe('Invalid pattern')
+    expect(search.findNext).not.toHaveBeenCalledWith('(', expect.anything())
+    expect(search.clearDecorations).toHaveBeenCalled()
+  })
+
+  it('Escape clears the highlights and closes', async () => {
+    const { w, search, field } = await mountSearch('x')
+    await field.trigger('keydown', { key: 'Escape' })
+    expect(search.clearDecorations).toHaveBeenCalled()
+    expect(w.emitted('close')).toHaveLength(1)
+    w.unmount()
+    expect(search.dispose).toHaveBeenCalled()
+  })
+
+  it('opens pre-filled (the selection) and searches it at once', async () => {
+    const { search, field } = await mountSearch('needle')
+    expect((field.element as HTMLInputElement).value).toBe('needle')
+    expect(search.findNext).toHaveBeenCalledWith('needle', expect.anything())
+  })
+})

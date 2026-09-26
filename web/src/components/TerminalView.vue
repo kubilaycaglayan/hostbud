@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import '@xterm/xterm/css/xterm.css'
 import { FitAddon } from '@xterm/addon-fit'
+import { SearchAddon } from '@xterm/addon-search'
 import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
@@ -8,10 +9,12 @@ import { Terminal } from '@xterm/xterm'
 import { onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import { TermSession, termURL, type SessionState } from '@/api/term'
 import TerminalMenu from '@/components/TerminalMenu.vue'
+import TerminalSearch from '@/components/TerminalSearch.vue'
 import { copySelection, installOsc52 } from '@/lib/clipboard'
 import { installE2EHooks, removeE2EHooks } from '@/lib/e2eHooks'
 import { hyperlinkHandler, openLink, type LinkHover } from '@/lib/links'
-import { clipboardKey, editingKey } from '@/lib/terminalKeys'
+import { keepScrollback } from '@/lib/scrollback'
+import { clipboardKey, editingKey, searchKey } from '@/lib/terminalKeys'
 import { useAuthStore } from '@/stores/auth'
 import { useSessionsStore } from '@/stores/sessions'
 
@@ -23,6 +26,10 @@ const state = ref<SessionState>('connecting')
 const attempt = ref(0)
 const linkHover = ref<LinkHover | null>(null)
 const term = shallowRef<Terminal>()
+const search = shallowRef<SearchAddon>()
+const searchOpen = ref(false)
+const searchInitial = ref('')
+const searchBar = ref<InstanceType<typeof TerminalSearch>>()
 let fit: FitAddon | null = null
 let conn: TermSession | null = null
 let observer: ResizeObserver | null = null
@@ -82,6 +89,23 @@ function showKeyboard() {
   term.value?.focus()
 }
 
+/** Opens the search bar (or refocuses it), pre-filled with the selection's
+ * first line. */
+function openSearch() {
+  const selected = term.value?.getSelection().split('\n')[0].trim() ?? ''
+  if (searchOpen.value) {
+    void searchBar.value?.focus(selected)
+    return
+  }
+  searchInitial.value = selected
+  searchOpen.value = true
+}
+
+function closeSearch() {
+  searchOpen.value = false
+  term.value?.focus()
+}
+
 function retryNow() {
   conn?.retryNow()
 }
@@ -113,6 +137,9 @@ onMounted(async () => {
   t.loadAddon(unicode)
   t.unicode.activeVersion = '11'
   installOsc52(t)
+  keepScrollback(t)
+  search.value = new SearchAddon()
+  t.loadAddon(search.value)
   t.open(el.value!)
   prepareInput(t.textarea)
   try {
@@ -133,6 +160,13 @@ onMounted(async () => {
       if (ev.type === 'keydown') {
         ev.preventDefault()
         t.input(bytes)
+      }
+      return false
+    }
+    if (searchKey(ev)) {
+      if (ev.type === 'keydown') {
+        ev.preventDefault() // the browser's own find
+        openSearch()
       }
       return false
     }
@@ -168,6 +202,12 @@ onMounted(async () => {
       },
       termSize: () => ({ cols: t.cols, rows: t.rows }),
       termSelection: () => t.getSelection(),
+      termViewport: () => {
+        const b = t.buffer.active
+        const rows: string[] = []
+        for (let i = 0; i < t.rows; i++) rows.push(b.getLine(b.viewportY + i)?.translateToString(true) ?? '')
+        return rows.join('\n')
+      },
       termTextRect: (needle) => {
         // The last on-screen occurrence, in page pixels (cells are laid out
         // evenly over the screen element).
@@ -213,11 +253,19 @@ defineExpose({ refit, reconnect, showKeyboard })
       <h2 class="truncate font-bold">
         {{ props.session }}
       </h2>
+      <button
+        type="button"
+        aria-label="Search"
+        class="ml-auto rounded border border-border px-2"
+        @click="openSearch"
+      >
+        🔍
+      </button>
       <!-- Touch screens: bring the on-screen keyboard back once dismissed. -->
       <button
         type="button"
         aria-label="Show keyboard"
-        class="ml-auto hidden rounded border border-border px-2 pointer-coarse:inline-block"
+        class="hidden rounded border border-border px-2 pointer-coarse:inline-block"
         @click="showKeyboard"
       >
         ⌨
@@ -242,6 +290,13 @@ defineExpose({ refit, reconnect, showKeyboard })
         >
           {{ linkHover.url }}
         </div>
+        <TerminalSearch
+          v-if="searchOpen && search"
+          ref="searchBar"
+          :search="search"
+          :initial="searchInitial"
+          @close="closeSearch"
+        />
         <!-- Over the terminal, so its size (and tmux's) doesn't change. -->
         <div
           v-if="state === 'reconnecting'"

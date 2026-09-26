@@ -42,8 +42,8 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
   - U: T4 scheme allowlist, `window.open` with `noopener,noreferrer`, OSC 8 hover (Vitest). I: n/a (browser only). E: T4 *Click a URL* (desktop and phone) · T4 *OSC 8 link*.
 
 ### Search
-- [ ] Ctrl+Shift+F / Cmd+F or the 🔍 button opens a search bar that finds text on screen and in the scrollback received since attaching, with match count, next/previous, case and regex options; Escape closes it and returns focus to the terminal.
-  - U: T5 key mapping (plain Ctrl+F unmapped) · `TerminalSearch` (options, count, invalid regex, Escape, selection pre-fill) (Vitest). I: n/a (client-side buffer). E: T5 *Search scrollback* · T5 *Search options* · T5 *Search on the phone*.
+- [x] Ctrl+Shift+F / Cmd+F or the 🔍 button opens a search bar that finds text on screen and in the scrollback received since attaching, with match count, next/previous, case and regex options; Escape closes it and returns focus to the terminal.
+  - U: T5 key mapping (plain Ctrl+F unmapped) · `TerminalSearch` (options, count, invalid regex, Escape, selection pre-fill) · tmux output reaches the scrollback (`scrollback.spec.ts`, real xterm) (Vitest). I: n/a (client-side buffer). E: T5 *Search scrollback* · T5 *Search options* · T5 *Search on the phone*.
 
 ### Tabs and splits
 - [ ] Several sessions can be open at once in tabs; picking an already open session focuses its tab; each tab's input reaches its own session.
@@ -79,9 +79,9 @@ Projects as in M2: `desktop-chromium` and `iphone-13-pro` on `http://localhost:9
 - [x] **(T3) Detach doesn't loop:** after `detach-client` the banner shows and nothing re-attaches for 5 s; **Reconnect** attaches.
 - [x] **(T4) Click a URL:** clicking (tapping) a printed URL opens exactly it in a new page (desktop and `iphone-13-pro`).
 - [x] **(T4) OSC 8 link:** an OSC 8 label shows its target on hover and opens it on click; a `javascript:` target opens nothing.
-- [ ] **(T5) Search scrollback:** a marker scrolled off screen is found (1 of 1) and scrolled into view; Escape returns input to the shell.
-- [ ] **(T5) Search options:** match case and regex change the counts; an invalid regex says so.
-- [ ] **(T5) Search on the phone:** the 🔍 button opens search and finds a marker (`iphone-13-pro`).
+- [x] **(T5) Search scrollback:** a marker scrolled off screen is found (1 of 1) and scrolled into view; Escape returns input to the shell.
+- [x] **(T5) Search options:** match case and regex change the counts; an invalid regex says so.
+- [x] **(T5) Search on the phone:** the 🔍 button opens search and finds a marker (`iphone-13-pro`).
 - [ ] **(T6) UI state API:** put/get round-trip; another account gets 404; foreign Origin 403; unknown key 404; oversize 413 (API level).
 - [ ] **(T7) Tabs:** three sessions in three tabs; input lands in each; re-picking an open session focuses its tab.
 - [ ] **(T7) Close tab detaches:** the session stays listed with no client attached; no dialog.

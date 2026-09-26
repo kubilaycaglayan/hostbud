@@ -6,6 +6,7 @@ declare global {
       termText: () => string
       termSize: () => { cols: number; rows: number }
       termSelection: () => string
+      termViewport: () => string
       termTextRect: (needle: string) => { x: number; y: number; width: number; height: number } | null
     }
   }

@@ -17,7 +17,10 @@ const h = vi.hoisted(() => {
     selection = ''
     modes = { mouseTrackingMode: 'none' }
     oscHandlers: number[] = []
-    parser = { registerOscHandler: (id: number) => this.oscHandlers.push(id) }
+    parser = {
+      registerOscHandler: (id: number) => this.oscHandlers.push(id),
+      registerCsiHandler: () => ({ dispose() {} }),
+    }
     constructor(readonly options: Record<string, unknown>) {
       h.terms.push(this)
     }
@@ -92,6 +95,16 @@ vi.mock('@xterm/addon-web-links', () => ({
   },
 }))
 vi.mock('@xterm/addon-unicode11', () => ({ Unicode11Addon: class {} }))
+vi.mock('@xterm/addon-search', () => ({
+  SearchAddon: class {
+    findNext = vi.fn(() => true)
+    findPrevious = vi.fn(() => true)
+    clearDecorations = vi.fn()
+    onDidChangeResults() {
+      return { dispose() {} }
+    }
+  },
+}))
 vi.mock('@xterm/addon-clipboard', () => ({
   ClipboardAddon: class {
     activate(t: FakeTerminal) {
@@ -318,6 +331,31 @@ describe('TerminalView', () => {
     handler.leave!(new MouseEvent('mouseleave'), 'https://example.com/real', range)
     await flushPromises()
     expect(w.find('[role=tooltip]').exists()).toBe(false)
+  })
+
+  it('Ctrl+Shift+F opens search pre-filled with the selection; Escape returns focus', async () => {
+    const w = await mountTerm()
+    const t = h.terms[0]
+    t.selection = 'needle\nsecond line'
+    const down = new KeyboardEvent('keydown', { key: 'F', ctrlKey: true, shiftKey: true, cancelable: true })
+    expect(t.keyHandler(down)).toBe(false)
+    expect(down.defaultPrevented).toBe(true)
+    await flushPromises()
+    const field = w.get('input[aria-label=Find]')
+    expect((field.element as HTMLInputElement).value).toBe('needle')
+    // Plain Ctrl+F is readline's.
+    expect(t.keyHandler(new KeyboardEvent('keydown', { key: 'f', ctrlKey: true }))).toBe(true)
+    const focused = t.focused
+    await field.trigger('keydown', { key: 'Escape' })
+    expect(w.find('[role=search]').exists()).toBe(false)
+    expect(t.focused).toBe(focused + 1)
+  })
+
+  it('the 🔍 button opens search (the way in on phones)', async () => {
+    const w = await mountTerm()
+    await w.get('button[aria-label=Search]').trigger('click')
+    await flushPromises()
+    expect(w.find('[role=search]').exists()).toBe(true)
   })
 
   it('offers a way back to the list (narrow screens)', async () => {

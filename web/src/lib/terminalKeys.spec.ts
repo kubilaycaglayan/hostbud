@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clipboardKey, editingKey } from './terminalKeys'
+import { clipboardKey, editingKey, searchKey } from './terminalKeys'
 
 const key = (key: string, mods: Partial<Record<'altKey' | 'metaKey' | 'ctrlKey' | 'shiftKey', boolean>> = {}) => ({
   key,
@@ -68,5 +68,22 @@ describe('clipboardKey', () => {
     expect(clipboardKey(key('c', { altKey: true }), true)).toBeUndefined()
     expect(clipboardKey(key('C', { ctrlKey: true, metaKey: true, shiftKey: true }), true)).toBeUndefined()
     expect(clipboardKey(key('C', { ctrlKey: true, altKey: true, shiftKey: true }), true)).toBeUndefined()
+  })
+})
+
+describe('searchKey', () => {
+  it('Ctrl+Shift+F, Cmd+F and Cmd+Shift+F open search', () => {
+    expect(searchKey(key('F', { ctrlKey: true, shiftKey: true }))).toBe(true)
+    expect(searchKey(key('f', { metaKey: true }))).toBe(true)
+    expect(searchKey(key('F', { metaKey: true, shiftKey: true }))).toBe(true)
+  })
+
+  it("plain Ctrl+F stays readline's forward-char; other keys don't match", () => {
+    expect(searchKey(key('f', { ctrlKey: true }))).toBe(false)
+    expect(searchKey(key('f'))).toBe(false)
+    expect(searchKey(key('F', { shiftKey: true }))).toBe(false)
+    expect(searchKey(key('f', { altKey: true, metaKey: true }))).toBe(false)
+    expect(searchKey(key('F', { ctrlKey: true, metaKey: true, shiftKey: true }))).toBe(false)
+    expect(searchKey(key('g', { ctrlKey: true, shiftKey: true }))).toBe(false)
   })
 })

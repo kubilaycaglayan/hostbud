@@ -44,3 +44,12 @@ export function clipboardKey(ev: Keys, hasSelection: boolean): ClipboardAction |
   if (k === 'v') return 'paste'
   return ev.shiftKey || hasSelection ? 'copy' : undefined
 }
+
+/**
+ * Opens terminal search: Ctrl+Shift+F, Cmd+F and Cmd+Shift+F. Plain Ctrl+F
+ * stays readline's forward-char.
+ */
+export function searchKey(ev: Keys): boolean {
+  if (ev.altKey || ev.ctrlKey === ev.metaKey || ev.key.toLowerCase() !== 'f') return false
+  return ev.metaKey || ev.shiftKey
+}
