@@ -126,7 +126,7 @@ Projects remain `desktop-chromium` and `iphone-13-pro` against the throwaway tar
 - [x] **(T1) Filesystem API access control:** auth and Origin enforcement through Caddy; unauthorized requests do not initiate SFTP.
 - [x] **(T3) Project API access control and events:** auth and Origin enforcement through Caddy; successful create is returned by the API and published to the event stream.
 - [x] **(T1) SFTP unavailable recovery:** failure is actionable and browsing works after target recovery.
-- [ ] **(T4) Path autocomplete and invalid paths:** choose an autocomplete result, submit an existing typed path, and recover from missing/non-directory paths (desktop and phone).
+- [x] **(T4) Path autocomplete and invalid paths:** choose an autocomplete result, submit an existing typed path, and recover from missing/non-directory paths (desktop and phone).
 - [ ] **(T4) Hidden toggle and lazy symlink status in the browser:** hidden entries appear only when requested, and checking a symlink lazily shows its broken/resolved/loop status (desktop).
 - [ ] **(T4) Create folder:** create a nested folder, see it in the listing, reject invalid names (desktop and phone).
 - [ ] **(T4) Open as project and persist:** create from a chosen folder, observe its tree entry; reload and app restart retain it (desktop and phone).
