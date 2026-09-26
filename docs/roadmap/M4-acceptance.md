@@ -53,7 +53,7 @@ Each criterion names **U** (unit), **I** (integration against `test/sshd`, Postg
   - U: T2 repository link upsert, rename and stale-link rules; T3 placement precedence.
   - I: T2 PostgreSQL constraints/updates and T3 create, rename, end/recreate with same name against `test/sshd`.
   - E: T5 *Linked session rename and cleanup* (desktop).
-- [ ] Unmatched live sessions appear under “Other sessions”. “Save as project” for such a session persists its `session_path` as a project and moves the session under it without changing or restarting the tmux session.
+- [x] Unmatched live sessions appear under “Other sessions”. “Save as project” for such a session persists its `session_path` as a project and moves the session under it without changing or restarting the tmux session.
   - U: T3 unmatched grouping and save action state; assert it calls project creation only.
   - I: T3 PostgreSQL project insert and session cache remains unchanged; target `#{session_id}` and `#{session_path}` are unchanged.
   - E: T5 *Other sessions and Save as project* (desktop and iPhone 13 Pro).
@@ -129,7 +129,7 @@ Projects remain `desktop-chromium` and `iphone-13-pro` against the throwaway tar
 - [ ] **(T4) New session here:** create from a project, verify exact `session_path`, type into it and see it grouped under its project (desktop and phone).
 - [x] **(T5) Longest-prefix project mapping:** sessions at nested, sibling-prefix and unrelated paths land in the correct project or Other sessions (desktop).
 - [x] **(T5) Linked session rename and cleanup:** project-created session link follows UI rename and is removed/invalidated after session end (desktop).
-- [ ] **(T5) Other sessions and Save as project:** unmatched session is grouped separately; save it, see it move under a project, and verify tmux session id is unchanged (desktop and phone).
+- [x] **(T5) Other sessions and Save as project:** unmatched session is grouped separately; save it, see it move under a project, and verify tmux session id is unchanged (desktop and phone).
 - [ ] **(T5) Distinct project tree entries:** nested paths and similar names remain separate, deterministic entries (desktop).
 - [ ] **(T5) Left bar custom order:** reorder projects and sessions, add new rows, and verify existing custom order persists through reload and restart (desktop and phone).
 - [ ] **(T5) Left bar session actions:** the ×, ⋯ and pencil sit directly to the right of the title; rename works; × prompts before kill (desktop and phone).

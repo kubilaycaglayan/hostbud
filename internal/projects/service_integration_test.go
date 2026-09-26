@@ -63,7 +63,7 @@ func TestIntegrationProjectSessionPlacementRenameEndAndRecreate(t *testing.T) {
 	go func() { inv.Run(inventCtx); close(inventDone) }()
 	t.Cleanup(func() {
 		_, _ = client.Exec(context.Background(), sshx.HostMachineID, "tmux", "kill-server")
-		_, _ = client.Exec(context.Background(), sshx.HostMachineID, "rm", "-rf", "/home/dev/projects-it")
+		_, _ = client.Exec(context.Background(), sshx.HostMachineID, "rm", "-rf", "/home/dev/projects-it", "/home/dev/projects-it-unrelated")
 		stopInventory()
 		<-inventDone
 	})
@@ -178,6 +178,48 @@ func TestIntegrationProjectSessionPlacementRenameEndAndRecreate(t *testing.T) {
 			t.Errorf("persisted project placement for %s = %+v, %v; want %s", tc.name, got, err, tc.wantProject)
 		}
 	}
+
+	// Saving an unmatched session as a project only adds metadata; its tmux
+	// identity and the inventory's live-session record must remain untouched.
+	const savedSessionName = "save-as-project-it"
+	const savedSessionPath = "/home/dev/projects-it-recreated"
+	if _, err := client.Exec(ctx, sshx.HostMachineID, "mkdir", "-p", savedSessionPath); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sessions.Create(ctx, session.Spec{Machine: sshx.HostMachineID, Name: savedSessionName, Path: savedSessionPath}); err != nil {
+		t.Fatal(err)
+	}
+	if err := inv.Refresh(ctx); err != nil {
+		t.Fatal(err)
+	}
+	_, beforeSessions := inv.Snapshot()
+	var beforeSavedSession string
+	for _, live := range beforeSessions {
+		if live.Name == savedSessionName {
+			beforeSavedSession = live.ID + ":" + live.Path
+		}
+	}
+	if beforeSavedSession == "" {
+		t.Fatalf("unmatched session %q missing from inventory: %+v", savedSessionName, beforeSessions)
+	}
+	savedProject, err := projectService.Create(ctx, sshx.HostMachineID, savedSessionPath, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, afterSessions := inv.Snapshot()
+	var afterSavedSession string
+	for _, live := range afterSessions {
+		if live.Name == savedSessionName {
+			afterSavedSession = live.ID + ":" + live.Path
+		}
+	}
+	if afterSavedSession != beforeSavedSession {
+		t.Fatalf("save as project changed live session from %q to %q", beforeSavedSession, afterSavedSession)
+	}
+	savedPlacement, err := projectService.Place(ctx, sshx.HostMachineID, savedSessionName, savedSessionPath)
+	if err != nil || !savedPlacement.Matched || savedPlacement.ProjectID != savedProject.ID {
+		t.Fatalf("saved session placement = %+v, %v", savedPlacement, err)
+	}
 	// A raw string-prefix implementation would incorrectly choose /app for
 	// this sibling path; the component boundary must select /application.
 	got, err := projectService.Place(ctx, sshx.HostMachineID, "prefix-sibling", "/home/dev/projects-it/application")
@@ -209,16 +251,16 @@ func TestIntegrationProjectSessionPlacementRenameEndAndRecreate(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 
-	if _, err := client.Exec(ctx, sshx.HostMachineID, "mkdir", "-p", "/home/dev/projects-it-recreated"); err != nil {
+	if _, err := client.Exec(ctx, sshx.HostMachineID, "mkdir", "-p", "/home/dev/projects-it-unrelated"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := sessions.Create(ctx, session.Spec{Machine: sshx.HostMachineID, Name: "project-it", Path: "/home/dev/projects-it-recreated"}); err != nil {
+	if _, err := sessions.Create(ctx, session.Spec{Machine: sshx.HostMachineID, Name: "project-it", Path: "/home/dev/projects-it-unrelated"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := repo.SessionLink(ctx, sshx.HostMachineID, "project-it"); !errors.Is(err, store.ErrNotFound) {
 		t.Fatalf("unrelated reused session name inherited old link: %v", err)
 	}
-	placement, err = projectService.Place(ctx, sshx.HostMachineID, "project-it", "/home/dev/projects-it-recreated")
+	placement, err = projectService.Place(ctx, sshx.HostMachineID, "project-it", "/home/dev/projects-it-unrelated")
 	if err != nil || placement.Matched {
 		t.Fatalf("recreated unrelated session placement = %+v, %v", placement, err)
 	}
