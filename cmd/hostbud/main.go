@@ -130,7 +130,7 @@ func run() error {
 			Bus:            bus,
 			Machines:       []api.Snapshotter{inv},
 			Sessions:       sessions,
-			Terminal:       &term.Handler{SSH: ssh, Log: log},
+			Terminal:       &term.Handler{SSH: ssh, Log: log, Shutdown: ctx.Done()},
 			Auth:           accounts,
 			TrustedProxies: proxies,
 		}),

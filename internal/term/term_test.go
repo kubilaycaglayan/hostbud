@@ -265,3 +265,18 @@ func TestBadRequests(t *testing.T) {
 		}
 	}
 }
+
+func TestShutdownClosesWithGoingAway(t *testing.T) {
+	proc := newFake()
+	shutdown := make(chan struct{})
+	h, url, _ := serve(t, proc)
+	h.Shutdown = shutdown
+	c := dial(t, url+"?machine=host&session=s1")
+	eventually(t, "attached", func() bool { return h.Active() == 1 })
+	close(shutdown)
+	_, _, err := c.Read(context.Background())
+	if websocket.CloseStatus(err) != websocket.StatusGoingAway {
+		t.Fatalf("close status: %v", err)
+	}
+	eventually(t, "process killed", func() bool { _, _, killed := proc.snapshot(); return killed })
+}

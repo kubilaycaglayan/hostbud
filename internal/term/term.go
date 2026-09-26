@@ -39,6 +39,9 @@ type Handler struct {
 	SSH   SSH
 	Log   *slog.Logger
 	Start Starter // default StartPTY
+	// Shutdown, when closed, ends every open terminal with "going away"
+	// (a disconnect the client reconnects from), before ssh is torn down.
+	Shutdown <-chan struct{}
 
 	active atomic.Int64
 }
@@ -172,6 +175,9 @@ loop:
 			break loop
 		case <-stalled:
 			_ = c.Close(websocket.StatusPolicyViolation, "client too slow; reconnect")
+			break loop
+		case <-h.Shutdown:
+			_ = c.Close(websocket.StatusGoingAway, "hostbud is restarting; reconnect")
 			break loop
 		case b, ok := <-out:
 			if !ok {
