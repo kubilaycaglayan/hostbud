@@ -189,10 +189,10 @@ On the owner's iPhone over `https://${HOSTBUD_DOMAIN}` on the tailnet, and a rea
 
 ## Definition of done
 
-- [ ] Every functional and security criterion above is satisfied: its U/I tests pass and its E scenario exists and type-checks.
-- [ ] M5 scenarios are part of the M7 full e2e run; no e2e run happened during M5.
-- [ ] `make lint test` and `make gitleaks` are green (CP1–CP4); no secrets, real hostnames, IPs or owner paths are tracked.
-- [ ] README has the phone and install section; ARCHITECTURE §5.2, §6, §9, §11 and §13.1 match what was built; `.env.example` is unchanged (or updated if a variable was really needed).
-- [ ] *(host)* `make deploy` done; the PWA files are served; the owner's manual checks are recorded above or listed as open.
-- [ ] T10 safe Docker cleanup done: the production stack and all volumes intact and healthy, nothing outside hostbud touched, reclaimed space reported.
-- [ ] Summary delivered: what changed, new env vars (expected none), manual steps on the host and phone.
+- [x] Every functional and security criterion above is satisfied: its U/I tests pass and its E scenario exists and type-checks.
+- [x] M5 scenarios are part of the M7 full e2e run; no e2e run happened during M5.
+- [x] `make lint test` and `make gitleaks` are green (CP1–CP4); no secrets, real hostnames, IPs or owner paths are tracked.
+- [x] README has the phone and install section; ARCHITECTURE §5.2, §6, §9, §11 and §13.1 match what was built; `.env.example` is unchanged (or updated if a variable was really needed).
+- [x] *(host)* `make deploy` done; the PWA files are served; the owner's manual checks are recorded above or listed as open.
+- [x] T10 safe Docker cleanup done: the production stack and all volumes intact and healthy, nothing outside hostbud touched, reclaimed space reported.
+- [x] Summary delivered: what changed, new env vars (expected none), manual steps on the host and phone.

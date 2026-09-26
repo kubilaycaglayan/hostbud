@@ -18,7 +18,7 @@ Update this table in the same commit that finishes a task.
 | T6 Unreachable state | Done |
 | T7 Web app manifest, icons and safe areas | Done |
 | T8 Service worker | Done |
-| T9 Docs, audit and release | Not started |
+| T9 Docs, audit and release | Done |
 | T10 Safe Docker cleanup | Not started |
 
 ## Rules for this milestone
@@ -37,7 +37,7 @@ Update this table in the same commit that finishes a task.
 | CP1 | T1 + T2 + T3 (copy-mode API, compact layout, touch targets) | `make lint test` | Pass |
 | CP2 | T4 + T5 (key bar, scroll mode) | `make lint test` | Pass |
 | CP3 | T6 + T7 + T8 (unreachable state, manifest, service worker) | `make lint test`, plus `make build` so `check-dist` sees the real PWA output | Pass |
-| CP4 | T9 (audit) | `make lint test`, `make gitleaks`, e2e `tsc` | Not run |
+| CP4 | T9 (audit) | `make lint test`, `make gitleaks`, e2e `tsc` | Pass |
 
 **What e2e can and can't reach.**
 - Phones are Playwright's `iPhone 13 Pro` device (WebKit on Linux, 390×844, `hasTouch`, `isMobile`), on `http://localhost:9055` (`iphone-13-pro`) and on `https://hostbud.example.test` (`iphone-13-pro-domain`). The on-screen keyboard is simulated as M2 does it: text arrives through `page.keyboard.insertText` (text input without key events), and taps use `locator.tap()`. The real iOS keyboard, its autocorrect bar and real gestures stay manual checks (T9).
