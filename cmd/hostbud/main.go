@@ -18,6 +18,7 @@ import (
 	"hostbud/internal/auth"
 	"hostbud/internal/config"
 	"hostbud/internal/events"
+	"hostbud/internal/fsbrowse"
 	"hostbud/internal/inventory"
 	"hostbud/internal/session"
 	"hostbud/internal/sshx"
@@ -88,6 +89,8 @@ func run() error {
 		defer cancel()
 		_ = ssh.Close(ctx)
 	}()
+	filesystem := fsbrowse.New(ssh, store.HostMachineID, fsbrowse.DefaultIdleTimeout, fsbrowse.DefaultOpTimeout)
+	defer func() { _ = filesystem.Close() }()
 
 	// Track the host's tmux sessions; every change goes out on the bus.
 	bus := events.NewBus()
@@ -130,6 +133,7 @@ func run() error {
 			Bus:            bus,
 			Machines:       []api.Snapshotter{inv},
 			Sessions:       sessions,
+			FileSystem:     filesystem,
 			Terminal:       &term.Handler{SSH: ssh, Log: log, Shutdown: ctx.Done()},
 			UIState:        st,
 			Auth:           accounts,

@@ -26,12 +26,13 @@ type Config struct {
 	Dist fs.FS // the built SPA (package web)
 	// Origins are the allowed Origin header values for WebSocket upgrades and
 	// state-changing requests (see AllowedOrigins).
-	Origins  []string
-	Bus      *events.Bus
-	Machines []Snapshotter // v1: the host only
-	Sessions SessionService
-	Terminal http.Handler // /ws/term (term.Handler)
-	UIState  UIStateStore // /api/ui-state/{key}
+	Origins    []string
+	Bus        *events.Bus
+	Machines   []Snapshotter // v1: the host only
+	Sessions   SessionService
+	FileSystem FileBrowser  // authenticated SFTP-backed filesystem service
+	Terminal   http.Handler // /ws/term (term.Handler)
+	UIState    UIStateStore // /api/ui-state/{key}
 	// Auth guards every /api and /ws route but health, register and login.
 	// Nil fails closed (those routes answer 401).
 	Auth           Authenticator
@@ -76,6 +77,12 @@ func New(cfg Config) http.Handler {
 	if cfg.UIState != nil {
 		mux.HandleFunc("GET /api/ui-state/{key}", s.getUIState)
 		mux.HandleFunc("PUT /api/ui-state/{key}", s.putUIState)
+	}
+	if cfg.FileSystem != nil {
+		mux.HandleFunc("GET /api/machines/{machine}/fs/home", s.fsHome)
+		mux.HandleFunc("GET /api/machines/{machine}/fs", s.fsList)
+		mux.HandleFunc("GET /api/machines/{machine}/fs/stat", s.fsStat)
+		mux.HandleFunc("POST /api/machines/{machine}/fs/mkdir", s.fsMkdir)
 	}
 	mux.Handle("GET /", spaHandler(cfg.Dist))
 	return checkOrigin(cfg.Origins, requireAuth(cfg.Auth, mux))

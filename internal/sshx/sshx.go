@@ -8,9 +8,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -79,6 +81,65 @@ func (c *Client) Args(machine string, sshOpts []string, args ...string) ([]strin
 
 // Binary is the ssh executable.
 func (c *Client) Binary() string { return c.cfg.SSHBinary }
+
+// OpenSFTP starts the system ssh binary's SFTP subsystem for machine. It uses
+// the generated config and the same ControlMaster as Exec, but never builds a
+// remote shell command. The returned stream owns the child process and should
+// be closed when the SFTP client is closed.
+func (c *Client) OpenSFTP(ctx context.Context, machine string) (io.ReadWriteCloser, error) {
+	alias, err := Alias(machine)
+	if err != nil {
+		return nil, err
+	}
+	childCtx, cancel := context.WithCancel(ctx)
+	cmd := exec.CommandContext(childCtx, c.cfg.SSHBinary, "-F", c.configPath, alias, "-s", "sftp") //nolint:gosec // fixed subsystem and generated alias
+	cmd.WaitDelay = time.Second
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("open ssh stdin: %w", err)
+	}
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("open ssh stdout: %w", err)
+	}
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Start(); err != nil {
+		cancel()
+		return nil, fmt.Errorf("start ssh SFTP subsystem: %w", err)
+	}
+	p := &subsystemPipe{stdin: stdin, stdout: stdout, cancel: cancel, done: make(chan struct{})}
+	go func() {
+		p.waitErr = cmd.Wait()
+		close(p.done)
+	}()
+	return p, nil
+}
+
+type subsystemPipe struct {
+	stdin     io.WriteCloser
+	stdout    io.ReadCloser
+	cancel    context.CancelFunc
+	done      chan struct{}
+	waitErr   error
+	closeOnce sync.Once
+}
+
+func (p *subsystemPipe) Read(b []byte) (int, error)  { return p.stdout.Read(b) }
+func (p *subsystemPipe) Write(b []byte) (int, error) { return p.stdin.Write(b) }
+func (p *subsystemPipe) Close() error {
+	var err error
+	p.closeOnce.Do(func() {
+		_ = p.stdin.Close()
+		p.cancel()
+		_ = p.stdout.Close()
+		<-p.done
+		err = p.waitErr
+	})
+	return err
+}
 
 // Exec runs args (each shell-quoted) on machine and returns stdout. It is
 // bounded by DefaultTimeout unless ctx has an earlier deadline; cancelling

@@ -13,11 +13,11 @@ Each criterion names **U** (unit), **I** (integration against `test/sshd`, Postg
 - [ ] The authenticated file browser opens at the target user's SFTP home directory, displays a breadcrumb and current path, and can navigate into and back out of directories. Paths containing spaces, quotes, Unicode and shell metacharacters remain literal paths.
   - U: T1 path normalization/validation and SFTP entry mapping; `sshx` arguments remain separated and safely quoted.
   - I: T1 against `test/sshd`: home, list, nested navigation and hostile-but-valid path names through the production SFTP client.
-  - E: T3 *Browse home and navigate* (desktop and iPhone 13 Pro).
+  - E: T1 *Browse home and navigate* API scenario through Caddy; T4 exercises the responsive browser UI (desktop and iPhone 13 Pro).
 - [ ] Directory listings show directories before files and are stable-sorted by name; hidden entries are omitted by default and appear when the hidden toggle is enabled. Symlink metadata is represented safely, and resolution is lazy with loops/errors surfaced as actionable row state.
   - U: T1 sorting, hidden filtering, file metadata and symlink policy cases.
   - I: T1 against `test/sshd`: visible/hidden files, directory ordering, valid symlink and broken symlink; no traversal outside the target filesystem is introduced by path handling.
-  - E: T3 *Hidden entries and symlinks* (desktop).
+  - E: T1 *Hidden entries and symlinks* API scenario through Caddy; T4 exercises the rendered row state (desktop).
 - [ ] Path input supports autocomplete from the current directory, keyboard selection/navigation and submitting a typed path. Invalid, missing and non-directory paths give actionable errors without losing the current browser location.
   - U: T4 autocomplete filtering, keyboard state and path input/error states.
   - I: T1 SFTP stat/list error mapping for missing path and non-directory path.
@@ -29,7 +29,7 @@ Each criterion names **U** (unit), **I** (integration against `test/sshd`, Postg
 - [ ] The browser supports listing, stat and mkdir only. There are no delete or remote rename controls or endpoints in M4.
   - U: T1 route/method table and service surface excludes destructive filesystem operations.
   - I: T1 unsupported methods return the standard not-found/method response and leave target contents unchanged.
-  - E: T3 *No destructive file actions* (API-level through Caddy; assert no delete/rename action is exposed).
+  - E: T1 *No destructive file actions* (API-level through Caddy; assert no delete/rename action is exposed).
 
 ## Projects and session placement
 
@@ -97,7 +97,7 @@ Each criterion names **U** (unit), **I** (integration against `test/sshd`, Postg
 - [ ] All new filesystem routes require an authenticated account and enforce the existing Origin allowlist for mkdir. Unauthenticated calls fail before remote SFTP work is opened.
   - U: T1 filesystem handler auth/Origin/method tests.
   - I: T1 route tests against the running app and `test/sshd`; unauthenticated calls do not open remote SFTP.
-  - E: T3 *Filesystem API access control* (API-level through Caddy): signed-out request gets 401; foreign-Origin mkdir gets 403; allowed Origin works.
+  - E: T1 *Filesystem API access control* (API-level through Caddy): signed-out request gets 401; foreign-Origin mkdir gets 403; allowed Origin works.
 - [ ] Project routes require authentication, state-changing requests enforce the existing Origin allowlist, and successful mutations publish typed events consumed by connected clients. `/ws/events` retains its existing auth and Origin checks.
   - U: T3 project handler auth/Origin/status and typed event tests.
   - I: T3 PostgreSQL-backed mutation and event publication test.
@@ -115,12 +115,12 @@ Each criterion names **U** (unit), **I** (integration against `test/sshd`, Postg
 
 Projects remain `desktop-chromium` and `iphone-13-pro` against the throwaway target only. Each scenario is tagged to the task that writes it. Scenarios must not access the real host's filesystem or tmux. While M4 is being built, only the e2e suite type-check runs; execution is reserved for M7's final full-suite run.
 
-- [ ] **(T3) Browse home and navigate:** open the browser, see the target home, enter nested folders and navigate back with breadcrumbs (desktop and phone).
-- [ ] **(T3) Hidden entries and symlinks:** hidden files toggle on/off; directories sort before files; symlink row state is stable and broken-link errors are recoverable (desktop).
-- [ ] **(T3) No destructive file actions:** browser UI has no delete/remote rename controls; API attempts cannot mutate or remove target entries.
-- [ ] **(T3) Filesystem API access control:** auth and Origin enforcement through Caddy; unauthorized requests do not initiate SFTP.
+- [ ] **(T1) Browse home and navigate:** authenticated API returns the target home and navigates nested paths containing spaces, quotes, Unicode and shell metacharacters through Caddy. T4 adds the desktop and phone UI navigation.
+- [ ] **(T1) Hidden entries and symlinks:** API hidden toggle and directory-first ordering work; symlinks remain unresolved in listings and explicit stat reports resolved, broken or looping state (desktop API).
+- [ ] **(T1) No destructive file actions:** API attempts cannot mutate or remove target entries; there is no delete or remote rename route.
+- [ ] **(T1) Filesystem API access control:** auth and Origin enforcement through Caddy; unauthorized requests do not initiate SFTP.
 - [ ] **(T3) Project API access control and events:** auth and Origin enforcement through Caddy; successful create is returned by the API and published to the event stream.
-- [ ] **(T3) SFTP unavailable recovery:** failure is actionable and browsing works after target recovery.
+- [ ] **(T1) SFTP unavailable recovery:** failure is actionable and browsing works after target recovery.
 - [ ] **(T4) Path autocomplete and invalid paths:** choose an autocomplete result, submit an existing typed path, and recover from missing/non-directory paths (desktop and phone).
 - [ ] **(T4) Create folder:** create a nested folder, see it in the listing, reject invalid names (desktop and phone).
 - [ ] **(T4) Open as project and persist:** create from a chosen folder, observe its tree entry; reload and app restart retain it (desktop and phone).

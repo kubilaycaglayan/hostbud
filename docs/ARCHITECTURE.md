@@ -198,10 +198,13 @@ A session belongs to the project whose `path` is the **longest prefix** of the s
 
 ## 7. File browser (`fsbrowse`)
 
-- SFTP via `github.com/pkg/sftp` over a pipe to `ssh -F cfg <alias> -s sftp` (reuses ControlMaster). Portable across Linux and macOS (no reliance on GNU `find -printf`) and safe with odd filenames.
-- Operations: `home` (Getwd), `list(path)` (dirs first, hidden toggle, symlinks resolved lazily), `stat`, `mkdir`. No delete/rename in v1.
+- SFTP uses `github.com/pkg/sftp` over a pipe to the system command `ssh -F /data/ssh/config hostbud-host -s sftp`; it reuses the generated SSH config, host-key pin and ControlMaster. Filesystem paths are sent as SFTP protocol paths and never enter a remote shell command.
+- The browser keeps one lazy SFTP client for the active host, closes it after one minute idle, and bounds each operation to ten seconds. Request cancellation interrupts SFTP startup or closes its SSH subsystem stream to stop an in-flight operation. App shutdown also closes the client and child process.
+- Paths use target POSIX rules: empty, `~`, and relative paths resolve from SFTP home; all results are cleaned absolute paths. Paths are limited to 4096 bytes. Listings are limited to 2000 entries and sort directories before other entries, then names in stable byte order; dot entries are omitted unless `hidden=true`.
+- Listing uses `Lstat` metadata and does not follow symlinks. Explicit `stat` reports whether a symlink target resolved, is broken, loops, or is unreadable. Creating a folder accepts one child name (1–255 bytes), rejects empty, dot, dot-dot, slash and NUL names, and has no matching delete or remote-rename operation.
+- API responses: home is `{path}`; a listing is `{path, entries}` (`name`, absolute `path`, `kind`, `size`, UTC `modifiedAt`, and optional `symlinkState`); stat returns one entry plus `symlink`; mkdir returns `{path}` with 201. Filesystem errors use the standard `{error,hint}` shape and do not include target paths in info logs.
+- API routes are authenticated: `GET /api/machines/:id/fs/home`, `GET /api/machines/:id/fs?path=&hidden=`, `GET /api/machines/:id/fs/stat?path=`, and Origin-checked `POST /api/machines/:id/fs/mkdir` with `{path,name}`. Unknown machine IDs return 404; unsupported methods and delete/rename routes do not mutate the target.
 - UI: breadcrumb + path input with autocomplete, keyboard navigation, favorites = projects, recents per machine. Actions: **Create folder**, **Open as project**, **New session here**.
-- Keep one SFTP client per active machine (lazy, idle-timeout close).
 
 ---
 

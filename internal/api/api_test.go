@@ -8,7 +8,9 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -20,6 +22,7 @@ import (
 
 	"hostbud/internal/auth"
 	"hostbud/internal/events"
+	"hostbud/internal/fsbrowse"
 	"hostbud/internal/inventory"
 	"hostbud/internal/session"
 	"hostbud/internal/store"
@@ -125,15 +128,38 @@ type env struct {
 	bus *events.Bus
 	m   *fakeMachine
 	ui  *fakeUIState
+	fs  *fakeFileBrowser
+}
+
+type fakeFileBrowser struct {
+	calls []string
+	err   error
+}
+
+func (f *fakeFileBrowser) Home(context.Context) (string, error) {
+	f.calls = append(f.calls, "home")
+	return "/home/dev", f.err
+}
+func (f *fakeFileBrowser) List(_ context.Context, p string, hidden bool) (string, []fsbrowse.Entry, error) {
+	f.calls = append(f.calls, "list "+p+" "+strconv.FormatBool(hidden))
+	return p, []fsbrowse.Entry{{Name: "docs", Path: p + "/docs", Kind: "directory"}}, f.err
+}
+func (f *fakeFileBrowser) Stat(_ context.Context, p string) (fsbrowse.StatResult, error) {
+	f.calls = append(f.calls, "stat "+p)
+	return fsbrowse.StatResult{Entry: fsbrowse.Entry{Name: "docs", Path: p, Kind: "directory"}}, f.err
+}
+func (f *fakeFileBrowser) Mkdir(_ context.Context, p, name string) (string, error) {
+	f.calls = append(f.calls, "mkdir "+p+" "+name)
+	return p + "/" + name, f.err
 }
 
 func newEnv(t *testing.T) *env {
 	t.Helper()
-	e := &env{svc: &fakeService{}, bus: events.NewBus(), m: host("a"), ui: &fakeUIState{}}
+	e := &env{svc: &fakeService{}, bus: events.NewBus(), m: host("a"), ui: &fakeUIState{}, fs: &fakeFileBrowser{}}
 	e.h = New(Config{
 		Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Dist: fstest.MapFS{},
 		Origins: AllowedOrigins("hostbud.example.com", 9055), Bus: e.bus,
-		Machines: []Snapshotter{e.m}, Sessions: e.svc, Auth: &fakeAuth{}, UIState: e.ui,
+		Machines: []Snapshotter{e.m}, Sessions: e.svc, Auth: &fakeAuth{}, UIState: e.ui, FileSystem: e.fs,
 	})
 	return e
 }
@@ -207,6 +233,101 @@ func TestEmptySessionListIsArray(t *testing.T) {
 	rec := e.do(t, http.MethodGet, "/api/machines/host/sessions", "", nil)
 	if strings.TrimSpace(rec.Body.String()) != `{"sessions":[]}` {
 		t.Fatalf("body %s", rec.Body)
+	}
+}
+
+func TestFilesystemAPI(t *testing.T) {
+	e := newEnv(t)
+	if rec := e.do(t, http.MethodGet, "/api/machines/host/fs/home", "", nil); rec.Code != http.StatusOK ||
+		decodeBody[map[string]string](t, rec)["path"] != "/home/dev" {
+		t.Fatalf("home: %d %s", rec.Code, rec.Body)
+	}
+	rec := e.do(t, http.MethodGet, "/api/machines/host/fs?path=~/docs%20one&hidden=true", "", nil)
+	listing := decodeBody[struct {
+		Path    string           `json:"path"`
+		Entries []fsbrowse.Entry `json:"entries"`
+	}](t, rec)
+	if rec.Code != http.StatusOK || listing.Path != "~/docs one" || len(listing.Entries) != 1 || listing.Entries[0].Name != "docs" {
+		t.Fatalf("list: %d %s", rec.Code, rec.Body)
+	}
+	rec = e.do(t, http.MethodGet, "/api/machines/host/fs/stat?path=%2Fhome%2Fdev%2Fdocs", "", nil)
+	if rec.Code != http.StatusOK || decodeBody[fsbrowse.StatResult](t, rec).Kind != "directory" {
+		t.Fatalf("stat: %d %s", rec.Code, rec.Body)
+	}
+	rec = e.do(t, http.MethodPost, "/api/machines/host/fs/mkdir", `{"path":"/home/dev","name":"new folder"}`, nil)
+	if rec.Code != http.StatusCreated || decodeBody[map[string]string](t, rec)["path"] != "/home/dev/new folder" {
+		t.Fatalf("mkdir: %d %s", rec.Code, rec.Body)
+	}
+	want := []string{"home", "list ~/docs one true", "stat /home/dev/docs", "mkdir /home/dev new folder"}
+	if !slices.Equal(e.fs.calls, want) {
+		t.Fatalf("filesystem calls = %q, want %q", e.fs.calls, want)
+	}
+}
+
+func TestFilesystemAPIAccessControlAndValidation(t *testing.T) {
+	e := newEnv(t)
+	unauth := e.do(t, http.MethodGet, "/api/machines/host/fs/home", "", map[string]string{"Cookie": ""})
+	if unauth.Code != http.StatusUnauthorized || len(e.fs.calls) != 0 {
+		t.Fatalf("unauthenticated call: %d %q", unauth.Code, e.fs.calls)
+	}
+	foreign := e.do(t, http.MethodPost, "/api/machines/host/fs/mkdir", `{"path":"/home/dev","name":"new"}`, map[string]string{"Origin": "http://evil.example.com"})
+	if foreign.Code != http.StatusForbidden || len(e.fs.calls) != 0 {
+		t.Fatalf("foreign origin: %d %q", foreign.Code, e.fs.calls)
+	}
+	for _, path := range []string{
+		"/api/machines/server-a/fs/home",
+		"/api/machines/host/fs?path=%00",
+		"/api/machines/host/fs?hidden=perhaps",
+		"/api/machines/host/fs?hidden=1",
+		"/api/machines/host/fs?path=%2Fhome%2Fdev&unknown=1",
+		"/api/machines/host/fs?path=%2Fone&path=%2Ftwo",
+		"/api/machines/host/fs/stat",
+		"/api/machines/host/fs/home?unknown=1",
+		"/api/machines/host/fs?path=" + strings.Repeat("a", fsbrowse.MaxPathBytes+1),
+	} {
+		rec := e.do(t, http.MethodGet, path, "", nil)
+		if rec.Code != http.StatusBadRequest && rec.Code != http.StatusNotFound {
+			t.Errorf("GET %s = %d, body %s", path, rec.Code, rec.Body)
+		}
+	}
+	for _, req := range []struct{ method, path string }{
+		{http.MethodDelete, "/api/machines/host/fs?path=%2Fhome%2Fdev"},
+		{http.MethodPatch, "/api/machines/host/fs?path=%2Fhome%2Fdev"},
+	} {
+		if rec := e.do(t, req.method, req.path, "", nil); rec.Code != http.StatusMethodNotAllowed {
+			t.Errorf("%s %s = %d, want 405", req.method, req.path, rec.Code)
+		}
+	}
+	if rec := e.do(t, http.MethodGet, "/api/machines/host/fs/mkdir", "", nil); rec.Code != http.StatusNotFound {
+		t.Errorf("GET mkdir endpoint = %d, want 404", rec.Code)
+	}
+	for _, body := range []string{`{"name":"missing-path"}`, `{"path":"/home/dev","name":"x","extra":true}`} {
+		if rec := e.do(t, http.MethodPost, "/api/machines/host/fs/mkdir", body, nil); rec.Code != http.StatusBadRequest {
+			t.Errorf("POST mkdir body %s = %d", body, rec.Code)
+		}
+	}
+	if len(e.fs.calls) != 0 {
+		t.Fatalf("invalid, unknown or unsupported request reached SFTP: %q", e.fs.calls)
+	}
+}
+
+func TestFilesystemErrorsAreActionable(t *testing.T) {
+	for _, tt := range []struct {
+		err    error
+		status int
+	}{{fsbrowse.ErrInvalidName, http.StatusBadRequest},
+		{fsbrowse.ErrAlreadyExists, http.StatusConflict},
+		{fsbrowse.ErrTooManyEntries, http.StatusRequestEntityTooLarge},
+		{fsbrowse.ErrNotDirectory, http.StatusBadRequest},
+		{os.ErrNotExist, http.StatusNotFound},
+		{context.DeadlineExceeded, http.StatusGatewayTimeout}} {
+		e := newEnv(t)
+		e.fs.err = tt.err
+		rec := e.do(t, http.MethodPost, "/api/machines/host/fs/mkdir", `{"path":"/home/dev","name":"folder"}`, nil)
+		body := decodeBody[errorBody](t, rec)
+		if rec.Code != tt.status || body.Error == "" || body.Hint == "" {
+			t.Fatalf("error response: %d %s", rec.Code, rec.Body)
+		}
 	}
 }
 

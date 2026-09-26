@@ -10,7 +10,7 @@ Update this table in the same commit that finishes a task.
 
 | Task | Status |
 |---|---|
-| T1 SFTP service and API | Planned |
+| T1 SFTP service and API | Done |
 | T2 Project and recent-command persistence | Planned |
 | T3 Project API, events and session placement service | Planned |
 | T4 File browser and project actions | Planned |
@@ -30,7 +30,7 @@ Tasks proceed in order. Before implementation, re-check M3's acceptance gates an
 
 **Tests:** U (Go): path normalization and hostile-but-valid names, containment, sort order, hidden filtering, symlink handling, cancellation and error mapping; API auth/Origin/validation/method tests. I (`test/sshd`): home/list/stat/mkdir with spaces, Unicode, hidden file, symlink and missing paths; timeout/disconnect cleanup; unauthorized calls do not open remote SFTP.
 
-**E2E:** add **(T3) Browse home and navigate**, **Hidden entries and symlinks**, **No destructive file actions**, **Filesystem API access control**, and **SFTP unavailable recovery** in [M4-acceptance.md](M4-acceptance.md#e2e-scenarios-make-e2e-simulated-user); type-check only, do not run.
+**E2E:** add API-level **(T1) Browse home and navigate**, **Hidden entries and symlinks**, **No destructive file actions**, **Filesystem API access control**, and **SFTP unavailable recovery** in [M4-acceptance.md](M4-acceptance.md#e2e-scenarios-make-e2e-simulated-user); type-check only, do not run.
 
 **Done:** SFTP API works against `test/sshd`, is authenticated/Origin checked, creates only child directories, and the e2e scenarios compile.
 
