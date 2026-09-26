@@ -24,6 +24,8 @@ const sessionProject = ref<Project | null>(null)
 const selectedProject = ref<Project | null>(null)
 const sessionName = ref('')
 const command = ref('')
+const recentCommands = ref<string[]>([])
+const recentCommandsError = ref('')
 const suggestions = computed(() => {
   const query = pathInput.value.trim()
   if (!query || query === path.value) return []
@@ -52,12 +54,12 @@ async function initialize() {
     await projectStore.load(props.machine)
     useTreeStore().sync()
     const requested = projectStore.items.find((item) => item.id === props.startProjectId)
-    if (requested) sessionProject.value = requested
+    if (requested) void beginSession(requested)
   } catch (e) { error.value = describeError(e) }
 }
 watch(() => props.startProjectId, (id) => {
   const requested = projectStore.items.find((item) => item.id === id)
-  if (requested) sessionProject.value = requested
+  if (requested) void beginSession(requested)
 })
 watch(hidden, () => { if (path.value) void navigate(path.value) })
 onMounted(() => { void initialize() })
@@ -70,6 +72,20 @@ async function createFolder() {
   try { await filesystemApi.mkdir(props.machine, path.value, name); folderName.value = ''; await navigate(path.value) }
   catch (e) { folderError.value = describeError(e).message }
   finally { busy.value = false }
+}
+
+async function beginSession(project: Project) {
+  sessionProject.value = project
+  sessionName.value = ''
+  command.value = ''
+  recentCommands.value = []
+  recentCommandsError.value = ''
+  try {
+    const result = await projectsApi.recentCommands(project.id)
+    if (sessionProject.value?.id === project.id) recentCommands.value = result.commands
+  } catch (e) {
+    if (sessionProject.value?.id === project.id) recentCommandsError.value = describeError(e).message
+  }
 }
 
 async function openProject(entry: FileEntry) {
@@ -90,8 +106,10 @@ async function createSession() {
   busy.value = true
   error.value = null
   try {
-    const result = await projectsApi.createSession(sessionProject.value.id, { name: sessionName.value.trim() || undefined, startCommand: command.value.trim() || undefined })
+    const startCommand = command.value.trim() ? command.value : undefined
+    const result = await projectsApi.createSession(sessionProject.value.id, { name: sessionName.value.trim() || undefined, startCommand })
     sessionProject.value = null
+    recentCommands.value = []
     emit('created', result.name)
   } catch (e) { error.value = describeError(e) }
   finally { busy.value = false }
@@ -256,7 +274,7 @@ async function createSession() {
       <button
         type="button"
         class="min-h-11 rounded bg-accent px-3 font-bold text-bg"
-        @click="sessionProject = selectedProject"
+        @click="beginSession(selectedProject)"
       >
         New session here
       </button>
@@ -283,6 +301,36 @@ async function createSession() {
           v-model="command"
           class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3"
         ></label>
+        <p
+          v-if="recentCommandsError"
+          role="status"
+          class="mt-1 text-sm text-muted"
+        >
+          Recent commands couldn't be loaded: {{ recentCommandsError }}
+        </p>
+        <div
+          v-if="recentCommands.length"
+          class="mt-2"
+        >
+          <p class="text-sm text-muted">
+            Recent commands for this project
+          </p>
+          <ul class="mt-1 max-h-32 overflow-y-auto rounded border border-border">
+            <li
+              v-for="recent in recentCommands"
+              :key="recent"
+            >
+              <button
+                type="button"
+                class="min-h-11 w-full truncate px-2 text-left text-sm hover:bg-bg"
+                :aria-label="`Use recent command ${recent}`"
+                @click="command = recent"
+              >
+                {{ recent }}
+              </button>
+            </li>
+          </ul>
+        </div>
         <p class="mt-2 text-sm text-muted">
           Directory: {{ sessionProject.path }}
         </p>

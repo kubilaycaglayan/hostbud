@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"slices"
 	"testing"
 	"testing/fstest"
 
@@ -23,12 +24,17 @@ type fakeProjects struct {
 	path        string
 	name        string
 	sessionSpec session.Spec
+	recent      []store.RecentCommand
 }
 
 func (f *fakeProjects) List(_ context.Context, machineID string) ([]store.Project, error) {
 	f.calls = append(f.calls, "list")
 	f.machineID = machineID
 	return f.items, f.err
+}
+func (f *fakeProjects) RecentCommands(_ context.Context, id string) ([]store.RecentCommand, error) {
+	f.calls = append(f.calls, "recent "+id)
+	return f.recent, f.err
 }
 func (f *fakeProjects) Get(_ context.Context, id string) (store.Project, error) {
 	f.calls = append(f.calls, "get "+id)
@@ -70,6 +76,13 @@ func TestProjectAPICreateListRenameAndValidation(t *testing.T) {
 	if rec := e.do(t, http.MethodGet, "/api/projects/project-a", "", nil); rec.Code != http.StatusOK {
 		t.Fatalf("get = %d %s", rec.Code, rec.Body)
 	}
+	f.recent = []store.RecentCommand{{ProjectID: "project-a", Command: "make test"}, {ProjectID: "project-a", Command: "go test ./..."}}
+	recent := e.do(t, http.MethodGet, "/api/projects/project-a/recent-commands", "", nil)
+	if recent.Code != http.StatusOK || !slices.Equal(decodeBody[struct {
+		Commands []string `json:"commands"`
+	}](t, recent).Commands, []string{"make test", "go test ./..."}) {
+		t.Fatalf("recent commands = %d %s", recent.Code, recent.Body)
+	}
 	if rec := e.do(t, http.MethodPatch, "/api/projects/project-a", `{"name":"renamed"}`, nil); rec.Code != http.StatusOK || f.name != "renamed" {
 		t.Fatalf("rename = %d %s", rec.Code, rec.Body)
 	}
@@ -110,6 +123,9 @@ func TestProjectAPIAuthOriginAndErrors(t *testing.T) {
 		Machines: []Snapshotter{e.m}, Auth: &fakeAuth{}, Projects: f})
 	if rec := e.do(t, http.MethodGet, "/api/projects", "", map[string]string{"Cookie": ""}); rec.Code != http.StatusUnauthorized {
 		t.Fatalf("anonymous list = %d", rec.Code)
+	}
+	if rec := e.do(t, http.MethodGet, "/api/projects/project-a/recent-commands", "", map[string]string{"Cookie": ""}); rec.Code != http.StatusUnauthorized {
+		t.Fatalf("anonymous recent commands = %d", rec.Code)
 	}
 	if rec := e.do(t, http.MethodPost, "/api/projects", `{"path":"/home/dev/app"}`,
 		map[string]string{"Origin": "https://evil.example.com"}); rec.Code != http.StatusForbidden {

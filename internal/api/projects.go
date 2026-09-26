@@ -16,10 +16,24 @@ import (
 // ProjectService is the authenticated API's project service surface.
 type ProjectService interface {
 	List(context.Context, string) ([]store.Project, error)
+	RecentCommands(context.Context, string) ([]store.RecentCommand, error)
 	Get(context.Context, string) (store.Project, error)
 	Create(context.Context, string, string, string) (store.Project, error)
 	Rename(context.Context, string, string) (store.Project, error)
 	CreateSession(context.Context, string, session.Spec) (string, error)
+}
+
+func (s *server) listRecentCommands(w http.ResponseWriter, r *http.Request) {
+	items, err := s.cfg.Projects.RecentCommands(r.Context(), r.PathValue("id"))
+	if err != nil {
+		s.projectError(w, err)
+		return
+	}
+	commands := make([]string, 0, len(items))
+	for _, item := range items {
+		commands = append(commands, item.Command)
+	}
+	writeJSON(w, http.StatusOK, map[string][]string{"commands": commands})
 }
 
 type createProjectRequest struct {
@@ -53,6 +67,10 @@ func (s *server) createProjectSession(w http.ResponseWriter, r *http.Request) {
 		var sessionErr *session.Error
 		if errors.As(err, &sessionErr) {
 			s.writeSessionError(w, err)
+			return
+		}
+		if errors.Is(err, projects.ErrInvalidInput) {
+			writeError(w, http.StatusBadRequest, "invalid start command", "Use a non-empty command up to 4096 bytes, or leave it blank.")
 			return
 		}
 		s.projectError(w, err)

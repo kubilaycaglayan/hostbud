@@ -104,13 +104,31 @@ func TestIntegrationProjectSessionPlacementRenameEndAndRecreate(t *testing.T) {
 			t.Fatal("project mutation was not published")
 		}
 	}
-	name, err := projectService.CreateSession(ctx, p.ID, session.Spec{Name: "project-it", StartCommand: "sleep 300"})
+	startCommand := `printf '%s\n' 'literal; printf injected'; sleep 300`
+	name, err := projectService.CreateSession(ctx, p.ID, session.Spec{Name: "project-it", StartCommand: startCommand})
 	if err != nil || name != "project-it" {
 		t.Fatalf("project session = %q, %v", name, err)
 	}
 	pathOutput, err := client.Exec(ctx, sshx.HostMachineID, "tmux", "display-message", "-p", "-t", "=project-it:", "#{session_path}")
 	if err != nil || strings.TrimSpace(string(pathOutput)) != p.Path {
 		t.Fatalf("created session path = %q, %v; want %q", strings.TrimSpace(string(pathOutput)), err, p.Path)
+	}
+	commandOutput, err := client.Exec(ctx, sshx.HostMachineID, "tmux", "display-message", "-p", "-t", "=project-it:", "#{pane_current_command}")
+	if err != nil || strings.TrimSpace(string(commandOutput)) != "sleep" {
+		t.Fatalf("project session command = %q, %v; want sleep", strings.TrimSpace(string(commandOutput)), err)
+	}
+	captured, err := client.Exec(ctx, sshx.HostMachineID, "tmux", "capture-pane", "-p", "-J", "-t", "=project-it:")
+	if err != nil || !strings.Contains(string(captured), "literal; printf injected") {
+		t.Fatalf("project command output = %q, %v", strings.TrimSpace(string(captured)), err)
+	}
+	for _, line := range strings.Split(string(captured), "\n") {
+		if strings.TrimSpace(line) == "injected" {
+			t.Fatalf("command separator escaped its quoted argument: %q", string(captured))
+		}
+	}
+	recentCommands, err := repo.RecentCommands(ctx, p.ID)
+	if err != nil || len(recentCommands) != 1 || recentCommands[0].Command != startCommand {
+		t.Fatalf("project recent commands = %+v, %v", recentCommands, err)
 	}
 	placement, err := projectService.Place(ctx, sshx.HostMachineID, name, p.Path)
 	if err != nil || !placement.Matched || placement.ProjectID != p.ID {

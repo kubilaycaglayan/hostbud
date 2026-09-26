@@ -18,6 +18,7 @@ describe('FileBrowser', () => {
       else if (parsed.pathname.endsWith('/fs/mkdir')) body = { path: '/home/dev/new-folder' }
       else if (parsed.pathname === '/api/projects' && init?.method === 'POST') body = { id: 'p1', machineId: 'host', path: '/home/dev/work', name: 'work' }
       else if (parsed.pathname === '/api/projects' && init?.method === 'GET') body = { projects: [] }
+      else if (parsed.pathname === '/api/projects/p1/recent-commands') body = { commands: ['make test'] }
       else if (parsed.pathname.endsWith('/sessions')) body = { name: 'work' }
       return { ok: true, status: 200, headers: new Headers(), text: async () => JSON.stringify(body) }
     })
@@ -51,9 +52,16 @@ describe('FileBrowser', () => {
     await wrapper.findAll('button').find((button) => button.text().includes('Open as project'))?.trigger('click')
     await flushPromises()
     await wrapper.findAll('button').find((button) => button.text().includes('New session here'))?.trigger('click')
+    await flushPromises()
+    const commandButton = wrapper.get('button[aria-label="Use recent command make test"]')
+    expect(commandButton.text()).toBe('make test')
+    expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith('/sessions') && init?.method === 'POST')).toBe(false)
+    await commandButton.trigger('click')
+    expect((wrapper.get('[aria-label="New session here"] form').findAll('input')[1].element as HTMLInputElement).value).toBe('make test')
+    expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith('/sessions') && init?.method === 'POST')).toBe(false)
     await wrapper.get('[aria-label="New session here"] form').trigger('submit')
     await flushPromises()
-    expect(fetchMock).toHaveBeenCalledWith('/api/projects/p1/sessions', expect.objectContaining({ method: 'POST' }))
+    expect(fetchMock).toHaveBeenCalledWith('/api/projects/p1/sessions', expect.objectContaining({ method: 'POST', body: JSON.stringify({ name: undefined, startCommand: 'make test' }) }))
     expect(wrapper.emitted('created')?.[0]).toEqual(['work'])
   })
 })

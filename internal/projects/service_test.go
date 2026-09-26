@@ -3,6 +3,7 @@ package projects
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"hostbud/internal/events"
@@ -18,6 +19,8 @@ type fakeRepo struct {
 	createCall []string
 	updated    bool
 	deleted    bool
+	commands   []store.RecentCommand
+	remembered []string
 }
 
 func linkKey(machine, name string) string { return machine + ":" + name }
@@ -115,11 +118,35 @@ func (f *fakeRepo) PruneSessionLinks(_ context.Context, machine string, active [
 	return nil
 }
 
-type fakeCreator struct{ spec session.Spec }
+func (f *fakeRepo) RecentCommands(_ context.Context, projectID string) ([]store.RecentCommand, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	var out []store.RecentCommand
+	for _, command := range f.commands {
+		if command.ProjectID == projectID {
+			out = append(out, command)
+		}
+	}
+	return out, nil
+}
+func (f *fakeRepo) RememberRecentCommand(_ context.Context, projectID, command string) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.remembered = append(f.remembered, projectID+":"+command)
+	f.commands = append(f.commands, store.RecentCommand{ProjectID: projectID, Command: command})
+	return nil
+}
+
+type fakeCreator struct {
+	spec session.Spec
+	err  error
+}
 
 func (f *fakeCreator) Create(_ context.Context, spec session.Spec) (string, error) {
 	f.spec = spec
-	return "created-session", nil
+	return "created-session", f.err
 }
 
 func TestPlaceLongestPathComponentPrefixAndUnmatched(t *testing.T) {
@@ -192,6 +219,44 @@ func TestCreateSessionUsesProjectSpecAndLinksIt(t *testing.T) {
 	}
 	if link, err := repo.SessionLink(context.Background(), "host", name); err != nil || link.ProjectID != "p" {
 		t.Fatalf("created session link = %+v, %v", link, err)
+	}
+	if len(repo.remembered) != 1 || repo.remembered[0] != `p:echo '$HOME'` {
+		t.Fatalf("remembered commands = %v", repo.remembered)
+	}
+	creator.err = errors.New("session start failed")
+	if _, err := svc.CreateSession(context.Background(), "p", session.Spec{StartCommand: "echo failed"}); err == nil {
+		t.Fatal("failed session creation returned nil")
+	}
+	if len(repo.remembered) != 1 {
+		t.Fatalf("failed command was remembered: %v", repo.remembered)
+	}
+}
+
+func TestRecentCommandsAreProjectScopedAndUnknownProjectsFail(t *testing.T) {
+	repo := &fakeRepo{
+		projects: []store.Project{{ID: "one", MachineID: "host"}, {ID: "two", MachineID: "host"}},
+		commands: []store.RecentCommand{{ProjectID: "one", Command: "one-command"}, {ProjectID: "two", Command: "two-command"}},
+	}
+	svc := New(repo, nil, nil)
+	commands, err := svc.RecentCommands(context.Background(), "one")
+	if err != nil || len(commands) != 1 || commands[0].Command != "one-command" {
+		t.Fatalf("recent commands = %+v, %v", commands, err)
+	}
+	if _, err := svc.RecentCommands(context.Background(), "missing"); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("unknown project recent commands = %v", err)
+	}
+}
+
+func TestCreateSessionRejectsOversizeCommandBeforeRemoteCreate(t *testing.T) {
+	repo := &fakeRepo{projects: []store.Project{{ID: "p", MachineID: "host", Path: "/work"}}, links: map[string]store.SessionLink{}}
+	creator := &fakeCreator{}
+	svc := New(repo, nil, nil)
+	svc.SetSessionCreator(creator)
+	if _, err := svc.CreateSession(context.Background(), "p", session.Spec{StartCommand: strings.Repeat("x", 4097)}); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("oversize start command error = %v", err)
+	}
+	if creator.spec.StartCommand != "" || len(repo.remembered) != 0 {
+		t.Fatalf("invalid command reached creator or history: %+v, %v", creator.spec, repo.remembered)
 	}
 }
 

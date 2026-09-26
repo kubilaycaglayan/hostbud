@@ -84,6 +84,13 @@ func normalizeCommand(command string) (string, error) {
 	return command, nil
 }
 
+// ValidateRecentCommand applies the same byte and empty-value checks used by
+// the recent-command repository operation.
+func ValidateRecentCommand(command string) error {
+	_, err := normalizeCommand(command)
+	return err
+}
+
 func newProjectID() (string, error) {
 	var id [16]byte
 	if _, err := rand.Read(id[:]); err != nil {

@@ -6,6 +6,7 @@ import { useAppStore } from './stores/app'
 import SessionList from './components/SessionList.vue'
 import { panesOf } from './lib/layout'
 import { useLayoutStore } from './stores/layout'
+import { useTreeStore } from './stores/tree'
 import { stubFetch } from './test-utils'
 
 // A socket that stays "connecting": the live connection is covered by
@@ -30,7 +31,10 @@ beforeEach(() => {
   IdleSocket.instances = []
   vi.stubGlobal('WebSocket', IdleSocket)
 })
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  useTreeStore().reset()
+  vi.unstubAllGlobals()
+})
 
 const signedIn = () =>
   stubFetch((method, path) =>
@@ -114,6 +118,7 @@ describe('tabs', () => {
     stubFetch((method, path) => {
       if (path === '/api/auth/me') return { status: 200, body: { email: 'person@example.com' } }
       if (path === '/api/projects?machine=host') return { status: 200, body: { projects: [] } }
+      if (path === '/api/ui-state/tree' && method === 'GET') return { status: 404, body: { error: 'nothing saved yet' } }
       if (path === '/api/ui-state/layout' && method === 'GET')
         return saved === null ? { status: 404, body: { error: 'nothing saved yet' } } : { status: 200, body: saved }
       return { status: 204 }

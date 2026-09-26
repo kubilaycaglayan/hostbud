@@ -294,6 +294,7 @@ POST   /api/projects                  {machineId, path, name?}
 GET    /api/projects/:id
 PATCH  /api/projects/:id              {name}
 POST   /api/projects/:id/sessions     {name?, startCommand?} — creates through the shared session service at the saved project path
+GET    /api/projects/:id/recent-commands — the project's recent start-command strings, newest first
 GET|PUT /api/ui-state/:key            the account's JSON (GET 404 before the first PUT; PUT 204)
 GET    /api/health
 
@@ -306,7 +307,7 @@ POST   /api/machines/refresh              re-scan ~/.ssh/config
 GET    /api/machines/:id/hostkey          keyscan fingerprints
 POST   /api/machines/:id/hostkey/trust
 ```
-Session records in the list endpoint and initial/live events WebSocket payload include `projectId` when the placement service matches an explicit session link or a project path. The browser uses that placement before applying the same-machine longest path-component match as a fallback.
+Session records in the list endpoint and initial/live events WebSocket payload include `projectId` when the placement service matches an explicit session link or a project path. The browser uses that placement before applying the same-machine longest path-component match as a fallback. A successful project session start records its non-empty command; opening the picker or selecting a suggestion never starts a command by itself. Recent commands preserve their exact text, reject blank/NUL/oversize values, and keep the 20 newest distinct strings per project. Reusing a command moves it to the front; there is no manual clear action, and older values are pruned during an upsert.
 `/api/ui-state/:key` accepts only allowlisted keys (`layout`; M4 adds `tree` for per-account left-bar session/group order; M6 adds `theme`; others 404). A PUT body must be valid JSON (400) of at most 64 KiB (413). The server stores it without interpreting it and publishes no event (it's a per-account preference); the client validates what it reads back.
 
 WebSockets: `/ws/events` (server → client state events), `/ws/term` (interactive). `/ws/events` also sends `{"type":"heartbeat"}` every 15 s (WebSocket pings are invisible to page scripts); the browser treats 40 s of silence as a hung connection and reconnects, and the next snapshot resyncs the list.

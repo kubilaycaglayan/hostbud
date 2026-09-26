@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, getUIState, putUIState, request, sessionsApi } from './client'
+import { ApiError, getUIState, projectsApi, putUIState, request, sessionsApi } from './client'
 import { stubFetch } from '@/test-utils'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -44,6 +44,18 @@ describe('sessionsApi', () => {
       { method: 'POST', path: '/api/machines/host/sessions', body: { path: '~/app', startCommand: 'htop' } },
       { method: 'PATCH', path: '/api/machines/host/sessions/a', body: { name: 'b' } },
       { method: 'DELETE', path: '/api/machines/host/sessions/b', body: undefined },
+    ])
+  })
+})
+
+describe('projectsApi', () => {
+  it('loads recent commands for one project and submits command text through project session creation', async () => {
+    const calls = stubFetch((method) => ({ status: method === 'POST' ? 201 : 200, body: method === 'GET' ? { commands: ['make test'] } : { name: 'work' } }))
+    expect(await projectsApi.recentCommands('project-a')).toEqual({ commands: ['make test'] })
+    await projectsApi.createSession('project-a', { startCommand: `printf '$HOME; λ'` })
+    expect(calls).toEqual([
+      { method: 'GET', path: '/api/projects/project-a/recent-commands', body: undefined },
+      { method: 'POST', path: '/api/projects/project-a/sessions', body: { startCommand: `printf '$HOME; λ'` } },
     ])
   })
 })

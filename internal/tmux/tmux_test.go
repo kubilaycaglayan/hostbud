@@ -54,6 +54,17 @@ func TestNewSessionArgs(t *testing.T) {
 	}
 }
 
+func TestNewSessionStartCommandRemainsOneArgument(t *testing.T) {
+	command := `printf '%s\n' 'literal; printf injected'`
+	got, err := NewSessionArgs(NewSession{Name: "work", Path: "/home/dev/work", StartCommand: command}, v(3, 4))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got[len(got)-1] != command {
+		t.Fatalf("start command argument = %q, want exact command %q", got[len(got)-1], command)
+	}
+}
+
 func TestNewSessionArgsErrors(t *testing.T) {
 	if _, err := NewSessionArgs(NewSession{Name: "a.b", Path: "/x"}, v(3, 4)); !errors.Is(err, ErrInvalidName) {
 		t.Errorf("invalid name: %v", err)

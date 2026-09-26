@@ -84,12 +84,12 @@ Each criterion names **U** (unit), **I** (integration against `test/sshd`, Postg
 ## Recent start commands
 
 - [ ] Starting a session from a project offers the most recently used start commands for that project, with most recently used first; choosing one starts the session in the project path and updates recency. A newly entered command may be remembered as a recent command for that project.
-  - U: T2 recency ordering/upsert and bounded input validation; T3 selection and submission behavior.
-  - I: T2 PostgreSQL recency round-trip/upsert; T3 created tmux session receives the selected start command.
+  - U: T2 repository recency ordering/upsert and bounded input validation; T6 command suggestion order, project session submission behavior, and recording only after a successful start.
+  - I: T2 PostgreSQL recency round-trip/upsert; T6 created tmux session receives the selected start command and history remains project-scoped.
   - E: T6 *Recent start command* (desktop and iPhone 13 Pro): start with a command, create another session from the project and verify the command is offered and works.
 - [ ] Recent commands are scoped to a project, not shared across projects, and are treated as command text passed through the established session creation quoting path. No command is auto-executed merely by opening the picker.
-  - U: T2 project scoping and validation; T3 no implicit submission and safe service call.
-  - I: T2 two-project isolation; T3 hostile command text is passed as one command value without shell argument injection.
+  - U: T2 project scoping and validation; T6 project-specific suggestion loading, no implicit submission, and exact command text in the shared service call.
+  - I: T2 two-project isolation; T6 hostile command text is passed as one command value without shell argument injection.
   - E: T6 *Recent commands are project-scoped and require selection* (desktop).
 
 ## Security and compatibility

@@ -5,10 +5,23 @@ import { shq, uniqueName } from '../helpers/target.ts'
 async function addProject(request: Parameters<typeof mutate>[0], path: string, name: string) {
   const res = await mutate(request, 'POST', '/api/projects', { machineId: MACHINE, path, name }, ORIGIN)
   expect(res.status(), await res.text()).toBe(201)
+  return await res.json() as { id: string }
 }
 
 async function createTargetSession(target: { run(command: string): Promise<unknown> }, name: string, path: string) {
   await target.run(`tmux new-session -d -s ${shq(name)} -c ${shq(path)}`)
+}
+
+async function openProjectSession(page: import('@playwright/test').Page, name: string) {
+  await page.getByRole('button', { name: `New session in ${name}` }).click()
+  const dialog = page.getByRole('dialog', { name: 'New session here' })
+  await expect(dialog).toBeVisible()
+  return dialog
+}
+
+async function returnToTree(page: import('@playwright/test').Page, profile: 'desktop' | 'phone') {
+  if (profile === 'phone') await page.getByRole('button', { name: 'Back to project tree' }).click()
+  else await page.getByRole('button', { name: 'Sessions' }).click()
 }
 
 test('(T5) Longest-prefix project mapping', async ({ page, target, request }) => {
@@ -183,5 +196,68 @@ for (const profile of ['desktop', 'phone'] as const) {
       await header.getByRole('button', { name: 'Sign out' }).click()
       await expect(page.getByRole('tab', { name: 'Sign in' })).toBeVisible()
     })
+
+    test('(T6) Recent start command', async ({ page, target, request }) => {
+      const path = `/home/dev/${uniqueName('e2e-recent')}`
+      const projectName = uniqueName('recent-project')
+      const firstSession = uniqueName('recent-first')
+      const secondSession = uniqueName('recent-second')
+      await target.run(`mkdir -p ${shq(path)}`)
+      const project = await addProject(request, path, projectName)
+      await page.goto('/')
+      let dialog = await openProjectSession(page, projectName)
+      await dialog.getByLabel('Name').fill(firstSession)
+      await dialog.getByLabel('Start command').fill('sleep 30')
+      await dialog.getByRole('button', { name: 'Create session' }).click()
+      await expect.poll(async () => {
+        const data = await (await request.get(`/api/machines/${MACHINE}/sessions`)).json()
+        return data.sessions.some((session: { name: string; path: string }) => session.name === firstSession && session.path === path)
+      }).toBe(true)
+      await returnToTree(page, profile)
+      dialog = await openProjectSession(page, projectName)
+      const suggestion = dialog.getByRole('button', { name: 'Use recent command sleep 30' })
+      await expect(suggestion).toBeVisible()
+      const before = (await (await request.get(`/api/machines/${MACHINE}/sessions`)).json()).sessions.length
+      await suggestion.click()
+      expect((await (await request.get(`/api/machines/${MACHINE}/sessions`)).json()).sessions).toHaveLength(before)
+      await dialog.getByLabel('Name').fill(secondSession)
+      await dialog.getByRole('button', { name: 'Create session' }).click()
+      await expect.poll(async () => {
+        const data = await (await request.get(`/api/machines/${MACHINE}/sessions`)).json()
+        return data.sessions.some((session: { name: string; path: string }) => session.name === secondSession && session.path === path)
+      }).toBe(true)
+      const commands = await (await request.get(`/api/projects/${project.id}/recent-commands`)).json()
+      expect(commands.commands[0]).toBe('sleep 30')
+    })
   })
 }
+
+test('(T6) Recent commands are project-scoped and require selection', async ({ page, target, request }) => {
+  const firstPath = `/home/dev/${uniqueName('e2e-recent-one')}`
+  const secondPath = `/home/dev/${uniqueName('e2e-recent-two')}`
+  const firstName = uniqueName('recent-one')
+  const secondName = uniqueName('recent-two')
+  await target.run(`mkdir -p ${shq(firstPath)} ${shq(secondPath)}`)
+  await addProject(request, firstPath, firstName)
+  await addProject(request, secondPath, secondName)
+  await page.goto('/')
+  const first = await openProjectSession(page, firstName)
+  await first.getByLabel('Name').fill(uniqueName('recent-seed'))
+  await first.getByLabel('Start command').fill('sleep 30')
+  await first.getByRole('button', { name: 'Create session' }).click()
+  await expect.poll(async () => (await (await request.get(`/api/projects?machine=${MACHINE}`)).json()).projects.length).toBeGreaterThanOrEqual(2)
+  await page.getByRole('button', { name: 'Sessions' }).click()
+  const before = (await (await request.get(`/api/machines/${MACHINE}/sessions`)).json()).sessions.length
+  const second = await openProjectSession(page, secondName)
+  await expect(second.getByRole('button', { name: /^Use recent command/ })).toHaveCount(0)
+  expect((await (await request.get(`/api/machines/${MACHINE}/sessions`)).json()).sessions).toHaveLength(before)
+  await second.getByRole('button', { name: 'Cancel' }).click()
+  await page.getByRole('button', { name: 'Sessions' }).click()
+  const firstAgain = await openProjectSession(page, firstName)
+  const suggestion = firstAgain.getByRole('button', { name: 'Use recent command sleep 30' })
+  await suggestion.click()
+  expect((await (await request.get(`/api/machines/${MACHINE}/sessions`)).json()).sessions).toHaveLength(before)
+  await firstAgain.getByLabel('Name').fill(uniqueName('recent-selected'))
+  await firstAgain.getByRole('button', { name: 'Create session' }).click()
+  await expect.poll(async () => (await (await request.get(`/api/machines/${MACHINE}/sessions`)).json()).sessions.length).toBe(before + 1)
+})

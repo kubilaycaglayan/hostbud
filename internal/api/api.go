@@ -89,6 +89,7 @@ func New(cfg Config) http.Handler {
 		mux.HandleFunc("GET /api/projects", s.listProjects)
 		mux.HandleFunc("POST /api/projects", s.createProject)
 		mux.HandleFunc("GET /api/projects/{id}", s.getProject)
+		mux.HandleFunc("GET /api/projects/{id}/recent-commands", s.listRecentCommands)
 		mux.HandleFunc("PATCH /api/projects/{id}", s.renameProject)
 		mux.HandleFunc("POST /api/projects/{id}/sessions", s.createProjectSession)
 	}

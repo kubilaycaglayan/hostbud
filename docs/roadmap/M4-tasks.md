@@ -15,7 +15,7 @@ Update this table in the same commit that finishes a task.
 | T3 Project API, events and session placement service | Done |
 | T4 File browser and project actions | Done |
 | T5 Project tree and unmatched sessions | Done |
-| T6 Recent start commands | Planned |
+| T6 Recent start commands | Done |
 | T7 Documentation, audit and release | Planned |
 
 Tasks proceed in order. Before implementation, re-check M3's acceptance gates and the M4 acceptance coverage below. Every behavior-changing task writes its unit, integration and e2e coverage in the same commit. Run `make lint test` and `make gitleaks` per repository rules; from M4 onward do not run `make e2e`, `e2e-up` or `e2e-run` before M7. Each task that changes e2e files only type-checks the suite with `tsc` as part of lint. E2E scenarios are authored now and run once with the full suite in M7.
@@ -100,7 +100,7 @@ Tasks proceed in order. Before implementation, re-check M3's acceptance gates an
 
 **Tests:** U (Go): bounded history and input validation; U (Vitest): suggestion ordering, project scoping, picker opening without submission, selection submits once, error handling. I (PostgreSQL + `test/sshd`): command history isolation/upsert and selected command reaches a session started at the project path without argument injection.
 
-**E2E:** add **(T6) Recent start command** and **Recent commands are project-scoped and require selection** to the acceptance checklist for desktop and phone as specified; type-check only.
+**E2E:** add **(T6) Recent start command** and **(T6) Recent commands are project-scoped and require selection** to the acceptance checklist for desktop and phone as specified; type-check only.
 
 **Done:** recent commands persist and are isolated per project; selecting one launches in the intended directory; scenarios compile.
 

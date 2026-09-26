@@ -5,6 +5,7 @@ package projects
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"path"
 	"strings"
@@ -33,6 +34,8 @@ type Repository interface {
 	RenameSessionLink(context.Context, string, string, string) error
 	DeleteSessionLink(context.Context, string, string) error
 	PruneSessionLinks(context.Context, string, []string) error
+	RecentCommands(context.Context, string) ([]store.RecentCommand, error)
+	RememberRecentCommand(context.Context, string, string) error
 }
 
 // SessionCreator is the existing single entry point for tmux session creation.
@@ -90,6 +93,13 @@ func (s *Service) List(ctx context.Context, machineID string) ([]store.Project, 
 	return s.repo.Projects(ctx, machineID)
 }
 
+func (s *Service) RecentCommands(ctx context.Context, projectID string) ([]store.RecentCommand, error) {
+	if _, err := s.repo.Project(ctx, projectID); err != nil {
+		return nil, err
+	}
+	return s.repo.RecentCommands(ctx, projectID)
+}
+
 func (s *Service) Get(ctx context.Context, id string) (store.Project, error) {
 	return s.repo.Project(ctx, id)
 }
@@ -144,6 +154,11 @@ func (s *Service) CreateSession(ctx context.Context, projectID string, spec sess
 	if err != nil {
 		return "", err
 	}
+	if strings.TrimSpace(spec.StartCommand) != "" {
+		if err := store.ValidateRecentCommand(spec.StartCommand); err != nil {
+			return "", fmt.Errorf("%w: %w", ErrInvalidInput, err)
+		}
+	}
 	spec.Machine, spec.Path = p.MachineID, p.Path
 	name, err := s.creator.Create(ctx, spec)
 	if err != nil {
@@ -152,6 +167,11 @@ func (s *Service) CreateSession(ctx context.Context, projectID string, spec sess
 	if err := s.repo.UpsertSessionLink(ctx, p.MachineID, name, p.ID); err != nil {
 		// Path-prefix placement still works if metadata storage briefly fails.
 		s.log.Error("save project session link", "machine", p.MachineID, "session", name, "err", err)
+	}
+	if strings.TrimSpace(spec.StartCommand) != "" {
+		if err := s.repo.RememberRecentCommand(ctx, p.ID, spec.StartCommand); err != nil {
+			s.log.Warn("remember recent project command", "project_id", p.ID, "err", err)
+		}
 	}
 	return name, nil
 }

@@ -37,6 +37,9 @@ type placementResolverFake struct{ projectID string }
 func (f placementResolverFake) List(context.Context, string) ([]store.Project, error) {
 	return nil, nil
 }
+func (f placementResolverFake) RecentCommands(context.Context, string) ([]store.RecentCommand, error) {
+	return nil, nil
+}
 func (f placementResolverFake) Get(context.Context, string) (store.Project, error) {
 	return store.Project{}, store.ErrNotFound
 }

@@ -101,6 +101,7 @@ export const filesystemApi = {
 
 export const projectsApi = {
   list: (machine: string) => request<{ projects: Project[] }>('GET', `/api/projects?machine=${encodeURIComponent(machine)}`),
+  recentCommands: (id: string) => request<{ commands: string[] }>('GET', `/api/projects/${encodeURIComponent(id)}/recent-commands`),
   create: (machineId: string, path: string, name: string) => request<Project>('POST', '/api/projects', { machineId, path, name }),
   rename: (id: string, name: string) => request<Project>('PATCH', `/api/projects/${encodeURIComponent(id)}`, { name }),
   createSession: (id: string, spec: { name?: string; startCommand?: string }) =>
