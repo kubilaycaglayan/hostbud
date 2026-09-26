@@ -91,7 +91,7 @@ Each criterion names **U** (unit), **I** (integration against `test/sshd`, Postg
   - U: T2 repository recency ordering/upsert and bounded input validation; T6 command suggestion order, project session submission behavior, and recording only after a successful start.
   - I: T2 PostgreSQL recency round-trip/upsert; T6 created tmux session receives the selected start command and history remains project-scoped.
   - E: T6 *Recent start command* (desktop and iPhone 13 Pro): start with a command, create another session from the project and verify the command is offered and works.
-- [ ] Recent commands are scoped to a project, not shared across projects, and are treated as command text passed through the established session creation quoting path. No command is auto-executed merely by opening the picker.
+- [x] Recent commands are scoped to a project, not shared across projects, and are treated as command text passed through the established session creation quoting path. No command is auto-executed merely by opening the picker.
   - U: T2 project scoping and validation; T6 project-specific suggestion loading, no implicit submission, and exact command text in the shared service call.
   - I: T2 two-project isolation; T6 hostile command text is passed as one command value without shell argument injection.
   - E: T6 *Recent commands are project-scoped and require selection* (desktop).
@@ -141,7 +141,7 @@ Projects remain `desktop-chromium` and `iphone-13-pro` against the throwaway tar
 - [x] **(T5) Account controls in app header:** email and Sign out appear top-right whether the left bar is open or closed; sign out returns to sign-in and stops live updates (desktop and phone; auth revocation is also covered by the T8B auth scenario).
 - [x] **(T5) No window counts:** one-window and multi-window rows both omit the count label (desktop).
 - [x] **(T6) Recent start command:** choose a recent command on a second project session; it runs in the correct project directory (desktop and phone).
-- [ ] **(T6) Recent commands are project-scoped and require selection:** another project's command is absent and opening the picker runs nothing (desktop).
+- [x] **(T6) Recent commands are project-scoped and require selection:** another project's command is absent and opening the picker runs nothing (desktop).
 
 ## Definition of done
 
