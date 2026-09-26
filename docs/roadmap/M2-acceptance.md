@@ -39,7 +39,7 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
   - U: T3 `--app-height` from `visualViewport` (Vitest) · M1 T17 ResizeObserver → `resize` frame. I: M1 T13 resize changes the window size on test sshd. E: T3 *Fits the viewport* · T3 *Rotate*.
 - [x] On-screen keyboard input works: tapping the terminal (or **Show keyboard**, ⌨) focuses it without zooming, typed text and Enter reach the session, and the keyboard doesn't cover the terminal.
   - U: T3 helper textarea attributes and 16px font · Keyboard button focuses the input · `--app-height` follows the visual viewport (Vitest). I: n/a (browser input; byte passthrough is M1 T13). E: T3 *Phone attach and type* (text input without key events, as the on-screen keyboard sends it). **Manual (T4):** a real iPhone/Android keyboard (Playwright's WebKit is not iOS Safari).
-  - Status (T4): the owner confirmed on a real phone: tapping the terminal doesn't zoom, typed text and Enter reach the shell, and the terminal stays visible above the keyboard, bottom line included.
+  - Status (T4): the owner confirmed on a real phone: tapping the terminal doesn't zoom, typed text and Enter reach the shell, and the terminal stays visible above the keyboard, bottom line included; the ⌨ button brings the keyboard up.
 - [x] Switching sessions on the phone works: back to the list, open another session, type there.
   - U: M1 T15 selection opens the terminal (Vitest). I: n/a (frontend). E: T3 *Switch sessions*.
 
