@@ -30,11 +30,11 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
   - U: M1 T8B cookie flags behind a trusted HTTPS proxy. I: n/a (header logic; covered by U and E). E: T2 *HTTPS domain path* (cookie flags) · M1 T8B *Registration/sign-in/logout* (loopback).
 
 ### Phone usability
-- [ ] The terminal fits the viewport on a phone in portrait and landscape (no horizontal scroll, nothing cut off), and rotating resizes the tmux window.
+- [x] The terminal fits the viewport on a phone in portrait and landscape (no horizontal scroll, nothing cut off), and rotating resizes the tmux window.
   - U: T3 `--app-height` from `visualViewport` (Vitest) · M1 T17 ResizeObserver → `resize` frame. I: M1 T13 resize changes the window size on test sshd. E: T3 *Fits the viewport* · T3 *Rotate*.
 - [ ] On-screen keyboard input works: tapping the terminal (or **Keyboard**) focuses it without zooming, typed text and Enter reach the session, and the keyboard doesn't cover the terminal.
   - U: T3 helper textarea attributes and 16px font · Keyboard button focuses the input · `--app-height` follows the visual viewport (Vitest). I: n/a (browser input; byte passthrough is M1 T13). E: T3 *Phone attach and type* (text input without key events, as the on-screen keyboard sends it). **Manual (T4):** a real iPhone/Android keyboard (Playwright's WebKit is not iOS Safari).
-- [ ] Switching sessions on the phone works: back to the list, open another session, type there.
+- [x] Switching sessions on the phone works: back to the list, open another session, type there.
   - U: M1 T15 selection opens the terminal (Vitest). I: n/a (frontend). E: T3 *Switch sessions*.
 
 ## E2E (`make e2e`, simulated user)
@@ -44,10 +44,10 @@ Projects: `desktop-chromium` and `iphone-13-pro` on `http://localhost:9055` (the
 - [x] **(T2) HTTPS domain path:** over `https://hostbud.example.test`, sign-in sets a `Secure`, `HttpOnly` cookie; the sessions API lists a real-terminal session; `/ws/events` snapshots and `/ws/term` attaches over WSS (a marker reaches `capture-pane`).
 - [x] **(T2) Origin on both paths:** `Origin: https://hostbud.example.test` is accepted on the domain site for a POST and a WebSocket upgrade; `http://hostbud.example.test` and a foreign origin are rejected; `http://localhost:9055` keeps working.
 - [x] **(T2) Domain UI:** in `iphone-13-pro-domain` the app loads over HTTPS with no console errors, the user signs in through the form and sees the session list.
-- [ ] **(T3) Phone attach and type:** tap a session, tap the terminal, type a command like the on-screen keyboard (text input, then Enter) → the output is in the browser terminal and in `capture-pane` (both phone projects).
-- [ ] **(T3) Switch sessions:** back to the list, open a second session, type → the marker is in the second session; the first is detached (both phone projects).
-- [ ] **(T3) Rotate:** portrait → landscape → portrait changes `#{window_width}x#{window_height}` each time, wider in landscape (both phone projects).
-- [ ] **(T3) Fits the viewport:** in both orientations the terminal is inside the viewport, there's no horizontal page scroll, and the terminal input's font is at least 16px (both phone projects).
+- [x] **(T3) Phone attach and type:** tap a session, tap the terminal, type a command like the on-screen keyboard (text input, then Enter) → the output is in the browser terminal and in `capture-pane` (both phone projects).
+- [x] **(T3) Switch sessions:** back to the list, open a second session, type → the marker is in the second session; the first is detached (both phone projects).
+- [x] **(T3) Rotate:** portrait → landscape → portrait changes `#{window_width}x#{window_height}` each time, wider in landscape (both phone projects).
+- [x] **(T3) Fits the viewport:** in both orientations the terminal is inside the viewport, there's no horizontal page scroll, and the terminal input's font is at least 16px (both phone projects).
 - [ ] **(every task) Kept green:** each task's commit ran `make e2e` green, and the M1 suite still passes.
 - [ ] **(T4) Stable:** two consecutive full runs pass from a clean checkout.
 

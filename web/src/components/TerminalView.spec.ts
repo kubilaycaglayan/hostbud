@@ -16,8 +16,16 @@ const h = vi.hoisted(() => {
     loadAddon(a: { activate?: (t: FakeTerminal) => void }) {
       a.activate?.(this)
     }
-    open() {}
-    focus() {}
+    textarea?: HTMLTextAreaElement
+    focused = 0
+    // Like xterm: the hidden input the keyboard types into.
+    open(el: HTMLElement) {
+      this.textarea = document.createElement('textarea')
+      el.appendChild(this.textarea)
+    }
+    focus() {
+      this.focused++
+    }
     reset() {
       this.written = []
     }
@@ -145,6 +153,25 @@ describe('TerminalView', () => {
     await flushPromises()
     expect(w.get('[role=status]').text()).toContain('Disconnected')
     expect(w.get('[role=status] button').text()).toBe('Reconnect')
+  })
+
+  it('prepares the hidden input for on-screen keyboards', async () => {
+    await mountTerm()
+    const input = h.terms[0].textarea!
+    expect(input.getAttribute('autocorrect')).toBe('off')
+    expect(input.getAttribute('autocapitalize')).toBe('off')
+    expect(input.getAttribute('autocomplete')).toBe('off')
+    expect(input.getAttribute('spellcheck')).toBe('false')
+  })
+
+  it('Show keyboard focuses the terminal (touch screens only)', async () => {
+    const w = await mountTerm()
+    const button = w.get('button[aria-label="Show keyboard"]')
+    // Hidden unless the primary pointer is coarse (a touch screen).
+    expect(button.classes()).toEqual(expect.arrayContaining(['hidden', 'pointer-coarse:inline-block']))
+    const before = h.terms[0].focused
+    await button.trigger('click')
+    expect(h.terms[0].focused).toBe(before + 1)
   })
 
   it('offers a way back to the list (narrow screens)', async () => {

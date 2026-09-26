@@ -330,6 +330,7 @@ machine_capacity(machine_id PK, max_concurrent_runs)
 - Tree: projects → sessions (→ windows, lazily); a machine level appears only once multiple machines exist. Status dots (● attached/active, ○ detached; a header banner for host unreachable / tmux missing). Drag-to-sort (`vue-draggable-plus`), inline rename, collapse state persisted, context menus (attach, attach in split, new session, rename, kill, open folder, save as project).
 - Command palette (⌘/Ctrl-K): jump to session/project.
 - **Narrow screens (M1):** the session list and the open terminal take turns (a "Back to sessions" button), so the terminal gets the full width; the host banner stays above both.
+- **Phones (M2):** the app is pinned to the visual viewport (`--app-height`, `lib/appHeight.ts`), so the on-screen keyboard shrinks the terminal instead of covering it; the terminal's hidden input uses a 16px font (no iOS zoom on focus) with autocorrect/autocapitalize off; a ⌨ button on touch screens refocuses it.
 - **Mobile:** tree becomes a drawer; single terminal view; an on-screen key bar (Esc, Tab, Ctrl, Alt, arrows, `|`, `~`, `/`, Scroll-mode button → copy-mode API); larger touch targets.
 - No external CDNs at runtime (fonts and assets bundled).
 

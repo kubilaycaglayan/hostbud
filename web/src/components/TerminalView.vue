@@ -53,6 +53,21 @@ function refit() {
   }
 }
 
+/** Sets up the terminal's hidden input for on-screen keyboards: no
+ * autocorrect, capitalization or suggestions rewriting what's typed. */
+function prepareInput(input: HTMLTextAreaElement | undefined) {
+  if (!input) return
+  input.setAttribute('autocorrect', 'off')
+  input.setAttribute('autocapitalize', 'off')
+  input.setAttribute('autocomplete', 'off')
+  input.setAttribute('spellcheck', 'false')
+}
+
+/** Focuses the terminal, which brings up a phone's on-screen keyboard. */
+function showKeyboard() {
+  term.value?.focus()
+}
+
 function reconnect() {
   term.value?.reset()
   connect()
@@ -75,6 +90,7 @@ onMounted(async () => {
   t.loadAddon(unicode)
   t.unicode.activeVersion = '11'
   t.open(el.value!)
+  prepareInput(t.textarea)
   try {
     const webgl = new WebglAddon()
     webgl.onContextLoss(() => webgl.dispose())
@@ -114,7 +130,7 @@ onBeforeUnmount(() => {
   if (import.meta.env.VITE_E2E === '1') removeE2EHooks()
 })
 
-defineExpose({ refit, reconnect })
+defineExpose({ refit, reconnect, showKeyboard })
 </script>
 
 <template>
@@ -134,11 +150,20 @@ defineExpose({ refit, reconnect })
       <h2 class="truncate font-bold">
         {{ props.session }}
       </h2>
+      <!-- Touch screens: bring the on-screen keyboard back once dismissed. -->
+      <button
+        type="button"
+        aria-label="Show keyboard"
+        class="ml-auto hidden rounded border border-border px-2 pointer-coarse:inline-block"
+        @click="showKeyboard"
+      >
+        ⌨
+      </button>
     </div>
     <div
       ref="el"
       data-testid="terminal"
-      class="min-h-0 flex-1 overflow-hidden bg-bg p-1"
+      class="min-h-0 flex-1 touch-manipulation overflow-hidden bg-bg p-1"
     />
     <div
       v-if="state === 'exited' || state === 'disconnected'"
