@@ -107,7 +107,7 @@ test('(T1) filesystem API: auth and Origin checks, with no delete or remote rena
   }
 })
 
-test('filesystem API: SFTP failure is actionable and browsing recovers', async ({ request }) => {
+test('(T1) SFTP unavailable recovery: failure is actionable and browsing recovers', async ({ request }) => {
   test.setTimeout(90_000)
   await ctl.stopSshd()
   try {

@@ -106,10 +106,10 @@ Each criterion names **U** (unit), **I** (integration against `test/sshd`, Postg
   - U: T3 project handler auth/Origin/status and typed event tests.
   - I: T3 PostgreSQL-backed mutation and event publication test.
   - E: T3 *Project API access control and events* (API-level through Caddy): signed-out request gets 401; foreign-Origin mutation gets 403; allowed-origin create is visible through the project API and connected event stream.
-- [ ] All remote filesystem work uses `sshx` and the configured system `ssh`/SFTP path; filesystem paths and names are never interpolated into a shell command. Requests are context-aware and timeout-bounded, and SFTP errors are actionable without logging user paths at info level.
+- [x] All remote filesystem work uses `sshx` and the configured system `ssh`/SFTP path; filesystem paths and names are never interpolated into a shell command. Requests are context-aware and timeout-bounded, and SFTP errors are actionable without logging user paths at info level.
   - U: T1 cancellation, timeout and error mapping; architecture check confirms `fsbrowse` does not invoke a second command runner.
   - I: T1 timeout/disconnect against `test/sshd`; verify the SFTP client is closed and the app remains responsive.
-  - E: T3 *SFTP unavailable recovery* (desktop): stop target sshd, observe an actionable error, restore it and browse successfully.
+  - E: T1 *SFTP unavailable recovery* (desktop): stop target sshd, observe an actionable error, restore it and browse successfully.
 - [ ] PostgreSQL schema changes are append-only and preserve existing users, authentication state, UI layouts and machine records. `machine_id` remains part of project and session association keys even though v1 has only the host machine.
   - U: T2 migration ordering and repository key tests.
   - I: T2 migrate a database populated with M1–M3 records; verify those records and the seeded host machine remain unchanged and repositories scope by `machine_id`.
@@ -125,7 +125,7 @@ Projects remain `desktop-chromium` and `iphone-13-pro` against the throwaway tar
 - [ ] **(T4) File browser dialog and icon actions:** open/close the modal from the FolderPlus header button outside the left gutter; project actions use icon buttons with accessible labels (desktop and iPhone 13 Pro).
 - [x] **(T1) Filesystem API access control:** auth and Origin enforcement through Caddy; unauthorized requests do not initiate SFTP.
 - [x] **(T3) Project API access control and events:** auth and Origin enforcement through Caddy; successful create is returned by the API and published to the event stream.
-- [ ] **(T1) SFTP unavailable recovery:** failure is actionable and browsing works after target recovery.
+- [x] **(T1) SFTP unavailable recovery:** failure is actionable and browsing works after target recovery.
 - [ ] **(T4) Path autocomplete and invalid paths:** choose an autocomplete result, submit an existing typed path, and recover from missing/non-directory paths (desktop and phone).
 - [ ] **(T4) Hidden toggle and lazy symlink status in the browser:** hidden entries appear only when requested, and checking a symlink lazily shows its broken/resolved/loop status (desktop).
 - [ ] **(T4) Create folder:** create a nested folder, see it in the listing, reject invalid names (desktop and phone).

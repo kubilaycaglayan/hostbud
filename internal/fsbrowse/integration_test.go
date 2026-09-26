@@ -122,6 +122,36 @@ func TestIntegrationCancelAndCloseSFTP(t *testing.T) {
 	}
 	_ = svc.Close()
 
+	// Let the real ssh binary open its SFTP subsystem, then hold the handoff
+	// until the operation deadline. This exercises timeout-driven disconnect
+	// against test/sshd instead of only a synthetic opener.
+	opener := &deadlineOpener{client: c, opened: make(chan struct{})}
+	svc = fsbrowse.New(opener, sshx.HostMachineID, time.Minute, time.Second)
+	result := make(chan error, 1)
+	go func() {
+		_, err := svc.Home(context.Background())
+		result <- err
+	}()
+	select {
+	case <-opener.opened:
+	case <-time.After(5 * time.Second):
+		t.Fatal("real SFTP subsystem did not open")
+	}
+	select {
+	case err := <-result:
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("timed out Home() error = %v, want deadline exceeded", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("operation timeout did not interrupt real SFTP subsystem")
+	}
+	if err := svc.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Exec(context.Background(), sshx.HostMachineID, "true"); err != nil {
+		t.Fatalf("ssh unusable after timed out SFTP close: %v", err)
+	}
+
 	// A separately opened normal service exercises subsystem shutdown after a
 	// real SFTP handshake; the shared ssh ControlMaster remains usable.
 	svc = fsbrowse.New(c, sshx.HostMachineID, time.Minute, 5*time.Second)
@@ -139,6 +169,22 @@ func TestIntegrationCancelAndCloseSFTP(t *testing.T) {
 type countingOpener struct {
 	client *sshx.Client
 	calls  atomic.Int32
+}
+
+type deadlineOpener struct {
+	client *sshx.Client
+	opened chan struct{}
+}
+
+func (o *deadlineOpener) OpenSFTP(ctx context.Context, machine string) (io.ReadWriteCloser, error) {
+	pipe, err := o.client.OpenSFTP(ctx, machine)
+	if err != nil {
+		return nil, err
+	}
+	close(o.opened)
+	<-ctx.Done()
+	_ = pipe.Close()
+	return nil, ctx.Err()
 }
 
 func (o *countingOpener) OpenSFTP(ctx context.Context, machine string) (io.ReadWriteCloser, error) {
