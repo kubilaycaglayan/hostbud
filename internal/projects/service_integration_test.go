@@ -51,7 +51,7 @@ func TestIntegrationProjectSessionPlacementRenameEndAndRecreate(t *testing.T) {
 	client := testenv.Connected(t, testenv.SSHD)
 	// A missing server is the normal initial state on a throwaway target.
 	_, _ = client.Exec(ctx, sshx.HostMachineID, "tmux", "kill-server")
-	if _, err := client.Exec(ctx, sshx.HostMachineID, "mkdir", "-p", "/home/dev/projects-it/app", "/home/dev/projects-it/outside"); err != nil {
+	if _, err := client.Exec(ctx, sshx.HostMachineID, "mkdir", "-p", "/home/dev/projects-it/app/nested", "/home/dev/projects-it/application", "/home/dev/projects-it/outside"); err != nil {
 		t.Fatal(err)
 	}
 	bus := events.NewBus()
@@ -84,6 +84,14 @@ func TestIntegrationProjectSessionPlacementRenameEndAndRecreate(t *testing.T) {
 	t.Cleanup(func() { stopProjects(); <-runDone })
 
 	p, err := projectService.Create(ctx, sshx.HostMachineID, "/home/dev/projects-it/app/", "App")
+	if err != nil {
+		t.Fatal(err)
+	}
+	parent, err := projectService.Create(ctx, sshx.HostMachineID, "/home/dev/projects-it", "Renamed parent")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sibling, err := projectService.Create(ctx, sshx.HostMachineID, "/home/dev/projects-it/application", "Similar display name")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,6 +143,43 @@ func TestIntegrationProjectSessionPlacementRenameEndAndRecreate(t *testing.T) {
 		t.Fatalf("linked placement = %+v, %v", placement, err)
 	}
 
+	// Exercise path-component matching against persisted PostgreSQL projects and
+	// real sessions discovered from the throwaway sshd target.
+	for _, tc := range []struct {
+		name, path, wantProject string
+	}{
+		{"prefix-nested", "/home/dev/projects-it/app/nested", p.ID},
+		{"prefix-sibling", "/home/dev/projects-it/application", sibling.ID},
+		{"prefix-parent", "/home/dev/projects-it", parent.ID},
+		{"prefix-outside", "/home/dev/projects-it/outside", parent.ID},
+	} {
+		if _, err := sessions.Create(ctx, session.Spec{Machine: sshx.HostMachineID, Name: tc.name, Path: tc.path}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := inv.Refresh(ctx); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name, path, wantProject string
+	}{
+		{"prefix-nested", "/home/dev/projects-it/app/nested", p.ID},
+		{"prefix-sibling", "/home/dev/projects-it/application", sibling.ID},
+		{"prefix-parent", "/home/dev/projects-it", parent.ID},
+		{"prefix-outside", "/home/dev/projects-it/outside", parent.ID},
+	} {
+		got, err := projectService.Place(ctx, sshx.HostMachineID, tc.name, tc.path)
+		if err != nil || !got.Matched || got.ProjectID != tc.wantProject {
+			t.Errorf("persisted project placement for %s = %+v, %v; want %s", tc.name, got, err, tc.wantProject)
+		}
+	}
+	// A raw string-prefix implementation would incorrectly choose /app for
+	// this sibling path; the component boundary must select /application.
+	got, err := projectService.Place(ctx, sshx.HostMachineID, "prefix-sibling", "/home/dev/projects-it/application")
+	if err != nil || got.ProjectID == p.ID {
+		t.Errorf("sibling path matched /app project: %+v, %v", got, err)
+	}
+
 	if err := sessions.Rename(ctx, sshx.HostMachineID, name, "project-renamed"); err != nil {
 		t.Fatal(err)
 	}
@@ -159,13 +204,16 @@ func TestIntegrationProjectSessionPlacementRenameEndAndRecreate(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 
-	if _, err := sessions.Create(ctx, session.Spec{Machine: sshx.HostMachineID, Name: "project-it", Path: "/home/dev/projects-it/outside"}); err != nil {
+	if _, err := client.Exec(ctx, sshx.HostMachineID, "mkdir", "-p", "/home/dev/projects-it-recreated"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sessions.Create(ctx, session.Spec{Machine: sshx.HostMachineID, Name: "project-it", Path: "/home/dev/projects-it-recreated"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := repo.SessionLink(ctx, sshx.HostMachineID, "project-it"); !errors.Is(err, store.ErrNotFound) {
 		t.Fatalf("unrelated reused session name inherited old link: %v", err)
 	}
-	placement, err = projectService.Place(ctx, sshx.HostMachineID, "project-it", "/home/dev/projects-it/outside")
+	placement, err = projectService.Place(ctx, sshx.HostMachineID, "project-it", "/home/dev/projects-it-recreated")
 	if err != nil || placement.Matched {
 		t.Fatalf("recreated unrelated session placement = %+v, %v", placement, err)
 	}

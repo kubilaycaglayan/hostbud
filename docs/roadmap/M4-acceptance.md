@@ -45,7 +45,7 @@ Each criterion names **U** (unit), **I** (integration against `test/sshd`, Postg
   - U: T3 project action passes `{machine, name, path, env, startCommand}` to the session service and handles failure without a phantom tree node.
   - I: T3 against `test/sshd`: session `#{session_path}` equals the chosen project path and list diff associates the session.
   - E: T4 *New session here* (desktop and iPhone 13 Pro): create from a project and assert the exact target session path; T5 verifies project tree placement.
-- [ ] A session belongs to the project with the longest path-component prefix on the same machine. `/work/app` matches `/work/app`; `/work/application` does not. Matching is independent of project display name and does not use a raw string-prefix boundary error.
+- [x] A session belongs to the project with the longest path-component prefix on the same machine. `/work/app` matches `/work/app`; `/work/application` does not. Matching is independent of project display name and does not use a raw string-prefix boundary error.
   - U: T3 path-component matching table, including root, trailing slash, sibling prefixes and unmatched paths.
   - I: T3 against `test/sshd` plus PostgreSQL fixtures: live sessions map correctly to persisted project paths.
   - E: T5 *Longest-prefix project mapping* (desktop; create sessions in nested, sibling-prefix and unrelated directories using the real terminal).
@@ -127,7 +127,7 @@ Projects remain `desktop-chromium` and `iphone-13-pro` against the throwaway tar
 - [ ] **(T4) Open as project and persist:** create from a chosen folder, observe its tree entry; reload and app restart retain it (desktop and phone).
 - [ ] **(T4) Project persists and updates live:** another authenticated browser creates a project and the first view updates without reload (desktop).
 - [ ] **(T4) New session here:** create from a project, verify exact `session_path`, type into it and see it grouped under its project (desktop and phone).
-- [ ] **(T5) Longest-prefix project mapping:** sessions at nested, sibling-prefix and unrelated paths land in the correct project or Other sessions (desktop).
+- [x] **(T5) Longest-prefix project mapping:** sessions at nested, sibling-prefix and unrelated paths land in the correct project or Other sessions (desktop).
 - [ ] **(T5) Linked session rename and cleanup:** project-created session link follows UI rename and is removed/invalidated after session end (desktop).
 - [ ] **(T5) Other sessions and Save as project:** unmatched session is grouped separately; save it, see it move under a project, and verify tmux session id is unchanged (desktop and phone).
 - [ ] **(T5) Distinct project tree entries:** nested paths and similar names remain separate, deterministic entries (desktop).
