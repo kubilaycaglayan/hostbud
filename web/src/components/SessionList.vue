@@ -1,11 +1,21 @@
 <script setup lang="ts">
+import { DropdownMenuContent, DropdownMenuItem, DropdownMenuPortal, DropdownMenuRoot, DropdownMenuTrigger } from 'reka-ui'
 import type { Session } from '@/api/types'
+import type { SplitDir } from '@/lib/layout'
 
 const props = defineProps<{
   sessions: Session[]
   selected?: string
 }>()
-const emit = defineEmits<{ select: [name: string]; rename: [name: string]; kill: [name: string] }>()
+const emit = defineEmits<{
+  select: [name: string]
+  /** Open in a new pane beside the active tab's focused pane. */
+  split: [name: string, dir: SplitDir]
+  rename: [name: string]
+  kill: [name: string]
+}>()
+
+const item = 'cursor-pointer rounded px-2 py-1 outline-none data-highlighted:bg-bg'
 
 const windowsLabel = (n: number) => (n === 1 ? '1 window' : `${n} windows`)
 </script>
@@ -45,6 +55,35 @@ const windowsLabel = (n: number) => (n === 1 ? '1 window' : `${n} windows`)
         {{ s.name }}
       </button>
       <span class="shrink-0 text-muted">{{ windowsLabel(s.windows) }}</span>
+      <DropdownMenuRoot>
+        <DropdownMenuTrigger
+          :aria-label="`More actions for ${s.name}`"
+          title="More"
+          class="shrink-0 rounded px-1 text-muted hover:text-fg"
+        >
+          ⋯
+        </DropdownMenuTrigger>
+        <DropdownMenuPortal>
+          <DropdownMenuContent
+            align="end"
+            :side-offset="4"
+            class="z-30 min-w-48 rounded border border-border bg-surface p-1 text-fg shadow-lg"
+          >
+            <DropdownMenuItem
+              :class="item"
+              @select="emit('split', s.name, 'row')"
+            >
+              Open in split right
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              :class="item"
+              @select="emit('split', s.name, 'column')"
+            >
+              Open in split down
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenuPortal>
+      </DropdownMenuRoot>
       <button
         type="button"
         :aria-label="`Rename ${s.name}`"

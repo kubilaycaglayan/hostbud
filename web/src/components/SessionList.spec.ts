@@ -41,4 +41,23 @@ describe('SessionList', () => {
     expect(w.emitted('rename')).toEqual([['a']])
     expect(w.emitted('kill')).toEqual([['a']])
   })
+
+  it('the row menu opens a session in a split, right or down', async () => {
+    const w = mount(SessionList, { props: { sessions: [s('a'), s('b')] }, attachTo: document.body })
+    const open = async () => {
+      await w.get('button[aria-label="More actions for b"]').trigger('keydown', { key: 'Enter' })
+      await new Promise((r) => setTimeout(r))
+    }
+    const item = (text: string) =>
+      [...document.body.querySelectorAll<HTMLElement>('[role=menuitem]')].find((x) => x.textContent?.trim() === text)!
+    await open()
+    item('Open in split right').click()
+    await open()
+    item('Open in split down').click()
+    expect(w.emitted('split')).toEqual([
+      ['b', 'row'],
+      ['b', 'column'],
+    ])
+    w.unmount()
+  })
 })

@@ -2,6 +2,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { Machine, Session } from '@/api/types'
 import type { ServerEvent } from '@/api/types'
+import { panesOf } from '@/lib/layout'
 import { useLayoutStore } from './layout'
 import { useLiveStore } from './live'
 import { applyMachines, useMachinesStore } from './machines'
@@ -77,7 +78,7 @@ describe('ended sessions close their terminals', () => {
     for (const n of names) layout.open('host', n)
     return layout
   }
-  const open = () => useLayoutStore().tabs.map((t) => t.root.session)
+  const open = () => useLayoutStore().tabs.map((t) => panesOf(t.root)[0].session)
 
   it('a list from a reachable host drops panes of missing sessions', () => {
     withTabs('a', 'b')

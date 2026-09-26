@@ -1,7 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
-import { MAX_PANES } from '@/lib/layout'
+import { MAX_PANES, panesOf } from '@/lib/layout'
 import { stubFetch } from '@/test-utils'
 import { SAVE_DEBOUNCE_MS, SAVE_RETRY_MS, useLayoutStore } from './layout'
 import { useToastsStore } from './toasts'
@@ -18,7 +18,7 @@ const saved = (tabs: { session: string }[], active = 0) => ({
   tabs: tabs.map((t, i) => ({ id: `t${i}`, root: { type: 'pane', id: `p${i}`, machine: 'host', session: t.session }, focusedPane: `p${i}` })),
   activeTab: `t${active}`,
 })
-const open = () => useLayoutStore().tabs.map((t) => t.root.session)
+const open = () => useLayoutStore().tabs.map((t) => panesOf(t.root).map((p) => p.session).join('+'))
 
 async function loaded(stored: unknown = null) {
   stubFetch((method) =>

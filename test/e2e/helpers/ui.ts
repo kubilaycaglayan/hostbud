@@ -84,6 +84,18 @@ export class UI {
     return this.page.evaluate(() => window.__hostbud?.panes() ?? [])
   }
 
+  /** A terminal pane, by session. */
+  pane(name: string) {
+    return this.page.getByRole('region', { name: `Terminal: ${name}`, exact: true })
+  }
+
+  /** Splits a pane (its header's Split right/down) and picks a session. */
+  async split(from: string, dir: 'right' | 'down', to: string): Promise<void> {
+    await this.pane(from).getByRole('button', { name: `Split ${dir}` }).click()
+    await this.page.getByRole('dialog', { name: `Split ${dir}` }).getByRole('button', { name: to, exact: true }).click()
+    await this.waitForTerminal(to)
+  }
+
   /** The tab bar's tab of a session (exact label). */
   tab(name: string) {
     return this.page.getByRole('tablist', { name: 'Open terminals' }).getByRole('tab', { name, exact: true })
@@ -104,7 +116,8 @@ export class UI {
   /** Types into the terminal (focusing its input, without clicking: a
    * click would reach mouse-aware programs like vim), then Enter if asked. */
   async type(text: string, enter = false): Promise<void> {
-    await this.page.getByRole('textbox', { name: 'Terminal input' }).focus()
+    // The focused pane's input (splits show several terminals at once).
+    await this.page.locator('section[data-focused="true"]').getByRole('textbox', { name: 'Terminal input' }).focus()
     await this.page.keyboard.type(text)
     if (enter) await this.page.keyboard.press('Enter')
   }

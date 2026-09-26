@@ -106,6 +106,48 @@ export const useLayoutStore = defineStore('layout', () => {
     return true
   }
 
+  /** Opens a session in a new pane beside `paneId` (M3 T8). False when a
+   * limit refused it (with a notice). */
+  function split(paneId: string, dir: L.SplitDir, machine: string, session: string): boolean {
+    const { layout: next, result } = L.splitPane(layout.value, paneId, dir, machine, session)
+    if (result === 'tab-full') {
+      toasts.push({ title: 'Too many panes', message: `A tab holds at most ${L.MAX_TAB_PANES} panes. Open it in a new tab instead.` })
+      return false
+    }
+    if (result === 'full') {
+      toasts.push({
+        title: 'Too many terminals',
+        message: `At most ${L.MAX_PANES} terminals can be open at once. Close a tab first.`,
+      })
+      return false
+    }
+    if (result === 'missing') return false
+    layout.value = next
+    return true
+  }
+
+  /** Splits the active tab's focused pane, or opens a tab if none is open. */
+  function splitFocused(dir: L.SplitDir, machine: string, session: string): boolean {
+    const pane = focused.value
+    return pane ? split(pane.id, dir, machine, session) : open(machine, session)
+  }
+
+  function closePane(paneId: string) {
+    layout.value = L.closePane(layout.value, paneId)
+  }
+
+  function focusPane(tabId: string, paneId: string) {
+    layout.value = L.focusPane(layout.value, tabId, paneId)
+  }
+
+  function cycleFocus(tabId: string) {
+    layout.value = L.cycleFocus(layout.value, tabId)
+  }
+
+  function setSizes(splitId: string, sizes: number[]) {
+    layout.value = L.setSizes(layout.value, splitId, sizes)
+  }
+
   function activate(tabId: string) {
     layout.value = L.activate(layout.value, tabId)
   }
@@ -167,6 +209,12 @@ export const useLayoutStore = defineStore('layout', () => {
     reset,
     flush,
     open,
+    split,
+    splitFocused,
+    closePane,
+    focusPane,
+    cycleFocus,
+    setSizes,
     activate,
     closeTab,
     closeSession,

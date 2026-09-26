@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue'
 import AuthView from '@/components/AuthView.vue'
 import CreateSessionDialog from '@/components/CreateSessionDialog.vue'
 import KillSessionDialog from '@/components/KillSessionDialog.vue'
@@ -7,7 +7,10 @@ import RenameSessionDialog from '@/components/RenameSessionDialog.vue'
 import HostBanner from '@/components/HostBanner.vue'
 import SessionList from '@/components/SessionList.vue'
 import TabBar from '@/components/TabBar.vue'
-import TerminalView from '@/components/TerminalView.vue'
+import TabView from '@/components/TabView.vue'
+import { NEW_SESSION_FOR_SPLIT } from '@/components/layoutKeys'
+import type { SplitDir } from '@/lib/layout'
+import { useMediaQuery, WIDE_QUERY } from '@/lib/media'
 import ToastRegion from '@/components/ToastRegion.vue'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
@@ -49,6 +52,32 @@ function onKilled(name: string) {
 function openSession(name: string) {
   if (layout.open(MACHINE, name)) app.showTerminal()
 }
+
+/** A list row's "Open in split": beside the active tab's focused pane. */
+function openInSplit(name: string, dir: SplitDir) {
+  if (layout.splitFocused(dir, MACHINE, name)) app.showTerminal()
+}
+
+// "New session…" from a pane's split picker: the created session opens in a
+// new pane beside it. The sidebar's New session opens a tab.
+const splitTarget = ref<{ pane: string; dir: SplitDir } | null>(null)
+provide(NEW_SESSION_FOR_SPLIT, (pane, dir) => {
+  splitTarget.value = { pane, dir }
+  creating.value = true
+})
+function newSession() {
+  splitTarget.value = null
+  creating.value = true
+}
+function onCreated(name: string) {
+  const t = splitTarget.value
+  splitTarget.value = null
+  if (t && layout.split(t.pane, t.dir, MACHINE, name)) app.showTerminal()
+  else openSession(name)
+}
+
+const wide = useMediaQuery(WIDE_QUERY, true)
+const narrow = computed(() => !wide.value)
 
 function closeTab(id: string) {
   layout.closeTab(id)
@@ -113,7 +142,7 @@ onUnmounted(() => {
           <button
             type="button"
             class="rounded border border-border px-2 py-1"
-            @click="creating = true"
+            @click="newSession"
           >
             New session
           </button>
@@ -130,6 +159,7 @@ onUnmounted(() => {
             :sessions="hostSessions"
             :selected="selectedSession"
             @select="openSession"
+            @split="openInSplit"
             @rename="askRename"
             @kill="askKill"
           />
@@ -167,13 +197,10 @@ onUnmounted(() => {
             :aria-labelledby="`tab-${t.id}`"
             class="min-h-0 flex-1"
           >
-            <TerminalView
-              :key="t.root.id"
-              :pane-id="t.root.id"
-              :machine="t.root.machine"
-              :session="t.root.session"
+            <TabView
+              :tab="t"
               :active="t.id === layout.layout.activeTab"
-              :focused="t.focusedPane === t.root.id"
+              :narrow="narrow"
               @back="app.showList()"
             />
           </div>
@@ -189,7 +216,7 @@ onUnmounted(() => {
     <CreateSessionDialog
       v-model:open="creating"
       :machine="MACHINE"
-      @created="openSession"
+      @created="onCreated"
     />
     <RenameSessionDialog
       v-model:open="renaming"

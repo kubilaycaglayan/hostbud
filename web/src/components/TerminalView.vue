@@ -6,14 +6,16 @@ import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
-import { nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { TermSession, termURL, type SessionState } from '@/api/term'
+import SessionPicker from '@/components/SessionPicker.vue'
 import TerminalMenu from '@/components/TerminalMenu.vue'
 import TerminalSearch from '@/components/TerminalSearch.vue'
 import { copySelection, installOsc52 } from '@/lib/clipboard'
 import { registerPane, unregisterPane } from '@/lib/e2eHooks'
 import { hyperlinkHandler, openLink, type LinkHover } from '@/lib/links'
 import { keepScrollback } from '@/lib/scrollback'
+import type { SplitDir } from '@/lib/layout'
 import { clipboardKey, editingKey, searchKey } from '@/lib/terminalKeys'
 import { useAuthStore } from '@/stores/auth'
 import { useSessionsStore } from '@/stores/sessions'
@@ -28,10 +30,24 @@ const props = withDefaults(
     active?: boolean
     /** It's the focused pane of its tab: keyboard input goes here. */
     focused?: boolean
+    /** Its place among its tab's panes (1-based) and their number. */
+    paneIndex?: number
+    paneCount?: number
+    /** The tab can take another pane (Split right/down shown). */
+    canSplit?: boolean
+    /** Narrow layout: one pane at a time, with a pane switcher. */
+    narrow?: boolean
   }>(),
-  { paneId: 'pane', active: true, focused: true },
+  { paneId: 'pane', active: true, focused: true, paneIndex: 1, paneCount: 1, canSplit: false, narrow: false },
 )
-const emit = defineEmits<{ back: []; focus: [] }>()
+const emit = defineEmits<{
+  back: []
+  focus: []
+  /** Open a session (null: a new one) in a new pane beside this one. */
+  split: [dir: SplitDir, session: string | null]
+  close: []
+  cyclePane: []
+}>()
 const takesInput = () => props.active && props.focused
 
 const el = ref<HTMLDivElement>()
@@ -49,6 +65,7 @@ let observer: ResizeObserver | null = null
 let last = { cols: 0, rows: 0 }
 const auth = useAuthStore()
 const sessions = useSessionsStore()
+const splitTargets = computed(() => sessions.list(props.machine).map((x) => x.name))
 
 /** Attaches, and keeps re-attaching after drops (api/term.ts TermSession). */
 function connect() {
@@ -259,6 +276,8 @@ defineExpose({ refit, reconnect, showKeyboard })
   <section
     :aria-label="`Terminal: ${props.session}`"
     class="relative flex h-full min-h-0 flex-col"
+    :class="props.paneCount > 1 && takesInput() && !props.narrow ? 'outline-1 -outline-offset-1 outline-accent outline' : ''"
+    :data-focused="takesInput() ? 'true' : undefined"
     @focusin="emit('focus')"
   >
     <div class="flex items-center gap-2 border-b border-border px-3 py-2">
@@ -273,10 +292,37 @@ defineExpose({ refit, reconnect, showKeyboard })
       <h2 class="truncate font-bold">
         {{ props.session }}
       </h2>
+      <!-- Narrow screens show one pane of a split at a time. -->
+      <button
+        v-if="props.narrow && props.paneCount > 1"
+        type="button"
+        class="shrink-0 rounded border border-border px-2"
+        :aria-label="`Pane ${props.paneIndex} of ${props.paneCount}: show the next pane`"
+        @click="emit('cyclePane')"
+      >
+        Pane {{ props.paneIndex }} of {{ props.paneCount }}
+      </button>
+      <span class="ml-auto" />
+      <template v-if="props.canSplit && !props.narrow">
+        <SessionPicker
+          label="Split right"
+          icon="◫"
+          :sessions="splitTargets"
+          @pick="(n) => emit('split', 'row', n)"
+          @new="emit('split', 'row', null)"
+        />
+        <SessionPicker
+          label="Split down"
+          icon="⊟"
+          :sessions="splitTargets"
+          @pick="(n) => emit('split', 'column', n)"
+          @new="emit('split', 'column', null)"
+        />
+      </template>
       <button
         type="button"
         aria-label="Search"
-        class="ml-auto rounded border border-border px-2"
+        class="rounded border border-border px-2"
         @click="openSearch"
       >
         🔍
@@ -289,6 +335,15 @@ defineExpose({ refit, reconnect, showKeyboard })
         @click="showKeyboard"
       >
         ⌨
+      </button>
+      <button
+        type="button"
+        aria-label="Close pane"
+        title="Close pane (the session keeps running)"
+        class="rounded px-2 text-muted hover:text-fg"
+        @click="emit('close')"
+      >
+        ×
       </button>
     </div>
     <TerminalMenu :term="term">

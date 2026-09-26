@@ -16,8 +16,8 @@ Update this table in the same commit that finishes a task.
 | T5 Search | ✅ done |
 | T6 UI state API | ✅ done (tests run at CP1) |
 | T7 Tabs | ✅ done (tests run at CP1) |
-| T8 Split view | next |
-| T9 Docs, audit and release | |
+| T8 Split view | ✅ done (tests run at CP2) |
+| T9 Docs, audit and release | next |
 
 **Test checkpoints (T6–T9, owner's trial of batched test runs).** From T6 on, each task still writes all the U/I/E tests it owes in the same commit as the behavior, but the suites run at checkpoints instead of per commit. Each commit gets only the fast checks: the Go packages it touches build and vet, and `vue-tsc` type-checks the frontend (and the e2e suite when it changes). `make gitleaks` still runs on every commit (pre-commit hook).
 
@@ -229,6 +229,7 @@ I: n/a (each pane is M1 T13's attach; persistence is T6's integration test).
 - **Rendering:** `splitpanes` (new dependency) renders the tree recursively (`LayoutNodeView.vue`). Dragging a divider resizes the panes live. Each pane's ResizeObserver refits it and resizes its tmux window. New sizes are saved when the drag ends (`resized` event). The minimum pane size is 10 %.
 - **Rename/kill/drop-missing** (T7 rules) apply to panes inside splits; removing a pane rebalances as **Close pane** does.
 - **Narrow screens:** a split tab shows only its focused pane at full size, with a "Pane n of m" button in the header that cycles focus. The layout itself isn't changed, so a desktop reload shows the split again.
+- *(Built:)* the session list's per-row menu is a new ⋯ button (Reka UI `DropdownMenu`) next to rename and kill. Split right/down are in the pane header on wide screens only; phones split from the row menu. `TabView.vue` switches between the tree and the one-pane narrow view. The e2e `ui.type` helper types into the focused pane (`section[data-focused]`), since a split shows several terminal inputs.
 - ARCHITECTURE §11: the split model and the narrow-screen rule.
 
 **Tests:** U (Vitest):

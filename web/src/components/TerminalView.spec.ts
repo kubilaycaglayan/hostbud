@@ -261,6 +261,42 @@ describe('TerminalView', () => {
     w.unmount()
   })
 
+  it('Close pane emits close; split pickers only when the tab can take a pane', async () => {
+    useSessionsStore().apply({ type: 'snapshot', machines: [], sessions: { host: [{ name: 'acc-a' } as Session, { name: 'acc-b' } as Session] } })
+    const w = await mountTerm()
+    expect(w.find('[aria-label="Split right"]').exists()).toBe(false)
+    await w.get('button[aria-label="Close pane"]').trigger('click')
+    expect(w.emitted('close')).toHaveLength(1)
+    await w.setProps({ canSplit: true })
+    expect(w.findAll('button[aria-label^="Split "]').map((b) => b.attributes('aria-label'))).toEqual(['Split right', 'Split down'])
+    const pickers = w.findAllComponents({ name: 'SessionPicker' })
+    expect(pickers[0].props('sessions')).toEqual(['acc-a', 'acc-b'])
+    pickers[0].vm.$emit('pick', 'acc-b')
+    pickers[1].vm.$emit('new')
+    expect(w.emitted('split')).toEqual([
+      ['row', 'acc-b'],
+      ['column', null],
+    ])
+    // Narrow screens split from the list's row menu instead.
+    await w.setProps({ narrow: true })
+    expect(w.find('[aria-label="Split right"]').exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('narrow with several panes: a "Pane n of m" switcher; a focused split pane is outlined', async () => {
+    const w = await mountTerm({ focused: true })
+    expect(w.find('button[aria-label^="Pane "]').exists()).toBe(false)
+    await w.setProps({ paneCount: 3, paneIndex: 2 })
+    expect(w.get('section').classes()).toContain('outline-accent')
+    await w.setProps({ narrow: true })
+    expect(w.get('section').classes()).not.toContain('outline-accent')
+    const b = w.get('button[aria-label^="Pane "]')
+    expect(b.text()).toBe('Pane 2 of 3')
+    await b.trigger('click')
+    expect(w.emitted('cyclePane')).toHaveLength(1)
+    w.unmount()
+  })
+
   it('prepares the hidden input for on-screen keyboards', async () => {
     await mountTerm()
     const input = h.terms[0].textarea!

@@ -3,6 +3,8 @@ import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App.vue'
 import { useAppStore } from './stores/app'
+import SessionList from './components/SessionList.vue'
+import { panesOf } from './lib/layout'
 import { useLayoutStore } from './stores/layout'
 import { stubFetch } from './test-utils'
 
@@ -161,6 +163,21 @@ describe('tabs', () => {
     await wrapper.get('button[aria-label="Close acc-a"]').trigger('click')
     expect(terms(wrapper)).toEqual(['acc-b'])
     expect(tabs().map((t) => t.attributes('aria-selected'))).toEqual(['true'])
+  })
+
+  it("a row menu's Open in split puts the session beside the focused pane", async () => {
+    const { wrapper, release, feed } = await signedInWith(null)
+    release()
+    await flushPromises()
+    feed()
+    await wrapper.vm.$nextTick()
+    await wrapper.get('button[aria-label="acc-a"]').trigger('click')
+    wrapper.findComponent(SessionList).vm.$emit('split', 'acc-b', 'row')
+    await wrapper.vm.$nextTick()
+    const tabs = useLayoutStore().tabs
+    expect(tabs).toHaveLength(1)
+    expect(panesOf(tabs[0].root).map((p) => p.session)).toEqual(['acc-a', 'acc-b'])
+    expect(useLayoutStore().focused?.session).toBe('acc-b')
   })
 
   it('signing out forgets the tabs', async () => {
