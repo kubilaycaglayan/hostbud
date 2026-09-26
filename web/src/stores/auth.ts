@@ -2,20 +2,31 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { ApiError, authApi } from '@/api/client'
 
-export type AuthStatus = 'loading' | 'anonymous' | 'authenticated'
+export type AuthStatus = 'loading' | 'anonymous' | 'authenticated' | 'unreachable' | 'server-error'
 
 export const useAuthStore = defineStore('auth', () => {
   const status = ref<AuthStatus>('loading')
   const email = ref('')
+  const serverError = ref('')
 
   async function check() {
+    status.value = 'loading'
     try {
       email.value = (await authApi.me()).email
       status.value = 'authenticated'
+      serverError.value = ''
     } catch (e) {
-      if (!(e instanceof ApiError) || e.status !== 401) throw e
-      status.value = 'anonymous'
       email.value = ''
+      if (e instanceof ApiError && e.status === 401) {
+        status.value = 'anonymous'
+        return
+      }
+      if (!(e instanceof ApiError) || [408, 502, 503, 504].includes(e.status)) {
+        status.value = 'unreachable'
+        return
+      }
+      status.value = 'server-error'
+      serverError.value = 'hostbud returned an error. Try again later.'
     }
   }
 
@@ -56,5 +67,5 @@ export const useAuthStore = defineStore('auth', () => {
     return status.value === 'authenticated'
   }
 
-  return { status, email, check, login, register, logout, sessionEnded, stillAuthorized }
+  return { status, email, serverError, check, login, register, logout, sessionEnded, stillAuthorized }
 })

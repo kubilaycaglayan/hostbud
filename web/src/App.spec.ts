@@ -60,6 +60,16 @@ describe('App shell', () => {
     expect(wrapper.find('input[type=password]').exists()).toBe(true)
   })
 
+  it('shows unreachable instead of sign-in when startup auth cannot reach the server', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('offline')))
+    const wrapper = mount(App)
+    await flushPromises()
+    expect(wrapper.get('h1').text()).toBe("Can't reach hostbud")
+    expect(wrapper.find('input[type=password]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Select a session')
+    wrapper.unmount()
+  })
+
   it('renders the sidebar and empty main area when signed in', async () => {
     signedIn()
     const wrapper = mount(App)

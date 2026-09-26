@@ -40,6 +40,14 @@ describe('AuthView', () => {
     expect(wrapper.get('[role=alert]').text()).toContain('Invalid email or password.')
   })
 
+  it('shows a connection error when sign-in cannot reach the server', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('offline')))
+    const wrapper = mount(AuthView)
+    await fill(wrapper, 'person@example.com', 'correct horse battery')
+    expect(wrapper.get('[role=alert]').text()).toContain("Can't reach hostbud, check your connection and try again.")
+    expect(wrapper.get('[role=alert]').text()).not.toContain('Invalid email or password')
+  })
+
   it('shows Retry-After when throttled', async () => {
     stubFetch(() => ({ status: 429, body: { error: 'too many attempts' }, headers: { 'Retry-After': '4' } }))
     const wrapper = mount(AuthView)

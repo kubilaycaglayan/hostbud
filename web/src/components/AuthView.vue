@@ -25,7 +25,7 @@ function describe(e: unknown): [string, string] {
     }
     return [e.message.charAt(0).toUpperCase() + e.message.slice(1) + '.', e.hint ?? '']
   }
-  return ["Can't reach hostbud. Check your connection and try again.", '']
+  return ["Can't reach hostbud, check your connection and try again.", '']
 }
 
 async function submit() {

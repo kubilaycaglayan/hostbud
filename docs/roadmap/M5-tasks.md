@@ -15,7 +15,7 @@ Update this table in the same commit that finishes a task.
 | T3 Touch targets and phone polish | Done |
 | T4 On-screen key bar | Done |
 | T5 Scroll mode | Done |
-| T6 Unreachable state | Not started |
+| T6 Unreachable state | Done |
 | T7 Web app manifest, icons and safe areas | Not started |
 | T8 Service worker | Not started |
 | T9 Docs, audit and release | Not started |
@@ -156,6 +156,8 @@ The key bar's **Scroll** button puts the pane in tmux copy mode through T1's API
 
 ## T6 — Unreachable state
 
+**Status:** Done.
+
 A prerequisite for the PWA: when hostbud can't be reached at start-up, the app must say so rather than showing the sign-in form or anything stale. It's also useful without a service worker, e.g. when a phone opens the page as the Wi-Fi drops.
 
 - `stores/auth`: `check()` distinguishes three outcomes. 200 → authenticated; 401 → anonymous (sign-in form); a network error, timeout (8 s), or 502/503/504 → the new **`unreachable`** status. Today every failure falls through to `sessionEnded()`; stop that.
@@ -166,7 +168,7 @@ A prerequisite for the PWA: when hostbud can't be reached at start-up, the app m
 
 **Tests:** U (Vitest): `auth.check` mapping (200, 401, network error, timeout, 502, 503, 504, 500 → server error message rather than the sign-in form); `UnreachableView` text for offline vs. not responding, Try again, the backoff schedule, `online`/`visibilitychange` retries, stopping after success, and a transition to the sign-in form on a 401 retry; the sign-in form's network-error message. I: n/a (client-side decision; the server's 401 and health behavior is covered by M1 integration tests).
 
-**E2E:** add **(T6) Unreachable at start-up** (desktop and `iphone-13-pro`): with `page.route('**/api/auth/me')` aborting, the app shows **Can't reach hostbud** and never the sign-in form or a session name; after un-routing, **Try again** leads into the signed-in app; the same with a 502 response. **(T6) Offline sign-in error** (desktop): a network-aborted login shows the connection message, and a following correct login succeeds without a throttle delay. Type-check only.
+**E2E:** `unreachable.spec.ts`: **(T6) Unreachable at start-up** (desktop and `iphone-13-pro`): with `page.route('**/api/auth/me')` aborting, the app shows **Can't reach hostbud** and never the sign-in form or a session name; after un-routing, **Try again** leads into the signed-in app; the same with a 502 response. **(T6) Offline sign-in error** (desktop): a network-aborted login shows the connection message, and a following correct login succeeds without a throttle delay. Type-check only.
 
 **Done:** a start without a server shows the unreachable state with retry, and never the sign-in form or stale data; the scenarios compile.
 

@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue'
 import { DialogClose, DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
 import AuthView from '@/components/AuthView.vue'
+import UnreachableView from '@/components/UnreachableView.vue'
 import CreateSessionDialog from '@/components/CreateSessionDialog.vue'
 import FileBrowserDialog from '@/components/FileBrowserDialog.vue'
 import ProjectSessionDialog from '@/components/ProjectSessionDialog.vue'
@@ -152,7 +153,7 @@ watch(
 // A reload right after a change still finds it saved.
 const flushLayout = () => layout.flush()
 onMounted(() => {
-  auth.check().catch(() => auth.sessionEnded())
+  void auth.check()
   window.addEventListener('pagehide', flushLayout)
 })
 onUnmounted(() => {
@@ -168,6 +169,10 @@ onUnmounted(() => {
   >
     Loading…
   </p>
+  <UnreachableView v-else-if="auth.status === 'unreachable'" />
+  <main v-else-if="auth.status === 'server-error'" class="p-4" role="alert">
+    {{ auth.serverError }} <button class="underline" type="button" @click="auth.check">Try again</button>
+  </main>
   <AuthView v-else-if="auth.status === 'anonymous'" />
   <div
     v-else

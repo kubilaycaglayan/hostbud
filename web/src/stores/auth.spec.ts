@@ -22,6 +22,28 @@ describe('auth store', () => {
     expect(auth.email).toBe('person@example.com')
   })
 
+  it.each([502, 503, 504])('treats gateway status %i as unreachable', async (status) => {
+    stubFetch(() => ({ status, body: { error: 'unavailable' } }))
+    const auth = useAuthStore()
+    await auth.check()
+    expect(auth.status).toBe('unreachable')
+  })
+
+  it('treats network errors and timeout as unreachable', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('network down')))
+    const auth = useAuthStore()
+    await auth.check()
+    expect(auth.status).toBe('unreachable')
+  })
+
+  it('shows a server error instead of the sign-in state for an unexpected 500', async () => {
+    stubFetch(() => ({ status: 500, body: { error: 'broken' } }))
+    const auth = useAuthStore()
+    await auth.check()
+    expect(auth.status).toBe('server-error')
+    expect(auth.serverError).toContain('hostbud returned an error')
+  })
+
   it('registers, then signs in', async () => {
     const calls = stubFetch((method, path) =>
       path === '/api/auth/me' ? { status: 200, body: { email: 'person@example.com' } } : { status: method === 'POST' && path.endsWith('register') ? 201 : 200, body: {} },

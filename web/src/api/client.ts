@@ -50,7 +50,7 @@ export interface Me {
 }
 
 export const authApi = {
-  me: () => request<Me>('GET', '/api/auth/me'),
+  me: () => request<Me>('GET', '/api/auth/me', undefined, { signal: AbortSignal.timeout(8_000) }),
   login: (email: string, password: string) => request<void>('POST', '/api/auth/login', { email, password }),
   register: (email: string, password: string) =>
     request<void>('POST', '/api/auth/register', { email, password }),
