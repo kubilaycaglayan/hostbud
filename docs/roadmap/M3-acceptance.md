@@ -93,8 +93,8 @@ Projects as in M2: `desktop-chromium` and `iphone-13-pro` on `http://localhost:9
 - [x] **(T8) Close pane:** panes close down to one; closed sessions stay listed, detached.
 - [x] **(T8) Splits survive reload:** tree, divider position and focus survive reload and an app restart.
 - [x] **(T8) Split on the phone:** a split tab shows one pane, and the pane switcher changes which one (`iphone-13-pro`).
-- [ ] **(every task) Kept green:** T1–T5 each ran `make e2e` green in their commit; from T6 on, each test checkpoint (CP1–CP3 in [M3-tasks.md](M3-tasks.md#progress)) ran it green, and the M1 and M2 suites still pass.
-- [ ] **(T9) Stable:** two consecutive full runs pass from a clean checkout.
+- [ ] **(every task) Kept green:** T1–T5 each ran `make e2e` green in their commit; from T6 on, each test checkpoint (CP1–CP3 in [M3-tasks.md](M3-tasks.md#progress)) ran it green, and the M1 and M2 suites still pass. *(CP1 and CP2: green after fixes, with the failed files re-run; CP3's e2e was cancelled by the owner, see below.)*
+- [ ] **(T9) Stable:** two consecutive full runs pass from a clean checkout. *(Open: the owner cancelled the CP3 e2e runs; the first run had 68 passed and 0 failed when stopped.)*
 
 ## Security (AGENTS.md checklist, M3 scope)
 - [x] OSC 52 is write-only: programs on the host can't read the browser clipboard.

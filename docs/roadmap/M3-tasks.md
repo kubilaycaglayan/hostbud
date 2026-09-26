@@ -25,7 +25,7 @@ Update this table in the same commit that finishes a task.
 |---|---|---|---|
 | CP1 | T6 + T7 (UI state API and tabs) | `make lint test`, `make e2e` (all projects) | ✅ green: the full run found 6 failures (a save fired by the layout load itself, a reload test that didn't wait for the active tab, a phone helper hitting a hidden tab's terminal, and a legitimate save racing an app restart); fixed with regression tests, and the failed files re-ran green |
 | CP2 | T8 (split view) | `make lint test`, `make e2e` (all projects) | ✅ green: lint and 3 unit tests needed fixes; the full e2e run found 5 failures (the split picker's popover returned focus to the old pane, a 1px divider that couldn't be grabbed, and M1's exit-state scenario now ending in the tab-closed notice); fixed, and the failed files re-ran green |
-| CP3 | T9 (audit) | `make lint test`, `make e2e` twice in a row from a clean checkout | |
+| CP3 | T9 (audit) | `make lint test`, `make e2e` twice in a row from a clean checkout | ⚠️ partial: `make lint test` green; the owner cancelled the e2e runs for this milestone after the first run had 68 passed and 0 failed. The two-run stability check is still open. |
 
 A failure found at a checkpoint is fixed (with a regression test where it's a bug) before the next task starts, and the checkpoint is re-run until green.
 
