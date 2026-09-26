@@ -146,16 +146,24 @@ test('(T4) Project persists and updates live', async ({ page, request, target, u
 test('(T4) Hidden toggle and lazy symlink status in the browser', async ({ page, target }) => {
   const name = uniqueName('e2e-browser-links')
   const dir = `/home/dev/${name}`
-  await target.run(`mkdir -p ${shq(dir)}; touch ${shq(`${dir}/.hidden`)}; ln -s missing ${shq(`${dir}/broken-link`)}`)
+  await target.run(`mkdir -p ${shq(dir)}; touch ${shq(`${dir}/.hidden`)} ${shq(`${dir}/target`)}; ` +
+    `ln -s target ${shq(`${dir}/resolved-link`)}; ln -s missing ${shq(`${dir}/broken-link`)}; ` +
+    `ln -s loop-link ${shq(`${dir}/loop-link`)}`)
   try {
     await page.goto('/')
     await page.getByRole('button', { name: 'Browse files' }).click()
     await page.getByLabel('Current path').fill(dir)
     await page.getByRole('button', { name: 'Go' }).click()
+    await expect(page.getByText('resolved-link (unresolved)')).toBeVisible()
     await expect(page.getByText('broken-link (unresolved)')).toBeVisible()
+    await expect(page.getByText('loop-link (unresolved)')).toBeVisible()
     await expect(page.getByText('.hidden')).toHaveCount(0)
-    await page.getByRole('button', { name: 'Check link' }).click()
+    await page.getByRole('button', { name: 'Check link resolved-link' }).click()
+    await expect(page.getByText('resolved-link (resolved)')).toBeVisible()
+    await page.getByRole('button', { name: 'Check link broken-link' }).click()
     await expect(page.getByText('broken-link (broken)')).toBeVisible()
+    await page.getByRole('button', { name: 'Check link loop-link' }).click()
+    await expect(page.getByText('loop-link (loop)')).toBeVisible()
     await page.getByLabel('Show hidden files').check()
     await expect(page.getByText('.hidden')).toBeVisible()
   } finally {
