@@ -230,6 +230,7 @@ for (const profile of ['desktop', 'phone'] as const) {
       if (profile === 'desktop') await page.getByRole('button', { name: 'Hide project tree' }).click()
       await expect(page.getByRole('complementary', { name: 'Sessions' })).toBeHidden()
       await expect(header.getByRole('button', { name: 'Sign out' })).toBeVisible()
+      await expect(header.getByText(/@/)).toBeVisible()
       await header.getByRole('button', { name: 'Sign out' }).click()
       await expect(page.getByRole('tab', { name: 'Sign in' })).toBeVisible()
     })

@@ -76,7 +76,7 @@ Each criterion names **U** (unit), **I** (integration against `test/sshd`, Postg
   - U: T5 `SessionList` action order, accessible names, and callbacks; kill confirmation remains wired.
   - I: n/a — control placement and callbacks are frontend behavior; the existing kill/rename endpoint integration coverage remains authoritative for effects.
   - E: T5 *Left bar session actions* (desktop and iPhone 13 Pro): verify the action group follows the row title, rename works, and × requires confirmation before killing.
-- [ ] The signed-in account email and Sign out action appear at the top-right of the app header, rather than the bottom of the left bar. Sign out continues to revoke the session and clear live/layout state. On narrow screens, the email and Sign out remain reachable without opening the left bar.
+- [x] The signed-in account email and Sign out action appear at the top-right of the app header, rather than the bottom of the left bar. Sign out continues to revoke the session and clear live/layout state. On narrow screens, the email and Sign out remain reachable without opening the left bar.
   - U: T5 header placement/accessibility and sign-out callback; existing auth-store tests cover session clearing.
   - I: n/a — placement is frontend behavior; M1 authentication integration covers session revocation.
   - E: T5 *Account controls in app header* (desktop and iPhone 13 Pro): verify email/Sign out at top right with the left bar both visible and closed; sign out returns to sign-in and stops live updates.
@@ -138,7 +138,7 @@ Projects remain `desktop-chromium` and `iphone-13-pro` against the throwaway tar
 - [x] **(T5) Distinct project tree entries:** nested paths and similar names remain separate, deterministic entries (desktop).
 - [x] **(T5) Left bar custom order:** reorder projects and sessions, add new rows, and verify existing custom order persists through reload, sign-out/sign-in and restart (desktop and phone).
 - [x] **(T5) Left bar session actions:** the ×, ⋯ and pencil sit directly to the right of the title; rename works; × prompts before kill (desktop and phone).
-- [ ] **(T5) Account controls in app header:** email and Sign out appear top-right whether the left bar is open or closed; sign out revokes the session (desktop and phone).
+- [x] **(T5) Account controls in app header:** email and Sign out appear top-right whether the left bar is open or closed; sign out returns to sign-in and stops live updates (desktop and phone; auth revocation is also covered by the T8B auth scenario).
 - [ ] **(T5) No window counts:** one-window and multi-window rows both omit the count label (desktop).
 - [ ] **(T6) Recent start command:** choose a recent command on a second project session; it runs in the correct project directory (desktop and phone).
 - [ ] **(T6) Recent commands are project-scoped and require selection:** another project's command is absent and opening the picker runs nothing (desktop).
