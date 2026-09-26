@@ -64,6 +64,7 @@ The domain works only inside your tailnet: its DNS record points at the host's T
 - *"request origin not allowed":* open hostbud exactly as `https://<HOSTBUD_DOMAIN>` or `http://localhost:<HOSTBUD_LOCAL_PORT>`.
 
 ## Using hostbud
+- **Browse files:** open the file browser to navigate the host over SFTP, show or hide dotfiles, create a folder, save the current directory as a project, or start a session there. The browser requires the host's SSH/SFTP access. It can list, inspect and create folders; it has no remote delete or rename action.
 - The sidebar groups host sessions under saved projects or **Other sessions** (● attached / ○ detached) and follows changes made anywhere (e.g. `tmux new -d -s x` in a real terminal) within one poll interval (`HOSTBUD_POLL_INTERVAL`, default 3s). Drag projects and sessions to set an order saved to your account. Use **Save as project** for an unmatched session to save its directory without changing the running tmux session.
 - **New session**: a directory (default `~`, `~/…` works), an optional name (default: the directory's name; `name-1`, `name-2`, … if taken) and an optional start command such as `htop` or `claude`.
 - ✎ renames, ✕ kills (after a confirmation); the ⋯ menu opens a session in a split.

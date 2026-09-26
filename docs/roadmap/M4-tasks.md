@@ -16,7 +16,7 @@ Update this table in the same commit that finishes a task.
 | T4 File browser and project actions | Done |
 | T5 Project tree and unmatched sessions | Done |
 | T6 Recent start commands | Done |
-| T7 Documentation, audit and release | Planned |
+| T7 Documentation, audit and release | Done |
 
 Tasks proceed in order. Before implementation, re-check M3's acceptance gates and the M4 acceptance coverage below. Every behavior-changing task writes its unit, integration and e2e coverage in the same commit. Run `make lint test` and `make gitleaks` per repository rules; from M4 onward do not run `make e2e`, `e2e-up` or `e2e-run` before M7. Each task that changes e2e files only type-checks the suite with `tsc` as part of lint. E2E scenarios are authored now and run once with the full suite in M7.
 
@@ -116,3 +116,5 @@ Tasks proceed in order. Before implementation, re-check M3's acceptance gates an
 **E2E:** audit that all T3–T6 scenarios are present, correctly tagged and type-check; do not run. M4 scenarios join the M7 full suite.
 
 **Done:** all M4 acceptance items are satisfied, docs match behavior, host smoke checks are recorded, and no M4 e2e run has occurred.
+
+**T7 verification:** `make lint test` passed (including PostgreSQL and `test/sshd` integration); `make deploy` completed; local `/api/health` returned `{"status":"ok"}` and `/` served the app HTML; `make gitleaks` found no leaks. E2E scenarios were type-checked by lint but not executed, as scheduled for M7. Owner-only Mac/phone visual checks remain for the owner; they do not block this milestone per authorization to proceed.
