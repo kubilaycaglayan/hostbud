@@ -1,6 +1,6 @@
 # hostbud — Roadmap
 
-Each milestone is shippable and ends deployed on the host (`make deploy`). A milestone is **done** only when its acceptance criteria pass, tests are green (`make lint test` **and `make e2e`**), `gitleaks` is clean, and README/ARCHITECTURE are updated if behavior changed.
+Each milestone is shippable and ends deployed on the host (`make deploy`). A milestone is **done** only when its acceptance criteria pass, tests are green (`make lint test`; `make e2e` only at M7, see below), `gitleaks` is clean, and README/ARCHITECTURE are updated if behavior changed.
 
 **E2E per milestone:** each milestone extends the e2e suite (ARCHITECTURE §13.1) with scenarios that simulate a real user doing everything that milestone added, in both the desktop and iPhone 13 Pro profiles, against the throwaway target. The *E2E* line under each milestone lists the minimum.
 
@@ -10,6 +10,8 @@ Each milestone is shippable and ends deployed on the host (`make deploy`). A mil
 - every E2E item in a `roadmap/M*-acceptance.md` checklist is tagged with the task that adds it.
 
 When a milestone below is broken into tasks, spread its *E2E* line across those tasks. Don't collect it into a final "write e2e tests" task.
+
+**E2E runs are paused until the end of M7** (owner's decision, 2026-09-26). From M4 on, scenarios are still written task by task as above, but `make e2e` is not run while building milestones: not per commit, task, checkpoint or milestone. Each commit only type-checks the e2e suite. M7 ends with one full e2e run of every milestone's scenarios (both profiles), fixing what fails, including M3's open two-run stability check. Until then, E items in the acceptance checklists count as written but not yet passed.
 
 **Every acceptance criterion is tested at three layers.** Each criterion in a milestone's `roadmap/M*-acceptance.md` gets a coverage line: **U** (unit: Go with fakes, Vitest), **I** (integration: against the `test/sshd` container or the real deploy config) and **E** (an e2e scenario), each naming the task that writes it. A layer is **n/a** only with a one-line reason; "manual" is allowed only where no automated layer can observe the behavior. The *Accept* line below each milestone becomes such criteria when the milestone is broken down, and no criterion is ticked until its tests exist and pass.
 
@@ -111,7 +113,9 @@ Tasks: [roadmap/M3-tasks.md](roadmap/M3-tasks.md) · Checklist: [roadmap/M3-acce
 
 **E2E:** foreign-Origin requests and WebSockets rejected; a stalled terminal client is dropped and recovers by reconnecting; long-running exec/SFTP calls time out with a user-visible error instead of hanging; the full suite from all previous milestones still passes.
 
-**Accept:** security checklist in AGENTS.md fully satisfied; fresh-host install from README works end to end.
+**Full e2e run (last task of M7):** the first `make e2e` since M3. Run the whole suite, fix every failure (regression tests for bugs, test fixes for stale scenarios), then run it twice in a row from a clean checkout to check stability.
+
+**Accept:** security checklist in AGENTS.md fully satisfied; fresh-host install from README works end to end; `make e2e` green twice in a row.
 
 ---
 

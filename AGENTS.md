@@ -22,9 +22,10 @@ All such values come from environment variables. **If you need a config value th
   - never change users' tmux configs, shell configs, or `~/.ssh` files; `~/.ssh` is mounted read-only;
   - migrations are append-only and must not drop user data.
 - **Dockerize everything we can.** Build, test, lint and gitleaks all run in containers via `make`; don't assume Go, gitleaks or golangci-lint are installed on the host.
-- Local verification: `make test` (unit + integration against the `test/sshd` container), `make e2e` (simulated user against a throwaway target; see below), then `make deploy` and open `http://localhost:${HOSTBUD_LOCAL_PORT}`.
-- **E2E tests** (`make e2e`, docs/ARCHITECTURE.md §13.1) simulate a real user in the browser (desktop Chromium + iPhone 13 Pro/WebKit) against the throwaway `hostbud-e2e-target` — **never the real host's tmux**. Any new implementation or fix whose behavior e2e can cover must add or update its scenario **in the same commit**, and run `make e2e` before committing.
-  - **Never defer e2e** to a later task or to the end of a milestone. If the behavior is reachable through the UI or the HTTP/WebSocket API through Caddy, it gets a scenario now (API-level before the UI exists).
+- Local verification: `make test` (unit + integration against the `test/sshd` container), then `make deploy` and open `http://localhost:${HOSTBUD_LOCAL_PORT}`. `make e2e` (simulated user against a throwaway target) is paused until M7; see below.
+- **E2E tests** (`make e2e`, docs/ARCHITECTURE.md §13.1) simulate a real user in the browser (desktop Chromium + iPhone 13 Pro/WebKit) against the throwaway `hostbud-e2e-target` — **never the real host's tmux**. Any new implementation or fix whose behavior e2e can cover must add or update its scenario **in the same commit**.
+  - **E2E runs are paused until the end of M7.** While building M4–M7, write the scenarios but **don't run `make e2e`** (or `e2e-up`/`e2e-run`), not per commit, per task, checkpoint or milestone. The only e2e check per commit is that the suite type-checks (`tsc`). The whole suite runs once in M7's final task, and every failure is fixed there.
+  - **Never defer writing e2e** to a later task or to the end of a milestone (only running is deferred). If the behavior is reachable through the UI or the HTTP/WebSocket API through Caddy, it gets a scenario now (API-level before the UI exists).
   - Every task you plan or implement has an **E2E:** line (scenarios added, or why nothing is reachable), and every E2E item in `docs/roadmap/*-acceptance.md` is tagged with the task that adds it. When you split, add or reorder tasks, keep both true.
   - If a done task's E2E item is missing, fix that first, before starting the next task.
 - **Three test layers per acceptance criterion.** Every criterion in `docs/roadmap/*-acceptance.md` has a coverage line with **U** (unit), **I** (integration, against `test/sshd` or the real deploy config) and **E** (e2e) tests, each naming the task that writes it. n/a needs a one-line reason, and "manual" is only for what automation can't observe.
@@ -58,6 +59,6 @@ All such values come from environment variables. **If you need a config value th
 
 ## Definition of done (per milestone)
 1. Acceptance criteria in docs/ROADMAP.md pass.
-2. `make lint test` and `make e2e` green; gitleaks clean; every acceptance criterion's unit, integration and e2e tests (per its coverage line) exist and pass, added task by task, not at the end.
+2. `make lint test` green; gitleaks clean; every acceptance criterion's unit, integration and e2e tests (per its coverage line) exist, added task by task, not at the end. Unit and integration tests pass; e2e tests type-check and pass at the M7 run (until then an E item counts as written, not yet passed). M7's definition of done also requires `make e2e` green.
 3. Docs updated (README usage, ARCHITECTURE if design changed, `.env.example` for new vars).
 4. A short summary listing: what changed, any new env vars the owner must set, and manual steps on the host.

@@ -17,7 +17,7 @@ Update this table in the same commit that finishes a task.
 | T6 UI state API | ✅ done (tests run at CP1) |
 | T7 Tabs | ✅ done (tests run at CP1) |
 | T8 Split view | ✅ done (tests run at CP2) |
-| T9 Docs, audit and release | ✅ done: deployed; the owner's manual checks and the two-run e2e stability check are open |
+| T9 Docs, audit and release | ✅ done: deployed; the owner's manual checks are open; the two-run e2e stability check moves to M7 |
 
 **Test checkpoints (T6–T9, owner's trial of batched test runs).** From T6 on, each task still writes all the U/I/E tests it owes in the same commit as the behavior, but the suites run at checkpoints instead of per commit. Each commit gets only the fast checks: the Go packages it touches build and vet, and `vue-tsc` type-checks the frontend (and the e2e suite when it changes). `make gitleaks` still runs on every commit (pre-commit hook).
 
@@ -25,7 +25,7 @@ Update this table in the same commit that finishes a task.
 |---|---|---|---|
 | CP1 | T6 + T7 (UI state API and tabs) | `make lint test`, `make e2e` (all projects) | ✅ green: the full run found 6 failures (a save fired by the layout load itself, a reload test that didn't wait for the active tab, a phone helper hitting a hidden tab's terminal, and a legitimate save racing an app restart); fixed with regression tests, and the failed files re-ran green |
 | CP2 | T8 (split view) | `make lint test`, `make e2e` (all projects) | ✅ green: lint and 3 unit tests needed fixes; the full e2e run found 5 failures (the split picker's popover returned focus to the old pane, a 1px divider that couldn't be grabbed, and M1's exit-state scenario now ending in the tab-closed notice); fixed, and the failed files re-ran green |
-| CP3 | T9 (audit) | `make lint test`, `make e2e` twice in a row from a clean checkout | ⚠️ partial: `make lint test` green; the owner cancelled the e2e runs for this milestone after the first run had 68 passed and 0 failed. The two-run stability check is still open. |
+| CP3 | T9 (audit) | `make lint test`, `make e2e` twice in a row from a clean checkout | ⚠️ partial: `make lint test` green; the owner cancelled the e2e runs for this milestone after the first run had 68 passed and 0 failed. The two-run stability check moves to M7's full e2e run (e2e runs are paused until then). |
 
 A failure found at a checkpoint is fixed (with a regression test where it's a bug) before the next task starts, and the checkpoint is re-run until green.
 
