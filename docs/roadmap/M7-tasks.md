@@ -28,12 +28,12 @@ Update this table in the same commit that finishes a task.
 
 ## Rules for this milestone
 
-- Work top to bottom, one task at a time, and don't start a task until the previous one is done. **Before starting M7, check that M4, M5 and M6 meet their acceptance checklists**, except the e2e runs that were deferred to M7. M7 hardens what those milestones built (the M5 service worker and the M6 theme boot script constrain the CSP; M6's routes need the same limits), so don't harden a moving target.
+- Work top to bottom, one task at a time, and don't start a task until the previous one is done. **Before starting M7, check that M4, M5 and M6 meet their acceptance checklists**, except the e2e runs that were deferred to M7 and open owner items (their *Manual checks (owner)* lists). M7 hardens what those milestones built (the M5 service worker and the M6 theme boot script constrain the CSP; M6's routes need the same limits), so don't harden a moving target.
 - Before each task, read the U/I/E coverage lines that [M7-acceptance.md](M7-acceptance.md) assigns to it, plus its own **Tests:** and **E2E:** lines. Write all of them in the same commit(s) as the behavior. Never leave tests or scenarios for a later task.
 - **Batched test checkpoints** (continuing M3–M6): each commit runs only fast checks: `go build`/`go vet` for the Go packages it touches, `vue-tsc` for the frontend, and `tsc` for the e2e suite when it changes. `make gitleaks` runs on every commit through the pre-commit hook. Full suites run at the checkpoints below. A checkpoint failure is fixed (with a regression test if it's a bug) before the next task starts, and the checkpoint re-runs until green.
 - **E2E runs stay paused until T13.** T1–T12 write their scenarios and type-check them, but never run `make e2e`, `e2e-up` or `e2e-run`. T13 is the one full run, and from then on e2e runs are allowed and required (T14 records the policy change).
 - Every task has an **E2E:** line. A scenario is tagged with the task that writes it, both here and in the acceptance checklist.
-- Tasks marked *(host)* need the real host, a desktop browser or the owner's iPhone.
+- Tasks marked *(host)* need the real host, a desktop browser or the owner's iPhone. The agent does the host parts itself. Anything that needs the owner's device, account or decision is an open owner item: record it and continue, never wait (AGENTS.md, *Owner items never block agents*).
 - **Hardening must not break the running deployment.** The dev machine is the deploy host. Don't run `make deploy` before T14. Don't restart, stop or recreate the production containers, and never touch the volumes `hostbud-data`, `hostbud-postgres-data`, `hostbud-caddy-data` or `hostbud-caddy-config`. Restore (T9) is exercised only against throwaway databases, never the production one. Don't change the owner's tmux config, shell config or `~/.ssh` files, and never kill or detach the owner's tmux sessions.
 - **New env vars:** T1 adds the few operator-tunable limits (listed in T1). Each goes to `.env.example` with a placeholder and a comment, to `internal/config` with a validated range, and to the `hostbud` service's explicit `environment:` list in `docker-compose.yml`. List every new var in the final summary. Don't add a var for a limit nobody needs to tune: those stay constants, documented in the ARCHITECTURE §15 table.
 - **Failure switches for tests** are fixed commands with a time-to-live. T2/T3 add stall switches to the `test/sshd` image (shared by the integration targets and the e2e target), and T4/T8/T10 add ctl actions. Each switch turns itself off after at most 60 s, so a crashed scenario can't leave the shared target stalled for the rest of the serial suite. Scenarios also switch them off in `finally`.
@@ -177,7 +177,7 @@ The terminal and events sockets must never let one slow or greedy client hold se
   - `style-src 'unsafe-inline'` is needed for style attributes set by Vue, Reka UI, splitpanes and xterm. ARCHITECTURE §11 records why, and that scripts stay strict.
   - `connect-src` lists `ws://localhost:${HOSTBUD_LOCAL_PORT}` and `wss://${HOSTBUD_DOMAIN}` explicitly (from the Origin allowlist), because older WebKit doesn't cover WebSockets with `'self'`.
   - The boot-script hash is **computed at startup** from the embedded `index.html` (every inline `<script>` is hashed; an inline script that isn't the known boot script is a startup error). A future edit to the script can't silently break the CSP. `check-dist` (M6) also fails a build with a second inline script.
-  - No `unsafe-eval`: verify xterm (WebGL addon) and Vue's runtime build run without it. If a dependency needs it, stop and ask; don't add it.
+  - No `unsafe-eval`: verify xterm (WebGL addon) and Vue's runtime build run without it. If a dependency needs it, don't add it: use a CSP-safe alternative (a build or option that doesn't eval, or xterm's DOM renderer instead of WebGL), record the choice and why in ARCHITECTURE §11 and the summary, and continue.
 - **E2E CSP guard:** `helpers/fixtures.ts` adds a page listener (an init script that records `securitypolicyviolation` events plus console CSP errors). The shared `page` fixture fails the test in teardown if any was recorded. Every UI scenario from M1–M7 is therefore a CSP test at T13.
 - ARCHITECTURE §9 (security middleware), §11 (CSP and why each directive is as it is; replaces M6's "if added" note), §3 (HSTS on the domain site).
 
@@ -271,7 +271,7 @@ The ROADMAP asks for "an integration test suite against `test/sshd`". Most of it
 
 ## T11 — Fresh-host install and `make doctor`
 
-The ROADMAP accepts M7 when "fresh-host install from README works end to end". Make that likely before the owner tries it, and diagnosable when it doesn't work.
+The ROADMAP accepts M7 when "fresh-host install from README works end to end". Make that likely before anyone tries it, and diagnosable when it doesn't work.
 
 - **`make doctor`** (`scripts/doctor.sh`, POSIX sh plus `docker`; runs on the host, read-only, changes nothing). Each check prints ✓/✗ and a one-line fix:
   - Docker and Compose v2 present, and the user can reach the daemon;
@@ -288,13 +288,13 @@ The ROADMAP accepts M7 when "fresh-host install from README works end to end". M
 - **Docs consistency check** (`scripts/check-docs.sh`, run by `make lint`): every `make <target>` named in README exists in the Makefile; every env var read in `internal/config` appears in `.env.example` and in the `hostbud` service's `environment:`; every `HOSTBUD_*` in `.env.example` is read somewhere or marked as v2/unused in its comment; README links to `docs/` files resolve.
 - **README Quick start** rewritten as a numbered, copy-pasteable path for a fresh Debian/Ubuntu host: prerequisites → dedicated key and systemd agent unit → `authorized_keys` restriction line → sshd/tmux → Tailscale + DNS → `.env` → `make doctor` → `make deploy` → first account (the whitelist `INSERT` in `psql`) → port-forward check → domain check → optional Tailscale allowlist → `make backup`. Each step says how to verify it. Placeholders only (`example.com`, `/home/dev`, `server-a`).
 - **Troubleshooting** section gathered from M1–M7 (host key changed, agent empty, `cannot assign requested address`, DNS split, 429 on sign-in, "didn't answer" timeouts, too many terminals, Tailscale 403).
-- *(host)* Run `make doctor` on the real host. It must pass. Record the output with values redacted. Don't change the host to make it pass without asking the owner.
+- *(host)* Run `make doctor` on the real host and record the output with values redacted. A failure caused by `doctor.sh` itself (a wrong check) is a bug: fix it. A failure caused by the host's setup is not the agent's to fix: don't change the host. Record the failing check and its printed fix as an open owner item in [M7-acceptance.md](M7-acceptance.md#manual-checks-owner-t14) and the summary, and continue.
 
 **Tests:** U (shell, in the toolbox via `make test`): `doctor.sh` checks as functions against fixture `.env` files and stubbed commands (placeholder detected, mode 644 flagged, overlapping subnet, missing socket, busy port held by another process vs by hostbud); `check-docs.sh` passes on the tree and fails on fixtures (unknown make target, undocumented var, dangling link). I: `check-docs.sh` against the real repo in `make lint`; `internal/deploytest` still renders with `.env.example` alone (a fresh clone with only placeholders produces a valid config). E: n/a (host tooling and docs).
 
 **E2E:** n/a: `make doctor` and the README run on the host, outside anything the UI or API reaches.
 
-**Done:** `make doctor` diagnoses every prerequisite with a fix, docs and config can't drift, the README takes a fresh host to a working install step by step, and the real host passes `make doctor`.
+**Done:** `make doctor` diagnoses every prerequisite with a fix, docs and config can't drift, the README takes a fresh host to a working install step by step, and `make doctor` ran on the real host with no `doctor.sh` bugs left (host-setup failures are recorded as open owner items).
 
 ## T12 — Docs and security audit
 
@@ -315,14 +315,14 @@ The ROADMAP accepts M7 when "fresh-host install from README works end to end". M
 
 The first `make e2e` since M3 (ROADMAP: *Full e2e run*). The last code task: everything after it is release and cleanup.
 
-1. **Preconditions.** T1–T12 done; `make lint test` green; working tree clean for this task's files. **Nobody else is using the e2e stack:** `docker compose -p hostbud-e2e ps -q` is empty and `pgrep -af 'test/e2e/run.sh'` shows nothing; if not, stop and ask. Enough disk: `docker system df`, and at least 10 GB free for the e2e images.
+1. **Preconditions.** T1–T12 done; `make lint test` green; working tree clean for this task's files. **Nobody else is using the e2e stack:** `docker compose -p hostbud-e2e ps -q` is empty and `pgrep -af 'test/e2e/run.sh'` shows nothing. If not, another run is using it: wait until it's free (re-check every few minutes), and never tear down a stack someone else is using. Enough disk: `docker system df`, and at least 10 GB free for the e2e images.
 2. **First full run:** `make e2e` (fresh stack, all three profiles, torn down after). Record passed/failed/flaky counts and wall time in Progress notes.
 3. **Triage every failure,** one at a time, into exactly one class, and record the class in the fix commit:
    - **Product bug** (the scenario is right, the app is wrong): bug-fix workflow. The failing e2e scenario is the regression test (plus a U/I test at the lowest layer that can catch it), committed first, then the fix.
    - **Stale scenario** (intended behavior changed in a later milestone, e.g. M4 locators after M6's tree roles, M2 phone layout after M5's drawer): fix the scenario, citing the ARCHITECTURE line or the task that changed the behavior. Never weaken what it asserts about the user-visible outcome.
    - **Harness problem** (timing, readiness, fixture leaks between scenarios): fix it at the cause: wait for the observable condition (a response, a `capture-pane` match), not a sleep.
    - **Environment** (disk, a stale image): fix the environment, not the code; record what happened.
-   Forbidden to get green: `retries > 0`, raising the global `timeout`/`expect.timeout`, `test.skip`/`test.fixme`/`test.only`, deleting a scenario, or loosening an assertion to match a bug. If a scenario truly can't run in e2e, stop and ask the owner; if they agree, move it to the manual checklist with the reason.
+   Forbidden to get green: `retries > 0`, raising the global `timeout`/`expect.timeout`, `test.skip`/`test.fixme`/`test.only`, deleting a scenario, or loosening an assertion to match a bug. If a scenario truly can't run in e2e (Playwright can't observe the behavior at all, not just "it's hard"), move it to the M7 manual checklist with the reason, record the move in [M7-acceptance.md](M7-acceptance.md#full-e2e-run) and list it in the summary for the owner to review later. Don't wait for approval. The owner may send it back to e2e.
 4. **Fast loop while fixing:** now that e2e runs are allowed, use `make e2e-up` and `make e2e-run ARGS="<spec> -g '<name>' --project=<profile>"` for the failing scenario, then the whole spec file, then the whole suite with `make e2e`.
 5. **After the last fix:** `make lint test` green.
 6. **Stability: twice in a row from a clean checkout.** Create a throwaway worktree at `HEAD` in the scratch directory (`git worktree add <scratch>/hostbud-m7-e2e HEAD`). In it, run `make e2e`, then `make e2e` again. Both must be fully green in all three profiles, with no retries. A failure in either run → back to step 3, then both runs again from a fresh worktree. This closes M3's open two-run check (CP3) as well. Remove the worktree afterwards (`git worktree remove`), only the one this task created.
@@ -341,24 +341,24 @@ The first `make e2e` since M3 (ROADMAP: *Full e2e run*). The last code task: eve
   - `curl -fsS http://127.0.0.1:${HOSTBUD_LOCAL_PORT}/api/health` → `{"status":"ok"}`;
   - `docker inspect` shows `ReadonlyRootfs` true, `CapDrop` ALL, and the log options on `hostbud`;
   - response headers on `/` through the loopback port (CSP present);
-  - `make doctor` passes.
+  - `make doctor` runs clean, or its host-setup failures are recorded as open owner items (T11).
   If the hardened app fails to start, roll back with `git stash`/checkout of the previous deploy commit and `make deploy`, report, and fix before retrying. The data is untouched either way (migrations are append-only).
-- *(host)* Owner's manual checks, listed in [M7-acceptance.md](M7-acceptance.md#manual-checks-owner-t14): record date and result for each there. If the owner hasn't done them yet, say so in the summary rather than ticking them.
+- *(host)* Owner's manual checks, listed in [M7-acceptance.md](M7-acceptance.md#manual-checks-owner-t14): record date and result for each there. If the owner hasn't done them yet, list them as open in the summary rather than ticking them, and don't wait for them: they don't block T14, T15 or M7's done state.
 - **E2E policy switches back on:** from now on e2e runs before every commit that changes behavior e2e can reach (ARCHITECTURE §13.1 already says so after M7). Update AGENTS.md (the "paused until the end of M7" paragraph becomes the resumed rule), ROADMAP (the paused note becomes history), and the project memory note about paused e2e runs.
-- **Version:** propose tagging `v1.0.0` locally (no remote exists). Tag only if the owner says so.
+- **Version:** don't tag, and don't wait for an answer. List "tag `v1.0.0` locally" (no remote exists) as an open owner item in the summary.
 - **Summary to the owner:** what changed; **new env vars:** `HOSTBUD_EXEC_TIMEOUT`, `HOSTBUD_SFTP_TIMEOUT`, `HOSTBUD_MAX_TERMINALS_PER_USER`, `HOSTBUD_MAX_TERMINALS` (all optional, defaults fine), and the optional `COMPOSE_FILE` line for the Tailscale override with `HOSTBUD_ALLOWED_TS_USERS` / `TAILSCALED_SOCKET`; manual steps (run `make doctor`; optionally enable the Tailscale allowlist; set up an off-host copy of `backups/`); the e2e results (counts, the two green runs); open manual checks.
 
 **Tests:** none new.
 
 **E2E:** none run beyond T13 unless the deploy step finds a bug. Then the bug-fix workflow applies, followed by `make e2e` green again before re-deploying.
 
-**Done:** the hardened stack runs on the host and is healthy, the owner's checks are recorded or listed as open, the e2e policy is back in force, and the summary has been delivered.
+**Done:** the hardened stack runs on the host and is healthy, the owner's checks are recorded or listed as open (backlog, not blockers), the e2e policy is back in force, and the summary has been delivered.
 
 ## T15 — Safe Docker cleanup
 
 Free the disk the milestone's builds and e2e runs used, **without touching the running deployment, its data, other projects, or work another agent may be doing at the same time.** This is the last step of the milestone, after T14's deploy and checks. M7 is the first milestone since M3 that ran e2e, so there is more to clean than in M5/M6: the e2e images, possibly a leftover stack, and T13's worktree.
 
-1. **Check that nothing is in use.** Stop and report instead of cleaning if any of these hold:
+1. **Check that nothing is in use.** If any of these hold, skip the cleaning (steps 3–6), record "cleanup skipped: <reason>" in Progress and the summary, and treat the task as done. Cleanup can run again later:
    - a `make` test/lint/build or e2e run is in progress from this or another session (`pgrep -af 'scripts/tool.sh|docker exec hostbud-tools|test/e2e/run.sh|docker compose .*hostbud'`);
    - a `hostbud-tools-*` container is running a process other than its idle entrypoint (`docker top <container>` for each one listed by `docker ps --filter label=hostbud.tools=1`);
    - the `hostbud-e2e` stack is up (`docker compose -p hostbud-e2e ps -q` is non-empty) and `pgrep` shows a run using it. If it's up but idle (a leftover from T13's `e2e-up` fast loop), it's this milestone's own: `make e2e-down` removes it and its volumes. That's allowed, but only after confirming no run is active;
@@ -367,7 +367,7 @@ Free the disk the milestone's builds and e2e runs used, **without touching the r
 2. **Record the before state:** `docker system df`; `docker compose ps` (the production stack: `hostbud`, `hostbud-caddy`, `hostbud-postgres` must be running and healthy before and after); `docker volume ls --filter name=hostbud`; `git worktree list`.
 3. **Remove T13's worktree** if it's still there: only `<scratch>/hostbud-m7-e2e`, only if `git -C <it> status --porcelain` is empty, with `git worktree remove` (never `--force`) and then `git worktree prune`. Any other worktree belongs to someone else: leave it.
 4. **Check restore leftovers:** list databases named `hostbud_restore_check_%` (`docker compose exec -T hostbud-postgres psql … -Atc "SELECT datname FROM pg_database WHERE datname LIKE 'hostbud\_restore\_check\_%'"`). T9's `trap` should have dropped them. If any remain and no restore-check is running, drop exactly those names, one by one, and report them. Never drop any other database.
-5. **Clean with the repo's own target:** `make docker-clean` **without** `CACHE=1`. It removes only hostbud's own disposable artifacts: the e2e stack and its images (`hostbud-e2e-*:local`), the toolbox containers labelled `hostbud.tools=1` (recreated on the next `make`, at a few seconds' cost), and dangling images labelled `hostbud.image=1`. Before running it, read the `docker-clean` recipe in the Makefile and confirm it still matches this list. T8 added `hostbud-e2e-tsfake` and `hostbud-e2e-app-ts`: if the recipe was extended to remove their images, that's expected; if it removes anything else, stop and ask.
+5. **Clean with the repo's own target:** `make docker-clean` **without** `CACHE=1`. It removes only hostbud's own disposable artifacts: the e2e stack and its images (`hostbud-e2e-*:local`), the toolbox containers labelled `hostbud.tools=1` (recreated on the next `make`, at a few seconds' cost), and dangling images labelled `hostbud.image=1`. Before running it, read the `docker-clean` recipe in the Makefile and confirm it still matches this list. T8 added `hostbud-e2e-tsfake` and `hostbud-e2e-app-ts`: if the recipe was extended to remove their images, that's expected; if it removes anything else, don't run it: record the difference in Progress and the summary as an open owner item and finish the rest of the task.
 6. **Never, in this task:**
    - `docker system prune`, `docker volume prune`, `docker image prune -a` without the `hostbud.image=1` label filter, `docker builder prune` (all projects' build cache; `CACHE=1` does this), or `docker network prune`;
    - removing the volumes `hostbud-data`, `hostbud-postgres-data`, `hostbud-caddy-data` or `hostbud-caddy-config`, or anything with another project's prefix;

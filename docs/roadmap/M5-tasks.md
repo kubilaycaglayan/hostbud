@@ -23,12 +23,12 @@ Update this table in the same commit that finishes a task.
 
 ## Rules for this milestone
 
-- Work top to bottom, one task at a time, and don't start a task until the previous one is done. Before starting M5, check that M4's acceptance checklist is complete (M4 T4/T7 were still in progress when this plan was written). Don't build on an unfinished M4 layout.
+- Work top to bottom, one task at a time, and don't start a task until the previous one is done. Before starting M5, check that M4's acceptance checklist is complete, apart from open owner items (M4 T4/T7 were still in progress when this plan was written). Don't build on an unfinished M4 layout.
 - Before each task, read the U/I/E coverage lines that [M5-acceptance.md](M5-acceptance.md) assigns to it, plus its own **Tests:** and **E2E:** lines. Write all of them in the same commit(s) as the behavior. Never leave tests or scenarios for a later task.
 - **Batched test checkpoints** (continuing M3/M4): each commit runs only fast checks: `go build`/`go vet` for the Go packages it touches, `vue-tsc` for the frontend, and `tsc` for the e2e suite when it changes. `make gitleaks` runs on every commit through the pre-commit hook. Full suites run at the checkpoints below. A checkpoint failure is fixed (with a regression test if it's a bug) before the next task starts, and the checkpoint re-runs until green.
 - **E2E runs are paused until the end of M7.** Write every scenario in its task, but never run `make e2e`, `e2e-up` or `e2e-run` in M5, whether per commit, task, checkpoint or milestone. E items count as written and type-checked, not passed, until M7's full run.
 - Every task has an **E2E:** line. A scenario is tagged with the task that writes it, both here and in the acceptance checklist.
-- Tasks marked *(host)* need the real host or the owner's iPhone.
+- Tasks marked *(host)* need the real host or the owner's iPhone. The agent does the host parts itself. Anything that needs the owner's device or decision is an open owner item: record it and continue, never wait (AGENTS.md, *Owner items never block agents*).
 - When a task moves the design, it updates ARCHITECTURE (mostly §5.2, §9, §11 and §13.1) in the same commit. Add a new env var only if one is really needed, and then to `.env.example` and `internal/config`. None is expected in M5.
 - Conventional commits, small and focused; commit only this task's files. Other agents may be working in the tree at the same time, so stage explicit paths and never use `git add -A`.
 
@@ -218,25 +218,25 @@ A minimal, hand-written worker that caches only the app shell, so an installed h
 - Audit: every criterion in [M5-acceptance.md](M5-acceptance.md) has its U/I/E line with the right task, and every E item exists in the named spec file, is tagged, and type-checks. Check `.env.example` (no new variable expected; if one was added, it's there with a placeholder). Confirm the M1–M4 phone scenarios were migrated to the drawer navigation and nothing references **Back to sessions**. Also check the security checklist items touched in M5: Origin on the copy-mode POST, no secrets or paths in info logs, no external assets.
 - CP4: `make lint test`, `make gitleaks`, e2e `tsc`. Don't run e2e.
 - *(host)* `make deploy`; `/api/health` is ok; `/manifest.webmanifest`, `/sw.js` and the icons are served with the right headers through the loopback port (`curl -I`); existing sessions are untouched (never kill or detach the owner's sessions; use only a throwaway session created for the check, and kill it only through the UI's confirmation dialog).
-- *(host)* Owner's manual checks on a real iPhone, listed in [M5-acceptance.md](M5-acceptance.md#manual-checks-owner-t9); record the result of each in that file. If the owner hasn't done them yet, say so in the summary rather than ticking them.
+- *(host)* Owner's manual checks on a real iPhone, listed in [M5-acceptance.md](M5-acceptance.md#manual-checks-owner-t9); record the result of each in that file. If the owner hasn't done them yet, list them as open in the summary rather than ticking them, and don't wait for them: they don't block T9, T10 or M6.
 - Summary to the owner: what changed, env vars (expected: none), manual steps (install on the phone, sign in once in the installed app).
 
 **Tests:** none new beyond regressions found by the audit.
 
 **E2E:** audit only: all T1–T8 scenarios present, tagged and type-checked; none run (M7).
 
-**Done:** docs match behavior, the deploy serves the PWA files, the checklist is complete except the M7 e2e run and any open owner checks, and the summary has been delivered.
+**Done:** docs match behavior, the deploy serves the PWA files, the checklist is complete except the M7 e2e run and any open owner checks (backlog, not blockers), and the summary has been delivered.
 
 ## T10 — Safe Docker cleanup
 
 Free the disk the milestone's builds used, **without touching the running deployment, its data, other projects, or work another agent may be doing at the same time.** This is the last step of the milestone, after T9's deploy and checks.
 
-1. **Check that nothing is in use.** Stop and report instead of cleaning if any of these hold:
+1. **Check that nothing is in use.** If any of these hold, skip the cleaning (steps 3–5), record "cleanup skipped: <reason>" in Progress and the summary, and treat the task as done. Cleanup can run again later:
    - a `make` test/lint/build or e2e run is in progress from this or another session (`pgrep -af 'scripts/tool.sh|docker exec hostbud-tools|test/e2e/run.sh|docker compose .*hostbud'`);
    - a `hostbud-tools-*` container is running a process other than its idle entrypoint (`docker top <container>`);
    - the `hostbud-e2e` stack is up (e2e is paused until M7, so it shouldn't be; if it is, someone is using it).
 2. **Record the before state:** `docker system df` and `docker compose ps` (the production stack: `hostbud`, `hostbud-caddy`, `hostbud-postgres` must be running and healthy before and after).
-3. **Clean with the repo's own target:** `make docker-clean` **without** `CACHE=1`. It removes only hostbud's own disposable artifacts: the e2e stack and its images (`hostbud-e2e-*:local`), stopped/idle toolbox containers (recreated on the next `make`, at a few seconds' cost), and dangling images labelled `hostbud.image=1`. Before running it, read the `docker-clean` recipe in the Makefile and confirm it still matches this list. If it has grown to remove anything else, stop and ask.
+3. **Clean with the repo's own target:** `make docker-clean` **without** `CACHE=1`. It removes only hostbud's own disposable artifacts: the e2e stack and its images (`hostbud-e2e-*:local`), stopped/idle toolbox containers (recreated on the next `make`, at a few seconds' cost), and dangling images labelled `hostbud.image=1`. Before running it, read the `docker-clean` recipe in the Makefile and confirm it still matches this list. If it has grown to remove anything else, don't run it: record the difference in Progress and the summary as an open owner item and finish the rest of the task.
 4. **Never, in this task:**
    - `docker system prune`, `docker volume prune`, `docker image prune -a` without the `hostbud.image=1` label filter, or `docker builder prune` (all projects' build cache; `CACHE=1` does this); `docker network prune`;
    - removing the volumes `hostbud-data`, `hostbud-postgres-data`, `hostbud-caddy-data` or `hostbud-caddy-config`, or anything with another project's prefix;

@@ -2,6 +2,8 @@
 
 Each milestone is shippable and ends deployed on the host (`make deploy`). A milestone is **done** only when its acceptance criteria pass, tests are green (`make lint test`; `make e2e` only at M7, see below), `gitleaks` is clean, and README/ARCHITECTURE are updated if behavior changed.
 
+**Owner items never block.** Manual checks on the owner's devices, approvals and decisions are the owner's backlog. Agents record them as open (in the milestone's *Manual checks (owner)* list and the summary), take the safe default, and keep going. Open owner items don't hold back a task, a milestone's done state or the next milestone (AGENTS.md, *Owner items never block agents*).
+
 **E2E per milestone:** each milestone extends the e2e suite (ARCHITECTURE §13.1) with scenarios that simulate a real user doing everything that milestone added, in both the desktop and iPhone 13 Pro profiles, against the throwaway target. The *E2E* line under each milestone lists the minimum.
 
 **E2E is never deferred.** The e2e harness is built early in M1, before any feature work. From then on:
@@ -98,7 +100,7 @@ Tasks: [roadmap/M5-tasks.md](roadmap/M5-tasks.md) · Checklist: [roadmap/M5-acce
 
 **E2E (iPhone 13 Pro):** open the drawer, pick a session, use the key bar (Ctrl-C interrupts a running command, Esc leaves vim insert mode, arrows recall history); Scroll puts the pane in copy mode (`#{pane_in_mode}` = 1) and scrolling shows earlier output; touch targets are usable without zoom. PWA (desktop-chromium, where Playwright supports service workers): the page links a valid manifest whose icons all load; the service worker registers and controls the page after a reload; with `hostbud-e2e-app` stopped, a reload still renders the shell from the cache and shows the unreachable state, and no `/api` response is ever served from the cache.
 
-**Accept:** from a phone, attach to a session, type, scroll history, and switch sessions comfortably; hostbud installs to the phone's home screen from the domain and opens full-screen (manual check on the owner's iPhone: Safari → Share → Add to Home Screen).
+**Accept:** from a phone, attach to a session, type, scroll history, and switch sessions comfortably; hostbud installs to the phone's home screen from the domain and opens full-screen (manual check on the owner's iPhone: Safari → Share → Add to Home Screen; an owner backlog item that doesn't block M5).
 
 ### M6 — Tree customization and polish
 Tasks: [roadmap/M6-tasks.md](roadmap/M6-tasks.md) · Checklist: [roadmap/M6-acceptance.md](roadmap/M6-acceptance.md)

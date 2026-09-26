@@ -1,6 +1,6 @@
 # M6 — Tree customization and polish: acceptance checklist
 
-M6 is done when every box is ticked. Tasks: [M6-tasks.md](M6-tasks.md).
+M6 is done when every box is ticked, except the *Manual checks (owner)* list, which is the owner's backlog and never blocks. Tasks: [M6-tasks.md](M6-tasks.md).
 
 M6 lets each account shape its left-bar tree and adds keyboard-first polish. The tree becomes an accessible tree view with persistent collapse state, lazily loaded windows and panes under sessions, inline rename, hide/unhide and pinned projects. It adds a command palette, a keyboard shortcut set with a help dialog, and a Dark / Light / System theme setting for the UI and the terminal.
 
@@ -251,7 +251,7 @@ Profiles: `desktop-chromium`, `iphone-13-pro` (`http://localhost:9055`) and `iph
 
 ## Manual checks (owner, T10)
 
-On a desktop browser (port forward, a Mac if available) and the owner's iPhone over `https://${HOSTBUD_DOMAIN}`. Record the date and the result here; an unchecked item stays open in the summary.
+On a desktop browser (port forward, a Mac if available) and the owner's iPhone over `https://${HOSTBUD_DOMAIN}`. These are the owner's backlog, not blockers: they don't hold back M6's done state or the next milestone, and no agent waits for them. Record the date and the result here when the owner does one; an unchecked item stays open in the summary.
 
 - [ ] macOS: ⌘K opens the palette from a terminal in Chrome and Safari; ⌘/ opens the help; ⌘⇧E moves focus; Ctrl+K in a shell still kills to the end of the line.
 - [ ] Theme: switch macOS appearance with hostbud in System mode, and the UI and a running vim/htop repaint without a reload; Dark and Light ignore the OS switch.
@@ -259,6 +259,7 @@ On a desktop browser (port forward, a Mac if available) and the owner's iPhone o
 - [ ] iPhone: Light and Dark look right in Safari and in the installed app (status bar color, sheets, drawer, key bar); System follows iOS appearance.
 - [ ] iPhone: inline rename in the drawer doesn't zoom; hide, pin and collapse by long-press menu; the palette button jumps to a session.
 - [ ] Real host: expanding a session with Claude Code running shows its windows; clicking a window switches the attached terminal to it.
+- [ ] Real host, signed in: `GET /api/ui-state/theme` answers 404 for an account that never picked a theme, then 200 after a pick (T10 checks only the unauthenticated 401).
 
 ## Definition of done
 

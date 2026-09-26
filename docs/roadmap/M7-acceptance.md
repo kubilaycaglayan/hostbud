@@ -1,6 +1,6 @@
 # M7 — Hardening: acceptance checklist
 
-M7 is done when every box is ticked. Tasks: [M7-tasks.md](M7-tasks.md).
+M7 is done when every box is ticked, except the *Manual checks (owner)* list and the *Manual* notes on criteria, which are the owner's backlog and never block. Tasks: [M7-tasks.md](M7-tasks.md).
 
 M7 hardens v1 so it can be left running. Every remote exec, SFTP operation, WebSocket, HTTP request and database query has a documented bound (ARCHITECTURE §15), and hitting one gives the user an actionable error instead of a hang. A stalled browser is dropped and reconnects by itself. Responses carry security headers and a strict CSP. All three containers run with least privilege and bounded logs. An optional Tailscale identity allowlist guards the domain path. `make backup`, `make restore-check` and `make restore` work against PostgreSQL. The `test/sshd` integration suite covers every host-facing package, including failure modes. `make doctor` and the README take a fresh host to a working install. M7 ends with the first full `make e2e` since M3, green twice in a row from a clean checkout.
 
@@ -204,7 +204,7 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 
 - [ ] `make doctor` checks every prerequisite read-only and prints a fix for each failure: Docker/Compose; `.env` present, mode ≤ 600, no placeholders left; UID/GID; the agent socket has a key; sshd and tmux on the host; the host public keys; `TAILSCALE_IP` assigned and the domain resolving to it (warning only); ports free or held by hostbud; the subnet inside 172.16.0.0/12 without overlap; the tailscaled socket when the override is on. It never prints secret values.
   - U: T11 `doctor.sh` checks against fixture `.env` files and stubbed commands (shell).
-  - I: T11 *(host)* `make doctor` passes on the real host (output recorded, values redacted).
+  - I: T11 *(host)* `make doctor` runs on the real host (output recorded, values redacted); `doctor.sh` bugs are fixed, and host-setup failures are recorded as open owner items.
   - E: n/a: host tooling outside the UI and API.
 - [ ] Docs and config can't drift: `make lint` runs `check-docs.sh` (README `make` targets exist, every config var is in `.env.example` and the compose `environment:`, every `.env.example` var is used or marked, README links resolve). A clone with only `.env.example` renders a valid Compose config.
   - U: T11 `check-docs.sh` fails on fixtures (unknown target, undocumented var, dangling link) (shell).
@@ -213,7 +213,7 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 - [ ] The README Quick start is a numbered, copy-pasteable path for a fresh Debian/Ubuntu host (key and agent unit, `authorized_keys` restriction, sshd/tmux, Tailscale and DNS, `.env`, `make doctor`, `make deploy`, first account via the whitelist, port-forward and domain checks, optional allowlist, first backup), each step with how to verify it, plus a Troubleshooting section. Placeholders only.
   - U: n/a: documentation.
   - I: T11 `check-docs.sh`.
-  - E: n/a: documentation. **Manual (T14):** the owner (or the agent with the owner's go-ahead) follows the README verbatim on a separate fresh machine or VM up to a working port-forward login and a terminal; every deviation is fixed in the README and re-checked. The ROADMAP's *fresh-host install* acceptance.
+  - E: n/a: documentation. **Manual (T14, owner backlog, doesn't block M7):** the owner follows the README verbatim on a separate fresh machine or VM up to a working port-forward login and a terminal; every deviation is fixed in the README and re-checked. The ROADMAP's *fresh-host install* acceptance.
 
 ## Security checklist (AGENTS.md)
 
@@ -237,7 +237,7 @@ Each item needs automated evidence (T12 audit). Ticked only when every listed te
 
 ## Full e2e run
 
-- [ ] **(T13) Full suite green:** `make e2e` passes the complete suite from M1–M7 in all three profiles (`desktop-chromium`, `iphone-13-pro`, `iphone-13-pro-domain`) with `retries: 0`, `forbidOnly: true`, the global timeouts unchanged, and no `skip`/`fixme`/deleted scenarios. A scenario moved to manual needs the owner's approval, recorded here.
+- [ ] **(T13) Full suite green:** `make e2e` passes the complete suite from M1–M7 in all three profiles (`desktop-chromium`, `iphone-13-pro`, `iphone-13-pro-domain`) with `retries: 0`, `forbidOnly: true`, the global timeouts unchanged, and no `skip`/`fixme`/deleted scenarios. A scenario moved to manual (only when Playwright truly can't observe it) is recorded here with the reason and listed in the summary for the owner to review later. No approval is awaited.
 - [ ] **(T13) Twice in a row from a clean checkout:** two consecutive `make e2e` runs in a fresh worktree at the final commit are fully green. This also closes M3's open two-run check (M3-tasks CP3).
 - [ ] **(T13) Every failure classified and fixed properly:** each fix commit names its class (product bug with a regression test committed first, stale scenario with the ARCHITECTURE line or task that changed the behavior, harness cause, or environment). Progress notes list them.
 - [ ] **(T13) Results recorded:** M1–M7 acceptance checklists mark their E items as passed at this run (date, commit), and M4–M6's "part of the M7 full run" lines are ticked.
@@ -264,11 +264,14 @@ Profiles: `desktop-chromium`, `iphone-13-pro` (`http://localhost:9055`) and `iph
 
 ## Manual checks (owner, T14)
 
-Record the date and the result here; an unchecked item stays open in the summary.
+These are the owner's backlog, not blockers: they don't hold back M7's done state or the next milestone, and no agent waits for them. Record the date and the result here when the owner does one; an unchecked item stays open in the summary.
+
+Agents add items here when they hit something only the owner can do or decide (a host-setup failure from `make doctor`, a scenario moved out of e2e, the `v1.0.0` tag) and keep going.
 
 - [ ] Fresh-host install: the README Quick start followed verbatim on a separate fresh machine or VM reaches a port-forward sign-in and a working terminal; deviations were fixed in the README.
 - [ ] `make backup` then `make restore-check` on the production data before the M7 deploy: counts look right, and no temporary database remains.
-- [ ] After `make deploy`: `ss -ltnp` shows no `0.0.0.0` listener from hostbud's containers; `docker inspect hostbud` shows the read-only root filesystem and dropped capabilities; `make doctor` passes.
+- [ ] After `make deploy`: `ss -ltnp` shows no `0.0.0.0` listener from hostbud's containers; `docker inspect hostbud` shows the read-only root filesystem and dropped capabilities; `make doctor` passes (fix any host-setup failure T11/T14 recorded).
+- [ ] Tag `v1.0.0` locally if wanted (T14 doesn't tag).
 - [ ] iPhone over the domain: the app, the installed PWA, WebGL terminal, clipboard copy and paste, and theme switching work under the CSP; Web Inspector shows no CSP errors; HSTS is present on the domain.
 - [ ] Tailscale allowlist with the real tailscaled (only if the owner wants it on): the owner's devices are allowed; a list without the owner's login shows the 403 page; the loopback path still works; the list is restored afterwards.
 - [ ] A long real workload: Claude Code in a session for a while, plus a large `cat` of a log file, shows no dropped terminal on a normal connection. A 1013 drop is expected only on a truly stalled client.

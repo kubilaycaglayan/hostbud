@@ -1,6 +1,6 @@
 # M5 — Mobile: acceptance checklist
 
-M5 is done when every box is ticked. Tasks: [M5-tasks.md](M5-tasks.md).
+M5 is done when every box is ticked, except the *Manual checks (owner)* list, which is the owner's backlog and never blocks. Tasks: [M5-tasks.md](M5-tasks.md).
 
 M5 makes hostbud comfortable on a phone and installable as an app. It adds one server route (copy mode, for the Scroll button) and static PWA files. It adds no new session lifecycle, no data model change and no migration. Authentication, the Origin allowlist, `sshx`, the single session service and event-driven UI rules still apply. The wide (desktop) layout and hardware-keyboard behavior stay as M3/M4 left them.
 
@@ -177,7 +177,7 @@ Profiles: `desktop-chromium`, `iphone-13-pro` (`http://localhost:9055`) and `iph
 
 ## Manual checks (owner, T9)
 
-On the owner's iPhone over `https://${HOSTBUD_DOMAIN}` on the tailnet, and a real tmux session on the host. Record the date and the result here; an unchecked item stays open in the summary.
+On the owner's iPhone over `https://${HOSTBUD_DOMAIN}` on the tailnet, and a real tmux session on the host. These are the owner's backlog, not blockers: they don't hold back M5's done state or the next milestone, and no agent waits for them. Record the date and the result here when the owner does one; an unchecked item stays open in the summary.
 
 - [ ] Safari: attach, type with the iOS keyboard, and switch sessions through the drawer comfortably, in portrait and landscape; no zoom on any input focus.
 - [ ] Drawer: a left swipe closes it; the terminal doesn't flicker or re-attach.
