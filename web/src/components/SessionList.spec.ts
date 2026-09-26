@@ -15,9 +15,9 @@ describe('SessionList', () => {
   })
 
   it('lists names and attached state without rendering window counts', () => {
-    const w = mount(SessionList, { props: { sessions: [s('acc-a', 1, 3), s('acc-b', 0, 1)] } })
+    const w = mount(SessionList, { props: { sessions: [s('acc-a', 1, 3), s('acc-b', 0, 1), s('acc-c', 0, 0)] } })
     const items = w.findAll('li')
-    expect(items).toHaveLength(2)
+    expect(items).toHaveLength(3)
     expect(items[0].get('button').attributes('aria-label')).toBe('acc-a')
     expect(items[0].get('[role=img]').attributes('aria-label')).toBe('attached')
     expect(items[1].get('[role=img]').attributes('aria-label')).toBe('detached')

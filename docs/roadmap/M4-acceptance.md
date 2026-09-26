@@ -80,7 +80,7 @@ Each criterion names **U** (unit), **I** (integration against `test/sshd`, Postg
   - U: T5 header placement/accessibility and sign-out callback; existing auth-store tests cover session clearing.
   - I: n/a — placement is frontend behavior; M1 authentication integration covers session revocation.
   - E: T5 *Account controls in app header* (desktop and iPhone 13 Pro): verify email/Sign out at top right with the left bar both visible and closed; sign out returns to sign-in and stops live updates.
-- [ ] Session rows do not show tmux window counts.
+- [x] Session rows do not show tmux window counts.
   - U: T5 `SessionList` does not render a window-count label for zero, one or multiple windows.
   - I: n/a — presentation of the existing session `windows` field is frontend-only.
   - E: T5 *No window counts* (desktop): sessions with one and multiple windows both render without a count label.
@@ -139,7 +139,7 @@ Projects remain `desktop-chromium` and `iphone-13-pro` against the throwaway tar
 - [x] **(T5) Left bar custom order:** reorder projects and sessions, add new rows, and verify existing custom order persists through reload, sign-out/sign-in and restart (desktop and phone).
 - [x] **(T5) Left bar session actions:** the ×, ⋯ and pencil sit directly to the right of the title; rename works; × prompts before kill (desktop and phone).
 - [x] **(T5) Account controls in app header:** email and Sign out appear top-right whether the left bar is open or closed; sign out returns to sign-in and stops live updates (desktop and phone; auth revocation is also covered by the T8B auth scenario).
-- [ ] **(T5) No window counts:** one-window and multi-window rows both omit the count label (desktop).
+- [x] **(T5) No window counts:** one-window and multi-window rows both omit the count label (desktop).
 - [ ] **(T6) Recent start command:** choose a recent command on a second project session; it runs in the correct project directory (desktop and phone).
 - [ ] **(T6) Recent commands are project-scoped and require selection:** another project's command is absent and opening the picker runs nothing (desktop).
 
