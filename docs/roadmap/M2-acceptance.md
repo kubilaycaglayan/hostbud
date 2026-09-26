@@ -24,9 +24,9 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 - [x] From outside the tailnet the domain is unreachable (the name resolves to a Tailscale address that only routes inside the tailnet; the DNS record is DNS-only, not proxied).
   - U: n/a (network, no code). I: T2 deploy-config check (Caddy binds only loopback and `${TAILSCALE_IP}`). E: n/a (e2e has no tailnet). **Manual (T4):** phone with Tailscale off can't connect; Cloudflare record shows "DNS only".
   - Status (T4): the Cloudflare API shows the record as DNS-only (`proxied: false`) pointing at the Tailscale IP, and nothing listens on a public address; the owner confirmed that with Tailscale off the phone doesn't connect.
-- [ ] The `localhost` port-forward path still works (`ssh -L 9055:localhost:9055 <host>` → `http://localhost:9055`).
+- [x] The `localhost` port-forward path still works (`ssh -L 9055:localhost:9055 <host>` → `http://localhost:9055`).
   - U: M1 T12 Origin tests keep `http://localhost:<port>` · T2 `AllowedOrigins`. I: T2 `caddy adapt`: the loopback site is plain HTTP and proxies to `hostbud:8080`. E: the whole M1 suite (`desktop-chromium`, `iphone-13-pro` on `http://localhost:9055`) · T2 *Origin on both paths*. **Manual (T4):** port forward from another machine.
-  - Status (T4): `curl http://localhost:9055/api/health` on the host answers after the deploy, and the M1 suite passes; waiting for the owner's port forward from another machine.
+  - Status (T4): `curl http://localhost:9055/api/health` on the host answers after the deploy, and the M1 suite passes; the owner confirmed the port forward from another machine works (sign-in and attach).
 
 ### Origin allowlist
 - [x] State-changing requests and WebSocket upgrades are accepted from `https://${HOSTBUD_DOMAIN}` and `http://localhost:${HOSTBUD_LOCAL_PORT}` only.

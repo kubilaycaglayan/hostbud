@@ -12,7 +12,7 @@ Update this table in the same commit that finishes a task.
 | T1 Custom Caddy image | ✅ done |
 | T2 TLS site on the Tailscale IP | ✅ done |
 | T3 Phone usability | ✅ done |
-| T4 Deployment guide and release | ✅ done (owner's phone checks pending, see the checklist) |
+| T4 Deployment guide and release | ✅ done |
 
 Same rules as M1 ([M1-tasks.md](M1-tasks.md)): work top to bottom; each task ends with a green `make lint test` **and `make e2e`**, a clean `make gitleaks`, and its own conventional commit(s). Every task has a **Tests:** line (unit and integration tests it owes) and an **E2E:** line (scenarios it adds, tagged with the task in [M2-acceptance.md](M2-acceptance.md#e2e-make-e2e-simulated-user)), all landing in the same commit as the behavior. Tasks marked *(host)* need the real host, domain and tailnet to verify.
 
