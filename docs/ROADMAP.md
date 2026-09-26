@@ -87,10 +87,11 @@ Tasks: [roadmap/M3-tasks.md](roadmap/M3-tasks.md) · Checklist: [roadmap/M3-acce
 ### M5 — Mobile
 - Responsive layout: tree drawer, single-terminal view, larger touch targets.
 - On-screen key bar (Esc, Tab, Ctrl, Alt, arrows, common symbols) and Scroll button (copy-mode API).
+- **Installable app (PWA):** a web app manifest (name, `display: standalone`, theme colors, bundled icons incl. `apple-touch-icon`) and a minimal service worker, so hostbud can be added to the home screen and opens full-screen like an app. The worker caches only the hashed app shell (never `/api/*` or `/ws/*`), so a start without a connection shows the app's own "can't reach hostbud" state, never stale sessions. A new version takes over on the next launch. Safe-area insets (notch, home indicator) are respected in standalone mode. Installable over the HTTPS domain (and `localhost`); see ARCHITECTURE §11.
 
-**E2E (iPhone 13 Pro):** open the drawer, pick a session, use the key bar (Ctrl-C interrupts a running command, Esc leaves vim insert mode, arrows recall history); Scroll puts the pane in copy mode (`#{pane_in_mode}` = 1) and scrolling shows earlier output; touch targets are usable without zoom.
+**E2E (iPhone 13 Pro):** open the drawer, pick a session, use the key bar (Ctrl-C interrupts a running command, Esc leaves vim insert mode, arrows recall history); Scroll puts the pane in copy mode (`#{pane_in_mode}` = 1) and scrolling shows earlier output; touch targets are usable without zoom. PWA (desktop-chromium, where Playwright supports service workers): the page links a valid manifest whose icons all load; the service worker registers and controls the page after a reload; with `hostbud-e2e-app` stopped, a reload still renders the shell from the cache and shows the unreachable state, and no `/api` response is ever served from the cache.
 
-**Accept:** from a phone, attach to a session, type, scroll history, and switch sessions comfortably.
+**Accept:** from a phone, attach to a session, type, scroll history, and switch sessions comfortably; hostbud installs to the phone's home screen from the domain and opens full-screen (manual check on the owner's iPhone: Safari → Share → Add to Home Screen).
 
 ### M6 — Tree customization and polish
 - Drag-to-sort projects; inline rename; hide/unhide; pin projects.
