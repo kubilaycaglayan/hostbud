@@ -153,7 +153,7 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 - [ ] System follows the OS live: with System selected, a `prefers-color-scheme` change flips the UI and every terminal without a reload. With Dark or Light selected, an OS change does nothing.
   - U: T7 `matchMedia` change listener applies only in System mode, and is removed on sign-out (Vitest).
   - I: n/a (browser media query).
-  - E: T7 *System follows the OS* (desktop and `iphone-13-pro`; `page.emulateMedia({colorScheme})` flips it). **Manual (T10):** switch macOS and iOS appearance with hostbud open.
+  - E: T7 *System follows the OS* (desktop and `iphone-13-pro`; `page.emulateMedia({colorScheme})` flips it). **Manual (T11):** switch macOS and iOS appearance with hostbud open.
 - [ ] No flash of the wrong theme: a tiny inline script in `index.html` applies the last resolved mode (a per-browser `localStorage` mirror, `hostbud.theme`) before the stylesheet paints, including on the sign-in screen and the M5 unreachable screen. After sign-in the account's saved setting wins and updates the mirror. A browser without storage (blocked, private mode) falls back to System without errors.
   - U: T7 the boot script's logic as a pure function (mirror present/absent/invalid, storage throwing); `check-dist` asserts the inline script is present, under 1 KiB, and runs before the stylesheet link (Vitest/node).
   - I: n/a (browser-side).
@@ -161,7 +161,7 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 - [ ] The `theme-color` meta follows the resolved theme at runtime (M5's light/dark `media` variants are replaced by one value the app updates), so the phone's status bar and the installed app's chrome match.
   - U: T7 meta updated on each change (Vitest).
   - I: n/a (browser-side).
-  - E: T7 *Pick Dark and Light* checks the meta's `content` in both phone projects. **Manual (T10):** the installed app's status bar on the iPhone in both themes.
+  - E: T7 *Pick Dark and Light* checks the meta's `content` in both phone projects. **Manual (T11):** the installed app's status bar on the iPhone in both themes.
 - [ ] The light theme is complete: every UI token has a light value that meets WCAG AA (text ≥ 4.5:1 on its surface, UI borders and icons ≥ 3:1), and no component uses a hard-coded dark color (a lint check fails on hex colors in `.vue` files outside `lib/theme.ts` and `main.css`).
   - U: T7 token contrast tests; the hex-color check runs in `make lint` (Vitest/node).
   - I: n/a (presentation only).
@@ -205,12 +205,19 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
   - I: n/a (frontend only).
   - E: T8 *Keyboard shortcuts help* (opened with the chord and with `?` from the tree; Escape closes).
 
+## Taken session names
+
+- [ ] Creating a session with a name that's already taken succeeds with the first free `<name>-<n>` (the auto-name numbering), from every entry point (New session, New session here, split picker, palette); the result stays within 64 characters; the tab opens with the actual name and an info toast names it when it differs from what was typed. Invalid names are still refused, and renaming to a taken name still answers 409.
+  - U: T10 numbering, the tmux-duplicate retry and its limit, 64-character trimming, typed suffixes kept, rename unchanged (Go, fake executor) · T10 the toast only when the name differs (Vitest).
+  - I: T10 create `dup` twice on test sshd → `dup-1` in real tmux; project creation with a taken name is numbered and linked (Go).
+  - E: T10 *Taken name gets a number* (desktop) · T10 *Create with a taken name* (API) · T10 updates M1's T16 *Invalid input*.
+
 ## Phone and compact layout (M5 compatibility)
 
 - [ ] Every new control works in M5's compact layout: tree chevrons, window/pane rows, the Pinned icon, Show hidden, inline rename fields (16 px font, no zoom), the palette button, the theme radio group. Each meets the 44×44 px target on coarse pointers. The M5 long-press row menu gains Rename, Hide/Unhide and (projects) Pin/Unpin.
   - U: T3–T9 the `touch-target` utility on each new control; inline rename input carries the 16 px class; long-press menu items (Vitest).
   - I: n/a (presentation only).
-  - E: T10 extends M5's *Touch targets* and *Usable without zoom* scenarios to the new controls (both phone projects).
+  - E: T11 extends M5's *Touch targets* and *Usable without zoom* scenarios to the new controls (both phone projects).
 - [ ] Opening a window row or a palette result in compact layout closes the drawer or palette and shows the terminal, without re-attaching other terminals (M5 rule).
   - U: T3/T9 drawer close on open (Vitest).
   - I: n/a (frontend only).
@@ -220,7 +227,7 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 
 - [ ] M6 adds no migration, env var, published port or remote command path outside `internal/tmux` + `sshx`. The global `projects.pinned`, `projects.sort_order` and `machines.hidden` columns aren't written by M6 (ARCHITECTURE §8 notes them as reserved for a later shared/multi-machine use).
   - U: T1 the new builders live in `internal/tmux`, and `internal/archtest` still passes (no exec outside `sshx`, no SQL outside `store`) (Go).
-  - I: the existing deploy-config check still passes unchanged (T10 CP5); no new file in `internal/store/migrations/` (T10 audit).
+  - I: the existing deploy-config check still passes unchanged (T11 CP5); no new file in `internal/store/migrations/` (T11 audit).
   - E: n/a: nothing new is reachable beyond the routes covered above.
 - [ ] The `ui_state` route keeps its rules for the new key: authentication, Origin on PUT, JSON only, 64 KiB, per-account namespacing, no event.
   - U: T7 handler tests for `theme` (401, 403, 400, 413) (Go).
@@ -262,9 +269,11 @@ Profiles: `desktop-chromium`, `iphone-13-pro` (`http://localhost:9055`) and `iph
 - [ ] **(T9) Palette jumps to a session:** type part of a name, Enter → its tab is focused (or opened) and the terminal is focused; Escape without choosing returns focus (desktop and `iphone-13-pro`).
 - [ ] **(T9) Palette runs actions:** Theme: Light applies; Hide then Unhide a session; New session in <project> lands under the project; Kill asks for confirmation and Cancel leaves the session alive (desktop).
 - [ ] **(T9) Palette on the phone:** the header button opens it; picking a session closes it and shows the terminal (both phone projects).
-- [ ] **(T10) Touch targets and zoom for M6 controls:** M5's *Touch targets* and *Usable without zoom* checks extended to chevrons, window rows, Pinned, Show hidden, inline rename, the palette button and the theme menu (both phone projects).
+- [ ] **(T10) Taken name gets a number:** with a target session `<n>`, New session named `<n>` opens a tab `<n>-1`, the toast names it, and both exist on the target; New session here in a project with the same name gives `<n>-2` under that project (desktop).
+- [ ] **(T10) Create with a taken name:** `POST` twice with the same name → 201 both times, the second named `<n>-1`; renaming another session to `<n>` → 409 (API).
+- [ ] **(T11) Touch targets and zoom for M6 controls:** M5's *Touch targets* and *Usable without zoom* checks extended to chevrons, window rows, Pinned, Show hidden, inline rename, the palette button and the theme menu (both phone projects).
 
-## Manual checks (owner, T10)
+## Manual checks (owner, T11)
 
 On a desktop browser (port forward, a Mac if available) and the owner's iPhone over `https://${HOSTBUD_DOMAIN}`. These are the owner's backlog, not blockers: they don't hold back M6's done state or the next milestone, and no agent waits for them. Record the date and the result here when the owner does one; an unchecked item stays open in the summary.
 
@@ -274,7 +283,7 @@ On a desktop browser (port forward, a Mac if available) and the owner's iPhone o
 - [ ] iPhone: Light and Dark look right in Safari and in the installed app (status bar color, sheets, drawer, key bar); System follows iOS appearance.
 - [ ] iPhone: inline rename in the drawer doesn't zoom; hide, pin and collapse by long-press menu; the palette button jumps to a session.
 - [ ] Real host: expanding a session with Claude Code running shows its windows; clicking a window switches the attached terminal to it.
-- [ ] Real host, signed in: `GET /api/ui-state/theme` answers 404 for an account that never picked a theme, then 200 after a pick (T10 checks only the unauthenticated 401).
+- [ ] Real host, signed in: `GET /api/ui-state/theme` answers 404 for an account that never picked a theme, then 200 after a pick (T11 checks only the unauthenticated 401).
 
 ## Definition of done
 
@@ -283,5 +292,5 @@ On a desktop browser (port forward, a Mac if available) and the owner's iPhone o
 - [ ] `make lint test` and `make gitleaks` are green (CP1–CP5); no secrets, real hostnames, IPs or owner paths are tracked.
 - [ ] README has the tree customization, windows, palette, shortcuts and theme sections; ARCHITECTURE §5.1, §8, §9, §11 and §13.1 match what was built; `.env.example` is unchanged (or updated if a variable was really needed); no new migration.
 - [ ] *(host)* `make deploy` done; the owner's manual checks are recorded above or listed as open.
-- [ ] T11 safe Docker cleanup done: the production stack and all volumes intact and healthy, nothing outside hostbud touched, reclaimed space reported.
+- [ ] T12 safe Docker cleanup done: the production stack and all volumes intact and healthy, nothing outside hostbud touched, reclaimed space reported.
 - [ ] Summary delivered: what changed, new env vars (expected none), manual steps on the host, desktop and phone.

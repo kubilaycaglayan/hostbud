@@ -19,8 +19,9 @@ Update this table in the same commit that finishes a task.
 | T7 Theme setting | Not started |
 | T8 Keyboard shortcuts | Not started |
 | T9 Command palette | Not started |
-| T10 Docs, audit and release | Not started |
-| T11 Safe Docker cleanup | Not started |
+| T10 Taken session names get a number | Not started |
+| T11 Docs, audit and release | Not started |
+| T12 Safe Docker cleanup | Not started |
 
 ## Rules for this milestone
 
@@ -43,7 +44,7 @@ Update this table in the same commit that finishes a task.
 | CP2 | T3 + T4 (windows in the tree, inline rename) | `make lint test` | Not run |
 | CP3 | T5 + T6 (hide/unhide, pins) | `make lint test` | Not run |
 | CP4 | T7 + T8 + T9 (theme, shortcuts, palette) | `make lint test`, plus `make build` so `check-dist` sees the real theme boot script | Not run |
-| CP5 | T10 (audit) | `make lint test`, `make gitleaks`, e2e `tsc` | Not run |
+| CP5 | T10 + T11 (taken names, audit) | `make lint test`, `make gitleaks`, e2e `tsc` | Not run |
 
 **What e2e can and can't reach.**
 - Every scenario signs up its own account (`newAccount()`), because all M6 state is per account and must not leak between scenarios. The fixture that resets the saved layout is extended to leave `tree` and `theme` alone only for scenarios that seed them on purpose.
@@ -51,7 +52,7 @@ Update this table in the same commit that finishes a task.
 - **Restart** is the existing `ctl.restartApp()` (`docker restart hostbud-e2e-app`), followed by a reload once `/api/health` answers and the host banner is gone. No new ctl action is needed.
 - **Ground truth for tmux** stays on the target: `list-windows -t '=<name>' -F …`, `display -p -t '=<name>' '#{window_index} #{pane_index}'`, `capture-pane -p`, and `list-clients -F '#{client_pid}'` (to prove a terminal did **not** re-attach when a row was collapsed, hidden, renamed or re-themed).
 - **Theme:** `page.emulateMedia({ colorScheme })` drives `prefers-color-scheme`. T7 adds an e2e hook `window.__hostbud.termTheme(session?)` returning the terminal's current `{background, foreground}`. The first-paint check uses `page.addInitScript` to record `getComputedStyle(document.documentElement).backgroundColor` at the first `requestAnimationFrame`.
-- **⌘ shortcuts:** Playwright on Linux can press `Meta+K`, but the app picks ⌘ vs Ctrl by platform (`navigator.platform`/`userAgentData`). Desktop scenarios use the Ctrl+Shift chords that work everywhere; the ⌘ variants are unit-tested with a faked platform and checked manually on a Mac (T10).
+- **⌘ shortcuts:** Playwright on Linux can press `Meta+K`, but the app picks ⌘ vs Ctrl by platform (`navigator.platform`/`userAgentData`). Desktop scenarios use the Ctrl+Shift chords that work everywhere; the ⌘ variants are unit-tested with a faked platform and checked manually on a Mac (T11).
 - Drag uses Playwright's `dragTo` as M4's scenarios do; keyboard reordering (Alt+↑/↓) is the more reliable e2e path and is used where the point is persistence rather than the drag itself.
 
 ---
@@ -247,26 +248,41 @@ Jump to any session, window or project, and run any app action, from one box.
 
 **Done:** the palette finds sessions, windows, projects and actions with stable fuzzy matching, runs everything through the existing store functions (kill still confirms), respects the terminal's Ctrl+K, works on phones, and the scenarios compile.
 
-## T10 — Docs, audit and release
+## T10 — Taken session names get a number
+
+Creating a session with a name that's already taken no longer fails: the new session gets the first free `<name>-<n>`, the same numbering auto-derived names already use (`work` → `work-1` → `work-2`, …). The user sees which name it got.
+
+- **Server** (`session.Service.Create`, the single creation function, so every entry point gets it): a typed name that the inventory already lists becomes `uniqueName(name, sessions)`; one that tmux still reports as `duplicate session` (created meanwhile) retries with `nextName`, up to the same 20 attempts auto names use. The base is trimmed so the result stays within the 64-character name limit (`abc…xyz-1`), and the result still passes `tmux.ValidateName`. A name that's invalid is still refused, not numbered. The response already returns the actual name. **Rename is unchanged:** renaming to a taken name still answers 409 "a session named … already exists", because silently renaming to something else would surprise.
+- **UI:** every create entry point (New session dialog, New session here, the split picker's New session…, the palette's New session actions) already opens the returned name. When it differs from the typed name, an info toast says `Named "work-1": "work" was already taken.` (auto-derived names don't toast).
+- **Supersedes M1's duplicate-name error on create** (M1 criterion *Duplicate name or a non-existent path*, M1 T11/T16): update the tests that expect it: `session_test.go` (the duplicate case in the error-mapping table becomes a numbering case; rename's duplicate test stays), `integration_test.go` (create `dup` twice on test sshd → the second is `dup-1`), `SessionDialogs.spec.ts` (the 409 fixture becomes a missing-path error), and the e2e *Invalid input* scenario in `actions.spec.ts` (the duplicate part now expects a tab named `<dup>-1`). A missing path still shows its actionable error.
+- ARCHITECTURE: §9's session-create response notes the numbering and that rename still returns 409; README's session section mentions it.
+
+**Tests:** U (Go, fake executor): a taken typed name → `-1`, `-1` taken too → `-2`; `work-1` taken → `work-1-1` (numbering appends to the typed name, it never reinterprets a suffix the user typed); tmux `duplicate session` on the first attempt → retries with the next suffix, gives up after 20 with the 409; a 64-character taken name is trimmed so the result is ≤ 64 and valid; invalid names still refused; rename to a taken name still `CodeDuplicate`. U (Vitest): the info toast appears only when the returned name differs from the typed one (not for an empty name), from the New session dialog and New session here. I (Go, test sshd): create `dup` twice → the second session exists as `dup-1` in real tmux; create in a project with a taken name → `dup-2`, linked to that project.
+
+**E2E:** add in `sessions.spec.ts` (desktop): **(T10) Taken name gets a number** (a target session `<n>` exists; New session with name `<n>` → a tab `<n>-1` opens, the toast names it, and the target has both sessions; New session here in a project with the same name → `<n>-2` under that project); update M1's **(T16) Invalid input** in `actions.spec.ts` as above. API-level in `api.api.spec.ts`: **(T10) Create with a taken name** (`POST /api/machines/host/sessions` twice with the same name → 201 both times, the second response names `<n>-1`; renaming another session to `<n>` → 409). Type-check only.
+
+**Done:** creating with a taken name always succeeds with a visible, numbered name from every entry point; rename keeps its duplicate error; the updated M1 tests and the new scenarios compile.
+
+## T11 — Docs, audit and release
 
 - README: *Customizing the tree* (drag and Alt+↑/↓ order, collapse, windows and panes, inline rename, hide and Show hidden, pins; all per account; renaming in a real terminal looks like a new session), *Command palette*, *Keyboard shortcuts* (the global chords and the `?` dialog; Ctrl+K stays the shell's inside the terminal), *Theme* (Dark / Light / System, per account, the per-browser mirror on the sign-in screen).
 - ARCHITECTURE: reconcile §5.1 (window/pane listing and select), §8 (the `ui_state` comment for `tree` v2 and `theme`; `projects.pinned`, `projects.sort_order` and `machines.hidden` reserved and unused by the UI), §9 (the two routes, the `theme` key, the no-event notes), §11 (tree v2, tree roles and keys, windows, rename, hide, pins, theme and boot script, shortcuts registry, palette) and §13.1 (`termTheme()` hook, `waitForSave`, per-scenario accounts) with what was built. ROADMAP only if scope moved.
 - **Audit:** every criterion in [M6-acceptance.md](M6-acceptance.md) has its U/I/E line with the right task, and every E item exists in the named spec file, is tagged, and type-checks. No new file in `internal/store/migrations/`. `.env.example` unchanged (or has any new variable with a placeholder). The security checklist items touched in M6: auth and Origin on the two new routes and on `PUT /api/ui-state/theme`; no session/window names, commands or paths in info logs; no external assets (the boot script is inline, and fonts stay bundled); destructive actions (kill) still confirm from every new entry point (tree Delete key, palette).
-- **Extend M5's phone checks:** add the M6 controls (session/window chevrons, window and pane rows, the Pinned icon, Show hidden, inline rename input, the palette button and input, the theme radio items) to M5's *Touch targets* and *Usable without zoom* scenarios as **(T10) Touch targets and zoom for M6 controls** (both phone projects), and confirm the long-press menu has Rename, Hide/Unhide and Pin/Unpin.
+- **Extend M5's phone checks:** add the M6 controls (session/window chevrons, window and pane rows, the Pinned icon, Show hidden, inline rename input, the palette button and input, the theme radio items) to M5's *Touch targets* and *Usable without zoom* scenarios as **(T11) Touch targets and zoom for M6 controls** (both phone projects), and confirm the long-press menu has Rename, Hide/Unhide and Pin/Unpin.
 - CP5: `make lint test`, `make gitleaks`, e2e `tsc`. Don't run e2e.
 - *(host)* `make deploy`; `/api/health` is ok; through the loopback port, `GET /api/ui-state/theme` without a session answers 401 (the route is deployed and protected), and the windows route of a throwaway session answers 401 too. Don't use the owner's credentials or script a sign-in: the signed-in checks (theme 404 then 200 after a pick, expanding a session shows its windows) are owner manual checks, already covered by T7/T3's integration tests and e2e scenarios. Never kill, detach, rename or re-select windows in the owner's existing sessions: use only a throwaway session created for the check, and kill it only through the UI's confirmation dialog.
-- *(host)* Owner's manual checks on a desktop browser (a Mac if available) and the iPhone, listed in [M6-acceptance.md](M6-acceptance.md#manual-checks-owner-t10); record the result of each there. If the owner hasn't done them yet, list them as open in the summary rather than ticking them, and don't wait for them: they don't block T10, T11 or M7.
+- *(host)* Owner's manual checks on a desktop browser (a Mac if available) and the iPhone, listed in [M6-acceptance.md](M6-acceptance.md#manual-checks-owner-t11); record the result of each there. If the owner hasn't done them yet, list them as open in the summary rather than ticking them, and don't wait for them: they don't block T11, T12 or M7.
 - Summary to the owner: what changed, env vars (expected: none), manual steps (none on the host beyond `make deploy`; the theme and tree state start at their defaults for each account).
 
 **Tests:** none new beyond regressions found by the audit, plus the extended phone touch-target scenario above.
 
-**E2E:** add **(T10) Touch targets and zoom for M6 controls** (both phone projects) as above; audit that all T1–T9 scenarios are present, tagged and type-checked; none run (M7).
+**E2E:** add **(T11) Touch targets and zoom for M6 controls** (both phone projects) as above; audit that all T1–T10 scenarios are present, tagged and type-checked; none run (M7).
 
 **Done:** docs match behavior, the deploy serves M6, the checklist is complete except the M7 e2e run and any open owner checks (backlog, not blockers), and the summary has been delivered.
 
-## T11 — Safe Docker cleanup
+## T12 — Safe Docker cleanup
 
-Free the disk the milestone's builds used, **without touching the running deployment, its data, other projects, or work another agent may be doing at the same time.** This is the last step of the milestone, after T10's deploy and checks.
+Free the disk the milestone's builds used, **without touching the running deployment, its data, other projects, or work another agent may be doing at the same time.** This is the last step of the milestone, after T11's deploy and checks.
 
 1. **Check that nothing is in use.** If any of these hold, skip the cleaning (steps 3–5), record "cleanup skipped: <reason>" in Progress and the summary, and treat the task as done. Cleanup can run again later:
    - a `make` test/lint/build or e2e run is in progress from this or another session (`pgrep -af 'scripts/tool.sh|docker exec hostbud-tools|test/e2e/run.sh|docker compose .*hostbud'`);
