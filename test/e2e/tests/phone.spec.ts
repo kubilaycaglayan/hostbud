@@ -32,8 +32,7 @@ async function tapSession(ui: UI, target: Target, name: string) {
   const back = ui.page.getByRole('button', { name: 'Back to sessions' })
   if (await back.isVisible()) await back.tap()
   await ui.page.getByRole('button', { name, exact: true }).tap()
-  await expect(ui.page.getByRole('region', { name: `Terminal: ${name}` })).toBeVisible()
-  await ui.page.waitForFunction(() => window.__hostbud !== undefined)
+  await ui.waitForTerminal(name)
   await expect.poll(() => attached(target, name), { timeout: 10_000 }).toBe('1')
 }
 
@@ -81,7 +80,8 @@ test('switch sessions: back to the list, open another session, type there', asyn
   await softType(ui.page, `echo ${marker}`)
   await expect.poll(() => target.capture(second)).toContain(marker)
   expect(await target.capture(first)).not.toContain(marker)
-  await expect.poll(() => attached(target, first)).toBe('0')
+  // Since M3 T7 the first session stays open (and attached) in its own tab.
+  expect(await attached(target, first)).toBe('1')
 })
 
 // Rotate (T3)

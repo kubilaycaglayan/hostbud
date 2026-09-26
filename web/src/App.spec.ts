@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App.vue'
 import { useAppStore } from './stores/app'
+import { useLayoutStore } from './stores/layout'
 import { stubFetch } from './test-utils'
 
 // A socket that stays "connecting": the live connection is covered by
@@ -31,7 +32,11 @@ afterEach(() => vi.unstubAllGlobals())
 
 const signedIn = () =>
   stubFetch((method, path) =>
-    path === '/api/auth/me' ? { status: 200, body: { email: 'person@example.com' } } : { status: method === 'POST' ? 204 : 200 },
+    path === '/api/auth/me'
+      ? { status: 200, body: { email: 'person@example.com' } }
+      : path === '/api/ui-state/layout'
+        ? { status: 404, body: { error: 'nothing saved yet' } }
+        : { status: method === 'POST' ? 204 : 200 },
   )
 
 describe('App shell', () => {
@@ -78,25 +83,96 @@ describe('App shell', () => {
   })
 })
 
-describe('session selection', () => {
-  it('opens the selected session in the terminal view', async () => {
-    signedIn()
+describe('tabs', () => {
+  const snap = {
+    type: 'snapshot' as const,
+    machines: [{ id: 'host', label: 'Host', status: 'ok' as const, os: 'Linux', home: '/home/dev', tmuxVersion: '3.4', tmuxMissing: false }],
+    sessions: {
+      host: ['acc-a', 'acc-b'].map((name) => ({ id: '$1', name, path: '/home/dev', attached: 0, windows: 2, created: '', activity: '' })),
+    },
+  }
+
+  async function signedInWith(saved: unknown) {
+    let release = () => {}
+    const gate = new Promise<void>((r) => (release = r))
+    stubFetch((method, path) => {
+      if (path === '/api/auth/me') return { status: 200, body: { email: 'person@example.com' } }
+      if (path === '/api/ui-state/layout' && method === 'GET')
+        return saved === null ? { status: 404, body: { error: 'nothing saved yet' } } : { status: 200, body: saved }
+      return { status: 204 }
+    })
+    // Holds the layout request until release(), to see what renders before it.
+    const realFetch = globalThis.fetch
+    vi.stubGlobal('fetch', async (path: string, init?: RequestInit) => {
+      if (path === '/api/ui-state/layout' && (init?.method ?? 'GET') === 'GET') await gate
+      return realFetch(path, init)
+    })
     // xterm can't render in jsdom; TerminalView has its own spec.
     const wrapper = mount(App, { global: { stubs: { TerminalView: true } } })
-    await flushPromises()
     const { useSessionsStore } = await import('./stores/sessions')
     const { useMachinesStore } = await import('./stores/machines')
-    const snap = {
-      type: 'snapshot' as const,
-      machines: [{ id: 'host', label: 'Host', status: 'ok' as const, os: 'Linux', home: '/home/dev', tmuxVersion: '3.4', tmuxMissing: false }],
-      sessions: { host: [{ id: '$1', name: 'acc-a', path: '/home/dev', attached: 0, windows: 2, created: '', activity: '' }] },
+    const feed = () => {
+      useMachinesStore().apply(snap)
+      useSessionsStore().apply(snap)
     }
-    useMachinesStore().apply(snap)
-    useSessionsStore().apply(snap)
+    return { wrapper, release, feed }
+  }
+  const terms = (w: ReturnType<typeof mount>) => w.findAll('main terminal-view-stub').map((t) => t.attributes('session'))
+
+  it('loads the saved layout before any terminal mounts, and live updates after it', async () => {
+    const saved = {
+      version: 1,
+      tabs: [{ id: 't1', root: { type: 'pane', id: 'p1', machine: 'host', session: 'acc-b' }, focusedPane: 'p1' }],
+      activeTab: 't1',
+    }
+    const { wrapper, release } = await signedInWith(saved)
+    await flushPromises()
+    expect(terms(wrapper)).toEqual([])
+    expect(IdleSocket.instances).toEqual([])
+    release()
+    await flushPromises()
+    expect(terms(wrapper)).toEqual(['acc-b'])
+    expect(IdleSocket.instances).toHaveLength(1)
+  })
+
+  it('list clicks open tabs; an open session focuses its tab; × closes', async () => {
+    const { wrapper, release, feed } = await signedInWith(null)
+    release()
+    await flushPromises()
+    feed()
     await wrapper.vm.$nextTick()
-    expect(wrapper.get('aside').text()).toContain('2 windows')
+    expect(wrapper.get('main').text()).toContain('Select a session')
     await wrapper.get('button[aria-label="acc-a"]').trigger('click')
-    expect(wrapper.get('main terminal-view-stub').attributes()).toMatchObject({ machine: 'host', session: 'acc-a' })
-    expect(useAppStore().selected).toEqual({ machine: 'host', name: 'acc-a' })
+    await wrapper.get('button[aria-label="acc-b"]').trigger('click')
+    expect(terms(wrapper)).toEqual(['acc-a', 'acc-b'])
+    const tabs = () => wrapper.findAll('[role=tab]')
+    expect(tabs().map((t) => t.attributes('aria-selected'))).toEqual(['false', 'true'])
+    // The list marks the focused pane's session.
+    expect(wrapper.get('button[aria-label="acc-b"]').attributes('aria-current')).toBe('true')
+    // Only the active tab's terminal takes input; the other stays mounted.
+    const stubs = wrapper.findAll('main terminal-view-stub')
+    expect(stubs.map((s) => s.attributes('active'))).toEqual(['false', 'true'])
+
+    await wrapper.get('button[aria-label="acc-a"]').trigger('click')
+    expect(terms(wrapper)).toEqual(['acc-a', 'acc-b'])
+    expect(tabs().map((t) => t.attributes('aria-selected'))).toEqual(['true', 'false'])
+    expect(useLayoutStore().focused?.session).toBe('acc-a')
+
+    await wrapper.get('button[aria-label="Close acc-a"]').trigger('click')
+    expect(terms(wrapper)).toEqual(['acc-b'])
+    expect(tabs().map((t) => t.attributes('aria-selected'))).toEqual(['true'])
+  })
+
+  it('signing out forgets the tabs', async () => {
+    const { wrapper, release, feed } = await signedInWith(null)
+    release()
+    await flushPromises()
+    feed()
+    await wrapper.vm.$nextTick()
+    await wrapper.get('button[aria-label="acc-a"]').trigger('click')
+    await wrapper.findAll('button').find((b) => b.text() === 'Sign out')!.trigger('click')
+    await flushPromises()
+    expect(useLayoutStore().tabs).toEqual([])
+    expect(useAppStore().terminalShown).toBe(false)
   })
 })

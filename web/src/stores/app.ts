@@ -1,27 +1,23 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
-export interface SelectedSession {
-  machine: string
-  name: string
-}
-
-// App-wide UI state: sidebar and the session shown in the main area.
+// App-wide UI state. The open terminals live in the layout store.
 export const useAppStore = defineStore('app', () => {
   const sidebarOpen = ref(true)
-  const selected = ref<SelectedSession | null>(null)
+  // Narrow screens show the session list or the terminals, one at a time.
+  const terminalShown = ref(false)
 
   function toggleSidebar() {
     sidebarOpen.value = !sidebarOpen.value
   }
 
-  function select(machine: string, name: string) {
-    selected.value = { machine, name }
+  function showTerminal() {
+    terminalShown.value = true
   }
 
-  function clearSelection() {
-    selected.value = null
+  function showList() {
+    terminalShown.value = false
   }
 
-  return { sidebarOpen, selected, toggleSidebar, select, clearSelection }
+  return { sidebarOpen, terminalShown, toggleSidebar, showTerminal, showList }
 })

@@ -10,6 +10,13 @@ interface Fixtures {
   allowedBrowserErrors: RegExp | undefined
 }
 
+export const EMPTY_LAYOUT = { version: 1, tabs: [], activeTab: null }
+
+// A new account has no saved layout yet: the app's first GET answers 404
+// (M3 T6), which is the API's normal answer, not a problem.
+const NEW_ACCOUNT_LAYOUT =
+  /^HTTP 404: GET https?:\/\/[^/]+\/api\/ui-state\/layout$|^console error: Failed to load resource: the server responded with a status of 404 .*@ https?:\/\/[^/]+\/api\/ui-state\/layout$/
+
 export const test = base.extend<Fixtures>({
   allowedBrowserErrors: [undefined, { option: true }],
 
@@ -20,14 +27,16 @@ export const test = base.extend<Fixtures>({
   },
 
   // Fails the test on console errors, uncaught exceptions, failed requests
-  // and HTTP error responses the page ran into.
-  page: async ({ page, allowedBrowserErrors }, use) => {
+  // and HTTP error responses the page ran into. Every test starts with no
+  // open tabs (the saved layout is per account, and the account is shared).
+  page: async ({ page, allowedBrowserErrors, baseURL }, use) => {
     const problems: string[] = []
     const report = (line: string) => {
-      if (!allowedBrowserErrors?.test(line)) problems.push(line)
+      if (!allowedBrowserErrors?.test(line) && !NEW_ACCOUNT_LAYOUT.test(line)) problems.push(line)
     }
     page.on('console', (m) => {
-      if (m.type() === 'error') report(`console error: ${m.text()}`)
+      // A failed load names its URL only in the location.
+      if (m.type() === 'error') report(`console error: ${m.text()} @ ${m.location().url}`)
     })
     page.on('pageerror', (e) => report(`uncaught: ${e.message}`))
     page.on('requestfailed', (r) =>
@@ -35,6 +44,11 @@ export const test = base.extend<Fixtures>({
     )
     page.on('response', (r) => {
       if (r.status() >= 400) report(`HTTP ${r.status()}: ${r.request().method()} ${r.url()}`)
+    })
+    // Signed out (the auth scenarios) this answers 401: nothing to reset.
+    await page.request.put('/api/ui-state/layout', {
+      data: EMPTY_LAYOUT,
+      headers: { Origin: new URL(baseURL!).origin },
     })
     await use(page)
     expect(problems, 'browser console errors or failed requests').toEqual([])

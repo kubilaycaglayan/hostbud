@@ -1,6 +1,9 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { Machine, Session } from '@/api/types'
+import type { ServerEvent } from '@/api/types'
+import { useLayoutStore } from './layout'
+import { useLiveStore } from './live'
 import { applyMachines, useMachinesStore } from './machines'
 import { applySessions, useSessionsStore } from './sessions'
 
@@ -58,5 +61,42 @@ describe('stores', () => {
     sessions.reset()
     expect(machines.machines).toEqual([])
     expect(sessions.byMachine).toEqual({})
+  })
+})
+
+describe('ended sessions close their terminals', () => {
+  // Feeds an event the way the live connection does.
+  function feed(e: ServerEvent) {
+    useMachinesStore().apply(e)
+    useSessionsStore().apply(e)
+    useLiveStore().closeEndedSessions(e)
+  }
+  function withTabs(...names: string[]) {
+    const layout = useLayoutStore()
+    layout.loaded = true
+    for (const n of names) layout.open('host', n)
+    return layout
+  }
+  const open = () => useLayoutStore().tabs.map((t) => t.root.session)
+
+  it('a list from a reachable host drops panes of missing sessions', () => {
+    withTabs('a', 'b')
+    feed({ type: 'snapshot', machines: [m('host')], sessions: { host: [s('a'), s('b')] } })
+    expect(open()).toEqual(['a', 'b'])
+    feed({ type: 'sessions.changed', machine: 'host', payload: { sessions: [s('a')] } })
+    expect(open()).toEqual(['a'])
+  })
+
+  it('an unlisted or unreachable host keeps them (empty list right after a restart)', () => {
+    withTabs('a')
+    feed({ type: 'snapshot', machines: [m('host', 'unknown')], sessions: { host: [] } })
+    expect(open()).toEqual(['a'])
+    // The first poll: status first, then the list.
+    feed({ type: 'machine.status', machine: 'host', payload: m('host') })
+    expect(open()).toEqual(['a'])
+    feed({ type: 'sessions.changed', machine: 'host', payload: { sessions: [s('a')] } })
+    feed({ type: 'machine.status', machine: 'host', payload: m('host', 'unreachable') })
+    feed({ type: 'snapshot', machines: [m('host', 'unreachable')], sessions: { host: [] } })
+    expect(open()).toEqual(['a'])
   })
 })

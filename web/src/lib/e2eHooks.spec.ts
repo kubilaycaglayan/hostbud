@@ -1,20 +1,37 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { installE2EHooks, removeE2EHooks } from './e2eHooks'
+import { registerPane, unregisterPane, type TermHooks } from './e2eHooks'
 
-afterEach(() => removeE2EHooks())
+const term = (text: string): TermHooks => ({
+  termText: () => text,
+  termSize: () => ({ cols: 80, rows: 24 }),
+  termSelection: () => '',
+  termViewport: () => '',
+  termTextRect: () => null,
+})
+
+afterEach(() => {
+  unregisterPane('p1')
+  unregisterPane('p2')
+})
 
 describe('e2e hooks', () => {
-  it('expose termText once installed, and go away', () => {
-    installE2EHooks({
-      termText: () => 'buffer',
-      termSize: () => ({ cols: 80, rows: 24 }),
-      termSelection: () => '',
-      termViewport: () => '',
-      termTextRect: () => null,
-    })
-    expect(window.__hostbud?.termText()).toBe('buffer')
-    expect(window.__hostbud?.termSize()).toEqual({ cols: 80, rows: 24 })
-    removeE2EHooks()
+  it('answer for the focused pane by default, or by session, and go away', () => {
+    let focus = 'p1'
+    registerPane('p1', term('one'), () => ({ session: 'a', active: true, focused: focus === 'p1' }))
+    registerPane('p2', term('two'), () => ({ session: 'b', active: false, focused: focus === 'p2' }))
+    expect(window.__hostbud?.termText()).toBe('one')
+    expect(window.__hostbud?.termText('b')).toBe('two')
+    expect(window.__hostbud?.termSize('a')).toEqual({ cols: 80, rows: 24 })
+    focus = 'p2'
+    expect(window.__hostbud?.termText()).toBe('two')
+    expect(window.__hostbud?.panes()).toEqual([
+      { session: 'a', active: true, focused: false },
+      { session: 'b', active: false, focused: true },
+    ])
+    expect(window.__hostbud?.termText('missing')).toBe('')
+    unregisterPane('p1')
+    expect(window.__hostbud).toBeDefined()
+    unregisterPane('p2')
     expect(window.__hostbud).toBeUndefined()
   })
 

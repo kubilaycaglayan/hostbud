@@ -156,8 +156,8 @@ beforeEach(() => {
 })
 afterEach(() => vi.unstubAllGlobals())
 
-async function mountTerm() {
-  const w = mount(TerminalView, { props: { machine: 'host', session: 'acc-a' }, attachTo: document.body })
+async function mountTerm(props: { active?: boolean; focused?: boolean } = {}) {
+  const w = mount(TerminalView, { props: { machine: 'host', session: 'acc-a', ...props }, attachTo: document.body })
   await flushPromises()
   return w
 }
@@ -221,6 +221,44 @@ describe('TerminalView', () => {
     await flushPromises()
     expect(w.get('[role=status]').text()).toContain('Disconnected: the session is gone.')
     expect(w.get('[role=status] button').text()).toBe('Reconnect')
+  })
+
+  it('in a background tab: not focused on attach, and no refit while hidden', async () => {
+    const w = await mountTerm({ active: false })
+    const t = h.terms[0]
+    const ws = FakeWS.all[0]
+    ws.onopen?.({} as Event)
+    await flushPromises()
+    expect(t.focused).toBe(0)
+    h.fitSize = { cols: 5, rows: 2 } // what a hidden box would fit
+    resizeCallback()
+    expect(ws.sent).toEqual([])
+    // Shown: it refits (its ResizeObserver fires) and takes the keyboard.
+    h.fitSize = { cols: 120, rows: 35 }
+    await w.setProps({ active: true })
+    await flushPromises()
+    expect(t.focused).toBe(1)
+    resizeCallback()
+    expect(ws.sent).toEqual(['{"type":"resize","cols":120,"rows":35}'])
+    w.unmount()
+  })
+
+  it('an unfocused pane of the active tab: focused once its pane is', async () => {
+    const w = await mountTerm({ focused: false })
+    FakeWS.all[0].onopen?.({} as Event)
+    await flushPromises()
+    expect(h.terms[0].focused).toBe(0)
+    await w.setProps({ focused: true })
+    await flushPromises()
+    expect(h.terms[0].focused).toBe(1)
+    w.unmount()
+  })
+
+  it('focus inside the terminal is reported (it becomes the focused pane)', async () => {
+    const w = await mountTerm({ focused: false })
+    h.terms[0].textarea!.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))
+    expect(w.emitted('focus')).toHaveLength(1)
+    w.unmount()
   })
 
   it('prepares the hidden input for on-screen keyboards', async () => {

@@ -6,20 +6,33 @@ import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
-import { onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { TermSession, termURL, type SessionState } from '@/api/term'
 import TerminalMenu from '@/components/TerminalMenu.vue'
 import TerminalSearch from '@/components/TerminalSearch.vue'
 import { copySelection, installOsc52 } from '@/lib/clipboard'
-import { installE2EHooks, removeE2EHooks } from '@/lib/e2eHooks'
+import { registerPane, unregisterPane } from '@/lib/e2eHooks'
 import { hyperlinkHandler, openLink, type LinkHover } from '@/lib/links'
 import { keepScrollback } from '@/lib/scrollback'
 import { clipboardKey, editingKey, searchKey } from '@/lib/terminalKeys'
 import { useAuthStore } from '@/stores/auth'
 import { useSessionsStore } from '@/stores/sessions'
 
-const props = defineProps<{ machine: string; session: string }>()
-const emit = defineEmits<{ back: [] }>()
+const props = withDefaults(
+  defineProps<{
+    machine: string
+    session: string
+    /** The layout pane this terminal shows (e2e hooks are keyed by it). */
+    paneId?: string
+    /** Its tab is the one shown (inactive tabs stay mounted and attached). */
+    active?: boolean
+    /** It's the focused pane of its tab: keyboard input goes here. */
+    focused?: boolean
+  }>(),
+  { paneId: 'pane', active: true, focused: true },
+)
+const emit = defineEmits<{ back: []; focus: [] }>()
+const takesInput = () => props.active && props.focused
 
 const el = ref<HTMLDivElement>()
 const state = ref<SessionState>('connecting')
@@ -51,7 +64,7 @@ function connect() {
     onState: (s, info) => {
       state.value = s
       attempt.value = info.attempt
-      if (s === 'open') t.focus()
+      if (s === 'open' && takesInput()) t.focus()
     },
     isListed: () => sessions.list(props.machine).some((x) => x.name === props.session),
     stillAuthorized: () => auth.stillAuthorized(),
@@ -62,7 +75,8 @@ function connect() {
 /** Fits the terminal to its box and tells the server about new sizes. */
 function refit() {
   const t = term.value
-  if (!t || !fit) return
+  // A hidden tab has no size: keep tmux at its last one until it's shown.
+  if (!t || !fit || !props.active) return
   try {
     fit.fit()
   } catch {
@@ -114,6 +128,11 @@ function reconnect() {
   term.value?.reset()
   connect()
 }
+
+// Showing a tab or focusing a pane moves the keyboard there.
+watch(takesInput, (v) => {
+  if (v) void nextTick(() => term.value?.focus())
+})
 
 onMounted(async () => {
   await document.fonts?.ready
@@ -187,7 +206,7 @@ onMounted(async () => {
   observer.observe(el.value!)
   // Test hook, e2e builds only (a constant condition: dropped otherwise).
   if (import.meta.env.VITE_E2E === '1')
-    installE2EHooks({
+    registerPane(props.paneId, {
       termText: () => {
         const b = t.buffer.active
         const lines: string[] = []
@@ -223,14 +242,14 @@ onMounted(async () => {
         }
         return null
       },
-    })
+    }, () => ({ session: props.session, active: props.active, focused: takesInput() }))
 })
 
 onBeforeUnmount(() => {
   observer?.disconnect()
   conn?.close()
   term.value?.dispose()
-  if (import.meta.env.VITE_E2E === '1') removeE2EHooks()
+  if (import.meta.env.VITE_E2E === '1') unregisterPane(props.paneId)
 })
 
 defineExpose({ refit, reconnect, showKeyboard })
@@ -240,6 +259,7 @@ defineExpose({ refit, reconnect, showKeyboard })
   <section
     :aria-label="`Terminal: ${props.session}`"
     class="relative flex h-full min-h-0 flex-col"
+    @focusin="emit('focus')"
   >
     <div class="flex items-center gap-2 border-b border-border px-3 py-2">
       <button

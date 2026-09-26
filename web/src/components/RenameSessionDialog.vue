@@ -8,7 +8,8 @@ import { describeError } from '@/stores/toasts'
 
 const props = defineProps<{ machine: string; session: string }>()
 const open = defineModel<boolean>('open', { default: false })
-const emit = defineEmits<{ renamed: [from: string, to: string] }>()
+// renaming: the request is on its way (the list may change before it returns).
+const emit = defineEmits<{ renaming: [from: string, to: string]; renamed: [from: string, to: string] }>()
 
 const name = ref('')
 const busy = ref(false)
@@ -35,6 +36,7 @@ async function submit() {
   }
   busy.value = true
   failure.value = null
+  emit('renaming', props.session, to)
   try {
     await sessionsApi.rename(props.machine, props.session, to)
     open.value = false

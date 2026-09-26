@@ -1,13 +1,19 @@
 import { expect, type Page } from '@playwright/test'
 
+// The app's e2e hooks (web/src/lib/e2eHooks.ts). Without `session`, the
+// focused pane of the active tab answers.
 declare global {
   interface Window {
     __hostbud?: {
-      termText: () => string
-      termSize: () => { cols: number; rows: number }
-      termSelection: () => string
-      termViewport: () => string
-      termTextRect: (needle: string) => { x: number; y: number; width: number; height: number } | null
+      termText: (session?: string) => string
+      termSize: (session?: string) => { cols: number; rows: number }
+      termSelection: (session?: string) => string
+      termViewport: (session?: string) => string
+      termTextRect: (
+        needle: string,
+        session?: string,
+      ) => { x: number; y: number; width: number; height: number } | null
+      panes: () => { session: string; active: boolean; focused: boolean }[]
     }
   }
 }
@@ -55,13 +61,44 @@ export class UI {
   async openTerminal(name: string): Promise<void> {
     await this.showList()
     await this.page.getByRole('button', { name, exact: true }).click()
-    await expect(this.page.getByRole('region', { name: `Terminal: ${name}` })).toBeVisible()
-    await this.page.waitForFunction(() => window.__hostbud !== undefined)
+    await this.waitForTerminal(name)
   }
 
-  /** What the browser terminal shows (xterm buffer, via the e2e hook). */
-  termText(): Promise<string> {
-    return this.page.evaluate(() => window.__hostbud?.termText() ?? '')
+  /** Waits until the session's terminal is shown and is the focused pane. */
+  async waitForTerminal(name: string): Promise<void> {
+    await expect(this.page.getByRole('region', { name: `Terminal: ${name}` })).toBeVisible()
+    await this.page.waitForFunction(
+      (n) => window.__hostbud?.panes().some((p) => p.session === n && p.focused) ?? false,
+      name,
+    )
+  }
+
+  /** What the browser terminal shows (xterm buffer, via the e2e hook): the
+   * focused pane's, or the named session's. */
+  termText(session?: string): Promise<string> {
+    return this.page.evaluate((s) => window.__hostbud?.termText(s) ?? '', session)
+  }
+
+  /** The mounted terminals: session, in the active tab, focused. */
+  panes(): Promise<{ session: string; active: boolean; focused: boolean }[]> {
+    return this.page.evaluate(() => window.__hostbud?.panes() ?? [])
+  }
+
+  /** The tab bar's tab of a session (exact label). */
+  tab(name: string) {
+    return this.page.getByRole('tablist', { name: 'Open terminals' }).getByRole('tab', { name, exact: true })
+  }
+
+  /** The tab labels, in order. */
+  async tabNames(): Promise<string[]> {
+    const tabs = this.page.getByRole('tablist', { name: 'Open terminals' }).getByRole('tab')
+    return (await tabs.allTextContents()).map((t) => t.trim())
+  }
+
+  /** The label of the selected tab. */
+  async activeTabName(): Promise<string> {
+    const tab = this.page.getByRole('tablist', { name: 'Open terminals' }).getByRole('tab', { selected: true })
+    return ((await tab.textContent()) ?? '').trim()
   }
 
   /** Types into the terminal (focusing its input, without clicking: a

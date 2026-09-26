@@ -15,8 +15,8 @@ Update this table in the same commit that finishes a task.
 | T4 Links | ✅ done |
 | T5 Search | ✅ done |
 | T6 UI state API | ✅ done (tests run at CP1) |
-| T7 Tabs | next |
-| T8 Split view | |
+| T7 Tabs | ✅ done (tests run at CP1) |
+| T8 Split view | next |
 | T9 Docs, audit and release | |
 
 **Test checkpoints (T6–T9, owner's trial of batched test runs).** From T6 on, each task still writes all the U/I/E tests it owes in the same commit as the behavior, but the suites run at checkpoints instead of per commit. Each commit gets only the fast checks: the Go packages it touches build and vet, and `vue-tsc` type-checks the frontend (and the e2e suite when it changes). `make gitleaks` still runs on every commit (pre-commit hook).
@@ -196,6 +196,7 @@ The backend for persisted layout (T7, T8), later also tree state and theme (M6).
   - **Rename** from the UI updates every pane showing that session. **A session that disappears** from the live list (killed in the UI or from a real terminal) closes its panes with a toast "Session <name> ended". A rename done in a real terminal looks like an end, so the pane closes; the renamed session is in the list.
   - **Persistence:** the layout is saved with `PUT /api/ui-state/layout`, debounced 500 ms, on every change. On sign-in it's loaded before any terminal mounts. It's validated (shape, `version`, the pane limit), and invalid data falls back to an empty layout with a console warning. Once the first `/ws/events` snapshot arrives, panes whose session doesn't exist are dropped (one toast listing them).
   - **Narrow screens** (below `md`, phones): M2's list-or-terminal switch stays. The terminal side shows the tab bar (compact) and the active tab. **Back to sessions** returns to the list without closing tabs.
+- *(Built:)* the tab bar is a hand-rolled `role="tablist"` (arrow keys, Home/End, Delete closes) rather than Reka UI `Tabs`, because each tab has a close button next to its trigger. Pruning panes of ended sessions uses only lists from a reachable host (right after an app restart the first snapshot can be empty), and a UI rename whose list update arrives before its response keeps the tab. The e2e `page` fixture resets the saved layout before each test, and a new account's first `GET` (404) isn't a browser problem. M2's phone *Switch sessions* now expects the first session to stay attached in its tab.
 - **Per-terminal pieces:** T1–T5 behaviors stay inside `TerminalView`. Keyboard input goes only to the active tab's focused terminal.
 - **e2e hooks:** `window.__hostbud` becomes a registry keyed by pane. `termText(session?)` and `termSize(session?)` default to the focused pane, and `panes()` lists `{session, active, focused}`. Existing specs keep working through the defaults. `check-dist.mjs` is unchanged.
 - ARCHITECTURE §11: layout model, persistence and limits; §6 notes that every open tab holds a WebSocket and an ssh process.
