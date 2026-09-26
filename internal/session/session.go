@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"hostbud/internal/inventory"
 	"hostbud/internal/sshx"
@@ -139,6 +140,16 @@ func (s *Service) Create(ctx context.Context, spec Spec) (string, error) {
 			return "", errorf(CodeInvalid, "", "%s", err)
 		}
 		_, err = s.exec.Exec(ctx, spec.Machine, args...)
+		if isServerGone(err) {
+			// Transient: the new server raced one that was still exiting
+			// (e.g. right after a kill-server). One retry after a pause.
+			select {
+			case <-time.After(250 * time.Millisecond):
+			case <-ctx.Done():
+				return "", s.remoteError(ctx.Err())
+			}
+			_, err = s.exec.Exec(ctx, spec.Machine, args...)
+		}
 		if err == nil {
 			break
 		}
@@ -217,6 +228,8 @@ func (s *Service) remoteError(err error) error {
 			if e.ExitCode == 127 {
 				return errorf(CodeTmuxMissing, "Install it with `sudo apt install tmux`.", "tmux not found on the host")
 			}
+			// Unexpected: worth a warning. stderr may hold paths: debug only.
+			s.log.Warn("tmux command failed", "exit", e.ExitCode)
 			s.log.Debug("tmux command failed", "exit", e.ExitCode, "stderr", e.Stderr)
 			return errorf(CodeInternal, "Check `make logs` with HOSTBUD_LOG_LEVEL=debug.",
 				"tmux failed on the host (exit %d)", e.ExitCode)
@@ -236,6 +249,10 @@ func stderrOf(err error) string {
 
 func isDuplicate(err error) bool { return strings.Contains(stderrOf(err), "duplicate session") }
 func isNotFound(err error) bool  { return strings.Contains(stderrOf(err), "can't find session") }
+func isServerGone(err error) bool {
+	return strings.Contains(stderrOf(err), "server exited unexpectedly") ||
+		strings.Contains(stderrOf(err), "lost server")
+}
 
 // resolvePath expands "", "~" and "~/…" against home and requires an
 // absolute result.

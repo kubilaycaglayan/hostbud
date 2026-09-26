@@ -157,6 +157,35 @@ func TestCreateCustomNameIsKept(t *testing.T) {
 	}
 }
 
+func TestCreateRetriesOnceWhenTheServerRaced(t *testing.T) {
+	tries := 0
+	f := &fakeExec{handler: func(args []string) error {
+		if args[0] == "tmux" {
+			tries++
+			if tries == 1 {
+				return remote(1, "server exited unexpectedly\n")
+			}
+		}
+		return nil
+	}}
+	tr := okHost()
+	name, err := newSvc(f, tr).Create(context.Background(), Spec{Machine: "host", Name: "web"})
+	if err != nil || name != "web" || tries != 2 || tr.refreshes != 1 {
+		t.Fatalf("got %q, %v after %d tries", name, err, tries)
+	}
+
+	// A second failure is reported, not retried forever.
+	always := &fakeExec{handler: func(args []string) error {
+		if args[0] == "tmux" {
+			return remote(1, "server exited unexpectedly\n")
+		}
+		return nil
+	}}
+	if _, err := newSvc(always, okHost()).Create(context.Background(), Spec{Machine: "host", Name: "web"}); code(err) != CodeInternal {
+		t.Fatalf("persistent failure: %v", err)
+	}
+}
+
 func TestCreateValidation(t *testing.T) {
 	for _, bad := range []string{"a.b", "a:b", "a b", strings.Repeat("x", 65)} {
 		f := &fakeExec{}
