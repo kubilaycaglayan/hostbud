@@ -8,7 +8,7 @@ for (const profile of ['desktop', 'phone'] as const) {
     test('Path autocomplete and invalid paths', async ({ page, target }) => {
       const name = uniqueName('e2e-browser')
       const dir = `/home/dev/${name}`
-      await target.run(`mkdir -p ${shq(`${dir}/child`)}`)
+      await target.run(`mkdir -p ${shq(`${dir}/child`)}; touch ${shq(`${dir}/not-a-directory`)}`)
       await page.goto('/')
       await page.getByRole('button', { name: 'Browse files' }).click()
       await page.getByLabel('Current path').fill(`${dir}/chi`)
@@ -17,6 +17,9 @@ for (const profile of ['desktop', 'phone'] as const) {
       await page.getByLabel('Current path').fill(`${dir}/missing`)
       await page.getByRole('button', { name: 'Go' }).click()
       await expect(page.getByRole('alert', { name: "Couldn't open this directory" })).toBeVisible()
+      await page.getByLabel('Current path').fill(`${dir}/not-a-directory`)
+      await page.getByRole('button', { name: 'Go' }).click()
+      await expect(page.getByRole('alert', { name: "Couldn't open this directory" })).toContainText('Choose an existing directory')
       await page.getByLabel('Current path').fill(dir)
       await page.getByRole('button', { name: 'Go' }).click()
       await expect(page.getByRole('button', { name: 'child/' })).toBeVisible()

@@ -18,7 +18,7 @@ Each criterion names **U** (unit), **I** (integration against `test/sshd`, Postg
   - U: T1 sorting, hidden filtering, file metadata and symlink policy cases.
   - I: T1 against `test/sshd`: visible/hidden files, directory ordering, valid symlink and broken symlink; no traversal outside the target filesystem is introduced by path handling.
   - E: T1 *Hidden entries and symlinks* API scenario through Caddy; T4 *Hidden toggle and lazy symlink status in the browser* (desktop).
-- [ ] Path input supports autocomplete from the current directory, keyboard selection/navigation and submitting a typed path. Invalid, missing and non-directory paths give actionable errors without losing the current browser location.
+- [x] Path input supports autocomplete from the current directory, keyboard selection/navigation and submitting a typed path. Invalid, missing and non-directory paths give actionable errors without losing the current browser location.
   - U: T4 autocomplete filtering, keyboard state and path input/error states.
   - I: T1 SFTP stat/list error mapping for missing path and non-directory path.
   - E: T4 *Path autocomplete and invalid paths* (desktop and iPhone 13 Pro).

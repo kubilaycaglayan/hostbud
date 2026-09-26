@@ -15,6 +15,11 @@ describe('FileBrowser', () => {
       let body: unknown = {}
       if (parsed.pathname.endsWith('/fs/home')) body = { path: '/home/dev' }
       else if (parsed.pathname.endsWith('/fs/stat')) body = { name: 'broken-link', path: '/home/dev/broken-link', kind: 'symlink', symlink: true, symlinkState: 'broken' }
+      else if (parsed.pathname.endsWith('/fs') && parsed.searchParams.get('path') === '/home/dev/missing') {
+        return { ok: false, status: 404, headers: new Headers(), json: async () => ({ error: 'path not found', hint: 'Check the path and try again.' }), text: async () => '' }
+      } else if (parsed.pathname.endsWith('/fs') && parsed.searchParams.get('path') === '/home/dev/notes.txt') {
+        return { ok: false, status: 400, headers: new Headers(), json: async () => ({ error: 'path is not a directory', hint: 'Choose an existing directory.' }), text: async () => '' }
+      }
       else if (parsed.pathname.endsWith('/fs')) body = { path: parsed.searchParams.get('path'), entries: [
         { name: 'work', path: '/home/dev/work', kind: 'directory' },
         { name: 'notes', path: '/home/dev/notes', kind: 'directory' },
@@ -84,5 +89,29 @@ describe('FileBrowser', () => {
     await wrapper.get('input[type="checkbox"]').setValue(true)
     await flushPromises()
     expect(wrapper.text()).toContain('.hidden')
+  })
+
+  it('supports keyboard autocomplete and recovers from invalid paths in place', async () => {
+    const wrapper = mount(FileBrowser, { props: { machine: 'host' } })
+    await flushPromises()
+    const input = wrapper.get('#browser-path')
+    await input.setValue('/work')
+    await input.trigger('keydown', { key: 'ArrowDown' })
+    expect((input.element as HTMLInputElement).value).toBe('/home/dev/work')
+    await input.trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+    expect(wrapper.get('[aria-label="Breadcrumbs"]').text()).toContain('work')
+
+    await input.setValue('/home/dev/missing')
+    await wrapper.get('#browser-path').element.closest('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    await flushPromises()
+    expect(wrapper.get('[role="alert"]').text()).toContain('Check the path')
+    expect(wrapper.get('[aria-label="Breadcrumbs"]').text()).toContain('work')
+
+    await input.setValue('/home/dev/notes.txt')
+    await wrapper.get('#browser-path').element.closest('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    await flushPromises()
+    expect(wrapper.get('[role="alert"]').text()).toContain('Choose an existing directory')
+    expect(wrapper.get('[aria-label="Breadcrumbs"]').text()).toContain('work')
   })
 })
