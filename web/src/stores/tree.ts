@@ -4,12 +4,14 @@ import { getUIState, putUIState } from '@/api/client'
 import { emptyTreeOrder, ordered, projectTree, validateTreeOrder, type TreeOrder } from '@/lib/tree'
 import { useProjectsStore } from './projects'
 import { useSessionsStore } from './sessions'
+import { useMachinesStore } from './machines'
 
 export const useTreeStore = defineStore('tree', () => {
   const order = ref<TreeOrder>(emptyTreeOrder())
   const loaded = ref(false)
   const projectsStore = useProjectsStore()
   const sessionsStore = useSessionsStore()
+  const machinesStore = useMachinesStore()
   let timer: ReturnType<typeof setTimeout> | undefined
   let generation = 0
 
@@ -46,9 +48,16 @@ export const useTreeStore = defineStore('tree', () => {
     for (const p of projectsStore.items) if (!order.value.projects.includes(p.id)) order.value.projects.push(p.id)
 
     const projection = projectTree(projectsStore.items, sessionsStore.list('host'), order.value)
-    const next: Record<string, string[]> = {}
-    for (const group of projection.groups) next[group.project.id] = ordered(group.sessions, order.value.sessions[group.project.id] ?? [], (s) => s.name).map((s) => s.name)
-    next.__other__ = ordered(projection.other, order.value.sessions.__other__ ?? [], (s) => s.name).map((s) => s.name)
+    const reachable = machinesStore.byId('host')?.status === 'ok'
+    const next: Record<string, string[]> = reachable ? {} : { ...order.value.sessions }
+    const merge = (previous: string[], observed: string[]) => [...previous, ...observed.filter((name) => !previous.includes(name))]
+    for (const group of projection.groups) {
+      const id = group.project.id
+      const observed = ordered(group.sessions, order.value.sessions[id] ?? [], (s) => s.name).map((s) => s.name)
+      next[id] = reachable ? observed : merge(order.value.sessions[id] ?? [], observed)
+    }
+    const observedOther = ordered(projection.other, order.value.sessions.__other__ ?? [], (s) => s.name).map((s) => s.name)
+    next.__other__ = reachable ? observedOther : merge(order.value.sessions.__other__ ?? [], observedOther)
     order.value.sessions = next
   }
 
