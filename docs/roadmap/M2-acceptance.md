@@ -18,12 +18,12 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 - [x] The HTTPS site is published only on `${TAILSCALE_IP}` (`:443`, `:80`), the loopback site only on `127.0.0.1:${HOSTBUD_LOCAL_PORT}`; nothing on `0.0.0.0`.
   - U: n/a (no code). I: T2 deploy-config check: exactly those three Caddy ports; no other service publishes except PostgreSQL's loopback port. E: n/a (the e2e stack publishes nothing by design). **Manual (T4):** `ss -ltn` on the host.
   - Status (T4): `ss -ltn` on the host shows `<tailscale-ip>:443`, `<tailscale-ip>:80`, `127.0.0.1:9055` (and PostgreSQL's `127.0.0.1` port) only.
-- [ ] From a phone on the tailnet, `https://${HOSTBUD_DOMAIN}` loads, signs in, attaches and types.
+- [x] From a phone on the tailnet, `https://${HOSTBUD_DOMAIN}` loads, signs in, attaches and types.
   - U: T3 viewport and terminal-input tests (Vitest). I: n/a (browser path; the PTY side is M1 T13). E: T2 *Domain UI* · T3 *Phone attach and type* in `iphone-13-pro-domain`. **Manual (T4):** a real phone on the tailnet.
-  - Status (T4): automated layers pass; waiting for the owner's check from a real phone.
-- [ ] From outside the tailnet the domain is unreachable (the name resolves to a Tailscale address that only routes inside the tailnet; the DNS record is DNS-only, not proxied).
+  - Status (T4): the owner connected from a phone on the tailnet. The first attempt failed to resolve: a tailnet Split DNS route sent lookups for the domain to the host's Tailscale IP, where no DNS server runs. It worked once the owner deleted that route.
+- [x] From outside the tailnet the domain is unreachable (the name resolves to a Tailscale address that only routes inside the tailnet; the DNS record is DNS-only, not proxied).
   - U: n/a (network, no code). I: T2 deploy-config check (Caddy binds only loopback and `${TAILSCALE_IP}`). E: n/a (e2e has no tailnet). **Manual (T4):** phone with Tailscale off can't connect; Cloudflare record shows "DNS only".
-  - Status (T4): the Cloudflare API shows the record as DNS-only (`proxied: false`) pointing at the Tailscale IP, and nothing listens on a public address; waiting for the owner's check with Tailscale off.
+  - Status (T4): the Cloudflare API shows the record as DNS-only (`proxied: false`) pointing at the Tailscale IP, and nothing listens on a public address; the owner confirmed that with Tailscale off the phone doesn't connect.
 - [ ] The `localhost` port-forward path still works (`ssh -L 9055:localhost:9055 <host>` → `http://localhost:9055`).
   - U: M1 T12 Origin tests keep `http://localhost:<port>` · T2 `AllowedOrigins`. I: T2 `caddy adapt`: the loopback site is plain HTTP and proxies to `hostbud:8080`. E: the whole M1 suite (`desktop-chromium`, `iphone-13-pro` on `http://localhost:9055`) · T2 *Origin on both paths*. **Manual (T4):** port forward from another machine.
   - Status (T4): `curl http://localhost:9055/api/health` on the host answers after the deploy, and the M1 suite passes; waiting for the owner's port forward from another machine.
