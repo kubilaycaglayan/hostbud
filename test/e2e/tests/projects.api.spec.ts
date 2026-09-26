@@ -57,6 +57,10 @@ test('project API: auth, Origin and live project events', async ({ page, request
 
     const event = await eventPromise
     expect(event).toMatchObject({ type: 'projects.changed', machine: 'host', payload: { action: 'upsert', project: { id: project.id } } })
+
+    const renamed = await mutate(request, 'PATCH', `/api/projects/${project.id}`, { name: `${name}-renamed` })
+    expect(renamed.status(), await renamed.text()).toBe(200)
+    expect(await renamed.json()).toMatchObject({ id: project.id, path, name: `${name}-renamed` })
   } finally {
     await anonymous.dispose()
   }

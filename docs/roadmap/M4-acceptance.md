@@ -33,10 +33,10 @@ Each criterion names **U** (unit), **I** (integration against `test/sshd`, Postg
 
 ## Projects and session placement
 
-- [ ] “Open as project” persists the selected directory as a project; reopening an existing project path selects the existing project instead of creating a duplicate. Project paths are absolute, normalized SFTP paths; project names default to the final path component and may be edited through the existing project API contract.
+- [x] “Open as project” persists the selected directory as a project; reopening an existing project path selects the existing project instead of creating a duplicate. Project paths are absolute, normalized SFTP paths; project names default to the final path component and may be edited through the existing project API contract.
   - U: T2 normalization, uniqueness behavior, default name and repository validation.
   - I: T2 PostgreSQL migration/repository round-trip, duplicate path handling and append-only migration check.
-  - E: T4 *Open as project and persist* (desktop and iPhone 13 Pro).
+  - E: T3 *Project API access control and events* covers project rename through the API; T4 *Open as project and persist* covers path defaulting, duplicate selection, and persistence (desktop and iPhone 13 Pro).
 - [ ] Projects are listed in the tree and survive sign-out/sign-in, page reload and app-container restart. Project list updates are driven by typed events after a successful state change; the UI does not poll projects.
   - U: T3 typed event publication; T4 project store applies project events to the browser; T5 tree store handles duplicate/replayed updates idempotently.
   - I: T2 PostgreSQL persistence across repository/process reconnect; T3 event publication from project mutations.

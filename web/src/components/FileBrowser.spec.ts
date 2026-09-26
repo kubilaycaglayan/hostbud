@@ -5,6 +5,7 @@ import FileBrowser from './FileBrowser.vue'
 
 const fetchMock = vi.fn()
 const createdFolders = new Set<string>()
+let projectsList: { id: string; machineId: string; path: string; name: string; sortOrder: number; pinned: boolean; createdAt: string; updatedAt: string }[] = []
 vi.stubGlobal('fetch', fetchMock)
 
 describe('FileBrowser', () => {
@@ -12,6 +13,7 @@ describe('FileBrowser', () => {
     setActivePinia(createPinia())
     fetchMock.mockReset()
     createdFolders.clear()
+    projectsList = []
     fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
       const parsed = new URL(String(url), 'http://localhost')
       let body: unknown = {}
@@ -38,7 +40,7 @@ describe('FileBrowser', () => {
         body = { path: child }
       }
       else if (parsed.pathname === '/api/projects' && init?.method === 'POST') body = { id: 'p1', machineId: 'host', path: '/home/dev/work', name: 'work' }
-      else if (parsed.pathname === '/api/projects' && init?.method === 'GET') body = { projects: [] }
+      else if (parsed.pathname === '/api/projects' && init?.method === 'GET') body = { projects: projectsList }
       else if (parsed.pathname === '/api/projects/p1/recent-commands') body = { commands: ['make test'] }
       else if (parsed.pathname.endsWith('/sessions')) body = { name: 'work' }
       return { ok: true, status: 200, headers: new Headers(), text: async () => JSON.stringify(body) }
@@ -100,6 +102,16 @@ describe('FileBrowser', () => {
     await wrapper.get('input[type="checkbox"]').setValue(true)
     await flushPromises()
     expect(wrapper.text()).toContain('.hidden')
+  })
+
+  it('selects an existing project path without creating a duplicate', async () => {
+    projectsList = [{ id: 'existing', machineId: 'host', path: '/home/dev/work', name: 'Saved work', sortOrder: 0, pinned: false, createdAt: '', updatedAt: '' }]
+    const wrapper = mount(FileBrowser, { props: { machine: 'host' } })
+    await flushPromises()
+    await wrapper.findAll('button').find((button) => button.text() === 'Open project')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Project: Saved work')
+    expect(fetchMock.mock.calls.some(([url, init]) => String(url) === '/api/projects' && init?.method === 'POST')).toBe(false)
   })
 
   it('supports keyboard autocomplete and recovers from invalid paths in place', async () => {
