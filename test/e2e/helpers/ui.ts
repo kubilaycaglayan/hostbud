@@ -1,5 +1,11 @@
 import { expect, type Page } from '@playwright/test'
 
+declare global {
+  interface Window {
+    __hostbud?: { termText: () => string }
+  }
+}
+
 // Page helpers. They drive the UI only through roles, labels and visible text.
 export class UI {
   constructor(readonly page: Page) {}
@@ -10,7 +16,8 @@ export class UI {
     await expect(this.page.getByRole('complementary', { name: 'Sessions' })).toBeVisible()
   }
 
-  /** The list item of a session in the sidebar (exact name). */
+  /** The list item of a session in the sidebar (exact name). Call
+   * showList() first if a terminal may be open on a narrow screen. */
   session(name: string) {
     const p = this.page
     return p.getByRole('listitem').filter({ has: p.getByRole('button', { name, exact: true }) })
@@ -31,6 +38,39 @@ export class UI {
     return this.page.getByRole('alert', { name: /Host unreachable|tmux not found on the host/ })
   }
 
+  /** On narrow screens an open terminal replaces the list: go back to it. */
+  async showList(): Promise<void> {
+    const back = this.page.getByRole('button', { name: 'Back to sessions' })
+    if (await back.isVisible()) await back.click()
+    await expect(this.page.getByRole('complementary', { name: 'Sessions' })).toBeVisible()
+  }
+
+  /** Clicks a session and waits for its terminal (e2e build hook ready). */
+  async openTerminal(name: string): Promise<void> {
+    await this.showList()
+    await this.page.getByRole('button', { name, exact: true }).click()
+    await expect(this.page.getByRole('region', { name: `Terminal: ${name}` })).toBeVisible()
+    await this.page.waitForFunction(() => window.__hostbud !== undefined)
+  }
+
+  /** What the browser terminal shows (xterm buffer, via the e2e hook). */
+  termText(): Promise<string> {
+    return this.page.evaluate(() => window.__hostbud?.termText() ?? '')
+  }
+
+  /** Types into the terminal (focusing its input, without clicking: a
+   * click would reach mouse-aware programs like vim), then Enter if asked. */
+  async type(text: string, enter = false): Promise<void> {
+    await this.page.getByRole('textbox', { name: 'Terminal input' }).focus()
+    await this.page.keyboard.type(text)
+    if (enter) await this.page.keyboard.press('Enter')
+  }
+
+  /** The terminal's exit/disconnect state. */
+  termStatus() {
+    return this.page.getByRole('region', { name: /^Terminal: / }).getByRole('status')
+  }
+
   /** An error toast, by its title. */
   toast(title: string) {
     return this.page.getByRole('region', { name: 'Notifications' }).getByRole('alert', { name: title })
@@ -39,6 +79,7 @@ export class UI {
   /** Opens the create dialog, fills the given fields and submits. */
   async createSession(fields: { directory?: string; name?: string; startCommand?: string }): Promise<void> {
     const p = this.page
+    await this.showList()
     await p.getByRole('button', { name: 'New session' }).click()
     const dialog = p.getByRole('dialog', { name: 'New session' })
     if (fields.directory !== undefined) await dialog.getByLabel('Directory').fill(fields.directory)

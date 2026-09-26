@@ -17,14 +17,15 @@ test('create with defaults: only a directory ⇒ named after it, started there',
   await ui.createSession({ directory: `~/e2e-work/${dir}` })
 
   const name = dir.replace('.', '-')
+  await expect(ui.page.getByRole('region', { name: `Terminal: ${name}` })).toBeVisible(soon)
+  await ui.showList()
   await expect(ui.session(name)).toBeVisible(soon)
-  await expect(ui.page.getByRole('region', { name: `Terminal: ${name}` })).toBeVisible()
   expect(await target.sessions()).toContain(name)
   expect(await target.display(name, '#{session_path}')).toBe(`/home/dev/e2e-work/${dir}`)
 
   // The same directory again: numbered.
   await ui.createSession({ directory: `~/e2e-work/${dir}` })
-  await expect(ui.session(`${name}-1`)).toBeVisible(soon)
+  await expect(ui.page.getByRole('region', { name: `Terminal: ${name}-1` })).toBeVisible(soon)
 })
 
 // Create with start command (T16)
@@ -33,6 +34,9 @@ test('create with a name, a ~/ path and a start command runs it there', async ({
   await target.run('mkdir -p ~/e2e-work/tools')
   await ui.open()
   await ui.createSession({ name, directory: '~/e2e-work/tools', startCommand: 'htop' })
+  // A created session opens right away (on narrow screens it replaces the list).
+  await expect(ui.page.getByRole('region', { name: `Terminal: ${name}` })).toBeVisible(soon)
+  await ui.showList()
   await expect(ui.session(name)).toBeVisible(soon)
   await expect.poll(() => target.display(name, '#{pane_current_command}')).toBe('htop')
   expect(await target.display(name, '#{pane_current_path}')).toBe('/home/dev/e2e-work/tools')

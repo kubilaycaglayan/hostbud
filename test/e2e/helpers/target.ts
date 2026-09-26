@@ -63,9 +63,10 @@ export class Target {
     return r.stdout.split('\n').filter(Boolean)
   }
 
-  /** What tmux really shows in the session's active pane (ground truth). */
+  /** What tmux really shows in the session's active pane (ground truth),
+   * with wrapped lines joined (-J) so narrow terminals don't split text. */
   capture(session: string): Promise<string> {
-    return this.tmux('capture-pane', '-p', '-t', `=${session}:`)
+    return this.tmux('capture-pane', '-p', '-J', '-t', `=${session}:`)
   }
 
   /** `tmux display -p <format>` for the session. */
@@ -89,9 +90,13 @@ export class Target {
     }
   }
 
-  /** Kills every session on the target (throwaway target only). */
+  /** Kills every session on the target (throwaway target only) and waits
+   * until the server is really gone (kill-server returns before it exits). */
   async resetTmux(): Promise<void> {
-    await this.exec('tmux kill-server')
+    await this.exec(
+      'tmux kill-server 2>/dev/null; for i in $(seq 50); do tmux ls >/dev/null 2>&1 || break; sleep 0.05; done; ' +
+        'while pgrep -u "$(id -u)" -x "tmux: server" >/dev/null; do sleep 0.05; done',
+    )
   }
 }
 

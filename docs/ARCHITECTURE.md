@@ -329,6 +329,7 @@ machine_capacity(machine_id PK, max_concurrent_runs)
 - Layout: resizable left gutter (tree) | main area with **tabs**, each tab may be **split** (horizontal/vertical, via `splitpanes`). Layout persisted in `ui_state`.
 - Tree: projects → sessions (→ windows, lazily); a machine level appears only once multiple machines exist. Status dots (● attached/active, ○ detached; a header banner for host unreachable / tmux missing). Drag-to-sort (`vue-draggable-plus`), inline rename, collapse state persisted, context menus (attach, attach in split, new session, rename, kill, open folder, save as project).
 - Command palette (⌘/Ctrl-K): jump to session/project.
+- **Narrow screens (M1):** the session list and the open terminal take turns (a "Back to sessions" button), so the terminal gets the full width; the host banner stays above both.
 - **Mobile:** tree becomes a drawer; single terminal view; an on-screen key bar (Esc, Tab, Ctrl, Alt, arrows, `|`, `~`, `/`, Scroll-mode button → copy-mode API); larger touch targets.
 - No external CDNs at runtime (fonts and assets bundled).
 
@@ -377,6 +378,7 @@ A separate Compose project `hostbud-e2e` (`test/e2e/`), started, run and torn do
 **How tests simulate a user**
 - Drive the UI only through what a user sees: roles, labels, visible text; `data-testid` only where there is no accessible handle (e.g. the terminal container).
 - Out-of-band actions like a user's real terminal: the runner runs `tmux` on the target over SSH (create/kill/attach elsewhere) and asserts the UI follows within one poll interval.
+- `window.__hostbud` exists only in images built with `VITE_E2E=1`: every use is guarded by the statically replaced `import.meta.env.VITE_E2E === '1'`, and `web/scripts/check-dist.mjs` fails any other build whose output still mentions it.
 - Terminal content is asserted two ways: what tmux really shows (`tmux capture-pane -p` on the target, the ground truth) and what the browser shows (xterm buffer read through `window.__hostbud.termText()`, exposed only in builds with `VITE_E2E=1`).
 - Failure scenarios: restart `hostbud-e2e-app` (UI recovers), stop sshd on the target (unreachable banner, then recovery), tmux-less target (install hint).
 - No real TUIs that need credentials (Claude Code, Codex); vim and htop cover full-screen apps. Claude Code stays a manual check.

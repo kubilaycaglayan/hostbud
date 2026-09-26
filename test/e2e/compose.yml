@@ -84,7 +84,7 @@ services:
   hostbud-e2e-app:
     build:
       context: ../..
-      args: { HOST_UID: "10001", HOST_GID: "10001" }
+      args: { HOST_UID: "10001", HOST_GID: "10001", VITE_E2E: "1" }
     image: hostbud-e2e-app:local
     container_name: hostbud-e2e-app
     user: *app-uid

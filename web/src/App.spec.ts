@@ -81,7 +81,8 @@ describe('App shell', () => {
 describe('session selection', () => {
   it('opens the selected session in the terminal view', async () => {
     signedIn()
-    const wrapper = mount(App)
+    // xterm can't render in jsdom; TerminalView has its own spec.
+    const wrapper = mount(App, { global: { stubs: { TerminalView: true } } })
     await flushPromises()
     const { useSessionsStore } = await import('./stores/sessions')
     const { useMachinesStore } = await import('./stores/machines')
@@ -95,7 +96,7 @@ describe('session selection', () => {
     await wrapper.vm.$nextTick()
     expect(wrapper.get('aside').text()).toContain('2 windows')
     await wrapper.get('button[aria-label="acc-a"]').trigger('click')
-    expect(wrapper.get('main section').attributes('aria-label')).toBe('Terminal: acc-a')
+    expect(wrapper.get('main terminal-view-stub').attributes()).toMatchObject({ machine: 'host', session: 'acc-a' })
     expect(useAppStore().selected).toEqual({ machine: 'host', name: 'acc-a' })
   })
 })

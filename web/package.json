@@ -6,13 +6,18 @@
   "packageManager": "pnpm@12.6.0",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/check-dist.mjs",
     "typecheck": "vue-tsc --build",
     "lint": "eslint . && vue-tsc --build",
     "test": "vitest run"
   },
   "dependencies": {
     "@fontsource/jetbrains-mono": "^5.3.0",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-unicode11": "^0.9.0",
+    "@xterm/addon-web-links": "^0.12.0",
+    "@xterm/addon-webgl": "^0.19.0",
+    "@xterm/xterm": "^6.0.0",
     "pinia": "^4.0.3",
     "reka-ui": "^2.10.5",
     "vue": "^3.5.43"

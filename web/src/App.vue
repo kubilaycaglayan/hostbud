@@ -67,60 +67,66 @@ onUnmounted(() => live.stop())
   <AuthView v-else-if="auth.status === 'anonymous'" />
   <div
     v-else
-    class="flex h-full"
+    class="flex h-full flex-col"
   >
-    <aside
-      v-if="app.sidebarOpen"
-      aria-label="Sessions"
-      class="flex w-64 shrink-0 flex-col border-r border-border bg-surface p-3"
-    >
-      <div class="flex items-center justify-between gap-2">
-        <h1 class="font-bold text-accent">
-          hostbud
-        </h1>
-        <button
-          type="button"
-          class="rounded border border-border px-2 py-1"
-          @click="creating = true"
-        >
-          New session
-        </button>
-      </div>
-      <p
-        v-if="live.state === 'reconnecting' || live.state === 'connecting'"
-        role="status"
-        class="mt-1 text-muted"
+    <HostBanner :machine="host" />
+    <!-- Narrow screens show the list or the open terminal, one at a time. -->
+    <div class="flex min-h-0 flex-1">
+      <aside
+        v-if="app.sidebarOpen"
+        aria-label="Sessions"
+        class="w-full shrink-0 flex-col border-r border-border bg-surface p-3 md:flex md:w-64"
+        :class="app.selected ? 'hidden' : 'flex'"
       >
-        {{ live.state === 'connecting' ? 'Connecting…' : 'Reconnecting…' }}
-      </p>
-      <div class="mt-3 min-h-0 flex-1 overflow-y-auto">
-        <SessionList
-          :sessions="hostSessions"
-          :selected="app.selected?.name"
-          @select="(name) => app.select(MACHINE, name)"
-          @rename="askRename"
-          @kill="askKill"
-        />
-      </div>
-      <div class="mt-2 flex items-center justify-between gap-2 text-muted">
-        <span class="truncate">{{ auth.email }}</span>
-        <button
-          type="button"
-          class="rounded border border-border px-2 py-1"
-          @click="auth.logout()"
+        <div class="flex items-center justify-between gap-2">
+          <h1 class="font-bold text-accent">
+            hostbud
+          </h1>
+          <button
+            type="button"
+            class="rounded border border-border px-2 py-1"
+            @click="creating = true"
+          >
+            New session
+          </button>
+        </div>
+        <p
+          v-if="live.state === 'reconnecting' || live.state === 'connecting'"
+          role="status"
+          class="mt-1 text-muted"
         >
-          Sign out
-        </button>
-      </div>
-    </aside>
-    <div class="flex min-w-0 flex-1 flex-col">
-      <HostBanner :machine="host" />
-      <main class="min-h-0 flex-1">
+          {{ live.state === 'connecting' ? 'Connecting…' : 'Reconnecting…' }}
+        </p>
+        <div class="mt-3 min-h-0 flex-1 overflow-y-auto">
+          <SessionList
+            :sessions="hostSessions"
+            :selected="app.selected?.name"
+            @select="(name) => app.select(MACHINE, name)"
+            @rename="askRename"
+            @kill="askKill"
+          />
+        </div>
+        <div class="mt-2 flex items-center justify-between gap-2 text-muted">
+          <span class="truncate">{{ auth.email }}</span>
+          <button
+            type="button"
+            class="rounded border border-border px-2 py-1"
+            @click="auth.logout()"
+          >
+            Sign out
+          </button>
+        </div>
+      </aside>
+      <main
+        class="min-h-0 min-w-0 flex-1 md:block"
+        :class="app.selected ? 'block' : 'hidden'"
+      >
         <TerminalView
           v-if="app.selected"
           :key="`${app.selected.machine}/${app.selected.name}`"
           :machine="app.selected.machine"
           :session="app.selected.name"
+          @back="app.clearSelection()"
         />
         <p
           v-else

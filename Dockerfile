@@ -8,7 +8,10 @@ WORKDIR /src/web
 COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./
 RUN corepack pnpm install --frozen-lockfile
 COPY web/ ./
-RUN corepack pnpm run build
+# "1" only for the e2e image (test/e2e/compose.yml): adds window.__hostbud
+# test hooks. Production builds leave it empty.
+ARG VITE_E2E=""
+RUN VITE_E2E="$VITE_E2E" corepack pnpm run build
 
 # ── 2. Go binary with the SPA embedded ───────────────────────
 FROM --platform=linux/amd64 golang:1.27.1-bookworm AS go

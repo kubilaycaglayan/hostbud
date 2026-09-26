@@ -27,7 +27,8 @@ Update this table in the same commit that finishes a task.
 | T14 Client and stores | ✅ done |
 | T15 App shell and session list | ✅ done |
 | T16 Session actions | ✅ done |
-| T17–T18 | ⬜ todo |
+| T17 Terminal view | ✅ done |
+| T18 Docs and release | ⏭ next |
 
 Work top to bottom; each task ends with a green `make lint test` **and `make e2e`**, a clean `make gitleaks`, and its own conventional commit(s). Tasks marked *(host)* need the real host (agent socket, sshd) to verify.
 
@@ -288,6 +289,7 @@ Design: [ARCHITECTURE §13.1](../ARCHITECTURE.md#131-e2e-environment). Built now
 - `@xterm/xterm` + `fit`, `webgl` (fallback), `web-links`, `unicode11`; bundled font.
 - Connect `/ws/term`; `ResizeObserver` → `fit` → `resize` frame; show exit/disconnect state with a "Reconnect" button (auto-reconnect is M3).
 - One terminal at a time (tabs/splits are M3).
+- Narrow screens (below `md`) show the session list or the open terminal, one at a time, with a "Back to sessions" button; the host banner sits above both. (The full mobile layout — drawer, key bar — is M3.)
 - `window.__hostbud.termText()` (xterm buffer as text) only when built with `VITE_E2E=1` (Dockerfile build arg, set only by `test/e2e`); never in production builds.
 
 **Tests:** U (Vitest): terminal WS client with a fake socket (binary I/O, `exit` ⇒ exit state + Reconnect); ResizeObserver ⇒ fit ⇒ `resize` frame; `__hostbud` hook absent unless `VITE_E2E=1`. I: n/a (frontend).

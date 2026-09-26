@@ -43,7 +43,7 @@ A layer may be **n/a** only with a one-line reason (e.g. pure byte passthrough h
 ### Create / rename / kill
 - [x] Create with only a path (default `~`) → session named after the directory's last path segment (`/root/docs/dev` → `dev`; `dev-1`, `dev-2`, … if taken), started in that directory. A custom name is used as given.
   - U: T11 default name from the last path segment, `-1`, `-2`, … on clash, custom name kept, `~` expansion (fake executor) · T16 create-dialog defaults (Vitest). I: T11 create on test sshd; `#{session_path}` matches. E: T16 *Create with defaults*.
-- [ ] Create with a name, a path like `~/some/dir`, and a start command (e.g. `htop`) → session runs the command in that directory; `tmux ls` in the real terminal shows it.
+- [x] Create with a name, a path like `~/some/dir`, and a start command (e.g. `htop`) → session runs the command in that directory; `tmux ls` in the real terminal shows it.
   - U: T9 `new-session` builder (`-c`, `-e`, command, `=` targets) · T11 `~/` expansion. I: T11 create with start command on test sshd (`#{pane_current_command}`). E: T16 *Create with start command* · T17 visible in terminal.
 - [x] Invalid name (e.g. `a.b`, `a:b`, a space) is rejected in the form and by the API.
   - U: T9 name validation · T12 `httptest` 400 `{error, hint}` · T16 form validation (Vitest). I: n/a (validation runs before any remote call; T8 checks that nothing reaches ssh unvalidated). E: T12 *API validation* · T16 *Invalid input*.
@@ -55,23 +55,23 @@ A layer may be **n/a** only with a one-line reason (e.g. pure byte passthrough h
   - U: T9 `kill-session` builder · T16 dialog: Cancel makes no API call, Confirm calls DELETE (Vitest). I: T9 kill on test sshd. E: T16 *Kill*.
 
 ### Terminal
-- [ ] Clicking a session attaches in a full terminal; typing works.
+- [x] Clicking a session attaches in a full terminal; typing works.
   - U: T13 frame codec and attach-command builder · T17 terminal WS client (Vitest, fake socket). I: T13 attach, send keys, read output on test sshd. E: T13 *Terminal WS* · T17 *Attach and type*.
 - [ ] Claude Code renders and behaves correctly (input, scrolling output, colors).
   - U: n/a (byte passthrough, covered by T13 codec). I: n/a (needs credentials). E: n/a (needs credentials; vim/htop stand in). **Manual** (T18).
-- [ ] vim works (insert mode, `:q`, arrow keys, colors).
+- [x] vim works (insert mode, `:q`, arrow keys, colors).
   - U: n/a (byte passthrough, covered by T13 codec). I: T13 attach running vim: `i` shows `-- INSERT --` in `capture-pane`, `:q` exits. E: T17 *Full-screen apps*.
 - [ ] htop renders correctly and responds to keys; mouse clicks work if tmux `mouse` is on.
   - U: n/a (byte passthrough). I: T13 htop starts and `q` quits (pane command changes). E: T17 *Full-screen apps*. Mouse clicks: **manual** (T18).
-- [ ] Resizing the browser window resizes the tmux window (`tmux display -p '#{window_width}x#{window_height}'`).
+- [x] Resizing the browser window resizes the tmux window (`tmux display -p '#{window_width}x#{window_height}'`).
   - U: T13 `resize` frame → PTY size · T17 ResizeObserver → fit → `resize` frame (Vitest). I: T13 resize changes the window size on test sshd. E: T13 *Terminal WS* · T17 *Resize*.
-- [ ] Closing the tab ends only the attach: the session keeps running (`tmux ls`).
+- [x] Closing the tab ends only the attach: the session keeps running (`tmux ls`).
   - U: T13 WS close cancels the process (fake process). I: T13 close ⇒ ssh process gone, session alive. E: T13 *Terminal WS* · T17 *Leave without killing*.
-- [ ] Detaching (`prefix d`) or the session exiting shows an exit state with a Reconnect button.
+- [x] Detaching (`prefix d`) or the session exiting shows an exit state with a Reconnect button.
   - U: T13 process exit ⇒ `exit {code}` frame · T17 exit state + Reconnect (Vitest). I: T13 `detach-client` ⇒ exit frame. E: T17 *Exit state*.
 
 ### Robustness
-- [ ] `docker compose restart hostbud` → the UI comes back and sessions are still listed; attached terminals can reconnect.
+- [x] `docker compose restart hostbud` → the UI comes back and sessions are still listed; attached terminals can reconnect.
   - U: T6 data survives reopening the DB · T14 WS reconnect with backoff + resync on snapshot (Vitest). I: n/a (container restart, covered by e2e). E: T14 *Live connection* · T15 *App restart* · T17 *Terminal after restart*.
 - [x] Stopping sshd on the host (or breaking the agent socket) shows an "unreachable" banner with a hint; restoring it recovers without restarting hostbud.
   - U: T7 error mapping (refused, agent missing/empty) · T10 backoff and `unreachable` ⇄ `ok` transitions · T15 banner (Vitest). I: T8 stopped test sshd and a missing agent socket ⇒ mapped actionable errors. E: T15 *Host unreachable*.
@@ -119,12 +119,12 @@ UI
 - [x] **(T16) Invalid input:** names like `a.b`, `a:b`, `a b` are rejected in the form; a duplicate name and a missing path show the actionable error text.
 - [x] **(T16) Rename:** rename via the UI → the new name is in `tmux ls` and the list.
 - [x] **(T16) Kill:** Cancel keeps the session; Confirm removes it from `tmux ls` and the list.
-- [ ] **(T17) Attach and type:** the user clicks a session and types `echo e2e-$RANDOM` + Enter → the marker is in `capture-pane` and in the browser terminal.
-- [ ] **(T17) Full-screen apps:** vim (insert text, `:wq` writes the file on the target) and htop (renders, `q` quits) behave correctly.
-- [ ] **(T17) Resize:** changing the viewport changes `#{window_width}x#{window_height}` on the target.
-- [ ] **(T17) Leave without killing:** closing the page ends the attach; the session is still in `tmux ls`.
-- [ ] **(T17) Exit state:** detaching (`prefix d`) or the program exiting shows the exit state; Reconnect re-attaches.
-- [ ] **(T17) Terminal after restart:** after restarting `hostbud-e2e-app` the terminal can reconnect.
+- [x] **(T17) Attach and type:** the user clicks a session and types `echo e2e-$RANDOM` + Enter → the marker is in `capture-pane` and in the browser terminal.
+- [x] **(T17) Full-screen apps:** vim (insert text, `:wq` writes the file on the target) and htop (renders, `q` quits) behave correctly.
+- [x] **(T17) Resize:** changing the viewport changes `#{window_width}x#{window_height}` on the target.
+- [x] **(T17) Leave without killing:** closing the page ends the attach; the session is still in `tmux ls`.
+- [x] **(T17) Exit state:** detaching (`prefix d`) or the program exiting shows the exit state; Reconnect re-attaches.
+- [x] **(T17) Terminal after restart:** after restarting `hostbud-e2e-app` the terminal can reconnect.
 
 Overall
 - [ ] **(every task) Kept green:** each task's commit ran `make e2e` green, including tasks with no new scenario.
