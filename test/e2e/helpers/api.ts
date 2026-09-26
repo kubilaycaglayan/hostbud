@@ -15,6 +15,19 @@ export const MACHINE = 'host'
 // HOSTBUD_POLL_INTERVAL in compose.yml.
 export const POLL_INTERVAL_MS = 1_000
 
+/** Read and write opaque per-account UI state through the authenticated API. */
+export async function getUIState(request: APIRequestContext, key: 'layout' | 'tree' | 'theme'): Promise<unknown> {
+  const res = await request.get(`/api/ui-state/${key}`)
+  if (res.status() === 404) return null
+  if (!res.ok()) throw new Error(`GET UI state ${key}: ${res.status()} ${await res.text()}`)
+  return await res.json()
+}
+
+export async function putUIState(request: APIRequestContext, key: 'layout' | 'tree' | 'theme', value: unknown): Promise<void> {
+  const res = await mutate(request, 'PUT', `/api/ui-state/${key}`, value)
+  if (!res.ok()) throw new Error(`PUT UI state ${key}: ${res.status()} ${await res.text()}`)
+}
+
 export interface Session {
   id: string
   name: string
@@ -32,7 +45,7 @@ export async function listSessions(request: APIRequestContext): Promise<Session[
 /** State-changing request with the page's Origin, like the UI sends. */
 export function mutate(
   request: APIRequestContext,
-  method: 'POST' | 'PATCH' | 'DELETE',
+  method: 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   path: string,
   data?: unknown,
   origin = ORIGIN,

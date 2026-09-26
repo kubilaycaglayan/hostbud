@@ -4,6 +4,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import type { Project, Session } from '@/api/types'
 import { useProjectsStore } from '@/stores/projects'
 import { useSessionsStore } from '@/stores/sessions'
+import { useMachinesStore } from '@/stores/machines'
 import { useTreeStore } from '@/stores/tree'
 import SessionTree from './SessionTree.vue'
 
@@ -19,7 +20,7 @@ beforeEach(async () => {
     const body = String(url) === '/api/projects'
       ? { id: 'saved', machineId: 'host', path: '/outside', name: 'outside' }
       : null
-    return { ok: true, status: 200, headers: new Headers(), text: async () => body ? JSON.stringify(body) : '' }
+    return { ok: body !== null, status: body !== null ? 200 : 404, headers: new Headers(), text: async () => body ? JSON.stringify(body) : '' }
   })
   useProjectsStore().remember(project('a', '/work/a'))
   useProjectsStore().remember(project('b', '/work/b'))
@@ -42,6 +43,126 @@ describe('SessionTree', () => {
     expect(useTreeStore().groups.groups.map((g) => g.project.id)).toEqual(['b', 'a'])
     useTreeStore().reorderSessions('a', ['two', 'one'])
     expect(useTreeStore().groups.groups.find((g) => g.project.id === 'a')?.sessions.map((s) => s.name)).toEqual(['two', 'one'])
+  })
+
+  it('renders the accessible tree hierarchy and keeps one roving tab stop', async () => {
+    useMachinesStore().apply({ type: 'snapshot', machines: [{ id: 'host', label: 'Host', status: 'ok', os: '', home: '/work', tmuxVersion: '', tmuxMissing: false }], sessions: { host: [] } })
+    const wrapper = mount(SessionTree, { props: { selected: 'one' } })
+    expect(wrapper.find('[role="tree"][aria-label="Projects and sessions"]').exists()).toBe(true)
+    const projectRow = wrapper.get('[data-tree-key="project:a"]')
+    const sessionRow = wrapper.get('[data-tree-key="session:one"]')
+    expect(projectRow.attributes()).toMatchObject({ role: 'treeitem', 'aria-level': '1', 'aria-expanded': 'true', tabindex: '0', 'aria-label': 'a' })
+    expect(projectRow.text()).toContain('~/a')
+    expect(projectRow.find('[title="/work/a"]').exists()).toBe(true)
+    expect(projectRow.find('svg.lucide-folder').exists()).toBe(true)
+    expect(sessionRow.attributes()).toMatchObject({ role: 'treeitem', 'aria-level': '2', 'aria-selected': 'true', tabindex: '-1' })
+    expect(sessionRow.find('button[data-session-row]').classes()).toContain('min-w-[8ch]')
+    expect(wrapper.get('[data-tree-key="other"]').classes()).toContain('bg-tree-header')
+    expect(wrapper.get('[data-tree-key="other"]').element.querySelector(':scope > div > span[title]')).toBeNull()
+    expect(wrapper.find('[role="group"]').exists()).toBe(true)
+
+    const layoutBefore = JSON.stringify((await import('@/stores/layout')).useLayoutStore().layout)
+    await projectRow.trigger('keydown', { key: 'Enter' })
+    expect(projectRow.attributes('aria-expanded')).toBe('false')
+    expect(wrapper.find('[data-tree-key="session:one"]').exists()).toBe(false)
+    expect(JSON.stringify((await import('@/stores/layout')).useLayoutStore().layout)).toBe(layoutBefore)
+    expect(useTreeStore().order.collapsed).toContain('a')
+  })
+
+  it('moves tree focus with arrows and reorders only within the focused section', async () => {
+    const wrapper = mount(SessionTree, { attachTo: document.body })
+    const projectA = wrapper.get('[data-tree-key="project:a"]')
+    const projectAElement = projectA.element as HTMLElement
+    projectAElement.focus()
+    await projectA.trigger('keydown', { key: 'ArrowRight' })
+    expect(document.activeElement).toBe(wrapper.get('[data-tree-key="session:one"]').element)
+    await wrapper.get('[data-tree-key="session:one"]').trigger('keydown', { key: 'ArrowLeft' })
+    expect(document.activeElement).toBe(projectA.element)
+    await projectA.trigger('keydown', { key: 'ArrowUp', altKey: true })
+    expect(useTreeStore().groups.groups.map((g) => g.project.id)).toEqual(['a', 'b'])
+    await projectA.trigger('keydown', { key: 'ArrowDown', altKey: true })
+    expect(useTreeStore().groups.groups.map((g) => g.project.id)).toEqual(['b', 'a'])
+    const first = wrapper.get('[data-tree-key="session:one"]')
+    await first.trigger('keydown', { key: 'ArrowUp', altKey: true })
+    expect(useTreeStore().groups.groups.find((g) => g.project.id === 'a')?.sessions.map((s) => s.name)).toEqual(['one', 'two'])
+    await first.trigger('keydown', { key: 'ArrowDown', altKey: true })
+    expect(useTreeStore().groups.groups.find((g) => g.project.id === 'a')?.sessions.map((s) => s.name)).toEqual(['two', 'one'])
+    await wrapper.get('[data-tree-key="session:two"]').trigger('keydown', { key: 'ArrowUp', altKey: true })
+    expect(useTreeStore().groups.groups.find((g) => g.project.id === 'a')?.sessions.map((s) => s.name)).toEqual(['two', 'one'])
+    await wrapper.get('[data-tree-key="project:b"]').trigger('keydown', { key: 'ArrowUp', altKey: true })
+    expect(useTreeStore().groups.groups.map((g) => g.project.id)).toEqual(['b', 'a'])
+    await wrapper.get('[data-tree-key="project:a"]').trigger('keydown', { key: 'ArrowDown', altKey: true })
+    expect(useTreeStore().groups.groups.map((g) => g.project.id)).toEqual(['b', 'a'])
+    wrapper.unmount()
+  })
+
+  it('supports Home, End, Enter and Delete from tree rows', async () => {
+    const wrapper = mount(SessionTree, { attachTo: document.body })
+    const loose = wrapper.get('[data-tree-key="session:loose"]')
+    await loose.trigger('keydown', { key: 'Home' })
+    expect(document.activeElement).toBe(wrapper.get('[data-tree-key="project:a"]').element)
+    await wrapper.get('[data-tree-key="project:a"]').trigger('keydown', { key: 'End' })
+    expect(document.activeElement).toBe(loose.element)
+    await loose.trigger('keydown', { key: 'Enter' })
+    expect(wrapper.emitted('select')).toEqual([['loose']])
+    await loose.trigger('keydown', { key: 'Delete' })
+    expect(wrapper.emitted('kill')).toEqual([['loose']])
+    wrapper.unmount()
+  })
+
+  it('lets keyboard users tab into row actions without stealing button keys', async () => {
+    const wrapper = mount(SessionTree, { attachTo: document.body })
+    const row = wrapper.get('[data-tree-key="project:a"]')
+    const rowElement = row.element as HTMLElement
+    rowElement.focus()
+    await row.trigger('keydown', { key: 'Tab' })
+    expect(document.activeElement).toBe(row.element.querySelector('button'))
+    const enter = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+    row.element.querySelector('button')?.dispatchEvent(enter)
+    expect(enter.defaultPrevented).toBe(false)
+    expect(useTreeStore().order.collapsed).not.toContain('a')
+    const shiftTab = new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true })
+    row.element.querySelector('button')?.dispatchEvent(shiftTab)
+    expect(document.activeElement).toBe(row.element)
+    expect(shiftTab.defaultPrevented).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('moves focus to a visible parent when the focused session disappears', async () => {
+    const wrapper = mount(SessionTree, { attachTo: document.body })
+    const sessionRow = wrapper.get('[data-tree-key="session:one"]')
+    const sessionElement = sessionRow.element as HTMLElement
+    sessionElement.focus()
+    useTreeStore().setCollapsed('a', true)
+    await flushPromises()
+    expect(document.activeElement).toBe(wrapper.get('[data-tree-key="project:a"]').element)
+    expect(wrapper.get('[data-tree-key="project:a"]').attributes('tabindex')).toBe('0')
+    wrapper.unmount()
+  })
+
+  it('shows one empty-state line when there are no projects or sessions', async () => {
+    useProjectsStore().reset()
+    useSessionsStore().apply({ type: 'snapshot', machines: [], sessions: { host: [] } })
+    const wrapper = mount(SessionTree)
+    expect(wrapper.findAll('p').filter((line) => line.text() === 'No tmux sessions yet.')).toHaveLength(1)
+    expect(wrapper.find('[data-tree-key="other"]').exists()).toBe(false)
+  })
+
+  it('hides an empty Other group and restores it when an unmatched session arrives', async () => {
+    const sessions = useSessionsStore()
+    sessions.apply({ type: 'snapshot', machines: [], sessions: { host: [session('one', '/work/a'), session('loose', '/outside')] } })
+    const tree = useTreeStore()
+    tree.setCollapsed('__other__', true)
+    const wrapper = mount(SessionTree)
+    expect(wrapper.find('[data-tree-key="other"]').exists()).toBe(true)
+    sessions.apply({ type: 'snapshot', machines: [], sessions: { host: [session('one', '/work/a')] } })
+    await flushPromises()
+    expect(wrapper.find('[data-tree-key="other"]').exists()).toBe(false)
+    expect(tree.order.collapsed).toContain('__other__')
+    sessions.apply({ type: 'snapshot', machines: [], sessions: { host: [session('one', '/work/a'), session('new', '/outside')] } })
+    await flushPromises()
+    expect(wrapper.find('[data-tree-key="other"]').exists()).toBe(true)
+    expect(wrapper.find('[data-tree-key="other"]').attributes('aria-expanded')).toBe('false')
   })
 
   it('makes unmatched sessions clickable and saves as project from their actions menu', async () => {

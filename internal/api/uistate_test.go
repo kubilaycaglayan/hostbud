@@ -45,8 +45,12 @@ func TestUIStateRoundTripPerAccount(t *testing.T) {
 	if _, ok := e.ui.m["u1/layout"]; !ok {
 		t.Fatalf("stored under %v, want the signed-in account u1", e.ui.m)
 	}
-	if rec := e.do(t, http.MethodPut, "/api/ui-state/tree", `{"version":1,"projects":[],"sessions":{}}`, nil); rec.Code != http.StatusNoContent {
+	treeV2 := `{"version":2,"projects":["project-a"],"sessions":{"__other__":["shell"]},"pinned":["project-a"],"hidden":{"projects":[],"sessions":[]},"collapsed":["__other__"],"expanded":[],"showHidden":false}`
+	if rec := e.do(t, http.MethodPut, "/api/ui-state/tree", treeV2, nil); rec.Code != http.StatusNoContent {
 		t.Fatalf("PUT tree = %d %s", rec.Code, rec.Body)
+	}
+	if rec := e.do(t, http.MethodGet, "/api/ui-state/tree", "", nil); rec.Code != http.StatusOK || rec.Body.String() != treeV2 {
+		t.Fatalf("GET tree v2: %d %q", rec.Code, rec.Body)
 	}
 	// Another account doesn't see it.
 	other := map[string]string{"Cookie": SessionCookie + "=" + otherToken}
@@ -66,6 +70,7 @@ func TestUIStateRefusals(t *testing.T) {
 		{"unknown key PUT", http.MethodPut, "/api/ui-state/other", `{}`, nil, http.StatusNotFound},
 		{"invalid JSON", http.MethodPut, "/api/ui-state/layout", `{"tabs":`, nil, http.StatusBadRequest},
 		{"too big", http.MethodPut, "/api/ui-state/layout", `"` + strings.Repeat("x", 64<<10) + `"`, nil, http.StatusRequestEntityTooLarge},
+		{"tree too big", http.MethodPut, "/api/ui-state/tree", `"` + strings.Repeat("x", 64<<10) + `"`, nil, http.StatusRequestEntityTooLarge},
 		{"signed out GET", http.MethodGet, "/api/ui-state/layout", "", map[string]string{"Cookie": SessionCookie + "=bad"}, http.StatusUnauthorized},
 		{"signed out PUT", http.MethodPut, "/api/ui-state/layout", `{}`, map[string]string{"Cookie": SessionCookie + "=bad"}, http.StatusUnauthorized},
 		{"foreign Origin", http.MethodPut, "/api/ui-state/layout", `{}`, map[string]string{"Origin": "http://evil.example.com"}, http.StatusForbidden},
@@ -80,7 +85,7 @@ func TestUIStateRefusals(t *testing.T) {
 	}
 	// Exactly 64 KiB is fine.
 	body := `"` + strings.Repeat("x", 64<<10-2) + `"`
-	if rec := e.do(t, http.MethodPut, "/api/ui-state/layout", body, nil); rec.Code != http.StatusNoContent {
-		t.Fatalf("64 KiB: %d", rec.Code)
+	if rec := e.do(t, http.MethodPut, "/api/ui-state/tree", body, nil); rec.Code != http.StatusNoContent {
+		t.Fatalf("64 KiB tree: %d", rec.Code)
 	}
 }

@@ -1,13 +1,13 @@
 import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { getUIState, putUIState } from '@/api/client'
-import { emptyTreeOrder, ordered, projectTree, validateTreeOrder, type TreeOrder } from '@/lib/tree'
+import { emptyTreeState, OTHER_GROUP, ordered, projectTree, validateTreeState, type TreeState } from '@/lib/tree'
 import { useProjectsStore } from './projects'
 import { useSessionsStore } from './sessions'
 import { useMachinesStore } from './machines'
 
 export const useTreeStore = defineStore('tree', () => {
-  const order = ref<TreeOrder>(emptyTreeOrder())
+  const order = ref<TreeState>(emptyTreeState())
   const loaded = ref(false)
   const projectsStore = useProjectsStore()
   const sessionsStore = useSessionsStore()
@@ -22,13 +22,29 @@ export const useTreeStore = defineStore('tree', () => {
     try {
       const saved = await getUIState('tree')
       if (gen !== generation) return
-      order.value = (saved !== null && validateTreeOrder(saved)) || emptyTreeOrder()
+      const valid = saved !== null ? validateTreeState(saved) : null
+      if (saved !== null && !valid) console.warn('hostbud: ignoring an invalid saved tree')
+      order.value = valid || emptyTreeState()
     } catch (error) {
       console.warn("hostbud: can't load the saved tree order", error)
       if (gen !== generation) return
-      order.value = emptyTreeOrder()
+      order.value = emptyTreeState()
     }
     loaded.value = true
+  }
+
+  function persist(keepalive = false) {
+    sync()
+    clearTimeout(timer)
+    timer = undefined
+    const serialized = JSON.stringify(order.value)
+    if (new TextEncoder().encode(serialized).byteLength > 60 * 1024) {
+      console.warn('hostbud: saved tree exceeds 60 KiB; keeping the last saved value')
+      return
+    }
+    putUIState('tree', order.value, { keepalive }).catch((error) => {
+      console.warn("hostbud: can't save the tree", error)
+    })
   }
 
   function saveSoon() {
@@ -36,20 +52,39 @@ export const useTreeStore = defineStore('tree', () => {
     clearTimeout(timer)
     timer = setTimeout(() => {
       timer = undefined
-      putUIState('tree', order.value).catch((error) => {
-        console.warn("hostbud: can't save the tree order", error)
-      })
+      persist()
     }, 500)
   }
-  watch(order, saveSoon, { deep: true })
+  watch(order, saveSoon, { deep: true, flush: 'sync' })
 
-  /** Append observed rows while retaining the user's existing order. */
+  /** Sends a pending save now while the page is being hidden or unloaded. */
+  function flush() {
+    if (timer === undefined) return
+    clearTimeout(timer)
+    timer = undefined
+    persist(true)
+  }
+
+  /** Append observed rows; prune saved keys only after authoritative loads. */
   function sync() {
     for (const p of projectsStore.items) if (!order.value.projects.includes(p.id)) order.value.projects.push(p.id)
 
-    const projection = projectTree(projectsStore.items, sessionsStore.list('host'), order.value)
     const reachable = machinesStore.byId('host')?.status === 'ok'
-    const next: Record<string, string[]> = reachable ? {} : { ...order.value.sessions }
+    const projectIds = new Set(projectsStore.items.map((p) => p.id))
+    const sessionList = sessionsStore.list('host')
+    const sessionNames = new Set(sessionList.map((s) => s.name))
+    const projection = projectTree(projectsStore.items, sessionList, order.value)
+    if (projectsStore.loaded) {
+      order.value.projects = order.value.projects.filter((id) => projectIds.has(id))
+      order.value.pinned = order.value.pinned.filter((id) => projectIds.has(id))
+      order.value.hidden.projects = order.value.hidden.projects.filter((id) => projectIds.has(id))
+      order.value.collapsed = order.value.collapsed.filter((id) => id === OTHER_GROUP || projectIds.has(id))
+    }
+
+    const savedGroups = projectsStore.loaded
+      ? Object.fromEntries(Object.entries(order.value.sessions).filter(([id]) => id === OTHER_GROUP || projectIds.has(id)))
+      : order.value.sessions
+    const next: Record<string, string[]> = reachable && projectsStore.loaded ? {} : { ...savedGroups }
     const merge = (previous: string[], observed: string[]) => [...previous, ...observed.filter((name) => !previous.includes(name))]
     for (const group of projection.groups) {
       const id = group.project.id
@@ -59,6 +94,17 @@ export const useTreeStore = defineStore('tree', () => {
     const observedOther = ordered(projection.other, order.value.sessions.__other__ ?? [], (s) => s.name).map((s) => s.name)
     next.__other__ = reachable ? observedOther : merge(order.value.sessions.__other__ ?? [], observedOther)
     order.value.sessions = next
+
+    if (reachable) {
+      order.value.hidden.sessions = order.value.hidden.sessions.filter((key) => {
+        const [machine, name] = key.split('/')
+        return machine !== 'host' || sessionNames.has(name)
+      })
+      order.value.expanded = order.value.expanded.filter((key) => {
+        const [machine, name] = key.split('/')
+        return machine !== 'host' || sessionNames.has(name)
+      })
+    }
   }
 
   function reorderProjects(ids: string[]) {
@@ -78,8 +124,24 @@ export const useTreeStore = defineStore('tree', () => {
     clearTimeout(timer)
     timer = undefined
     loaded.value = false
-    order.value = emptyTreeOrder()
+    order.value = emptyTreeState()
   }
 
-  return { order, groups, loaded, load, sync, reorderProjects, reorderSessions, reset }
+  function setCollapsed(key: string, collapsed: boolean) {
+    order.value.collapsed = collapsed
+      ? [...new Set([...order.value.collapsed, key])]
+      : order.value.collapsed.filter((item) => item !== key)
+  }
+
+  function toggleCollapsed(key: string) {
+    setCollapsed(key, !order.value.collapsed.includes(key))
+  }
+
+  function setExpanded(key: string, expanded: boolean) {
+    order.value.expanded = expanded
+      ? [...new Set([...order.value.expanded, key])]
+      : order.value.expanded.filter((item) => item !== key)
+  }
+
+  return { order, groups, loaded, load, sync, flush, reorderProjects, reorderSessions, setCollapsed, toggleCollapsed, setExpanded, reset }
 })

@@ -16,15 +16,15 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 
 ## Tree state and persistence
 
-- [ ] The `tree` UI-state value moves to version 2: M4's `projects` and `sessions` order, plus `pinned` (project ids), `hidden` (project ids and session keys), `collapsed` (project ids and `__other__`), `expanded` (session keys and window keys) and `showHidden`. A session key is `<machineId>/<sessionName>` and a window key is `<machineId>/<sessionName>/<windowId>`, so multi-machine can return without a format change. A saved version 1 value loads and is upgraded with its order unchanged. An invalid value falls back to the empty state with a console warning, as in M4.
+- [x] The `tree` UI-state value moves to version 2: M4's `projects` and `sessions` order, plus `pinned` (project ids), `hidden` (project ids and session keys), `collapsed` (project ids and `__other__`), `expanded` (session keys and window keys) and `showHidden`. A session key is `<machineId>/<sessionName>` and a window key `<machineId>/<sessionName>/<windowId>`, so multi-machine can return without a format change. A saved version 1 value loads and is upgraded with its order unchanged. An invalid value falls back to the empty state with a console warning, as in M4.
   - U: T2 `lib/tree.ts` validator: v1 → v2 upgrade keeps order; v2 round-trip; rejects wrong types, bad keys (`__proto__`, missing `/`), oversize lists; unknown version → empty (Vitest).
   - I: T2 per-account `tree` round-trip through PostgreSQL with a v2 value, and a v1 value stored by M4 still reads back byte-identical (the server stores it uninterpreted) (Go, PostgreSQL).
   - E: T2 *Tree state upgrades from M4* (desktop; seed a v1 value through the API, reload, the M4 order is shown, and the next save is v2).
-- [ ] Session-keyed state (order, hidden, expanded) is pruned only from a list reported by a **reachable** host. The empty first snapshot after an app restart, an unreachable host's stale list and the pre-live empty list at sign-in never drop saved entries. Project-keyed state is pruned only after `projects.load` succeeds.
+- [x] Session-keyed state (order, hidden, expanded) is pruned only from a list reported by a **reachable** host. The empty first snapshot after an app restart, an unreachable host's stale list and the pre-live empty list at sign-in never drop saved entries. Project-keyed state is pruned only after `projects.load` succeeds.
   - U: T2 `sync()` with machine status `unknown`/`unreachable` keeps every entry; `ok` with the session gone prunes it; the sign-in path (`tree.load` → `sync` before `live.start`) keeps entries (Vitest). This includes the regression test for the M4 pruning bug, committed failing before the fix.
   - I: n/a (client-side decision; the server's snapshot and status behavior is M1's integration coverage).
   - E: T2 *Tree state survives an app restart* (desktop; custom session order, `ctl.restartApp()`, the order is unchanged once the host is reachable again).
-- [ ] Changes are saved with `PUT /api/ui-state/tree`, debounced 500 ms, and a pending save is flushed on `pagehide` (a keep-alive request), so a reload right after a change keeps it. The serialized value never exceeds the server's 64 KiB limit: stale entries are pruned first, and a value that is still too large isn't sent (console warning, the previous saved value stays).
+- [x] Changes are saved with `PUT /api/ui-state/tree`, debounced 500 ms, and a pending save is flushed on `pagehide` (a keep-alive request), so a reload right after a change keeps it. The serialized value never exceeds the server's 64 KiB limit: stale entries are pruned first, and a value that is still too large isn't sent (console warning, the previous saved value stays).
   - U: T2 debounce and flush (fake timers, `pagehide`); the size guard with 500 projects × 20 sessions of 64-byte names; the oversize path doesn't call `putUIState` (Vitest).
   - I: T2 a 64 KiB + 1 body still gets 413 (existing M1/M3 handler test extended to `tree`) (Go).
   - E: T2 *Tree state survives an app restart* reloads immediately after a change.
@@ -47,7 +47,7 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
   - U: T2 `SessionTree` renders the project header with icon, name and `~`-shortened path plus the full path as `title`; a session row's indent grows with `aria-level`; Other uses the header style without a path (Vitest).
   - I: n/a (frontend presentation only).
   - E: T2 *Tree shows hierarchy* (desktop and `iphone-13-pro` in the drawer).
-- [ ] The Other sessions group is shown only while it has sessions: with none, neither its header nor "No tmux sessions yet." is rendered. It appears as soon as an unmatched session exists and disappears when the last one ends or is saved as a project, keeping its collapse state and order. With no projects and no sessions at all, the tree shows a single "No tmux sessions yet." empty state.
+- [x] The Other sessions group is shown only while it has sessions: with none, neither its header nor "No tmux sessions yet." is rendered. It appears as soon as an unmatched session exists and disappears when the last one ends or is saved as a project, keeping its collapse state and order. With no projects and no sessions at all, the tree shows a single "No tmux sessions yet." empty state.
   - U: T2 `SessionTree` omits Other with zero sessions, renders it with one, keeps its collapse state across hide/show; the all-empty tree shows one empty-state line (Vitest).
   - I: n/a (frontend presentation only).
   - E: T2 *Empty Other sessions hidden* (desktop); M1 T15 *Empty list* still covers the all-empty tree.
@@ -55,7 +55,7 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
   - U: T2 key handler table on a fixture tree, including Alt+↑/↓ at section edges (no-op) and across a pinned boundary (no-op) (Vitest).
   - I: n/a (frontend only).
   - E: T2 *Keyboard tree navigation* (desktop; walk the tree, open a session with Enter, reorder with Alt+↓, reload, the order persists).
-- [ ] Projects and the Other sessions group collapse and expand from a chevron (**Collapse**/**Expand** `<name>`), a click on the row, or ←/→. The collapse state survives reload and restart. Collapsing a group never closes or detaches a terminal showing one of its sessions.
+- [x] Projects and the Other sessions group collapse and expand from a chevron (**Collapse**/**Expand** `<name>`), a click on the row, or ←/→. The collapse state survives reload and restart. Collapsing a group never closes or detaches a terminal showing one of its sessions.
   - U: T2 toggle, persistence into `collapsed`, default expanded, collapsed group hides its rows but keeps them in the order (Vitest).
   - I: n/a (per-account presentation stored through the existing UI-state route; T2's I test covers the round-trip).
   - E: T2 *Collapse state persists* (desktop and `iphone-13-pro` in the drawer; collapse a project and Other, reload, restart, still collapsed; an open terminal of a collapsed session keeps its tmux client PID).

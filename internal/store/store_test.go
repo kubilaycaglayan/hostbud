@@ -168,7 +168,7 @@ func TestUIStateForUser(t *testing.T) {
 	if err := s.PutUIStateForUser(ctx, "user-a", "tree", json.RawMessage(`{"version":1,"projects":["project-a"],"sessions":{}}`)); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.PutUIStateForUser(ctx, "user-b", "tree", json.RawMessage(`{"version":1,"projects":["project-b"],"sessions":{}}`)); err != nil {
+	if err := s.PutUIStateForUser(ctx, "user-b", "tree", json.RawMessage(`{"version":2,"projects":["project-b"],"sessions":{"__other__":["shell"]},"pinned":["project-b"],"hidden":{"projects":[],"sessions":[]},"collapsed":[],"expanded":[],"showHidden":false}`)); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.UIStateForUser(ctx, "user-c", "layout"); !errors.Is(err, ErrNotFound) {
@@ -181,7 +181,7 @@ func TestUIStateForUser(t *testing.T) {
 	}
 	for user, want := range map[string]string{
 		"user-a": `{"version":1,"projects":["project-a"],"sessions":{}}`,
-		"user-b": `{"version":1,"projects":["project-b"],"sessions":{}}`,
+		"user-b": `{"version":2,"projects":["project-b"],"sessions":{"__other__":["shell"]},"pinned":["project-b"],"hidden":{"projects":[],"sessions":[]},"collapsed":[],"expanded":[],"showHidden":false}`,
 	} {
 		if v, err := s.UIStateForUser(ctx, user, "tree"); err != nil || string(v) != want {
 			t.Fatalf("%s tree order: %s, %v", user, v, err)

@@ -73,7 +73,7 @@ test('(T8) Offline start serves the app shell and recovers after hostbud starts'
   await expect(page.getByText(/session/i)).toHaveCount(0)
   await ctl.appStart()
   await page.getByRole('button', { name: 'Try again' }).click()
-  await expect(page.getByRole('tree', { name: 'Project and session tree' })).toBeVisible()
+  await expect(page.getByRole('tree', { name: 'Projects and sessions' })).toBeVisible()
 })
 
 test('(T8) API and WebSocket paths never enter the service worker cache', async ({ page, ui }) => {

@@ -12,6 +12,7 @@
 :root {
   --hb-bg: #0f1115;
   --hb-surface: #171a21;
+  --hb-tree-header: #20242d;
   --hb-border: #262a33;
   --hb-fg: #d7dae0;
   --hb-muted: #8b919c;
@@ -25,6 +26,7 @@
   :root:not([data-theme='dark']) {
     --hb-bg: #ffffff;
     --hb-surface: #f5f6f8;
+    --hb-tree-header: #eef1f5;
     --hb-border: #d8dbe0;
     --hb-fg: #1f2328;
     --hb-muted: #656d76;
@@ -38,6 +40,7 @@
 @theme inline {
   --color-bg: var(--hb-bg);
   --color-surface: var(--hb-surface);
+  --color-tree-header: var(--hb-tree-header);
   --color-border: var(--hb-border);
   --color-fg: var(--hb-fg);
   --color-muted: var(--hb-muted);

@@ -11,6 +11,10 @@ const props = defineProps<{
   sortable?: boolean
   listLabel?: string
   canSaveAsProject?: boolean
+  treeView?: boolean
+  level?: number
+  focusedKey?: string
+  groupKey?: string
 }>()
 const emit = defineEmits<{
   select: [name: string]
@@ -88,11 +92,20 @@ const sortableSessions = computed({
     :delay-on-touch-only="true"
     :touch-start-threshold="3"
     :aria-label="props.listLabel ?? 'tmux sessions'"
+    :role="props.treeView ? 'group' : 'list'"
     class="flex flex-col gap-1"
   >
     <li
       v-for="s in sortableSessions"
       :key="s.name"
+      :role="props.treeView ? 'treeitem' : 'listitem'"
+      :aria-level="props.treeView ? (props.level ?? 1) : undefined"
+      :aria-selected="props.treeView && s.name === props.selected ? 'true' : undefined"
+      :aria-label="props.treeView ? s.name : undefined"
+      :tabindex="props.treeView && props.focusedKey === ('session:' + s.name) ? 0 : props.treeView ? -1 : undefined"
+      :data-tree-key="props.treeView ? 'session:' + s.name : undefined"
+      :data-tree-kind="props.treeView ? 'session' : undefined"
+      :data-tree-group="props.treeView ? props.groupKey : undefined"
       class="flex items-center gap-1 rounded px-1 py-0.5"
       :class="s.name === props.selected ? 'bg-bg' : ''"
     >
@@ -102,6 +115,7 @@ const sortableSessions = computed({
         class="session-drag-handle touch-target cursor-grab rounded text-muted"
         :aria-label="`Drag to reorder session ${s.name}`"
         title="Drag to reorder sessions"
+        :tabindex="props.treeView ? -1 : undefined"
       >
         ⠿
       </button>
@@ -117,7 +131,8 @@ const sortableSessions = computed({
         data-session-row
         :aria-label="s.name"
         :aria-current="s.name === props.selected ? 'true' : undefined"
-        class="touch-target min-w-0 flex-1 truncate text-left"
+        :tabindex="props.treeView ? -1 : undefined"
+        class="touch-target min-w-[8ch] flex-1 truncate text-left"
         @pointerdown="startLongPress($event, s.name)"
         @pointermove="moveLongPress"
         @pointerup="finishLongPress"
@@ -132,6 +147,7 @@ const sortableSessions = computed({
           type="button"
           :aria-label="`Kill ${s.name}`"
           title="Kill"
+          :tabindex="props.treeView ? -1 : undefined"
           class="touch-target rounded px-1 text-muted hover:text-danger"
           @click="emit('kill', s.name)"
         >
@@ -141,6 +157,7 @@ const sortableSessions = computed({
           <DropdownMenuTrigger
             :aria-label="`More actions for ${s.name}`"
             title="More"
+            :tabindex="props.treeView ? -1 : undefined"
             class="touch-target rounded px-1 text-muted hover:text-fg"
           >
             ⋯
@@ -177,6 +194,7 @@ const sortableSessions = computed({
           type="button"
           :aria-label="`Rename ${s.name}`"
           title="Rename"
+          :tabindex="props.treeView ? -1 : undefined"
           class="touch-target rounded px-1 text-muted hover:text-fg"
           @click="emit('rename', s.name)"
         >

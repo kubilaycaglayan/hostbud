@@ -50,10 +50,10 @@ test('(T5) Longest-prefix project mapping', async ({ page, target, request }) =>
   await createTargetSession(target, siblingSession, sibling)
   await createTargetSession(target, otherSession, `${base}-outside`)
   await page.goto('/')
-  await expect(page.getByRole('list', { name: `Sessions in ${nestedName}` }).getByRole('button', { name: nestedSession, exact: true })).toBeVisible()
-  await expect(page.getByRole('list', { name: `Sessions in ${parentName}` }).getByRole('button', { name: parentSession, exact: true })).toBeVisible()
-  await expect(page.getByRole('list', { name: `Sessions in ${siblingName}` }).getByRole('button', { name: siblingSession, exact: true })).toBeVisible()
-  await expect(page.getByRole('list', { name: 'Other sessions' }).getByRole('button', { name: otherSession, exact: true })).toBeVisible()
+  await expect(page.getByRole('group', { name: `Sessions in ${nestedName}` }).getByRole('button', { name: nestedSession, exact: true })).toBeVisible()
+  await expect(page.getByRole('group', { name: `Sessions in ${parentName}` }).getByRole('button', { name: parentSession, exact: true })).toBeVisible()
+  await expect(page.getByRole('group', { name: `Sessions in ${siblingName}` }).getByRole('button', { name: siblingSession, exact: true })).toBeVisible()
+  await expect(page.getByRole('group', { name: 'Other sessions' }).getByRole('button', { name: otherSession, exact: true })).toBeVisible()
 })
 
 test('(T5) Linked session rename and cleanup', async ({ page, target, request, ui }) => {
@@ -78,13 +78,13 @@ test('(T5) Linked session rename and cleanup', async ({ page, target, request, u
   await page.getByRole('button', { name: `Rename ${sessionName}` }).click()
   await page.getByRole('dialog', { name: 'Rename session' }).getByLabel('New name').fill(`${sessionName}-renamed`)
   await page.getByRole('dialog', { name: 'Rename session' }).getByRole('button', { name: 'Rename' }).click()
-  await expect(page.getByRole('list', { name: `Sessions in ${projectName}` }).getByRole('button', { name: `${sessionName}-renamed`, exact: true })).toBeVisible()
+  await expect(page.getByRole('group', { name: `Sessions in ${projectName}` }).getByRole('button', { name: `${sessionName}-renamed`, exact: true })).toBeVisible()
   await expect.poll(async () => {
     const data = await (await request.get(`/api/machines/${MACHINE}/sessions`)).json()
     return data.sessions.some((session: { name: string }) => session.name === `${sessionName}-renamed`)
   }, { timeout: 15_000 }).toBe(false)
   await createTargetSession(target, `${sessionName}-renamed`, outside)
-  await expect(page.getByRole('list', { name: 'Other sessions' }).getByRole('button', { name: `${sessionName}-renamed`, exact: true })).toBeVisible()
+  await expect(page.getByRole('group', { name: 'Other sessions' }).getByRole('button', { name: `${sessionName}-renamed`, exact: true })).toBeVisible()
 })
 
 for (const profile of ['desktop', 'phone'] as const) {
@@ -97,7 +97,7 @@ for (const profile of ['desktop', 'phone'] as const) {
       await target.run(`mkdir -p ${shq(path)}`)
       await createTargetSession(target, name, path)
       await page.goto('/')
-      const row = page.getByRole('list', { name: 'Other sessions' }).getByRole('listitem').filter({ has: page.locator(`[data-session-row][aria-label="${name}"]`) })
+      const row = page.getByRole('group', { name: 'Other sessions' }).getByRole('treeitem', { name, exact: true })
       await expect(row).toBeVisible()
       const original = (await (await request.get(`/api/machines/${MACHINE}/sessions`)).json()).sessions.find((s: { name: string }) => s.name === name)
       await expect(page.getByRole('button', { name: `Save ${name} as project` })).toHaveCount(0)
@@ -106,7 +106,7 @@ for (const profile of ['desktop', 'phone'] as const) {
       if (profile === 'phone') await returnToTree(page, profile)
       await row.getByRole('button', { name: `More actions for ${name}` }).click()
       await page.getByRole('menuitem', { name: 'Save as project' }).click()
-      await expect(page.getByRole('list', { name: `Sessions in ${path.split('/').at(-1)}` }).getByRole('button', { name, exact: true })).toBeVisible()
+      await expect(page.getByRole('group', { name: `Sessions in ${path.split('/').at(-1)}` }).getByRole('button', { name, exact: true })).toBeVisible()
       const after = (await (await request.get(`/api/machines/${MACHINE}/sessions`)).json()).sessions.find((s: { name: string }) => s.name === name)
       expect(after).toMatchObject({ id: original.id, path: original.path, name: original.name })
     })
@@ -118,7 +118,7 @@ for (const profile of ['desktop', 'phone'] as const) {
       await addProject(request, `${root}/one`, displayName)
       await addProject(request, `${root}/two`, displayName)
       await page.goto('/')
-      await expect(page.getByRole('list', { name: 'Projects' }).getByRole('heading', { name: displayName, exact: true })).toHaveCount(2)
+      await expect(page.getByRole('group', { name: 'Projects' }).getByRole('treeitem', { name: displayName, exact: true })).toHaveCount(2)
     })
 
     test('(T5) Left bar custom order', async ({ page, target, request, ui }) => {
@@ -154,11 +154,11 @@ for (const profile of ['desktop', 'phone'] as const) {
       await addProject(request, `${root}/third`, thirdName)
       const addedSession = uniqueName('e2e-order-new')
       await createTargetSession(target, addedSession, `${root}/third`)
-      const projectNames = () => page.getByRole('list', { name: 'Projects' }).locator(':scope > li > div > [role="heading"]').allTextContents()
+      const projectNames = () => page.getByRole('group', { name: 'Projects' }).locator(':scope > [role="treeitem"]').evaluateAll((items) => items.map((item) => item.getAttribute('aria-label') ?? ''))
       const orderedTestProjects = async () => (await projectNames()).map((name) => name.trim()).filter((name) => [firstName, secondName, thirdName].includes(name))
       await expect.poll(orderedTestProjects).toEqual([secondName, firstName, thirdName])
-      await expect.poll(async () => page.getByRole('list', { name: `Sessions in ${firstName}` }).locator('button[data-session-row]').allTextContents()).toEqual([two, one])
-      await expect(page.getByRole('list', { name: `Sessions in ${thirdName}` }).locator('button[data-session-row]')).toHaveText(addedSession)
+      await expect.poll(async () => page.getByRole('group', { name: `Sessions in ${firstName}` }).locator('button[data-session-row]').allTextContents()).toEqual([two, one])
+      await expect(page.getByRole('group', { name: `Sessions in ${thirdName}` }).locator('button[data-session-row]')).toHaveText(addedSession)
       await page.waitForTimeout(650)
       await page.reload()
       await expect.poll(orderedTestProjects).toEqual([secondName, firstName, thirdName])
@@ -180,7 +180,7 @@ for (const profile of ['desktop', 'phone'] as const) {
       await page.goto('/')
       const session = page.locator('[data-session-row]').filter({ hasText: name })
       await expect(session).toBeVisible()
-      const row = page.getByRole('listitem').filter({ has: page.locator(`[data-session-row][aria-label="${name}"]`) })
+      const row = page.getByRole('treeitem', { name, exact: true })
       const actionsFollowTitle = await row.evaluate((element) => {
         const title = element.querySelector('[data-session-row]')
         const actions = title?.nextElementSibling
@@ -213,7 +213,7 @@ for (const profile of ['desktop', 'phone'] as const) {
       await target.run(`tmux new-window -t ${shq(many)}`)
       await page.goto('/')
       for (const sessionName of [name, many]) {
-        const row = page.getByRole('listitem').filter({ has: page.locator(`[data-session-row][aria-label="${sessionName}"]`) })
+        const row = page.getByRole('treeitem', { name: sessionName, exact: true })
         await expect(row).toBeVisible()
         await expect(row).not.toContainText(/\b\d+ windows?\b/)
       }

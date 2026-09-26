@@ -26,6 +26,27 @@ export class UI {
     return this.page.getByRole('navigation', { name: 'Project and session tree' })
   }
 
+  treeView() {
+    return this.tree().getByRole('tree', { name: 'Projects and sessions' })
+  }
+
+  treeItem(name: string) {
+    return this.treeView().getByRole('treeitem', { name, exact: true })
+  }
+
+  async toggle(name: string): Promise<void> {
+    const item = this.treeItem(name)
+    const expanded = await item.getAttribute('aria-expanded') === 'true'
+    await item.getByRole('button', { name: (expanded ? 'Collapse ' : 'Expand ') + name }).click()
+  }
+
+  async waitForSave(key: 'tree' | 'theme'): Promise<void> {
+    await this.page.waitForResponse((response) =>
+      response.request().method() === 'PUT' &&
+      new URL(response.url()).pathname === '/api/ui-state/' + key,
+    )
+  }
+
   async openAccountMenu(): Promise<void> {
     const account = this.page.getByRole('button', { name: 'Account' })
     if (await account.isVisible()) {
@@ -53,17 +74,13 @@ export class UI {
   /** The list item of a session in the tree (exact name). Call showList()
    * first if a terminal may be open on a compact screen. */
   session(name: string) {
-    const p = this.page
-    return p.getByRole('listitem').filter({ has: p.getByRole('button', { name, exact: true }) })
+    return this.treeItem(name)
   }
 
   /** Session names shown in the project tree. */
   async sessionNames(): Promise<string[]> {
-    const lists = this.page.locator('[aria-label="tmux sessions"], [aria-label^="Sessions in "], [aria-label="Other sessions"]')
-    if ((await lists.count()) === 0) return []
-    return lists
-      .getByRole('listitem')
-      .evaluateAll((items) => items.map((li) => li.querySelector('button[data-session-row]')?.getAttribute('aria-label') ?? ''))
+    return this.treeView().locator('[role="treeitem"][data-tree-kind="session"]')
+      .evaluateAll((items) => items.map((item) => item.getAttribute('aria-label') ?? ''))
   }
 
   /** The host problem banner (unreachable / tmux missing). */
@@ -82,7 +99,7 @@ export class UI {
   /** Clicks a session and waits for its terminal (e2e build hook ready). */
   async openTerminal(name: string): Promise<void> {
     await this.showList()
-    await this.page.getByRole('button', { name, exact: true }).click()
+    await this.treeItem(name).getByRole('button', { name, exact: true }).click()
     await this.waitForTerminal(name)
   }
 
@@ -183,5 +200,15 @@ export class UI {
     await f.email.fill(email)
     await f.password.fill(password)
     await f.submit('Sign in').click()
+  }
+
+  async createAccount(account: { email: string; password: string }): Promise<void> {
+    await this.signOut()
+    const f = this.authForm()
+    await f.tab('Create account').click()
+    await f.email.fill(account.email)
+    await f.password.fill(account.password)
+    await f.submit('Create account').click()
+    await expect(this.tree()).toBeVisible()
   }
 }

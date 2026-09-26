@@ -5,7 +5,11 @@ import type { Project, ServerEvent } from '@/api/types'
 
 export const useProjectsStore = defineStore('projects', () => {
   const items = ref<Project[]>([])
-  async function load(machine: string) { items.value = (await projectsApi.list(machine)).projects }
+  const loaded = ref(false)
+  async function load(machine: string) {
+    items.value = (await projectsApi.list(machine)).projects
+    loaded.value = true
+  }
   function apply(event: ServerEvent) {
     if (event.type !== 'projects.changed') return
     const p = event.payload.project
@@ -19,6 +23,6 @@ export const useProjectsStore = defineStore('projects', () => {
     if (index < 0) items.value.push(project)
     else items.value[index] = project
   }
-  function reset() { items.value = [] }
-  return { items, load, apply, byPath, remember, reset }
+  function reset() { items.value = []; loaded.value = false }
+  return { items, loaded, load, apply, byPath, remember, reset }
 })
