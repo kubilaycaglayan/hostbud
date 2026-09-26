@@ -90,6 +90,8 @@ Tasks: [roadmap/M4-tasks.md](roadmap/M4-tasks.md) · Checklist: [roadmap/M4-acce
 **Accept:** tree renders Project → Session exactly as sessions are created.
 
 ### M5 — Mobile
+Tasks: [roadmap/M5-tasks.md](roadmap/M5-tasks.md) · Checklist: [roadmap/M5-acceptance.md](roadmap/M5-acceptance.md)
+
 - Responsive layout: tree drawer, single-terminal view, larger touch targets.
 - On-screen key bar (Esc, Tab, Ctrl, Alt, arrows, common symbols) and Scroll button (copy-mode API).
 - **Installable app (PWA):** a web app manifest (name, `display: standalone`, theme colors, bundled icons incl. `apple-touch-icon`) and a minimal service worker, so hostbud can be added to the home screen and opens full-screen like an app. The worker caches only the hashed app shell (never `/api/*` or `/ws/*`), so a start without a connection shows the app's own "can't reach hostbud" state, never stale sessions. A new version takes over on the next launch. Safe-area insets (notch, home indicator) are respected in standalone mode. Installable over the HTTPS domain (and `localhost`); see ARCHITECTURE §11.
