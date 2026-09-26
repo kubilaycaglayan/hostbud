@@ -57,8 +57,8 @@ A layer may be **n/a** only with a one-line reason (e.g. pure byte passthrough h
 ### Terminal
 - [x] Clicking a session attaches in a full terminal; typing works.
   - U: T13 frame codec and attach-command builder · T17 terminal WS client (Vitest, fake socket). I: T13 attach, send keys, read output on test sshd. E: T13 *Terminal WS* · T17 *Attach and type*.
-- [ ] Claude Code renders and behaves correctly (input, scrolling output, colors).
-  - Status (T18): not checked by the agent; it needs the owner's Claude credentials. Owner: create a session with start command `claude` and use it for a minute.
+- [x] Claude Code renders and behaves correctly (input, scrolling output, colors).
+  - Status: confirmed by the owner, who used Claude Code through hostbud's terminal after M1 shipped. Copying text out of the terminal is not in M1: planned in ROADMAP M3 (*Copy and paste*).
   - U: n/a (byte passthrough, covered by T13 codec). I: n/a (needs credentials). E: n/a (needs credentials; vim/htop stand in). **Manual** (T18).
 - [x] vim works (insert mode, `:q`, arrow keys, colors).
   - U: n/a (byte passthrough, covered by T13 codec). I: T13 attach running vim: `i` shows `-- INSERT --` in `capture-pane`, `:q` exits. E: T17 *Full-screen apps*.
@@ -136,9 +136,9 @@ Overall
 ## Security (AGENTS.md checklist, M1 scope)
 - [x] Authentication is required for all application API and WebSocket routes except health, registration and sign-in; sessions use opaque HttpOnly/SameSite cookies and passwords use Argon2id hashes.
   - U: T8B auth middleware, cookie and password-hash tests. I: T8B protected-route and session persistence checks. E: T8B *Registration/sign-in/logout*.
-- [ ] PostgreSQL credentials never appear in tracked files, images or logs; the optional database port is uncommon, configurable, loopback-only and verified free before deployment.
+- [x] PostgreSQL credentials never appear in tracked files, images or logs; the optional database port is uncommon, configurable, loopback-only and verified free before deployment.
   - U: T8A config/redaction tests. I: T8A Compose/mount/port inspection. E: n/a (runner does not inspect the host network); **Manual** owner checks `.env` permissions and `ss -ltn`.
-  - Status (T18): automated parts pass (placeholders only in tracked files, credentials passed at runtime, the e2e DB password is a *Logs clean* marker; the port is uncommon and loopback-only and was free before deploying). Open: the owner's `.env` is group/world-readable (664); run `chmod 600 .env`.
+  - Status (T18): automated parts pass (placeholders only in tracked files, credentials passed at runtime, the e2e DB password is a *Logs clean* marker; the port is uncommon and loopback-only and was free before deploying). The owner's `.env` is now owner-only (600).
 - [x] `ss -ltn` on the host: 9055 bound on `127.0.0.1` only; nothing on `0.0.0.0` from hostbud/Caddy; hostbud container publishes no ports.
   - U: n/a (no code). I: T8 deploy-config check: `docker compose config` shows `hostbud` with no ports and every Caddy port bound to `127.0.0.1` (or `${TAILSCALE_IP}` from M2). E: n/a (the e2e project publishes nothing by design). **Manual** `ss -ltn` (T4, T18).
 - [x] A request with a foreign `Origin` (e.g. `curl -H 'Origin: http://evil.example.com' -X POST …`) and a WebSocket upgrade with a foreign Origin are rejected.

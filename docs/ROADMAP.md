@@ -58,9 +58,14 @@ Tasks: [roadmap/M1-tasks.md](roadmap/M1-tasks.md) · Checklist: [roadmap/M1-acce
 
 ### M3 — Terminal workspace
 - Tabs; split view (horizontal/vertical); layout persisted in `ui_state`.
-- Auto-reconnect with re-attach; copy/paste; link detection; search.
+- Auto-reconnect with re-attach; link detection; search.
+- **Copy and paste** (owner request after M1):
+  - Select text with the mouse and copy it: Ctrl/Cmd+Shift+C and a "Copy" context-menu item; Ctrl+C stays an interrupt for the program. Shift+drag selects even when the program (or tmux `mouse on`) captures the mouse.
+  - Paste with Ctrl/Cmd+Shift+V (and Cmd+V on macOS) as bracketed paste, so a multi-line paste into a shell or Claude Code doesn't run line by line.
+  - OSC 52 (`@xterm/addon-clipboard`): text yanked in tmux copy mode, vim or Claude Code lands in the browser clipboard. It needs tmux `set-clipboard on`; hostbud documents that and never changes the user's tmux config.
+  - The clipboard API needs a secure context: `http://localhost` (port forward) and the HTTPS domain (M2) both qualify. Copying from tmux scrollback on phones comes with M5's copy-mode button.
 
-**E2E:** open several sessions in tabs, split horizontally/vertically and type in each pane; reload → same layout; cut the app's network (`docker network disconnect`) and restore it → terminals re-attach on their own; copy text out and paste a command in; click a printed URL; search finds text in scrollback.
+**E2E:** open several sessions in tabs, split horizontally/vertically and type in each pane; reload → same layout; cut the app's network (`docker network disconnect`) and restore it → terminals re-attach on their own; select and copy text out (clipboard holds it), paste a multi-line command in (bracketed paste, runs once), an OSC 52 yank from tmux copy mode reaches the clipboard; click a printed URL; search finds text in scrollback.
 
 **Accept:** killing the network and restoring it re-attaches without losing the session; tab/split layout survives reload.
 

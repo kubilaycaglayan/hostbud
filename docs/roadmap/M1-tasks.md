@@ -28,7 +28,7 @@ Update this table in the same commit that finishes a task.
 | T15 App shell and session list | ✅ done |
 | T16 Session actions | ✅ done |
 | T17 Terminal view | ✅ done |
-| T18 Docs and release | ✅ done (open for the owner: Claude Code check, `chmod 600 .env`) |
+| T18 Docs and release | ✅ done |
 
 Work top to bottom; each task ends with a green `make lint test` **and `make e2e`**, a clean `make gitleaks`, and its own conventional commit(s). Tasks marked *(host)* need the real host (agent socket, sshd) to verify.
 
