@@ -17,8 +17,15 @@ import hostbud.caddy
 {$HOSTBUD_DOMAIN} {
 	tls {$ACME_EMAIL} {
 		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
-		# Check the TXT record on public resolvers, not Docker's DNS.
+		# Find the zone through public resolvers: Docker's DNS (forwarding to
+		# the host's, e.g. MagicDNS) may answer SERVFAIL to SOA queries.
 		resolvers 1.1.1.1 1.0.0.1
+		# Skip Caddy's own propagation check: through those resolvers it can
+		# wait out a cached NXDOMAIN (the zone's negative TTL) and time out.
+		# Cloudflare's nameservers serve the record within seconds, and Let's
+		# Encrypt asks them directly.
+		propagation_delay 20s
+		propagation_timeout -1
 	}
 	import hostbud
 }

@@ -365,6 +365,15 @@ func TestCaddyfileServesBothSites(t *testing.T) {
 			dig(is, "challenges", "dns", "provider", "api_token") != "{env.CLOUDFLARE_API_TOKEN}" {
 			t.Errorf("issuer %v: want acme with the cloudflare DNS provider and {env.CLOUDFLARE_API_TOKEN}", is)
 		}
+		// Public resolvers for the zone lookup, and a fixed wait instead of
+		// the propagation check (see the Caddyfile).
+		if fmt.Sprint(dig(is, "challenges", "dns", "resolvers")) != "[1.1.1.1 1.0.0.1]" {
+			t.Errorf("issuer %v: want resolvers 1.1.1.1 1.0.0.1", dig(is, "challenges", "dns"))
+		}
+		if d, _ := dig(is, "challenges", "dns", "propagation_delay").(float64); d < 10e9 ||
+			dig(is, "challenges", "dns", "propagation_timeout") != float64(-1) {
+			t.Errorf("issuer %v: want a propagation_delay of at least 10s and propagation_timeout -1", dig(is, "challenges", "dns"))
+		}
 		if dig(is, "email") != nil {
 			t.Errorf("issuer has an email with ACME_EMAIL empty: %v", dig(is, "email"))
 		}
