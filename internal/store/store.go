@@ -67,6 +67,17 @@ type Repository interface {
 	// (layout, …) apart from every other account's.
 	UIStateForUser(ctx context.Context, userID, key string) (json.RawMessage, error)
 	PutUIStateForUser(ctx context.Context, userID, key string, value json.RawMessage) error
+	Projects(ctx context.Context, machineID string) ([]Project, error)
+	Project(ctx context.Context, id string) (Project, error)
+	CreateProject(ctx context.Context, machineID, projectPath, name string) (Project, error)
+	RenameProject(ctx context.Context, id, name string) (Project, error)
+	DeleteProject(ctx context.Context, id string) error
+	SessionLink(ctx context.Context, machineID, sessionName string) (SessionLink, error)
+	UpsertSessionLink(ctx context.Context, machineID, sessionName, projectID string) error
+	RenameSessionLink(ctx context.Context, machineID, oldName, newName string) error
+	DeleteSessionLink(ctx context.Context, machineID, sessionName string) error
+	RecentCommands(ctx context.Context, projectID string) ([]RecentCommand, error)
+	RememberRecentCommand(ctx context.Context, projectID, command string) error
 	// Backup writes a consistent copy of the database to dest (must not exist).
 	Backup(ctx context.Context, dest string) error
 	Close() error

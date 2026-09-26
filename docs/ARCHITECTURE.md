@@ -238,6 +238,16 @@ login_rate_limits(scope_key PK, failures INT, blocked_until, last_failure_at,
                    updated_at)
 ```
 
+Project paths are absolute POSIX paths, cleaned at the repository boundary and
+limited to 4096 bytes; project names are trimmed and limited to 255 bytes.
+Projects are unique by `(machine_id, path)`, and creating a duplicate returns
+the existing row. Session links use `(machine_id, session_name)` as their key
+and a composite foreign key to a project on the same machine. A session rename
+updates that key in one statement; ending a session removes its link. Recent
+commands preserve the exact command text, reject blank/NUL/oversize values,
+and keep the 20 newest distinct strings per project. The store prunes older
+entries in the same transaction as each upsert.
+
 **Backups:** `make backup` runs a consistent PostgreSQL dump using the running database credentials and copies it to `./backups/` (gitignored). It must never print the password or include it in the backup command arguments shown in logs.
 
 ### 8.1 Authentication

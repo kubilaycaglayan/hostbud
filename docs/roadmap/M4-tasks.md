@@ -11,7 +11,7 @@ Update this table in the same commit that finishes a task.
 | Task | Status |
 |---|---|
 | T1 SFTP service and API | Done |
-| T2 Project and recent-command persistence | Planned |
+| T2 Project and recent-command persistence | Done |
 | T3 Project API, events and session placement service | Planned |
 | T4 File browser and project actions | Planned |
 | T5 Project tree and unmatched sessions | Planned |
