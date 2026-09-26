@@ -22,8 +22,9 @@ Update this table in the same commit that finishes a task.
 | T10 Taken session names get a number | Not started |
 | T11 Remove a project | Not started |
 | T12 Add the current directory as a project | Not started |
-| T13 Docs, audit and release | Not started |
-| T14 Safe Docker cleanup | Not started |
+| T13 Left bar toggle and icon toolbar | Not started |
+| T14 Docs, audit and release | Not started |
+| T15 Safe Docker cleanup | Not started |
 
 ## Rules for this milestone
 
@@ -46,7 +47,7 @@ Update this table in the same commit that finishes a task.
 | CP2 | T3 + T4 (windows in the tree, inline rename) | `make lint test` | Not run |
 | CP3 | T5 + T6 (hide/unhide, pins) | `make lint test` | Not run |
 | CP4 | T7 + T8 + T9 (theme, shortcuts, palette) | `make lint test`, plus `make build` so `check-dist` sees the real theme boot script | Not run |
-| CP5 | T10 + T11 + T12 + T13 (taken names, remove project, add current directory, audit) | `make lint test`, `make gitleaks`, e2e `tsc` | Not run |
+| CP5 | T10 + T11 + T12 + T13 + T14 (taken names, remove project, add current directory, left bar toolbar, audit) | `make lint test`, `make gitleaks`, e2e `tsc` | Not run |
 
 **What e2e can and can't reach.**
 - Every scenario signs up its own account (`newAccount()`), because all M6 state is per account and must not leak between scenarios. The fixture that resets the saved layout is extended to leave `tree` and `theme` alone only for scenarios that seed them on purpose.
@@ -54,7 +55,7 @@ Update this table in the same commit that finishes a task.
 - **Restart** is the existing `ctl.restartApp()` (`docker restart hostbud-e2e-app`), followed by a reload once `/api/health` answers and the host banner is gone. No new ctl action is needed.
 - **Ground truth for tmux** stays on the target: `list-windows -t '=<name>' -F …`, `display -p -t '=<name>' '#{window_index} #{pane_index}'`, `capture-pane -p`, and `list-clients -F '#{client_pid}'` (to prove a terminal did **not** re-attach when a row was collapsed, hidden, renamed or re-themed).
 - **Theme:** `page.emulateMedia({ colorScheme })` drives `prefers-color-scheme`. T7 adds an e2e hook `window.__hostbud.termTheme(session?)` returning the terminal's current `{background, foreground}`. The first-paint check uses `page.addInitScript` to record `getComputedStyle(document.documentElement).backgroundColor` at the first `requestAnimationFrame`.
-- **⌘ shortcuts:** Playwright on Linux can press `Meta+K`, but the app picks ⌘ vs Ctrl by platform (`navigator.platform`/`userAgentData`). Desktop scenarios use the Ctrl+Shift chords that work everywhere; the ⌘ variants are unit-tested with a faked platform and checked manually on a Mac (T13).
+- **⌘ shortcuts:** Playwright on Linux can press `Meta+K`, but the app picks ⌘ vs Ctrl by platform (`navigator.platform`/`userAgentData`). Desktop scenarios use the Ctrl+Shift chords that work everywhere; the ⌘ variants are unit-tested with a faked platform and checked manually on a Mac (T14).
 - Drag uses Playwright's `dragTo` as M4's scenarios do; keyboard reordering (Alt+↑/↓) is the more reliable e2e path and is used where the point is persistence rather than the drag itself.
 
 ---
@@ -294,26 +295,43 @@ The file browser has add/open icons only on child-folder rows, so the folder you
 
 **Done:** the directory being browsed can be added or opened as a project from the path bar, on desktop and phone, and the scenarios compile.
 
-## T13 — Docs, audit and release
+## T13 — Left bar toggle and icon toolbar
+
+The left bar loses its text titles and gets one icon toolbar. Every icon is a semantic `lucide-vue-next` icon with an accessible name and a tooltip naming the action.
+
+- **Remove the titles:** the header's text **Projects** button and the left bar's **Projects & sessions** heading go. The `aside` keeps `aria-label="Sessions"` so the region is still named for screen readers. The phone drawer's visible "Project tree" title becomes `sr-only` (the dialog still has its accessible title).
+- **Left bar toggle:** one icon button in the app header, left of the `hostbud` name: `PanelLeftClose` ("Hide sidebar") while the left bar is open, `PanelLeftOpen` ("Show sidebar") while it's closed, with `aria-expanded` and `aria-controls` pointing at the left bar. On desktop it toggles the sidebar (the existing `app.sidebarOpen`, persisted as today). In compact layout it opens the drawer, and the drawer's close button uses `PanelLeftClose` too ("Hide sidebar"). Swipe-to-close and Escape still work. No shortcut is added here: T8 owns shortcuts.
+- **Icon toolbar at the top of the left bar** (desktop sidebar, compact tree screen and drawer alike): **New session** as an icon button (`SquareTerminal`, accessible name "New session", opens the existing dialog) and **Add project** (`FolderPlus`, accessible name "Add project", opens the file browser dialog, which keeps its "Browse files" title). The header's separate Browse files button is removed, so there is one entry point. This supersedes M4's "FolderPlus header button, outside the left gutter" rule; the browser still opens in its modal dialog, never inside the sidebar.
+- Icons use `currentColor` and the theme tokens (T7), are 18 px inside a 44×44 px target on coarse pointers (`touch-target`), show a visible focus ring, and have no text next to them. Tooltips use the `title` attribute like the existing icon buttons.
+- Update the tests and e2e helpers that find these controls by their old names (`Projects`, `Show project tree`, `Browse files` in `helpers/ui.ts` and the M4/M5 specs) in the same commit.
+- ARCHITECTURE §7 (where Browse files opens) and §11 (header and left bar layout); README's screenshots/wording if they name the old buttons.
+
+**Tests:** U (Vitest): no "Projects" or "Projects & sessions" text renders; the toggle's icon, name and `aria-expanded` follow the open state and it toggles the sidebar on desktop and opens the drawer in compact layout; the drawer title is `sr-only`; New session and Add project render as icon-only buttons with accessible names and titles, and open the create dialog and the file browser; the header has no Browse files button; touch-target classes. I: n/a (frontend only).
+
+**E2E:** add in `layout.wide.spec.ts` (desktop) and `mobile-layout.phone.spec.ts` (both phone projects): **(T13) Left bar toggle and toolbar** (desktop: no "Projects & sessions" or "Projects" text; *Hide sidebar* hides the left bar, the button becomes *Show sidebar*, reload keeps it closed, *Show sidebar* brings it back; *New session* icon opens the dialog and creates a session; *Add project* icon opens the file browser; phones: the toggle opens the drawer, the drawer's *Hide sidebar* closes it, and both icon buttons meet the touch-target size). Update the M4/M5 scenarios that used the old button names. Type-check only.
+
+**Done:** the left bar has no text titles, one icon toggle opens and closes it on desktop and phone, New session and Add project are icon buttons with accessible names, and the updated tests and scenarios compile.
+
+## T14 — Docs, audit and release
 
 - README: *Customizing the tree* (drag and Alt+↑/↓ order, collapse, windows and panes, inline rename, hide and Show hidden, pins; all per account; renaming in a real terminal looks like a new session), *Command palette*, *Keyboard shortcuts* (the global chords and the `?` dialog; Ctrl+K stays the shell's inside the terminal), *Theme* (Dark / Light / System, per account, the per-browser mirror on the sign-in screen).
 - ARCHITECTURE: reconcile §5.1 (window/pane listing and select), §8 (the `ui_state` comment for `tree` v2 and `theme`; `projects.pinned`, `projects.sort_order` and `machines.hidden` reserved and unused by the UI), §9 (the two routes, the `theme` key, the no-event notes), §11 (tree v2, tree roles and keys, windows, rename, hide, pins, theme and boot script, shortcuts registry, palette) and §13.1 (`termTheme()` hook, `waitForSave`, per-scenario accounts) with what was built. ROADMAP only if scope moved.
 - **Audit:** every criterion in [M6-acceptance.md](M6-acceptance.md) has its U/I/E line with the right task, and every E item exists in the named spec file, is tagged, and type-checks. No new file in `internal/store/migrations/`. `.env.example` unchanged (or has any new variable with a placeholder). The security checklist items touched in M6: auth and Origin on the two new routes and on `PUT /api/ui-state/theme`; no session/window names, commands or paths in info logs; no external assets (the boot script is inline, and fonts stay bundled); destructive actions (kill) still confirm from every new entry point (tree Delete key, palette).
-- **Extend M5's phone checks:** add the M6 controls (session/window chevrons, window and pane rows, the Pinned icon, Show hidden, inline rename input, the palette button and input, the theme radio items) to M5's *Touch targets* and *Usable without zoom* scenarios as **(T13) Touch targets and zoom for M6 controls** (both phone projects), and confirm the long-press menu has Rename, Hide/Unhide and Pin/Unpin.
+- **Extend M5's phone checks:** add the M6 controls (session/window chevrons, window and pane rows, the Pinned icon, Show hidden, inline rename input, the palette button and input, the theme radio items) to M5's *Touch targets* and *Usable without zoom* scenarios as **(T14) Touch targets and zoom for M6 controls** (both phone projects), and confirm the long-press menu has Rename, Hide/Unhide and Pin/Unpin.
 - CP5: `make lint test`, `make gitleaks`, e2e `tsc`. Don't run e2e.
 - *(host)* `make deploy`; `/api/health` is ok; through the loopback port, `GET /api/ui-state/theme` without a session answers 401 (the route is deployed and protected), and the windows route of a throwaway session answers 401 too. Don't use the owner's credentials or script a sign-in: the signed-in checks (theme 404 then 200 after a pick, expanding a session shows its windows) are owner manual checks, already covered by T7/T3's integration tests and e2e scenarios. Never kill, detach, rename or re-select windows in the owner's existing sessions: use only a throwaway session created for the check, and kill it only through the UI's confirmation dialog.
-- *(host)* Owner's manual checks on a desktop browser (a Mac if available) and the iPhone, listed in [M6-acceptance.md](M6-acceptance.md#manual-checks-owner-t13); record the result of each there. If the owner hasn't done them yet, list them as open in the summary rather than ticking them, and don't wait for them: they don't block T13, T14 or M7.
+- *(host)* Owner's manual checks on a desktop browser (a Mac if available) and the iPhone, listed in [M6-acceptance.md](M6-acceptance.md#manual-checks-owner-t14); record the result of each there. If the owner hasn't done them yet, list them as open in the summary rather than ticking them, and don't wait for them: they don't block T14, T15 or M7.
 - Summary to the owner: what changed, env vars (expected: none), manual steps (none on the host beyond `make deploy`; the theme and tree state start at their defaults for each account).
 
 **Tests:** none new beyond regressions found by the audit, plus the extended phone touch-target scenario above.
 
-**E2E:** add **(T13) Touch targets and zoom for M6 controls** (both phone projects) as above; audit that all T1–T12 scenarios are present, tagged and type-checked; none run (M7).
+**E2E:** add **(T14) Touch targets and zoom for M6 controls** (both phone projects) as above; audit that all T1–T13 scenarios are present, tagged and type-checked; none run (M7).
 
 **Done:** docs match behavior, the deploy serves M6, the checklist is complete except the M7 e2e run and any open owner checks (backlog, not blockers), and the summary has been delivered.
 
-## T14 — Safe Docker cleanup
+## T15 — Safe Docker cleanup
 
-Free the disk the milestone's builds used, **without touching the running deployment, its data, other projects, or work another agent may be doing at the same time.** This is the last step of the milestone, after T13's deploy and checks.
+Free the disk the milestone's builds used, **without touching the running deployment, its data, other projects, or work another agent may be doing at the same time.** This is the last step of the milestone, after T14's deploy and checks.
 
 1. **Check that nothing is in use.** If any of these hold, skip the cleaning (steps 3–5), record "cleanup skipped: <reason>" in Progress and the summary, and treat the task as done. Cleanup can run again later:
    - a `make` test/lint/build or e2e run is in progress from this or another session (`pgrep -af 'scripts/tool.sh|docker exec hostbud-tools|test/e2e/run.sh|docker compose .*hostbud'`);

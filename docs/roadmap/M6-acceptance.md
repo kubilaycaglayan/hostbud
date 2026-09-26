@@ -153,7 +153,7 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 - [ ] System follows the OS live: with System selected, a `prefers-color-scheme` change flips the UI and every terminal without a reload. With Dark or Light selected, an OS change does nothing.
   - U: T7 `matchMedia` change listener applies only in System mode, and is removed on sign-out (Vitest).
   - I: n/a (browser media query).
-  - E: T7 *System follows the OS* (desktop and `iphone-13-pro`; `page.emulateMedia({colorScheme})` flips it). **Manual (T13):** switch macOS and iOS appearance with hostbud open.
+  - E: T7 *System follows the OS* (desktop and `iphone-13-pro`; `page.emulateMedia({colorScheme})` flips it). **Manual (T14):** switch macOS and iOS appearance with hostbud open.
 - [ ] No flash of the wrong theme: a tiny inline script in `index.html` applies the last resolved mode (a per-browser `localStorage` mirror, `hostbud.theme`) before the stylesheet paints, including on the sign-in screen and the M5 unreachable screen. After sign-in the account's saved setting wins and updates the mirror. A browser without storage (blocked, private mode) falls back to System without errors.
   - U: T7 the boot script's logic as a pure function (mirror present/absent/invalid, storage throwing); `check-dist` asserts the inline script is present, under 1 KiB, and runs before the stylesheet link (Vitest/node).
   - I: n/a (browser-side).
@@ -161,7 +161,7 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 - [ ] The `theme-color` meta follows the resolved theme at runtime (M5's light/dark `media` variants are replaced by one value the app updates), so the phone's status bar and the installed app's chrome match.
   - U: T7 meta updated on each change (Vitest).
   - I: n/a (browser-side).
-  - E: T7 *Pick Dark and Light* checks the meta's `content` in both phone projects. **Manual (T13):** the installed app's status bar on the iPhone in both themes.
+  - E: T7 *Pick Dark and Light* checks the meta's `content` in both phone projects. **Manual (T14):** the installed app's status bar on the iPhone in both themes.
 - [ ] The light theme is complete: every UI token has a light value that meets WCAG AA (text ≥ 4.5:1 on its surface, UI borders and icons ≥ 3:1), and no component uses a hard-coded dark color (a lint check fails on hex colors in `.vue` files outside `lib/theme.ts` and `main.css`).
   - U: T7 token contrast tests; the hex-color check runs in `make lint` (Vitest/node).
   - I: n/a (presentation only).
@@ -230,12 +230,27 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
   - I: n/a: frontend only; `POST /api/projects` keeps its M4 integration tests.
   - E: T12 *Add the current directory as project* (desktop and `iphone-13-pro`).
 
+## Left bar toggle and icon toolbar
+
+- [ ] The header's **Projects** text button and the left bar's **Projects & sessions** heading are gone; the left bar stays named "Sessions" for assistive technology, and the phone drawer's title is visually hidden but still labels the dialog.
+  - U: T13 neither text renders; the `aside` label and the drawer's `sr-only` title (Vitest).
+  - I: n/a: frontend only.
+  - E: T13 *Left bar toggle and toolbar* (desktop and both phone projects).
+- [ ] One icon button in the header opens and closes the left bar: `PanelLeftClose` "Hide sidebar" when open, `PanelLeftOpen` "Show sidebar" when closed, with `aria-expanded`/`aria-controls`. Desktop: toggles the sidebar and the state survives reload. Compact: opens the drawer, whose close button is the same *Hide sidebar* icon; swipe and Escape still close it.
+  - U: T13 icon, name and `aria-expanded` follow the state; desktop toggle vs compact drawer (Vitest).
+  - I: n/a: frontend only.
+  - E: T13 *Left bar toggle and toolbar*.
+- [ ] The top of the left bar (sidebar, compact tree screen and drawer) has icon-only **New session** (`SquareTerminal`) and **Add project** (`FolderPlus`, opens the file browser dialog) buttons with accessible names and tooltips, 44×44 px targets on coarse pointers and visible focus. The header's separate Browse files button is removed.
+  - U: T13 icon-only buttons with names and titles open the create dialog and the file browser; no header Browse files button; touch-target classes (Vitest).
+  - I: n/a: frontend only.
+  - E: T13 *Left bar toggle and toolbar*; the M4/M5 scenarios that used the old names are updated in T13.
+
 ## Phone and compact layout (M5 compatibility)
 
 - [ ] Every new control works in M5's compact layout: tree chevrons, window/pane rows, the Pinned icon, Show hidden, inline rename fields (16 px font, no zoom), the palette button, the theme radio group. Each meets the 44×44 px target on coarse pointers. The M5 long-press row menu gains Rename, Hide/Unhide and (projects) Pin/Unpin.
   - U: T3–T9 the `touch-target` utility on each new control; inline rename input carries the 16 px class; long-press menu items (Vitest).
   - I: n/a (presentation only).
-  - E: T13 extends M5's *Touch targets* and *Usable without zoom* scenarios to the new controls (both phone projects).
+  - E: T14 extends M5's *Touch targets* and *Usable without zoom* scenarios to the new controls (both phone projects).
 - [ ] Opening a window row or a palette result in compact layout closes the drawer or palette and shows the terminal, without re-attaching other terminals (M5 rule).
   - U: T3/T9 drawer close on open (Vitest).
   - I: n/a (frontend only).
@@ -245,7 +260,7 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 
 - [ ] M6 adds no migration, env var, published port or remote command path outside `internal/tmux` + `sshx`. The global `projects.pinned`, `projects.sort_order` and `machines.hidden` columns aren't written by M6 (ARCHITECTURE §8 notes them as reserved for a later shared/multi-machine use).
   - U: T1 the new builders live in `internal/tmux`, and `internal/archtest` still passes (no exec outside `sshx`, no SQL outside `store`) (Go).
-  - I: the existing deploy-config check still passes unchanged (T13 CP5); no new file in `internal/store/migrations/` (T13 audit).
+  - I: the existing deploy-config check still passes unchanged (T14 CP5); no new file in `internal/store/migrations/` (T14 audit).
   - E: n/a: nothing new is reachable beyond the routes covered above.
 - [ ] The `ui_state` route keeps its rules for the new key: authentication, Origin on PUT, JSON only, 64 KiB, per-account namespacing, no event.
   - U: T7 handler tests for `theme` (401, 403, 400, 413) (Go).
@@ -292,9 +307,10 @@ Profiles: `desktop-chromium`, `iphone-13-pro` (`http://localhost:9055`) and `iph
 - [ ] **(T11) Remove a project:** a project with a session open in a tab; Remove → Cancel leaves it; Remove → confirm: the header is gone, the session is under Other sessions, the tab keeps its tmux client PID, the folder still exists on the target; reload and restart → still removed; adding the folder again gives a fresh project with no recent commands (desktop and `iphone-13-pro` via long-press).
 - [ ] **(T11) Delete project API:** signed out → 401, foreign Origin → 403, unknown id → 404, delete → 204 then 404; the list no longer has it (API).
 - [ ] **(T12) Add the current directory as project:** at home, *Add this directory as project* → the home project appears with a `~` path and the button reads *Open project*; a subfolder is added the same way; *New session here* lands under it; a second click makes no duplicate (desktop and `iphone-13-pro`).
-- [ ] **(T13) Touch targets and zoom for M6 controls:** M5's *Touch targets* and *Usable without zoom* checks extended to chevrons, window rows, Pinned, Show hidden, inline rename, the palette button and the theme menu (both phone projects).
+- [ ] **(T13) Left bar toggle and toolbar:** no "Projects & sessions" or "Projects" text; *Hide sidebar* hides the left bar and becomes *Show sidebar*, which survives reload and brings it back; the *New session* icon creates a session; the *Add project* icon opens the file browser (desktop). On phones the toggle opens the drawer, its *Hide sidebar* closes it, and both icon buttons meet the touch-target size (both phone projects).
+- [ ] **(T14) Touch targets and zoom for M6 controls:** M5's *Touch targets* and *Usable without zoom* checks extended to chevrons, window rows, Pinned, Show hidden, inline rename, the palette button and the theme menu (both phone projects).
 
-## Manual checks (owner, T13)
+## Manual checks (owner, T14)
 
 On a desktop browser (port forward, a Mac if available) and the owner's iPhone over `https://${HOSTBUD_DOMAIN}`. These are the owner's backlog, not blockers: they don't hold back M6's done state or the next milestone, and no agent waits for them. Record the date and the result here when the owner does one; an unchecked item stays open in the summary.
 
@@ -304,7 +320,7 @@ On a desktop browser (port forward, a Mac if available) and the owner's iPhone o
 - [ ] iPhone: Light and Dark look right in Safari and in the installed app (status bar color, sheets, drawer, key bar); System follows iOS appearance.
 - [ ] iPhone: inline rename in the drawer doesn't zoom; hide, pin and collapse by long-press menu; the palette button jumps to a session.
 - [ ] Real host: expanding a session with Claude Code running shows its windows; clicking a window switches the attached terminal to it.
-- [ ] Real host, signed in: `GET /api/ui-state/theme` answers 404 for an account that never picked a theme, then 200 after a pick (T13 checks only the unauthenticated 401).
+- [ ] Real host, signed in: `GET /api/ui-state/theme` answers 404 for an account that never picked a theme, then 200 after a pick (T14 checks only the unauthenticated 401).
 
 ## Definition of done
 
@@ -313,5 +329,5 @@ On a desktop browser (port forward, a Mac if available) and the owner's iPhone o
 - [ ] `make lint test` and `make gitleaks` are green (CP1–CP5); no secrets, real hostnames, IPs or owner paths are tracked.
 - [ ] README has the tree customization, windows, palette, shortcuts and theme sections; ARCHITECTURE §5.1, §8, §9, §11 and §13.1 match what was built; `.env.example` is unchanged (or updated if a variable was really needed); no new migration.
 - [ ] *(host)* `make deploy` done; the owner's manual checks are recorded above or listed as open.
-- [ ] T14 safe Docker cleanup done: the production stack and all volumes intact and healthy, nothing outside hostbud touched, reclaimed space reported.
+- [ ] T15 safe Docker cleanup done: the production stack and all volumes intact and healthy, nothing outside hostbud touched, reclaimed space reported.
 - [ ] Summary delivered: what changed, new env vars (expected none), manual steps on the host, desktop and phone.
