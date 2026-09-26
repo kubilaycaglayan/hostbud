@@ -17,6 +17,7 @@ type SessionService interface {
 	Create(ctx context.Context, spec session.Spec) (string, error)
 	Rename(ctx context.Context, machine, from, to string) error
 	Kill(ctx context.Context, machine, name string) error
+	CopyMode(ctx context.Context, machine, name string, action tmux.CopyAction, lines int) (session.CopyModeState, error)
 }
 
 func (s *server) listMachines(w http.ResponseWriter, _ *http.Request) {
@@ -152,6 +153,44 @@ func (s *server) killSession(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+type copyModeRequest struct {
+	Action tmux.CopyAction `json:"action"`
+	Lines  *int            `json:"lines,omitempty"`
+}
+
+func (s *server) copyMode(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.machine(w, r); !ok {
+		return
+	}
+	name := r.PathValue("name")
+	if err := tmux.ValidateName(name); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid session name", err.Error())
+		return
+	}
+	var req copyModeRequest
+	if !decode(w, r, &req) {
+		return
+	}
+	lines := 0
+	if req.Lines != nil {
+		lines = *req.Lines
+	}
+	if (req.Action != tmux.CopyScrollUp && req.Action != tmux.CopyScrollDown && req.Lines != nil) || (req.Lines != nil && (lines < 1 || lines > 500)) {
+		writeError(w, http.StatusBadRequest, "invalid copy-mode request", "Lines is only accepted for scroll-up or scroll-down and must be between 1 and 500.")
+		return
+	}
+	if _, err := tmux.CopyModeArgs(name, req.Action, lines); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid copy-mode request", err.Error())
+		return
+	}
+	state, err := s.cfg.Sessions.CopyMode(r.Context(), r.PathValue("machine"), name, req.Action, lines)
+	if err != nil {
+		s.writeSessionError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, state)
+}
+
 var codeStatus = map[session.Code]int{
 	session.CodeInvalid:        http.StatusBadRequest,
 	session.CodePathNotFound:   http.StatusBadRequest,
@@ -160,6 +199,7 @@ var codeStatus = map[session.Code]int{
 	session.CodeDuplicate:      http.StatusConflict,
 	session.CodeTmuxMissing:    http.StatusServiceUnavailable,
 	session.CodeUnavailable:    http.StatusServiceUnavailable,
+	session.CodeTmuxVersion:    http.StatusConflict,
 }
 
 func (s *server) writeSessionError(w http.ResponseWriter, err error) {

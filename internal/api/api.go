@@ -66,6 +66,9 @@ func New(cfg Config) http.Handler {
 		mux.HandleFunc("POST /api/auth/logout", s.logout)
 		mux.HandleFunc("GET /api/auth/me", s.me)
 	}
+	if cfg.Sessions != nil {
+		mux.HandleFunc("POST /api/machines/{machine}/sessions/{name}/copy-mode", s.copyMode)
+	}
 	mux.HandleFunc("GET /api/machines", s.listMachines)
 	mux.HandleFunc("GET /api/machines/{machine}/sessions", s.listSessions)
 	mux.HandleFunc("POST /api/machines/{machine}/sessions", s.createSession)

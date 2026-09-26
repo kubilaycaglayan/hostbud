@@ -85,6 +85,70 @@ func TestIntegrationCreateWithStartCommand(t *testing.T) {
 	}
 }
 
+func TestIntegrationCopyModeActions(t *testing.T) {
+	svc, c := setup(t)
+	ctx := context.Background()
+	if _, err := svc.Create(ctx, session.Spec{Machine: sshx.HostMachineID, Name: "scroll-it", Path: "~/sess-it"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Exec(ctx, sshx.HostMachineID, "tmux", "send-keys", "-t", "=scroll-it:", "seq 1 300", "Enter"); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for display(t, c, "scroll-it", "#{history_size}") == "0" {
+		if time.Now().After(deadline) {
+			t.Fatal("history did not fill")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	state, err := svc.CopyMode(ctx, sshx.HostMachineID, "scroll-it", "enter", 0)
+	if err != nil || !state.InMode || state.ScrollPosition == 0 {
+		t.Fatalf("enter: %+v %v", state, err)
+	}
+	prior := state.ScrollPosition
+	state, err = svc.CopyMode(ctx, sshx.HostMachineID, "scroll-it", "page-up", 0)
+	if err != nil || !state.InMode || state.ScrollPosition <= prior {
+		t.Fatalf("page-up: %+v %v", state, err)
+	}
+	state, err = svc.CopyMode(ctx, sshx.HostMachineID, "scroll-it", "scroll-down", 500)
+	if err != nil || state.InMode {
+		t.Fatalf("scroll-down to bottom: %+v %v", state, err)
+	}
+	state, err = svc.CopyMode(ctx, sshx.HostMachineID, "scroll-it", "exit", 0)
+	if err != nil || state.InMode {
+		t.Fatalf("exit: %+v %v", state, err)
+	}
+	state, err = svc.CopyMode(ctx, sshx.HostMachineID, "scroll-it", "exit", 0)
+	if err != nil || state.InMode {
+		t.Fatalf("exit again: %+v %v", state, err)
+	}
+	if display(t, c, "scroll-it", "#{pane_in_mode}") != "0" {
+		t.Fatal("pane remained in copy mode")
+	}
+	if _, err := c.Exec(ctx, sshx.HostMachineID, "tmux", "send-keys", "-t", "=scroll-it:", "echo ready", "Enter"); err != nil {
+		t.Fatalf("shell did not accept input: %v", err)
+	}
+}
+
+func TestIntegrationCopyModeTmuxMissing(t *testing.T) {
+	c := testenv.Connected(t, testenv.SSHDNoTmux)
+	inv := inventory.New(c, events.NewBus(), inventory.Options{MachineID: sshx.HostMachineID, Interval: time.Second})
+	runCtx, stop := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { inv.Run(runCtx); close(done) }()
+	t.Cleanup(func() { stop(); <-done })
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := inv.Refresh(ctx); err != nil {
+		t.Fatal(err)
+	}
+	_, err := session.New(c, map[string]session.Tracker{sshx.HostMachineID: inv}, nil).CopyMode(ctx, sshx.HostMachineID, "work", "enter", 0)
+	var e *session.Error
+	if !errors.As(err, &e) || e.Code != session.CodeTmuxMissing || !strings.Contains(e.Hint, "apt install tmux") {
+		t.Fatalf("missing tmux error = %+v", err)
+	}
+}
+
 func TestIntegrationErrorsMapped(t *testing.T) {
 	svc, _ := setup(t)
 	ctx := context.Background()

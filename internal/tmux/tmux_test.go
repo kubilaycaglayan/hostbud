@@ -112,6 +112,63 @@ func TestExactTargets(t *testing.T) {
 	}
 }
 
+func TestCopyModeArgs(t *testing.T) {
+	cases := []struct {
+		action CopyAction
+		lines  int
+		want   []string
+	}{
+		{CopyEnter, 0, []string{"tmux", "copy-mode", "-e", "-u", "-t", "=work:"}},
+		{CopyScrollUp, 0, []string{"tmux", "send-keys", "-X", "-N", "1", "-t", "=work:", "scroll-up"}},
+		{CopyScrollDown, 500, []string{"tmux", "send-keys", "-X", "-N", "500", "-t", "=work:", "scroll-down"}},
+		{CopyPageUp, 0, []string{"tmux", "send-keys", "-X", "-t", "=work:", "page-up"}},
+		{CopyPageDown, 0, []string{"tmux", "send-keys", "-X", "-t", "=work:", "page-down"}},
+		{CopyTop, 0, []string{"tmux", "send-keys", "-X", "-t", "=work:", "history-top"}},
+		{CopyBottom, 0, []string{"tmux", "send-keys", "-X", "-t", "=work:", "history-bottom"}},
+		{CopyExit, 0, []string{"tmux", "send-keys", "-X", "-t", "=work:", "cancel"}},
+	}
+	for _, c := range cases {
+		got, err := CopyModeArgs("work", c.action, c.lines)
+		if err != nil {
+			t.Fatalf("%s: %v", c.action, err)
+		}
+		want := append(c.want, ";", "display-message", "-p", "-t", "=work:", "#{pane_in_mode}\t#{scroll_position}\t#{history_size}")
+		if !slices.Equal(got, want) {
+			t.Errorf("%s argv = %q, want %q", c.action, got, want)
+		}
+	}
+	for _, n := range []int{-1, 501} {
+		if _, err := CopyModeArgs("work", CopyScrollUp, n); err == nil {
+			t.Errorf("accepted lines %d", n)
+		}
+	}
+	if _, err := CopyModeArgs("bad.name", CopyEnter, 0); !errors.Is(err, ErrInvalidName) {
+		t.Errorf("invalid name: %v", err)
+	}
+	if _, err := CopyModeArgs("work", "wat", 0); err == nil {
+		t.Error("accepted unknown action")
+	}
+}
+
+func TestParseCopyModeState(t *testing.T) {
+	for _, tc := range []struct {
+		in        string
+		mode      bool
+		pos, size int
+	}{{"1\t25\t300", true, 25, 300}, {"0\t0\t0", false, 0, 0}, {"0__300", false, 0, 300}} {
+		mode, pos, size, err := ParseCopyModeState(tc.in)
+		if err != nil || mode != tc.mode || pos != tc.pos || size != tc.size {
+			t.Errorf("parse %q = %v %d %d %v", tc.in, mode, pos, size, err)
+		}
+	}
+	if !IsNotInCopyMode("can't send keys: pane is not in a mode") {
+		t.Error("did not recognize not-in-mode error")
+	}
+	if _, _, _, err := ParseCopyModeState("bad"); err == nil {
+		t.Error("accepted malformed state")
+	}
+}
+
 func TestParseSessions(t *testing.T) {
 	out := "$0:acc-a:1:3:1760000000:1760000100:/home/dev/app\n" +
 		"$4:b:0:1:1760000200:1760000300:/home/dev/with:colon\n"

@@ -1,8 +1,10 @@
 package session
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"slices"
 	"strings"
 	"sync"
@@ -17,6 +19,7 @@ import (
 type fakeExec struct {
 	mu      sync.Mutex
 	calls   [][]string
+	output  []byte
 	handler func(args []string) error
 }
 
@@ -25,9 +28,9 @@ func (f *fakeExec) Exec(_ context.Context, _ string, args ...string) ([]byte, er
 	f.calls = append(f.calls, args)
 	f.mu.Unlock()
 	if f.handler != nil {
-		return nil, f.handler(args)
+		return f.output, f.handler(args)
 	}
-	return nil, nil
+	return f.output, nil
 }
 
 func (f *fakeExec) tmuxCalls() [][]string {
@@ -133,6 +136,54 @@ func TestCreateDefaults(t *testing.T) {
 	}
 	if tr.refreshes != 1 {
 		t.Fatalf("refreshes = %d", tr.refreshes)
+	}
+}
+
+func TestCopyModeAndAlreadyExited(t *testing.T) {
+	f, tracker := &fakeExec{output: []byte("1\t12\t300\n")}, okHost("work")
+	svc := newSvc(f, tracker)
+	state, err := svc.CopyMode(context.Background(), "host", "work", tmux.CopyPageUp, 0)
+	if err != nil || state != (CopyModeState{InMode: true, ScrollPosition: 12, HistorySize: 300}) {
+		t.Fatalf("state=%+v err=%v", state, err)
+	}
+	f.handler = func(args []string) error {
+		if args[0] == "tmux" && args[1] == "send-keys" {
+			return remote(1, "can't send keys: pane is not in a mode")
+		}
+		return nil
+	}
+	f.output = []byte("0\t0\t300\n")
+	state, err = svc.CopyMode(context.Background(), "host", "work", tmux.CopyExit, 0)
+	if err != nil || state.InMode || state.HistorySize != 300 || len(f.calls) != 3 {
+		t.Fatalf("already exited: %+v err=%v calls=%q", state, err, f.calls)
+	}
+}
+
+func TestCopyModeRejectsMissingSessionAndOldTmux(t *testing.T) {
+	f, tracker := &fakeExec{}, okHost()
+	if _, err := newSvc(f, tracker).CopyMode(context.Background(), "host", "unsafe.name", tmux.CopyEnter, 0); code(err) != CodeInvalid || len(f.calls) != 0 {
+		t.Fatalf("invalid name: %v calls=%q", err, f.calls)
+	}
+	if _, err := newSvc(f, tracker).CopyMode(context.Background(), "host", "missing", tmux.CopyEnter, 0); code(err) != CodeNotFound || len(f.calls) != 0 {
+		t.Fatalf("missing session: %v calls=%q", err, f.calls)
+	}
+	tracker = okHost("old")
+	tracker.machine.TmuxVersion = "tmux 2.1"
+	if _, err := newSvc(f, tracker).CopyMode(context.Background(), "host", "old", tmux.CopyEnter, 0); code(err) != CodeTmuxVersion || len(f.calls) != 0 {
+		t.Fatalf("old tmux: %v calls=%q", err, f.calls)
+	}
+}
+
+func TestCopyModeDoesNotLogSessionName(t *testing.T) {
+	var logs bytes.Buffer
+	tracker := okHost("private-session-name")
+	f := &fakeExec{output: []byte("0\t0\t0")}
+	svc := New(f, map[string]Tracker{"host": tracker}, slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelInfo})))
+	if _, err := svc.CopyMode(context.Background(), "host", "private-session-name", tmux.CopyEnter, 0); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(logs.String(), "private-session-name") {
+		t.Fatalf("session name leaked to info logs: %s", logs.String())
 	}
 }
 

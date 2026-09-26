@@ -31,6 +31,7 @@ const (
 	CodeTmuxMissing    Code = "tmux_missing"
 	CodeUnavailable    Code = "unavailable" // host unreachable / not probed yet
 	CodeInternal       Code = "internal"
+	CodeTmuxVersion    Code = "tmux_version"
 )
 
 // Error is an actionable, user-facing error.
@@ -53,6 +54,13 @@ type Spec struct {
 	Path         string            // optional: defaults to the home dir; "~/x" allowed
 	Env          map[string]string // needs tmux ≥ 3.2
 	StartCommand string            // optional: run instead of the shell
+}
+
+// CopyModeState is the state reported by tmux after a copy-mode action.
+type CopyModeState struct {
+	InMode         bool `json:"inMode"`
+	ScrollPosition int  `json:"scrollPosition"`
+	HistorySize    int  `json:"historySize"`
 }
 
 // Tracker is what the service needs from the inventory of a machine.
@@ -235,6 +243,53 @@ func (s *Service) Kill(ctx context.Context, machine, name string) error {
 	s.log.Info("session killed", "machine", machine, "session", name)
 	s.refresh(ctx, t)
 	return nil
+}
+
+// CopyMode runs one allowlisted side-channel copy-mode operation.
+func (s *Service) CopyMode(ctx context.Context, machine, name string, action tmux.CopyAction, lines int) (CopyModeState, error) {
+	_, m, sessions, err := s.ready(machine)
+	if err != nil {
+		return CopyModeState{}, err
+	}
+	if err := tmux.ValidateName(name); err != nil {
+		return CopyModeState{}, errorf(CodeInvalid, "Use letters, digits, '-' and '_' only (up to 64 characters).", "invalid session name")
+	}
+	found := false
+	for _, v := range sessions {
+		if v.Name == name {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return CopyModeState{}, errorf(CodeNotFound, "It may have been closed; the list refreshes automatically.", "no session named %q", name)
+	}
+	version, _ := tmux.ParseVersion(m.TmuxVersion)
+	if !version.AtLeast(2, 4) {
+		return CopyModeState{}, errorf(CodeTmuxVersion, "Upgrade tmux on the host to 2.4 or newer.", "scrolling needs tmux 2.4 or newer on the host (found %s)", m.TmuxVersion)
+	}
+	args, err := tmux.CopyModeArgs(name, action, lines)
+	if err != nil {
+		return CopyModeState{}, errorf(CodeInvalid, "Use a supported copy-mode action and 1–500 lines.", "%s", err)
+	}
+	out, err := s.exec.Exec(ctx, machine, args...)
+	if err != nil {
+		var remote *sshx.Error
+		if errors.As(err, &remote) && remote.Kind == sshx.KindRemote && tmux.IsNotInCopyMode(remote.Stderr) {
+			out, err = s.exec.Exec(ctx, machine, "tmux", "display-message", "-p", "-t", "="+name+":", "#{pane_in_mode}\t#{scroll_position}\t#{history_size}")
+		}
+		if err != nil {
+			if isNotFound(err) {
+				return CopyModeState{}, errorf(CodeNotFound, "It may have been closed; the list refreshes automatically.", "no session named %q", name)
+			}
+			return CopyModeState{}, s.remoteError(err)
+		}
+	}
+	inMode, pos, size, err := tmux.ParseCopyModeState(string(out))
+	if err != nil {
+		return CopyModeState{}, errorf(CodeInternal, "Try again; if this continues, check the host's tmux version.", "could not read copy-mode state")
+	}
+	return CopyModeState{InMode: inMode, ScrollPosition: pos, HistorySize: size}, nil
 }
 
 func (s *Service) refresh(ctx context.Context, t Tracker) {

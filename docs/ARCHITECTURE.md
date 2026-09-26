@@ -158,7 +158,7 @@ The poller diffs against the in-memory cache and publishes `sessions.changed` / 
 - **Create:** `tmux new-session -d -s <name> -c <path> [-e KEY=VAL …] [<start-cmd>]` then attach. The user may give a custom name; otherwise the default is the directory's last path segment (`/root/docs/dev` → `dev`; characters a name can't hold become `-`); if taken, `dev-1`, `dev-2`, …. `-e` requires tmux ≥ 3.2 (needed in v2 for hook env vars; degrade gracefully).
 - **Rename:** `tmux rename-session -t '=<old>' <new>`.
 - **Kill:** `tmux kill-session -t '=<name>'` — **always behind a confirmation dialog**.
-- **Copy/scroll mode** (for mobile): `tmux copy-mode -t '=<name>'` issued as a side-channel exec, so we never depend on the user's prefix key or `mouse` setting.
+- **Copy/scroll mode** (for mobile): authenticated `POST /api/machines/:id/sessions/:name/copy-mode` accepts `enter`, `scroll-up`/`scroll-down` (1–500 lines), `page-up`/`page-down`, `top`, `bottom` or `exit`. It uses the exact `=<name>:` pane target and side-channel `tmux copy-mode -e -u` / `send-keys -X` commands, so it never depends on the user's prefix key, `mode-keys` or `mouse` setting. Each command reads back `{inMode, scrollPosition, historySize}` from tmux. If tmux has already left copy mode, a repeated scroll/exit reports its current state instead of an error. Requires tmux ≥ 2.4. Copy mode is transient pane state: it is neither stored nor polled and publishes no hostbud event. Since copy mode belongs to the pane, all clients attached to that pane see its scrolling together.
 - Always use `=`-prefixed exact targets.
 - **Never modify the user's tmux config or global options.**
 
@@ -307,6 +307,7 @@ POST   /api/machines/refresh              re-scan ~/.ssh/config
 GET    /api/machines/:id/hostkey          keyscan fingerprints
 POST   /api/machines/:id/hostkey/trust
 ```
+The copy-mode endpoint body is `{action, lines?}` and its response is `{inMode, scrollPosition, historySize}`. `lines` is valid only for `scroll-up`/`scroll-down`, from 1 to 500. Unknown actions, names and values are rejected before SSH execution; an old tmux version returns 409 with an upgrade hint.
 Session records in the list endpoint and initial/live events WebSocket payload include `projectId` when the placement service matches an explicit session link or a project path. The browser uses that placement before applying the same-machine longest path-component match as a fallback. A successful project session start records its non-empty command; opening the picker or selecting a suggestion never starts a command by itself. Recent commands preserve their exact text, reject blank/NUL/oversize values, and keep the 20 newest distinct strings per project. Reusing a command moves it to the front; there is no manual clear action, and older values are pruned during an upsert.
 `/api/ui-state/:key` accepts only allowlisted keys (`layout`; M4 adds `tree` for per-account left-bar session/group order; M6 adds `theme`; others 404). A PUT body must be valid JSON (400) of at most 64 KiB (413). The server stores it without interpreting it and publishes no event (it's a per-account preference); the client validates what it reads back.
 

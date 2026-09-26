@@ -148,6 +148,75 @@ func KillSessionArgs(name string) ([]string, error) {
 	return []string{"tmux", "kill-session", "-t", target(name)}, nil
 }
 
+// CopyAction is a closed set of side-channel copy-mode operations.
+type CopyAction string
+
+const (
+	CopyEnter      CopyAction = "enter"
+	CopyScrollUp   CopyAction = "scroll-up"
+	CopyScrollDown CopyAction = "scroll-down"
+	CopyPageUp     CopyAction = "page-up"
+	CopyPageDown   CopyAction = "page-down"
+	CopyTop        CopyAction = "top"
+	CopyBottom     CopyAction = "bottom"
+	CopyExit       CopyAction = "exit"
+)
+
+// CopyModeArgs builds an allowlisted copy-mode action followed by a state query.
+func CopyModeArgs(name string, action CopyAction, lines int) ([]string, error) {
+	if err := ValidateName(name); err != nil {
+		return nil, err
+	}
+	t := "=" + name + ":"
+	var args []string
+	switch action {
+	case CopyEnter:
+		args = []string{"tmux", "copy-mode", "-e", "-u", "-t", t}
+	case CopyScrollUp, CopyScrollDown:
+		if lines == 0 {
+			lines = 1
+		}
+		if lines < 1 || lines > 500 {
+			return nil, errors.New("lines must be between 1 and 500")
+		}
+		direction := "scroll-up"
+		if action == CopyScrollDown {
+			direction = "scroll-down"
+		}
+		args = []string{"tmux", "send-keys", "-X", "-N", strconv.Itoa(lines), "-t", t, direction}
+	case CopyPageUp, CopyPageDown, CopyTop, CopyBottom, CopyExit:
+		key := map[CopyAction]string{CopyPageUp: "page-up", CopyPageDown: "page-down", CopyTop: "history-top", CopyBottom: "history-bottom", CopyExit: "cancel"}[action]
+		args = []string{"tmux", "send-keys", "-X", "-t", t, key}
+	default:
+		return nil, fmt.Errorf("unknown copy-mode action %q", action)
+	}
+	return append(args, ";", "display-message", "-p", "-t", t, "#{pane_in_mode}\t#{scroll_position}\t#{history_size}"), nil
+}
+
+// ParseCopyModeState parses the tmux display-message response.
+func ParseCopyModeState(out string) (inMode bool, scrollPosition, historySize int, err error) {
+	// In a non-interactive SSH locale tmux renders control characters as '_'.
+	f := strings.Split(strings.ReplaceAll(strings.TrimSpace(out), "\t", "_"), "_")
+	if len(f) != 3 {
+		return false, 0, 0, fmt.Errorf("unexpected copy-mode state")
+	}
+	mode, e1 := strconv.Atoi(strings.TrimSpace(f[0]))
+	var e2 error
+	if strings.TrimSpace(f[1]) != "" {
+		scrollPosition, e2 = strconv.Atoi(strings.TrimSpace(f[1]))
+	}
+	historySize, e3 := strconv.Atoi(strings.TrimSpace(f[2]))
+	if err = errors.Join(e1, e2, e3); err != nil || (mode != 0 && mode != 1) || scrollPosition < 0 || historySize < 0 {
+		return false, 0, 0, fmt.Errorf("unexpected copy-mode state")
+	}
+	return mode == 1, scrollPosition, historySize, nil
+}
+
+// IsNotInCopyMode identifies tmux's state-race response for -X commands.
+func IsNotInCopyMode(stderr string) bool {
+	return strings.Contains(strings.ToLower(stderr), "not in a mode")
+}
+
 // HasSessionArgs returns the argv for has-session (exit 0 if it exists).
 func HasSessionArgs(name string) ([]string, error) {
 	if err := ValidateName(name); err != nil {

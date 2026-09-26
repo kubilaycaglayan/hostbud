@@ -117,6 +117,11 @@ func (f *fakeService) Kill(_ context.Context, m, name string) error {
 	return f.err
 }
 
+func (f *fakeService) CopyMode(_ context.Context, m, name string, action tmux.CopyAction, lines int) (session.CopyModeState, error) {
+	f.calls = append(f.calls, "copy "+m+" "+name+" "+string(action)+" "+strconv.Itoa(lines))
+	return session.CopyModeState{InMode: true, ScrollPosition: 4, HistorySize: 10}, f.err
+}
+
 const testToken = "test-session-token"
 
 // otherToken signs in a second account (u2).
@@ -387,6 +392,41 @@ func TestMutations(t *testing.T) {
 	want := []string{"create host  ~/app htop", "rename host a b", "kill host b"}
 	if strings.Join(e.svc.calls, "|") != strings.Join(want, "|") {
 		t.Fatalf("calls %q", e.svc.calls)
+	}
+}
+
+func TestCopyModeAPIValidationAndAccess(t *testing.T) {
+	e := newEnv(t)
+	res := e.do(t, http.MethodPost, "/api/machines/host/sessions/a/copy-mode", `{"action":"page-up"}`, nil)
+	if res.Code != 200 || decodeBody[session.CopyModeState](t, res).ScrollPosition != 4 {
+		t.Fatalf("copy-mode: %d %s", res.Code, res.Body)
+	}
+	if got := e.svc.calls[len(e.svc.calls)-1]; got != "copy host a page-up 0" {
+		t.Fatalf("service call %q", got)
+	}
+	for _, c := range []struct {
+		path, body string
+		status     int
+	}{
+		{"/api/machines/host/sessions/a.b/copy-mode", `{"action":"enter"}`, 400},
+		{"/api/machines/host/sessions/a/copy-mode", `{"action":"wat"}`, 400},
+		{"/api/machines/host/sessions/a/copy-mode", `{"action":"enter","lines":2}`, 400},
+		{"/api/machines/host/sessions/a/copy-mode", `{"action":"scroll-up","lines":501}`, 400},
+		{"/api/machines/nope/sessions/a/copy-mode", `{"action":"enter"}`, 404},
+	} {
+		if got := e.do(t, http.MethodPost, c.path, c.body, nil).Code; got != c.status {
+			t.Errorf("%s = %d, want %d", c.path, got, c.status)
+		}
+	}
+	if got := e.do(t, http.MethodPost, "/api/machines/host/sessions/a/copy-mode", `{"action":"enter"}`, map[string]string{"Cookie": ""}).Code; got != 401 {
+		t.Errorf("signed out = %d", got)
+	}
+	if got := e.do(t, http.MethodPost, "/api/machines/host/sessions/a/copy-mode", `{"action":"enter"}`, map[string]string{"Origin": "http://evil.example.com"}).Code; got != 403 {
+		t.Errorf("foreign origin = %d", got)
+	}
+	e.svc.err = &session.Error{Code: session.CodeTmuxVersion, Message: "needs tmux 2.4", Hint: "upgrade tmux"}
+	if got := e.do(t, http.MethodPost, "/api/machines/host/sessions/a/copy-mode", `{"action":"enter"}`, nil).Code; got != 409 {
+		t.Errorf("old tmux status = %d", got)
 	}
 }
 

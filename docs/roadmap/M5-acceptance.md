@@ -85,11 +85,11 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 
 ## Scroll history (tmux copy mode)
 
-- [ ] `POST /api/machines/:id/sessions/:name/copy-mode` accepts only the actions `enter`, `scroll-up`, `scroll-down` (1–500 `lines`), `page-up`, `page-down`, `top`, `bottom` and `exit`. It runs them as side-channel tmux commands on the `=<name>:` target and returns `{inMode, scrollPosition, historySize}` as tmux reports them after the action. Scrolling or exiting when the pane already left copy mode succeeds with `inMode: false`.
+- [x] `POST /api/machines/:id/sessions/:name/copy-mode` accepts only the actions `enter`, `scroll-up`, `scroll-down` (1–500 `lines`), `page-up`, `page-down`, `top`, `bottom` and `exit`. It runs them as side-channel tmux commands on the `=<name>:` target and returns `{inMode, scrollPosition, historySize}` as tmux reports them after the action. Scrolling or exiting when the pane already left copy mode succeeds with `inMode: false`.
   - U: T1 `CopyModeArgs` table, `lines` bounds, "not in a mode" mapping, `display` parsing, handler validation (Go).
   - I: T1 against `test/sshd`: enter/page-up/scroll-down-to-exit/exit/exit-again on a real session with history.
   - E: T1 *Copy-mode API* (API-level through Caddy).
-- [ ] The copy-mode route requires authentication and the Origin allowlist, validates the session name before any ssh exec, uses `sshx` with the default timeout, returns actionable errors (unknown session 404, tmux older than 2.4 → 409 "needs tmux 2.4 or newer", tmux missing → M1's install hint), and never logs the session name at info level. It publishes no event (copy mode isn't hostbud state), which ARCHITECTURE §9 records.
+- [x] The copy-mode route requires authentication and the Origin allowlist, validates the session name before any ssh exec, uses `sshx` with the default timeout, returns actionable errors (unknown session 404, tmux older than 2.4 → 409 "needs tmux 2.4 or newer", tmux missing → M1's install hint), and never logs the session name at info level. It publishes no event (copy mode isn't hostbud state), which ARCHITECTURE §9 records.
   - U: T1 401/403/400/404/409 handler tests, version gate, log redaction (Go).
   - I: T1 an invalid name is rejected before ssh runs; the tmux-less target returns the install hint.
   - E: T1 *Copy-mode API* (401 signed out, 403 foreign Origin, 404 unknown session).
@@ -148,7 +148,7 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 
 Profiles: `desktop-chromium`, `iphone-13-pro` (`http://localhost:9055`) and `iphone-13-pro-domain` (`https://hostbud.example.test`), against the throwaway `hostbud-e2e-target` only, never the real host. Phone-only scenarios live in `*.phone.spec.ts` (run in both phone projects), and PWA scenarios in `pwa.spec.ts` (desktop-chromium only; service workers blocked everywhere else). Each scenario is tagged with the task that writes it. During M5 the suite is only type-checked; it runs in M7's final task.
 
-- [ ] **(T1) Copy-mode API:** through Caddy: `enter` puts the target pane in copy mode with `scroll_position > 0`, `page-up` raises it, `exit` leaves (`pane_in_mode` 0) and a second `exit` still returns 200 `inMode:false`; signed out → 401; foreign Origin → 403; unknown session → 404 (desktop, API-level).
+- [x] **(T1) Copy-mode API:** through Caddy: `enter` puts the target pane in copy mode with `scroll_position > 0`, `page-up` raises it, `exit` leaves (`pane_in_mode` 0) and a second `exit` still returns 200 `inMode:false`; signed out → 401; foreign Origin → 403; unknown session → 404 (desktop, API-level).
 - [ ] **(T2) Tree drawer:** with no terminal the tree is the home screen; open a session; ☰ opens the "Project tree" drawer; Escape, backdrop, close button and picking another session each close it; New session from the drawer (sheet) opens the new session (both phone projects).
 - [ ] **(T2) Drawer keeps the terminal attached:** the tmux client PID and client size are unchanged after opening and closing the drawer, and typed input still reaches the session (both phone projects).
 - [ ] **(T2) Single terminal view and rotation:** with two tabs and a split tab only one terminal is visible; portrait → landscape → portrait keeps the same client PID while `#{client_width}x#{client_height}` follows the orientation (both phone projects).
