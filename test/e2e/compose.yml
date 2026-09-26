@@ -27,6 +27,16 @@ services:
     volumes:
       - keys:/keys:ro
 
+  # Same, without tmux ("tmux missing" scenario).
+  hostbud-e2e-target-notmux:
+    build: { context: ../sshd, args: { WITH_TMUX: "0" } }
+    image: hostbud-e2e-target-notmux:local
+    container_name: hostbud-e2e-target-notmux
+    depends_on:
+      hostbud-e2e-keygen: { condition: service_completed_successfully }
+    volumes:
+      - keys:/keys:ro
+
   # ssh-agent holding the client key; the app gets only its socket,
   # mirroring the production agent-socket mount.
   hostbud-e2e-agent:
@@ -114,16 +124,59 @@ services:
         # The production Caddyfile proxies to hostbud:8080.
         aliases: [hostbud]
 
+
+  # A second app on the tmux-less target, served by Caddy on :9056. It shares
+  # the database, so the signed-in session works there too.
+  hostbud-e2e-app-notmux:
+    image: hostbud-e2e-app:local  # built by hostbud-e2e-app
+    pull_policy: never
+    container_name: hostbud-e2e-app-notmux
+    user: *app-uid
+    depends_on:
+      hostbud-e2e-target-notmux: { condition: service_healthy }
+      hostbud-e2e-app: { condition: service_started }
+      hostbud-e2e-agent: { condition: service_healthy }
+      hostbud-e2e-postgres: { condition: service_healthy }
+    environment:
+      HOSTBUD_LISTEN: ":8080"
+      HOSTBUD_DATA_DIR: /data
+      HOSTBUD_POLL_INTERVAL: 1s
+      HOSTBUD_LOG_LEVEL: info
+      HOSTBUD_LOCAL_PORT: "9056"
+      HOSTBUD_HOST_ADDR: hostbud-e2e-target-notmux
+      HOSTBUD_HOST_LABEL: E2E target
+      HOSTBUD_DB_HOST: hostbud-e2e-postgres
+      HOSTBUD_DB_PORT: "5432"
+      HOSTBUD_DB_NAME: hostbud
+      HOSTBUD_DB_USER: hostbud
+      HOSTBUD_DB_PASSWORD: e2e-placeholder-password
+      HOSTBUD_DB_SSLMODE: disable
+      HOST_SSH_USER: dev
+      SSH_AUTH_SOCK: /run/agent/ssh-agent.sock
+      # Small, fast throttling so the rate-limit scenarios finish quickly.
+      HOSTBUD_LOGIN_MAX_FAILURES: "3"
+      HOSTBUD_REGISTER_MAX_FAILURES: "5"
+      HOSTBUD_IP_MAX_FAILURES: "6"
+      HOSTBUD_LOGIN_BLOCK_BASE: 1s
+      HOSTBUD_LOGIN_BLOCK_MAX: 8s
+      HOSTBUD_LOGIN_BLOCK_MULTIPLIER: "2"
+    volumes:
+      - data-notmux:/data
+      - agent:/run/agent
+      - hostpub:/run/host-keys:ro
   # The real Caddyfile (loopback-port site); the runner shares its network
   # namespace, so the browser opens http://localhost:9055 like a port forward.
   hostbud-e2e-caddy:
     image: caddy:2.11.4
     container_name: hostbud-e2e-caddy
-    depends_on: [hostbud-e2e-app]
+    depends_on: [hostbud-e2e-app, hostbud-e2e-app-notmux]
     environment:
       HOSTBUD_LOCAL_PORT: "9055"
     volumes:
-      - ../../deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # The production Caddyfile, imported unchanged by the e2e one (which
+      # only adds the :9056 site for the tmux-less app).
+      - ../../deploy/caddy/Caddyfile:/etc/caddy/Caddyfile.prod:ro
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
 
   # Failure switches for the runner (restart the app, stop/start sshd) via
   # the Docker socket; fixed commands only (ctl/server.mjs).
@@ -174,4 +227,5 @@ volumes:
   hostpub: { name: hostbud-e2e-hostpub }
   agent: { name: hostbud-e2e-agent }
   data: { name: hostbud-e2e-data }
+  data-notmux: { name: hostbud-e2e-data-notmux }
   pgdata: { name: hostbud-e2e-pgdata }

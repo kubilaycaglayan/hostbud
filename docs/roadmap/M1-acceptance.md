@@ -29,15 +29,15 @@ A layer may be **n/a** only with a one-line reason (e.g. pure byte passthrough h
   - U: T8B redaction tests. I: T8A/T8B deploy and log inspection. E: T8B *Authentication logs clean*.
 
 ### Session list
-- [ ] The UI lists every tmux session on the host (name, attached/detached, window count).
+- [x] The UI lists every tmux session on the host (name, attached/detached, window count).
   - U: T9 list-format parser · T14 sessions store reducer · T15 session-list component (Vitest). I: T9 list on test sshd (name, attached, windows). E: T15 *Real-terminal create/kill*, *Attached state*.
-- [ ] With no tmux server running, the list is empty — no error.
+- [x] With no tmux server running, the list is empty — no error.
   - U: T9 "no server running" ⇒ empty list. I: T9 list against a test sshd with no tmux server. E: T15 *Empty list*.
-- [ ] `tmux new -d -s acc-a` in the real terminal → `acc-a` appears within one poll interval (default 3s), without reloading.
+- [x] `tmux new -d -s acc-a` in the real terminal → `acc-a` appears within one poll interval (default 3s), without reloading.
   - U: T10 poller diffing (fake executor) · T14 store applies `sessions.changed`. I: T10 poller sees a session created on test sshd within one interval. E: T12 *Events* · T15 *Real-terminal create/kill*.
-- [ ] `tmux kill-session -t acc-a` in the real terminal → it disappears within one poll interval.
+- [x] `tmux kill-session -t acc-a` in the real terminal → it disappears within one poll interval.
   - U: T10 diff on removal · T14 store removal. I: T10 poller sees a kill on test sshd. E: T15 *Real-terminal create/kill*.
-- [ ] `tmux attach -t acc-b` / detach in the real terminal → the attached dot updates.
+- [x] `tmux attach -t acc-b` / detach in the real terminal → the attached dot updates.
   - U: T9 parser (attached field) · T10 diff on attached change · T15 dot component. I: T9 list shows attached while a PTY client is attached on test sshd. E: T15 *Attached state*.
 
 ### Create / rename / kill
@@ -73,9 +73,9 @@ A layer may be **n/a** only with a one-line reason (e.g. pure byte passthrough h
 ### Robustness
 - [ ] `docker compose restart hostbud` → the UI comes back and sessions are still listed; attached terminals can reconnect.
   - U: T6 data survives reopening the DB · T14 WS reconnect with backoff + resync on snapshot (Vitest). I: n/a (container restart, covered by e2e). E: T14 *Live connection* · T15 *App restart* · T17 *Terminal after restart*.
-- [ ] Stopping sshd on the host (or breaking the agent socket) shows an "unreachable" banner with a hint; restoring it recovers without restarting hostbud.
+- [x] Stopping sshd on the host (or breaking the agent socket) shows an "unreachable" banner with a hint; restoring it recovers without restarting hostbud.
   - U: T7 error mapping (refused, agent missing/empty) · T10 backoff and `unreachable` ⇄ `ok` transitions · T15 banner (Vitest). I: T8 stopped test sshd and a missing agent socket ⇒ mapped actionable errors. E: T15 *Host unreachable*.
-- [ ] With tmux missing (test sshd image without tmux), the UI shows "tmux not found — install with …".
+- [x] With tmux missing (test sshd image without tmux), the UI shows "tmux not found — install with …".
   - U: T10 probe ⇒ `tmux_missing` · T15 banner text (Vitest). I: T10 probe against the tmux-less `test/sshd` variant. E: T15 *tmux missing*.
 
 ## E2E (`make e2e`, simulated user)
@@ -108,12 +108,12 @@ API (through Caddy)
 
 UI
 - [x] **(T14) Live connection:** the page connects to `/ws/events` on load, and reconnects and resyncs after `hostbud-e2e-app` restarts.
-- [ ] **(T15) Empty list:** a fresh target shows an empty session list, with no error.
-- [ ] **(T15) Real-terminal create/kill:** a session created with `tmux new -d` on the target appears within one poll interval; `tmux kill-session` makes it disappear.
-- [ ] **(T15) Attached state:** attaching from a second client on the target flips the attached indicator; `tmux new-window` updates the window count.
-- [ ] **(T15) App restart:** after restarting `hostbud-e2e-app` the UI recovers and lists the same sessions.
-- [ ] **(T15) Host unreachable:** stopping sshd on the target shows the unreachable banner with its hint; starting it again recovers without reloading.
-- [ ] **(T15) tmux missing:** against the tmux-less target, the UI shows the install hint.
+- [x] **(T15) Empty list:** a fresh target shows an empty session list, with no error.
+- [x] **(T15) Real-terminal create/kill:** a session created with `tmux new -d` on the target appears within one poll interval; `tmux kill-session` makes it disappear.
+- [x] **(T15) Attached state:** attaching from a second client on the target flips the attached indicator; `tmux new-window` updates the window count.
+- [x] **(T15) App restart:** after restarting `hostbud-e2e-app` the UI recovers and lists the same sessions.
+- [x] **(T15) Host unreachable:** stopping sshd on the target shows the unreachable banner with its hint; starting it again recovers without reloading.
+- [x] **(T15) tmux missing:** against the tmux-less target, the UI shows the install hint.
 - [ ] **(T16) Create with defaults:** the user opens the create dialog and gives only a path → the session appears named after the directory, and `tmux display -p '#{session_path}'` matches.
 - [ ] **(T16) Create with start command:** name + path + `htop` → the session's pane is running htop (`#{pane_current_command}`). T17 adds the check that it's visible in the terminal.
 - [ ] **(T16) Invalid input:** names like `a.b`, `a:b`, `a b` are rejected in the form; a duplicate name and a missing path show the actionable error text.

@@ -77,3 +77,25 @@ describe('App shell', () => {
     expect(wrapper.find('input[type=password]').exists()).toBe(true)
   })
 })
+
+describe('session selection', () => {
+  it('opens the selected session in the terminal view', async () => {
+    signedIn()
+    const wrapper = mount(App)
+    await flushPromises()
+    const { useSessionsStore } = await import('./stores/sessions')
+    const { useMachinesStore } = await import('./stores/machines')
+    const snap = {
+      type: 'snapshot' as const,
+      machines: [{ id: 'host', label: 'Host', status: 'ok' as const, os: 'Linux', home: '/home/dev', tmuxVersion: '3.4', tmuxMissing: false }],
+      sessions: { host: [{ id: '$1', name: 'acc-a', path: '/home/dev', attached: 0, windows: 2, created: '', activity: '' }] },
+    }
+    useMachinesStore().apply(snap)
+    useSessionsStore().apply(snap)
+    await wrapper.vm.$nextTick()
+    expect(wrapper.get('aside').text()).toContain('2 windows')
+    await wrapper.get('button[aria-label="acc-a"]').trigger('click')
+    expect(wrapper.get('main section').attributes('aria-label')).toBe('Terminal: acc-a')
+    expect(useAppStore().selected).toEqual({ machine: 'host', name: 'acc-a' })
+  })
+})

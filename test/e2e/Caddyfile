@@ -1,0 +1,7 @@
+# e2e only: the production Caddyfile, unchanged, plus one extra site for the
+# tmux-less app ("tmux missing" scenario) on a second loopback port.
+import /etc/caddy/Caddyfile.prod
+
+http://:9056 {
+	reverse_proxy hostbud-e2e-app-notmux:8080
+}

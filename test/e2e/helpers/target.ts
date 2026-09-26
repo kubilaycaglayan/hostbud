@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process'
+import { execFile, spawn } from 'node:child_process'
 
 // The runner's own ssh client, playing "a real terminal" on the target.
 // Keys: the agent socket (SSH_AUTH_SOCK) and /keys/known_hosts, both per run.
@@ -71,6 +71,22 @@ export class Target {
   /** `tmux display -p <format>` for the session. */
   async display(session: string, format: string): Promise<string> {
     return (await this.tmux('display-message', '-p', '-t', `=${session}:`, format)).trim()
+  }
+
+  /**
+   * A second, real tmux client: `tmux attach` over `ssh -tt` (a PTY on the
+   * target), as from another terminal. Resolves to a function that detaches.
+   */
+  attachClient(session: string): () => void {
+    const child = spawn(
+      'ssh',
+      [...SSH_OPTS, '-tt', `${this.user}@${this.host}`, '--', ['tmux', 'attach-session', '-t', `=${session}`].map(shq).join(' ')],
+      { env: { ...process.env, TERM: 'xterm-256color' }, stdio: ['pipe', 'ignore', 'ignore'] },
+    )
+    return () => {
+      child.stdin?.end()
+      child.kill()
+    }
   }
 
   /** Kills every session on the target (throwaway target only). */
