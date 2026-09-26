@@ -14,7 +14,7 @@ Update this table in the same commit that finishes a task.
 | T2 Compact layout and tree drawer | Done |
 | T3 Touch targets and phone polish | Done |
 | T4 On-screen key bar | Done |
-| T5 Scroll mode | Not started |
+| T5 Scroll mode | Done |
 | T6 Unreachable state | Not started |
 | T7 Web app manifest, icons and safe areas | Not started |
 | T8 Service worker | Not started |
@@ -35,7 +35,7 @@ Update this table in the same commit that finishes a task.
 | Checkpoint | After | Runs | Status |
 |---|---|---|---|
 | CP1 | T1 + T2 + T3 (copy-mode API, compact layout, touch targets) | `make lint test` | Pass |
-| CP2 | T4 + T5 (key bar, scroll mode) | `make lint test` | Not run |
+| CP2 | T4 + T5 (key bar, scroll mode) | `make lint test` | Pass |
 | CP3 | T6 + T7 + T8 (unreachable state, manifest, service worker) | `make lint test`, plus `make build` so `check-dist` sees the real PWA output | Not run |
 | CP4 | T9 (audit) | `make lint test`, `make gitleaks`, e2e `tsc` | Not run |
 

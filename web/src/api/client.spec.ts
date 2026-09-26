@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, getUIState, projectsApi, putUIState, request, sessionsApi } from './client'
+import { ApiError, copyModeApi, getUIState, projectsApi, putUIState, request, sessionsApi } from './client'
 import { stubFetch } from '@/test-utils'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -45,6 +45,18 @@ describe('sessionsApi', () => {
       { method: 'PATCH', path: '/api/machines/host/sessions/a', body: { name: 'b' } },
       { method: 'DELETE', path: '/api/machines/host/sessions/b', body: undefined },
     ])
+  })
+})
+
+describe('copyModeApi', () => {
+  it('uses the authenticated session copy-mode route with bounded line actions', async () => {
+    const calls = stubFetch(() => ({ status: 200, body: { inMode: true, scrollPosition: 18, historySize: 220 } }))
+    expect(await copyModeApi.action('host', 'a-name', 'scroll-up', 12)).toEqual({ inMode: true, scrollPosition: 18, historySize: 220 })
+    expect(calls).toEqual([{
+      method: 'POST',
+      path: '/api/machines/host/sessions/a-name/copy-mode',
+      body: { action: 'scroll-up', lines: 12 },
+    }])
   })
 })
 

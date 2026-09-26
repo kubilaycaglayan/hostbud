@@ -4,7 +4,7 @@ import type { Terminal } from '@xterm/xterm'
 import { useMediaQuery } from '@/lib/media'
 import { sendKey, toggleModifier, type KeyBarKey, type KeyModifiers } from '@/lib/keyBar'
 
-const props = defineProps<{ term?: Terminal; modifiers: KeyModifiers; focused: boolean }>()
+const props = defineProps<{ term?: Terminal; modifiers: KeyModifiers; focused: boolean; busy?: boolean }>()
 const emit = defineEmits<{ scroll: [] }>()
 const coarse = useMediaQuery('(pointer: coarse)')
 const collapsed = ref(false)
@@ -145,6 +145,7 @@ onBeforeUnmount(stopRepeat)
         type="button"
         class="touch-target shrink-0 rounded border border-border px-2"
         aria-label="Scroll history"
+        :disabled="props.busy"
         tabindex="-1"
         @pointerdown="scroll"
         @mousedown.prevent

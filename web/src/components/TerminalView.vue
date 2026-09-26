@@ -8,11 +8,13 @@ import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
 import { TermSession, termURL, type SessionState } from '@/api/term'
+import { copyModeApi } from '@/api/client'
 import SessionPicker from '@/components/SessionPicker.vue'
 import TerminalMenu from '@/components/TerminalMenu.vue'
 import TerminalSearch from '@/components/TerminalSearch.vue'
 import TabBar from '@/components/TabBar.vue'
 import KeyBar from '@/components/KeyBar.vue'
+import ScrollBar from '@/components/ScrollBar.vue'
 import { copySelection, installOsc52 } from '@/lib/clipboard'
 import { registerPane, unregisterPane } from '@/lib/e2eHooks'
 import { hyperlinkHandler, openLink, type LinkHover } from '@/lib/links'
@@ -20,8 +22,10 @@ import { keepScrollback } from '@/lib/scrollback'
 import type { SplitDir, Tab } from '@/lib/layout'
 import { clipboardKey, editingKey, searchKey } from '@/lib/terminalKeys'
 import { applyModifiers, createModifiers } from '@/lib/keyBar'
+import { createCopyModeController, swipeDelta } from '@/lib/copyMode'
 import { useAuthStore } from '@/stores/auth'
 import { useSessionsStore } from '@/stores/sessions'
+import { useToastsStore } from '@/stores/toasts'
 
 const props = withDefaults(
   defineProps<{
@@ -73,6 +77,41 @@ let last = { cols: 0, rows: 0 }
 const auth = useAuthStore()
 const sessions = useSessionsStore()
 const splitTargets = computed(() => sessions.list(props.machine).map((x) => x.name))
+const copyMode = createCopyModeController(
+  (action, lines) => copyModeApi.action(props.machine, props.session, action, lines),
+  (error) => useToastsStore().error('Could not scroll terminal history', error),
+)
+const { inMode, scrollPosition, historySize, busy } = copyMode
+let touchScrollStart: { x: number; y: number } | null = null
+
+function enterScrollMode() {
+  void copyMode.action('enter')
+}
+
+function scrollAction(action: Parameters<typeof copyMode.action>[0], lines?: number) {
+  void copyMode.action(action, lines)
+}
+
+function startScrollGesture(event: PointerEvent) {
+  touchScrollStart = null
+  if (!copyMode.inMode.value || event.pointerType !== 'touch') return
+  event.preventDefault()
+  touchScrollStart = { x: event.clientX, y: event.clientY }
+}
+
+function finishScrollGesture(event: PointerEvent) {
+  if (!touchScrollStart || event.pointerType !== 'touch') return
+  const start = touchScrollStart
+  touchScrollStart = null
+  const screen = term.value?.element?.querySelector('.xterm-screen')?.getBoundingClientRect()
+  const cellHeight = screen && term.value ? screen.height / term.value.rows : 16
+  const movement = swipeDelta(start, { x: event.clientX, y: event.clientY }, cellHeight)
+  if (movement) copyMode.swipe(movement.direction, movement.lines)
+}
+
+function cancelScrollGesture() {
+  touchScrollStart = null
+}
 
 /** Attaches, and keeps re-attaching after drops (api/term.ts TermSession). */
 function connect() {
@@ -193,7 +232,11 @@ onMounted(async () => {
     // No WebGL: xterm's DOM renderer is used.
   }
   term.value = t
-  t.onData((d) => conn?.send(applyModifiers(d, modifiers)))
+  t.onData((d) => {
+    const bytes = applyModifiers(d, modifiers)
+    if (copyMode.inMode.value) void copyMode.exitThen(() => conn?.send(bytes))
+    else conn?.send(bytes)
+  })
   // Mac editing shortcuts (Option/Cmd+Backspace, +←/→): send what a Mac
   // terminal sends, once per keydown, instead of xterm's or the browser's
   // default (Cmd+← would navigate back).
@@ -270,10 +313,18 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  copyMode.reset()
   observer?.disconnect()
   conn?.close()
   term.value?.dispose()
   if (import.meta.env.VITE_E2E === '1') unregisterPane(props.paneId)
+})
+
+watch(() => [props.active, props.focused, props.session, props.paneId] as const, ([active, focused]) => {
+  if (!active || !focused) copyMode.reset()
+})
+watch(state, (current) => {
+  if (current !== 'open') copyMode.reset()
 })
 
 defineExpose({ refit, reconnect, showKeyboard })
@@ -360,6 +411,9 @@ defineExpose({ refit, reconnect, showKeyboard })
           ref="el"
           data-testid="terminal"
           class="min-h-0 flex-1 touch-manipulation overflow-hidden bg-bg p-1"
+          @pointerdown="startScrollGesture"
+          @pointerup="finishScrollGesture"
+          @pointercancel="cancelScrollGesture"
         />
         <div
           v-if="linkHover && el"
@@ -396,7 +450,21 @@ defineExpose({ refit, reconnect, showKeyboard })
         </div>
       </div>
     </TerminalMenu>
-    <KeyBar :term="term" :modifiers="modifiers" :focused="takesInput()" />
+    <KeyBar
+      v-if="!inMode"
+      :term="term"
+      :modifiers="modifiers"
+      :focused="takesInput()"
+      :busy="busy"
+      @scroll="enterScrollMode"
+    />
+    <ScrollBar
+      v-else
+      :scroll-position="scrollPosition"
+      :history-size="historySize"
+      :busy="busy"
+      @action="scrollAction"
+    />
     <div
       v-if="state === 'exited' || state === 'disconnected'"
       role="status"

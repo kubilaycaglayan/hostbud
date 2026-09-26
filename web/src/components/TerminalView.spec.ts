@@ -175,6 +175,45 @@ describe('TerminalView', () => {
     expect(new TextDecoder().decode(sent)).toBe('\x03')
   })
 
+  it('switches between the key bar and scroll bar, and exits before forwarding typed input', async () => {
+    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })))
+    const requests: { action: string; lines?: number }[] = []
+    vi.stubGlobal('fetch', vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as { action: string; lines?: number }
+      requests.push(body)
+      const state = body.action === 'enter'
+        ? { inMode: true, scrollPosition: 16, historySize: 150 }
+        : { inMode: false, scrollPosition: 0, historySize: 150 }
+      return new Response(JSON.stringify(state), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    }))
+    const w = await mountTerm()
+    FakeWS.all[0].onopen?.({} as Event)
+    w.get('button[aria-label="Scroll history"]').element.dispatchEvent(new Event('pointerdown', { bubbles: true, cancelable: true }))
+    await flushPromises()
+    expect(requests).toEqual([{ action: 'enter' }])
+    expect(w.find('[data-testid="scroll-bar"]').exists()).toBe(true)
+    expect(w.find('[data-testid="key-bar"]').exists()).toBe(false)
+
+    h.terms[0].input('echo ok\r')
+    await flushPromises()
+    expect(requests.at(-1)).toEqual({ action: 'exit' })
+    expect(new TextDecoder().decode(FakeWS.all[0].sent.at(-1) as Uint8Array)).toBe('echo ok\r')
+    expect(w.find('[data-testid="scroll-bar"]').exists()).toBe(false)
+    expect(w.find('[data-testid="key-bar"]').exists()).toBe(true)
+  })
+
+  it('returns to the key bar and shows the API hint when copy mode fails', async () => {
+    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })))
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: 'tmux needs 2.4', hint: 'Upgrade tmux on the host.' }), { status: 409 })))
+    const w = await mountTerm()
+    FakeWS.all[0].onopen?.({} as Event)
+    w.get('button[aria-label="Scroll history"]').element.dispatchEvent(new Event('pointerdown', { bubbles: true, cancelable: true }))
+    await flushPromises()
+    expect(w.find('[data-testid="scroll-bar"]').exists()).toBe(false)
+    expect(w.find('[data-testid="key-bar"]').exists()).toBe(true)
+    expect(useToastsStore().toasts[0]).toMatchObject({ title: 'Could not scroll terminal history', message: 'Tmux needs 2.4.', hint: 'Upgrade tmux on the host.' })
+  })
+
   it('marks terminal header controls as touch targets', async () => {
     const w = await mountTerm()
     expect(w.get('button[aria-label="Search"]').classes()).toContain('touch-target')

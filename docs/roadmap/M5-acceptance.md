@@ -93,14 +93,14 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
   - U: T1 401/403/400/404/409 handler tests, version gate, log redaction (Go).
   - I: T1 an invalid name is rejected before ssh runs; the tmux-less target returns the install hint.
   - E: T1 *Copy-mode API* (401 signed out, 403 foreign Origin, 404 unknown session).
-- [ ] On a phone, **Scroll history** puts the session's pane in copy mode and shows earlier output (`#{pane_in_mode}` = 1, `#{scroll_position}` > 0). The Scroll bar (Top, Page up, Line up, Line down, Page down, Bottom, Done, "Line n of m") replaces the key bar while tmux is in copy mode, and vertical swipes on the terminal scroll tmux's history.
+- [x] On a phone, **Scroll history** puts the session's pane in copy mode and shows earlier output (`#{pane_in_mode}` = 1, `#{scroll_position}` > 0). The Scroll bar (Top, Page up, Line up, Line down, Page down, Bottom, Done, "Line n of m") replaces the key bar while tmux is in copy mode, and vertical swipes on the terminal scroll tmux's history.
   - U: T5 Scroll store: enter/response handling, swipe → lines and direction, request coalescing, 500-line cap; `ScrollBar` actions and position label (Vitest).
   - I: T1's integration tests cover the tmux side; n/a beyond that (the client adds no server behavior).
-  - E: T5 *Scroll into history* (both phone projects; buttons, since Playwright WebKit can't drive swipes). **Manual (T9):** swipe up/down through history on the iPhone.
-- [ ] The UI never gets out of sync with tmux: Done, typing on the on-screen keyboard, or tmux leaving copy mode by itself (Bottom, or `-e` at the end of the history) bring back the key bar. An error shows the API's message and returns to the key bar. Scroll works while a full-screen program runs.
+  - E: T5 *Scroll into history* (`scroll.phone.spec.ts`, both phone projects; buttons, since Playwright WebKit can't drive swipes). **Manual (T9):** swipe up/down through history on the iPhone.
+- [x] The UI never gets out of sync with tmux: Done, typing on the on-screen keyboard, or tmux leaving copy mode by itself (Bottom, or `-e` at the end of the history) bring back the key bar. An error shows the API's message and returns to the key bar. Scroll works while a full-screen program runs.
   - U: T5 `inMode:false` hides the bar; Done and typed input send `exit`; tab/pane switch resets the state; error → toast (Vitest).
   - I: T1 `scroll-down` past the bottom reports `inMode:false`; `exit` twice is fine.
-  - E: T5 *Leave scroll mode* · T5 *Scroll works with a full-screen program* (both phone projects).
+  - E: T5 *Leave scroll mode* · T5 *Scroll works with a full-screen program* (`scroll.phone.spec.ts`, both phone projects).
 
 ## Installable app (PWA)
 
@@ -163,9 +163,9 @@ Profiles: `desktop-chromium`, `iphone-13-pro` (`http://localhost:9055`) and `iph
 - [x] **(T4) Tab, Alt and symbols:** Tab completes, `|` `~` `/` `-` insert their characters, Alt then `b` moves back a word (both phone projects).
 - [x] **(T4) Key bar keeps the keyboard:** after several key taps, the focused element is still the terminal's textarea, and the keys meet the target size (both phone projects).
 - [x] **(T4) Application cursor keys:** ↓ moves by line in a program that enables application cursor mode (both phone projects).
-- [ ] **(T5) Scroll into history:** after `seq 1 400`, Scroll history → `pane_in_mode` 1, `scroll_position` > 0, and earlier numbers are visible in the browser; Page up scrolls further (both phone projects).
-- [ ] **(T5) Leave scroll mode:** Done exits copy mode and the key bar returns, and a typed command runs; Bottom makes tmux leave copy mode by itself and the UI follows (both phone projects).
-- [ ] **(T5) Scroll works with a full-screen program:** with htop running, Scroll history enters copy mode and Done returns to htop (both phone projects).
+- [x] **(T5) Scroll into history:** after `seq 1 400`, Scroll history → `pane_in_mode` 1, `scroll_position` > 0, and earlier numbers are visible in the browser; Page up scrolls further (both phone projects).
+- [x] **(T5) Leave scroll mode:** Done exits copy mode and the key bar returns, and a typed command runs; Bottom makes tmux leave copy mode by itself and the UI follows (both phone projects).
+- [x] **(T5) Scroll works with a full-screen program:** with htop running, Scroll history enters copy mode and Done returns to htop (both phone projects).
 - [ ] **(T6) Unreachable at start-up:** `/api/auth/me` aborted or 502 → **Can't reach hostbud**, never the sign-in form or a session name; after un-routing, Try again → signed-in app (desktop and `iphone-13-pro`).
 - [ ] **(T6) Offline sign-in error:** a network-aborted login shows the connection message; the next correct login succeeds without throttling (desktop).
 - [ ] **(T7) Manifest and icons:** manifest linked, served as `application/manifest+json`, with the required fields; every icon and the apple-touch-icon load as PNGs of their declared size through Caddy; no off-origin request (desktop-chromium).

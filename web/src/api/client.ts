@@ -77,6 +77,22 @@ export const sessionsApi = {
     request<void>('DELETE', `${sessionsPath(machine)}/${encodeURIComponent(name)}`),
 }
 
+export type CopyModeAction = 'enter' | 'scroll-up' | 'scroll-down' | 'page-up' | 'page-down' | 'top' | 'bottom' | 'exit'
+export interface CopyModeState {
+  inMode: boolean
+  scrollPosition: number
+  historySize: number
+}
+
+export const copyModeApi = {
+  action: (machine: string, name: string, action: CopyModeAction, lines?: number) => request<CopyModeState>(
+    'POST',
+    `${sessionsPath(machine)}/${encodeURIComponent(name)}/copy-mode`,
+    { action, ...(lines === undefined ? {} : { lines }) },
+    { signal: AbortSignal.timeout(10_000) },
+  ),
+}
+
 export interface FileEntry {
   name: string
   path: string
