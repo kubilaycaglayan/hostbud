@@ -103,13 +103,13 @@ Projects as in M2: `desktop-chromium` and `iphone-13-pro` on `http://localhost:9
   - U: T4 allowlist (Vitest). I: n/a. E: T4 *OSC 8 link* (`javascript:` target).
 - [x] `PUT /api/ui-state/{key}` requires a signed-in session and an allowed `Origin`; values are size-limited and scoped to the account.
   - U: T6 handler (Go). I: T6 store (PostgreSQL). E: T6 *UI state API*.
-- [ ] The new e2e ctl actions (network cut/restore) are fixed commands on the throwaway stack only, like the existing ones.
+- [x] The new e2e ctl actions (network cut/restore) are fixed commands on the throwaway stack only, like the existing ones.
   - U: n/a (a fixed table in `ctl/server.mjs`). I: n/a. E: T3 *Network cut re-attach* uses them; reviewed in T9's audit.
 
 ## Definition of done
 - [ ] `make lint test` green; `make e2e` green in all three projects; every E2E item above added by the task it's tagged with.
 - [ ] Every criterion's U / I / E tests exist and pass; each n/a has its reason, and "manual" is used only where allowed.
 - [ ] `make gitleaks` clean; no real hostnames, paths or usernames in tracked files.
-- [ ] README has the *Terminal* section (T9); ARCHITECTURE matches what was built; `.env.example` unchanged or documents any new variable.
+- [x] README has the *Terminal* section (T9); ARCHITECTURE matches what was built; `.env.example` unchanged or documents any new variable.
 - [ ] Owner's manual checks done (T9) and recorded here.
 - [ ] Summary delivered: what changed, env vars the owner must set, manual host steps.
