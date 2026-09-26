@@ -90,6 +90,13 @@ for (const profile of ['desktop', 'phone'] as const) {
       await expect.poll(() => ui.termText(name)).toContain('project-session-input')
       await ui.showList()
       await expect(page.getByRole('list', { name: 'Sessions in created' }).getByRole('button', { name, exact: true })).toBeVisible()
+      await page.reload()
+      await expect(page.getByRole('heading', { name: 'created', exact: true })).toBeVisible()
+      await ctl.restartApp()
+      await expect.poll(async () => (await request.get('/api/health')).status(), { timeout: 20_000 }).toBe(200)
+      await page.reload()
+      await expect(page.getByRole('heading', { name: 'created', exact: true })).toBeVisible()
+      await expect(page.getByRole('list', { name: 'Sessions in created' }).getByRole('button', { name, exact: true })).toBeVisible()
     })
   })
 }

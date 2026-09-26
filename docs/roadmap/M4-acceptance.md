@@ -129,7 +129,7 @@ Projects remain `desktop-chromium` and `iphone-13-pro` against the throwaway tar
 - [x] **(T4) Path autocomplete and invalid paths:** choose an autocomplete result, submit an existing typed path, and recover from missing/non-directory paths (desktop and phone).
 - [x] **(T4) Hidden toggle and lazy symlink status in the browser:** hidden entries appear only when requested, and checking a symlink lazily shows its broken/resolved/loop status (desktop).
 - [x] **(T4) Create folder:** create a nested folder, see it in the listing, reject invalid names (desktop and phone).
-- [ ] **(T4) Open as project and persist:** create from a chosen folder, observe its tree entry; reload and app restart retain it (desktop and phone).
+- [x] **(T4) Open as project and persist:** create from a chosen folder, observe its tree entry; reload and app restart retain it (desktop and phone).
 - [ ] **(T4) Project persists and updates live:** another authenticated browser creates a project and the first view updates without reload (desktop).
 - [ ] **(T4) New session here:** create from a project, verify exact `session_path`, type into it and see it grouped under its project (desktop and phone).
 - [x] **(T5) Longest-prefix project mapping:** sessions at nested, sibling-prefix and unrelated paths land in the correct project or Other sessions (desktop).
