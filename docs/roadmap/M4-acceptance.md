@@ -87,7 +87,7 @@ Each criterion names **U** (unit), **I** (integration against `test/sshd`, Postg
 
 ## Recent start commands
 
-- [ ] Starting a session from a project offers the most recently used start commands for that project, with most recently used first; choosing one starts the session in the project path and updates recency. A newly entered command may be remembered as a recent command for that project.
+- [x] Starting a session from a project offers the most recently used start commands for that project, with most recently used first; choosing one starts the session in the project path and updates recency. A newly entered command may be remembered as a recent command for that project.
   - U: T2 repository recency ordering/upsert and bounded input validation; T6 command suggestion order, project session submission behavior, and recording only after a successful start.
   - I: T2 PostgreSQL recency round-trip/upsert; T6 created tmux session receives the selected start command and history remains project-scoped.
   - E: T6 *Recent start command* (desktop and iPhone 13 Pro): start with a command, create another session from the project and verify the command is offered and works.
@@ -140,7 +140,7 @@ Projects remain `desktop-chromium` and `iphone-13-pro` against the throwaway tar
 - [x] **(T5) Left bar session actions:** the ×, ⋯ and pencil sit directly to the right of the title; rename works; × prompts before kill (desktop and phone).
 - [x] **(T5) Account controls in app header:** email and Sign out appear top-right whether the left bar is open or closed; sign out returns to sign-in and stops live updates (desktop and phone; auth revocation is also covered by the T8B auth scenario).
 - [x] **(T5) No window counts:** one-window and multi-window rows both omit the count label (desktop).
-- [ ] **(T6) Recent start command:** choose a recent command on a second project session; it runs in the correct project directory (desktop and phone).
+- [x] **(T6) Recent start command:** choose a recent command on a second project session; it runs in the correct project directory (desktop and phone).
 - [ ] **(T6) Recent commands are project-scoped and require selection:** another project's command is absent and opening the picker runs nothing (desktop).
 
 ## Definition of done
