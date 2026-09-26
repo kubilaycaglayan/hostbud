@@ -138,9 +138,14 @@ func TestIntegrationProjectSessionPlacementRenameEndAndRecreate(t *testing.T) {
 	if err != nil || len(recentCommands) != 1 || recentCommands[0].Command != startCommand {
 		t.Fatalf("project recent commands = %+v, %v", recentCommands, err)
 	}
+	// Explicit links remain authoritative even if another persisted project is
+	// a longer path match. This protects a session association from path drift.
+	if err := repo.UpsertSessionLink(ctx, sshx.HostMachineID, name, parent.ID); err != nil {
+		t.Fatal(err)
+	}
 	placement, err := projectService.Place(ctx, sshx.HostMachineID, name, p.Path)
-	if err != nil || !placement.Matched || placement.ProjectID != p.ID {
-		t.Fatalf("linked placement = %+v, %v", placement, err)
+	if err != nil || !placement.Matched || placement.ProjectID != parent.ID {
+		t.Fatalf("explicit link precedence = %+v, %v; want %s", placement, err, parent.ID)
 	}
 
 	// Exercise path-component matching against persisted PostgreSQL projects and
@@ -183,7 +188,7 @@ func TestIntegrationProjectSessionPlacementRenameEndAndRecreate(t *testing.T) {
 	if err := sessions.Rename(ctx, sshx.HostMachineID, name, "project-renamed"); err != nil {
 		t.Fatal(err)
 	}
-	if link, err := repo.SessionLink(ctx, sshx.HostMachineID, "project-renamed"); err != nil || link.ProjectID != p.ID {
+	if link, err := repo.SessionLink(ctx, sshx.HostMachineID, "project-renamed"); err != nil || link.ProjectID != parent.ID {
 		t.Fatalf("renamed link = %+v, %v", link, err)
 	}
 	if _, err := client.Exec(ctx, sshx.HostMachineID, "tmux", "kill-session", "-t", "=project-renamed"); err != nil {
