@@ -12,7 +12,7 @@ Update this table in the same commit that finishes a task.
 | T1 Custom Caddy image | ✅ done |
 | T2 TLS site on the Tailscale IP | ✅ done |
 | T3 Phone usability | ✅ done |
-| T4 Deployment guide and release | next |
+| T4 Deployment guide and release | ✅ done (owner's phone checks pending, see the checklist) |
 
 Same rules as M1 ([M1-tasks.md](M1-tasks.md)): work top to bottom; each task ends with a green `make lint test` **and `make e2e`**, a clean `make gitleaks`, and its own conventional commit(s). Every task has a **Tests:** line (unit and integration tests it owes) and an **E2E:** line (scenarios it adds, tagged with the task in [M2-acceptance.md](M2-acceptance.md#e2e-make-e2e-simulated-user)), all landing in the same commit as the behavior. Tasks marked *(host)* need the real host, domain and tailnet to verify.
 
@@ -52,7 +52,7 @@ Same rules as M1 ([M1-tasks.md](M1-tasks.md)): work top to bottom; each task end
 ### T3 — Phone usability
 - The app's height follows the *visual* viewport (`window.visualViewport`, `--app-height`, fallback `100dvh`) so the on-screen keyboard shrinks the terminal instead of covering its bottom rows (iOS and Android: both shrink the visual viewport; WebKit rejects the `interactive-widget` viewport key, so it isn't used).
 - The terminal's hidden input (xterm's helper textarea) uses a 16px font (iOS doesn't zoom on focus) with autocorrect, autocapitalize and spellcheck off; `touch-action: manipulation` on the terminal (no double-tap zoom).
-- A **Keyboard** button in the terminal header on touch screens focuses the terminal input (brings the on-screen keyboard back after it was dismissed); tapping the terminal does the same.
+- A **Show keyboard** (⌨) button in the terminal header on touch screens focuses the terminal input (brings the on-screen keyboard back after it was dismissed); tapping the terminal does the same.
 - The terminal fits the viewport in portrait and landscape: no horizontal page scroll, and the resize reaches tmux (M1's ResizeObserver path).
 
 **Tests:** U (Vitest): `--app-height` follows a fake `visualViewport` (initial, resize, cleanup); the helper textarea gets the attributes and the 16px class; the Keyboard button focuses the terminal input. I: n/a (frontend only; the PTY → tmux resize is M1 T13's integration test).

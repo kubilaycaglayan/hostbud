@@ -12,16 +12,21 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 ### Domain and TLS
 - [x] Caddy is a custom build that includes the Cloudflare DNS provider, and the e2e stack uses the same image.
   - U: n/a (no code; a build file). I: T1 deploy-config check: built from `deploy/caddy/Dockerfile`; `caddy list-modules` lists `dns.providers.cloudflare`. E: T1 *Custom Caddy image*.
-- [ ] `https://${HOSTBUD_DOMAIN}` is served with a certificate obtained via ACME DNS-01 (Cloudflare); the token is read from the environment at runtime and certificates persist across restarts.
+- [x] `https://${HOSTBUD_DOMAIN}` is served with a certificate obtained via ACME DNS-01 (Cloudflare); the token is read from the environment at runtime and certificates persist across restarts.
   - U: n/a (Caddy config, no hostbud code). I: T2 `caddy adapt` of the production Caddyfile: ACME issuer with the Cloudflare DNS provider and `{env.CLOUDFLARE_API_TOKEN}`, no token value in the config, adapts with `ACME_EMAIL` empty · T1 certificate volumes. E: T2 *HTTPS domain path* (same proxy config on an internal-CA certificate). **Manual (T4):** the real certificate is valid on the phone (issuer Let's Encrypt, name matches).
-- [ ] The HTTPS site is published only on `${TAILSCALE_IP}` (`:443`, `:80`), the loopback site only on `127.0.0.1:${HOSTBUD_LOCAL_PORT}`; nothing on `0.0.0.0`.
+  - Status (T4): deployed; Caddy obtained a Let's Encrypt certificate via DNS-01 (after the propagation fix, commit `fix: issue the domain certificate…`); from the host, `curl` over the Tailscale IP verifies it (issuer Let's Encrypt, HTTP/2, `:80` redirects to HTTPS). The phone-side check is in the phone criterion below.
+- [x] The HTTPS site is published only on `${TAILSCALE_IP}` (`:443`, `:80`), the loopback site only on `127.0.0.1:${HOSTBUD_LOCAL_PORT}`; nothing on `0.0.0.0`.
   - U: n/a (no code). I: T2 deploy-config check: exactly those three Caddy ports; no other service publishes except PostgreSQL's loopback port. E: n/a (the e2e stack publishes nothing by design). **Manual (T4):** `ss -ltn` on the host.
+  - Status (T4): `ss -ltn` on the host shows `<tailscale-ip>:443`, `<tailscale-ip>:80`, `127.0.0.1:9055` (and PostgreSQL's `127.0.0.1` port) only.
 - [ ] From a phone on the tailnet, `https://${HOSTBUD_DOMAIN}` loads, signs in, attaches and types.
   - U: T3 viewport and terminal-input tests (Vitest). I: n/a (browser path; the PTY side is M1 T13). E: T2 *Domain UI* · T3 *Phone attach and type* in `iphone-13-pro-domain`. **Manual (T4):** a real phone on the tailnet.
+  - Status (T4): automated layers pass; waiting for the owner's check from a real phone.
 - [ ] From outside the tailnet the domain is unreachable (the name resolves to a Tailscale address that only routes inside the tailnet; the DNS record is DNS-only, not proxied).
   - U: n/a (network, no code). I: T2 deploy-config check (Caddy binds only loopback and `${TAILSCALE_IP}`). E: n/a (e2e has no tailnet). **Manual (T4):** phone with Tailscale off can't connect; Cloudflare record shows "DNS only".
+  - Status (T4): the Cloudflare API shows the record as DNS-only (`proxied: false`) pointing at the Tailscale IP, and nothing listens on a public address; waiting for the owner's check with Tailscale off.
 - [ ] The `localhost` port-forward path still works (`ssh -L 9055:localhost:9055 <host>` → `http://localhost:9055`).
   - U: M1 T12 Origin tests keep `http://localhost:<port>` · T2 `AllowedOrigins`. I: T2 `caddy adapt`: the loopback site is plain HTTP and proxies to `hostbud:8080`. E: the whole M1 suite (`desktop-chromium`, `iphone-13-pro` on `http://localhost:9055`) · T2 *Origin on both paths*. **Manual (T4):** port forward from another machine.
+  - Status (T4): `curl http://localhost:9055/api/health` on the host answers after the deploy, and the M1 suite passes; waiting for the owner's port forward from another machine.
 
 ### Origin allowlist
 - [x] State-changing requests and WebSocket upgrades are accepted from `https://${HOSTBUD_DOMAIN}` and `http://localhost:${HOSTBUD_LOCAL_PORT}` only.
@@ -32,8 +37,9 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 ### Phone usability
 - [x] The terminal fits the viewport on a phone in portrait and landscape (no horizontal scroll, nothing cut off), and rotating resizes the tmux window.
   - U: T3 `--app-height` from `visualViewport` (Vitest) · M1 T17 ResizeObserver → `resize` frame. I: M1 T13 resize changes the window size on test sshd. E: T3 *Fits the viewport* · T3 *Rotate*.
-- [ ] On-screen keyboard input works: tapping the terminal (or **Keyboard**) focuses it without zooming, typed text and Enter reach the session, and the keyboard doesn't cover the terminal.
+- [ ] On-screen keyboard input works: tapping the terminal (or **Show keyboard**, ⌨) focuses it without zooming, typed text and Enter reach the session, and the keyboard doesn't cover the terminal.
   - U: T3 helper textarea attributes and 16px font · Keyboard button focuses the input · `--app-height` follows the visual viewport (Vitest). I: n/a (browser input; byte passthrough is M1 T13). E: T3 *Phone attach and type* (text input without key events, as the on-screen keyboard sends it). **Manual (T4):** a real iPhone/Android keyboard (Playwright's WebKit is not iOS Safari).
+  - Status (T4): automated layers pass (WebKit, emulated touch); waiting for the owner's check with a real phone keyboard.
 - [x] Switching sessions on the phone works: back to the list, open another session, type there.
   - U: M1 T15 selection opens the terminal (Vitest). I: n/a (frontend). E: T3 *Switch sessions*.
 
@@ -48,22 +54,27 @@ Projects: `desktop-chromium` and `iphone-13-pro` on `http://localhost:9055` (the
 - [x] **(T3) Switch sessions:** back to the list, open a second session, type → the marker is in the second session; the first is detached (both phone projects).
 - [x] **(T3) Rotate:** portrait → landscape → portrait changes `#{window_width}x#{window_height}` each time, wider in landscape (both phone projects).
 - [x] **(T3) Fits the viewport:** in both orientations the terminal is inside the viewport, there's no horizontal page scroll, and the terminal input's font is at least 16px (both phone projects).
-- [ ] **(every task) Kept green:** each task's commit ran `make e2e` green, and the M1 suite still passes.
-- [ ] **(T4) Stable:** two consecutive full runs pass from a clean checkout.
+- [x] **(every task) Kept green:** each task's commit ran `make e2e` green, and the M1 suite still passes.
+  - Status (T4): every task commit ran a full `make e2e`. The certificate fix between T2 and T3 changed only the production Caddyfile, which e2e doesn't load (it imports `hostbud.caddy`); it ran `make test` (the `caddy adapt` checks), and the next commit's full run covered it.
+- [x] **(T4) Stable:** two consecutive full runs pass from a clean checkout.
+  - Status (T4): 69/69 twice in a row (after fixing a harness race the first attempt hit in M1's *htop mouse*: `tmux ls` while the server exits), no `hostbud-e2e*` containers or volumes left.
 
 ## Security (AGENTS.md checklist, M2 scope)
-- [ ] Caddy publishes only on `${TAILSCALE_IP}` (TLS) and `127.0.0.1:${HOSTBUD_LOCAL_PORT}`; hostbud publishes no ports.
+- [x] Caddy publishes only on `${TAILSCALE_IP}` (TLS) and `127.0.0.1:${HOSTBUD_LOCAL_PORT}`; hostbud publishes no ports.
   - U: n/a (no code). I: T2 deploy-config check. E: n/a (the e2e stack publishes nothing). **Manual (T4):** `ss -ltn`.
+  - Status (T4): `ss -ltn` as above; `hostbud` publishes nothing.
 - [x] WebSocket and state-changing requests check `Origin` against exactly `https://${HOSTBUD_DOMAIN}` and `http://localhost:${HOSTBUD_LOCAL_PORT}`.
   - U: T2 Origin middleware. I: T2 deploy-config check (`HOSTBUD_DOMAIN` reaches the app). E: T2 *Origin on both paths*.
-- [ ] The Cloudflare token is never committed, logged or written into the adapted Caddy config; Caddy gets it as an env var and the app never sees it.
+- [x] The Cloudflare token is never committed, logged or written into the adapted Caddy config; Caddy gets it as an env var and the app never sees it.
   - U: n/a (no hostbud code handles it). I: T2 deploy-config check (only `hostbud-caddy` has `CLOUDFLARE_API_TOKEN`) · T2 `caddy adapt` has no token value. E: n/a (e2e has no token). **Manual (T4):** `make gitleaks`; `make logs` shows no token.
-- [ ] The DNS record is DNS-only (never proxied, never a Cloudflare Tunnel), so nothing is exposed publicly.
+  - Status (T4): `make gitleaks` clean; `git grep` finds no `.env` value in tracked files; neither the Caddy nor the app logs contain the token.
+- [x] The DNS record is DNS-only (never proxied, never a Cloudflare Tunnel), so nothing is exposed publicly.
   - U: n/a. I: n/a (external service). E: n/a. **Manual (T4):** Cloudflare dashboard; README says so.
+  - Status (T4): checked through the Cloudflare API (`proxied: false`); README says never proxied, never a Tunnel.
 
 ## Definition of done
-- [ ] `make lint test` green; `make e2e` green in all three projects; every E2E item above added by the task it's tagged with.
-- [ ] Every criterion's U / I / E tests exist and pass; each n/a has its reason, and "manual" is used only where allowed.
-- [ ] `make gitleaks` clean; no real domain, Tailscale IP, token or username in tracked files (`git grep` for the `.env` values).
-- [ ] README has the deployment guide; `.env.example` documents every variable; ARCHITECTURE matches what was built.
-- [ ] Summary delivered: what changed, env vars the owner must set, manual host steps.
+- [x] `make lint test` green; `make e2e` green in all three projects; every E2E item above added by the task it's tagged with.
+- [x] Every criterion's U / I / E tests exist and pass; each n/a has its reason, and "manual" is used only where allowed.
+- [x] `make gitleaks` clean; no real domain, Tailscale IP, token or username in tracked files (`git grep` for the `.env` values).
+- [x] README has the deployment guide; `.env.example` documents every variable; ARCHITECTURE matches what was built.
+- [x] Summary delivered: what changed, env vars the owner must set, manual host steps.
