@@ -6,38 +6,47 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
 import { onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
-import { TermConnection, termURL, type TermState } from '@/api/term'
+import { TermSession, termURL, type SessionState } from '@/api/term'
 import TerminalMenu from '@/components/TerminalMenu.vue'
 import { copySelection, installOsc52 } from '@/lib/clipboard'
 import { installE2EHooks, removeE2EHooks } from '@/lib/e2eHooks'
 import { clipboardKey, editingKey } from '@/lib/terminalKeys'
+import { useAuthStore } from '@/stores/auth'
+import { useSessionsStore } from '@/stores/sessions'
 
 const props = defineProps<{ machine: string; session: string }>()
 const emit = defineEmits<{ back: [] }>()
 
 const el = ref<HTMLDivElement>()
-const state = ref<TermState>('connecting')
-const exitCode = ref<number>()
+const state = ref<SessionState>('connecting')
+const attempt = ref(0)
 const term = shallowRef<Terminal>()
 let fit: FitAddon | null = null
-let conn: TermConnection | null = null
+let conn: TermSession | null = null
 let observer: ResizeObserver | null = null
 let last = { cols: 0, rows: 0 }
+const auth = useAuthStore()
+const sessions = useSessionsStore()
 
+/** Attaches, and keeps re-attaching after drops (api/term.ts TermSession). */
 function connect() {
   const t = term.value
   if (!t) return
   conn?.close()
-  state.value = 'connecting'
-  exitCode.value = undefined
-  last = { cols: t.cols, rows: t.rows }
-  conn = new TermConnection(termURL(props.machine, props.session, t.cols, t.rows), {
+  conn = new TermSession({
+    url: () => {
+      last = { cols: t.cols, rows: t.rows }
+      return termURL(props.machine, props.session, t.cols, t.rows)
+    },
     onData: (bytes) => t.write(bytes),
-    onState: (s, code) => {
+    onState: (s, info) => {
       state.value = s
-      exitCode.value = code
+      attempt.value = info.attempt
       if (s === 'open') t.focus()
     },
+    isListed: () => sessions.list(props.machine).some((x) => x.name === props.session),
+    stillAuthorized: () => auth.stillAuthorized(),
+    onSignedOut: () => auth.sessionEnded(),
   })
 }
 
@@ -69,6 +78,10 @@ function prepareInput(input: HTMLTextAreaElement | undefined) {
 /** Focuses the terminal, which brings up a phone's on-screen keyboard. */
 function showKeyboard() {
   term.value?.focus()
+}
+
+function retryNow() {
+  conn?.retryNow()
 }
 
 function reconnect() {
@@ -208,12 +221,27 @@ defineExpose({ refit, reconnect, showKeyboard })
     </div>
     <TerminalMenu :term="term">
       <!-- The menu's trigger; the ref sits inside it (as-child clones it). -->
-      <div class="flex min-h-0 flex-1 flex-col">
+      <div class="relative flex min-h-0 flex-1 flex-col">
         <div
           ref="el"
           data-testid="terminal"
           class="min-h-0 flex-1 touch-manipulation overflow-hidden bg-bg p-1"
         />
+        <!-- Over the terminal, so its size (and tmux's) doesn't change. -->
+        <div
+          v-if="state === 'reconnecting'"
+          role="status"
+          class="absolute inset-x-0 top-0 z-10 flex items-center justify-between gap-3 border-b border-border bg-surface/90 px-3 py-1"
+        >
+          <span>Reconnecting… (attempt {{ attempt }})</span>
+          <button
+            type="button"
+            class="rounded border border-border px-2"
+            @click="retryNow"
+          >
+            Retry now
+          </button>
+        </div>
       </div>
     </TerminalMenu>
     <div
@@ -221,7 +249,7 @@ defineExpose({ refit, reconnect, showKeyboard })
       role="status"
       class="absolute inset-x-0 bottom-0 z-10 flex items-center justify-between gap-3 border-t border-border bg-surface px-3 py-2"
     >
-      <span>{{ state === 'exited' ? 'Session detached or ended.' : 'Disconnected from the terminal.' }}</span>
+      <span>{{ state === 'exited' ? 'Session detached or ended.' : 'Disconnected: the session is gone.' }}</span>
       <button
         type="button"
         class="rounded bg-accent px-3 py-1 font-bold text-bg"

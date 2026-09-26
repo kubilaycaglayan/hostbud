@@ -29,3 +29,4 @@ export type ServerEvent =
   | { type: 'snapshot'; machines: Machine[]; sessions: Record<string, Session[]> }
   | { type: 'machine.status'; machine: string; payload: Machine }
   | { type: 'sessions.changed'; machine: string; payload: { sessions: Session[] } }
+  | { type: 'heartbeat' }

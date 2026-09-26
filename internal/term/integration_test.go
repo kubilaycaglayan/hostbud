@@ -27,12 +27,15 @@ type env struct {
 	url string
 }
 
-func setup(t *testing.T) *env {
+func setup(t *testing.T, opts ...func(*term.Handler)) *env {
 	t.Helper()
 	c := testenv.Connected(t, testenv.SSHD)
 	testenv.Sh(t, c, "tmux kill-server 2>/dev/null; true")
 	t.Cleanup(func() { testenv.Sh(t, c, "tmux kill-server 2>/dev/null; rm -f ~/term-it.txt; true") })
 	h := &term.Handler{SSH: c}
+	for _, o := range opts {
+		o(h)
+	}
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
 	return &env{t: t, c: c, h: h, url: "ws" + strings.TrimPrefix(srv.URL, "http")}
@@ -234,5 +237,55 @@ func TestIntegrationCopyModeEmitsOSC52(t *testing.T) {
 		case <-deadline:
 			t.Fatalf("no OSC 52 in the terminal output after the yank: %q", out.seen.String())
 		}
+	}
+}
+
+// A client that vanished without closing (its network dropped: no reads, no
+// pong) is dropped after the ping interval + timeout; its ssh process exits
+// and the tmux session lives on for the client's reconnect.
+func TestIntegrationSilentClientDropped(t *testing.T) {
+	e := setup(t, func(h *term.Handler) {
+		h.PingInterval = 300 * time.Millisecond
+		h.PingTimeout = 300 * time.Millisecond
+	})
+	e.newSession("term-gone")
+	url := e.url + "?machine=host&session=term-gone&cols=80&rows=24"
+	conn, resp, err := websocket.Dial(t.Context(), url, nil)
+	if resp != nil && resp.Body != nil {
+		_ = resp.Body.Close()
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = conn.CloseNow() }()
+	// Never read: pings go unanswered, as over a cut network.
+	e.eventually("attached", func() bool { return e.sh("tmux display -p -t =term-gone: '#{session_attached}'") == "1" })
+
+	start := time.Now()
+	e.eventually("ssh process gone", func() bool { return e.h.Active() == 0 })
+	if d := time.Since(start); d > 3*time.Second {
+		t.Fatalf("dropped after %v, want about ping interval + timeout", d)
+	}
+	e.eventually("client detached", func() bool { return e.sh("tmux display -p -t =term-gone: '#{session_attached}'") == "0" })
+	if got := e.sh("tmux has-session -t =term-gone && echo alive"); got != "alive" {
+		t.Fatal("session died with the client")
+	}
+}
+
+// The browser's liveness ping gets a pong through the real bridge.
+func TestIntegrationClientPingPong(t *testing.T) {
+	e := setup(t)
+	e.newSession("term-ping")
+	conn, out := e.attach("term-ping", 80, 24)
+	if err := conn.Write(context.Background(), websocket.MessageText, []byte(`{"type":"ping"}`)); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case c := <-out.control:
+		if c.Type != "pong" {
+			t.Fatalf("control frame %+v, want pong", c)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("no pong")
 	}
 }

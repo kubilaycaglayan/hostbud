@@ -457,3 +457,38 @@ func TestInfoLogsHoldNoPathOrCommand(t *testing.T) {
 type nopExec struct{}
 
 func (nopExec) Exec(context.Context, string, ...string) ([]byte, error) { return nil, nil }
+
+func TestEventsSocketHeartbeat(t *testing.T) {
+	e := newEnv(t)
+	e.h = New(Config{
+		Dist: fstest.MapFS{}, Origins: AllowedOrigins("", 9055), Bus: e.bus,
+		Machines: []Snapshotter{e.m}, Sessions: e.svc, Auth: &fakeAuth{},
+		Heartbeat: 20 * time.Millisecond,
+	})
+	srv := httptest.NewServer(e.h)
+	defer srv.Close()
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	url := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws/events"
+	c, resp, err := websocket.Dial(ctx, url, &websocket.DialOptions{HTTPHeader: http.Header{
+		"Origin": {origin}, "Cookie": {SessionCookie + "=" + testToken}}})
+	if resp != nil && resp.Body != nil {
+		_ = resp.Body.Close()
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = c.CloseNow() }()
+
+	var types []string
+	for len(types) < 3 {
+		var msg struct{ Type string }
+		if err := wsjson.Read(ctx, c, &msg); err != nil {
+			t.Fatal(err)
+		}
+		types = append(types, msg.Type)
+	}
+	if !slices.Equal(types, []string{"snapshot", "heartbeat", "heartbeat"}) {
+		t.Fatalf("frames %v, want the snapshot then heartbeats", types)
+	}
+}

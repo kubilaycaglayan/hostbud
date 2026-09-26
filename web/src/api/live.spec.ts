@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { LiveConnection, type LiveState, type SocketLike } from './live'
+import { LiveConnection, SILENCE_LIMIT_MS, type LiveState, type SocketLike } from './live'
 import type { ServerEvent } from './types'
 
 class FakeSocket implements SocketLike {
@@ -25,7 +25,8 @@ const tick = () => new Promise((r) => setTimeout(r, 0))
 
 function setup(stillAuthorized = async () => true) {
   const sockets: FakeSocket[] = []
-  const timers: { fn: () => void; ms: number }[] = []
+  const timers: { fn: () => void; ms: number }[] = [] // reconnect delays
+  const silences: { fn: () => void; cleared: boolean }[] = [] // liveness countdowns
   const events: ServerEvent[] = []
   const states: LiveState[] = []
   const conn = new LiveConnection({
@@ -38,10 +39,16 @@ function setup(stillAuthorized = async () => true) {
       sockets.push(s)
       return s
     },
-    setTimer: (fn, ms) => timers.push({ fn, ms }),
-    clearTimer: () => {},
+    setTimer: (fn, ms) => {
+      if (ms !== SILENCE_LIMIT_MS) return timers.push({ fn, ms })
+      silences.push({ fn, cleared: false })
+      return silences.at(-1)
+    },
+    clearTimer: (t) => {
+      if (t && typeof t === 'object') (t as { cleared: boolean }).cleared = true
+    },
   })
-  return { conn, sockets, timers, events, states }
+  return { conn, sockets, timers, silences, events, states }
 }
 
 describe('LiveConnection', () => {
@@ -108,5 +115,31 @@ describe('LiveConnection', () => {
     sockets[0].drop()
     await tick()
     expect(timers).toHaveLength(0)
+  })
+
+  it('40 s without a frame (not even a heartbeat) ⇒ drop the hung socket and reconnect', async () => {
+    const { conn, sockets, timers, silences, events } = setup()
+    conn.start()
+    sockets[0].send(snapshot)
+    sockets[0].send({ type: 'heartbeat' })
+    // Every frame restarts the countdown; heartbeats aren't passed on.
+    expect(silences.filter((x) => !x.cleared)).toHaveLength(1)
+    expect(events.map((e) => e.type)).toEqual(['snapshot'])
+    silences.at(-1)!.fn()
+    expect(sockets[0].closed).toBe(true)
+    await tick()
+    expect(conn.state).toBe('reconnecting')
+    timers.at(-1)!.fn()
+    expect(sockets).toHaveLength(2)
+    // A stale countdown of the old socket does nothing.
+    silences[0].fn()
+    expect(sockets).toHaveLength(2)
+  })
+
+  it('stop cancels the silence countdown', () => {
+    const { conn, silences } = setup()
+    conn.start()
+    conn.stop()
+    expect(silences.every((x) => x.cleared)).toBe(true)
   })
 })

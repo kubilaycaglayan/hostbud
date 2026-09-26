@@ -13,10 +13,18 @@ import (
 )
 
 const (
-	pingInterval = 25 * time.Second
-	writeTimeout = 10 * time.Second
-	eventBuffer  = 64
+	defaultHeartbeat = 15 * time.Second
+	pingInterval     = 25 * time.Second
+	writeTimeout     = 10 * time.Second
+	eventBuffer      = 64
 )
+
+// heartbeat is sent every Config.Heartbeat: a text frame the browser sees
+// (WebSocket pings are invisible to page scripts), so it can tell a hung
+// connection from a quiet one.
+var heartbeat = struct {
+	Type string `json:"type"`
+}{Type: "heartbeat"}
 
 // snapshot is the first /ws/events message; bus events follow as
 // {type, machine, payload}.
@@ -55,6 +63,8 @@ func (s *server) eventsSocket(w http.ResponseWriter, r *http.Request) {
 
 	ping := time.NewTicker(pingInterval)
 	defer ping.Stop()
+	beat := time.NewTicker(s.cfg.Heartbeat)
+	defer beat.Stop()
 	for {
 		select {
 		case <-ctx.Done():
@@ -65,6 +75,10 @@ func (s *server) eventsSocket(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if write(ctx, c, e) != nil {
+				return
+			}
+		case <-beat.C:
+			if write(ctx, c, heartbeat) != nil {
 				return
 			}
 		case <-ping.C:

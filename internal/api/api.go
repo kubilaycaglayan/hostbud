@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/netip"
+	"time"
 
 	"hostbud/internal/events"
 	"hostbud/internal/inventory"
@@ -34,12 +35,18 @@ type Config struct {
 	// Nil fails closed (those routes answer 401).
 	Auth           Authenticator
 	TrustedProxies []netip.Prefix // peers whose X-Forwarded-* headers count (Caddy)
+	// Heartbeat is how often /ws/events sends {"type":"heartbeat"}, so the
+	// browser notices a hung connection (default 15s).
+	Heartbeat time.Duration
 }
 
 // New returns the root HTTP handler.
 func New(cfg Config) http.Handler {
 	if cfg.Log == nil {
 		cfg.Log = slog.New(slog.DiscardHandler)
+	}
+	if cfg.Heartbeat <= 0 {
+		cfg.Heartbeat = defaultHeartbeat
 	}
 	s := &server{cfg: cfg, machines: map[string]Snapshotter{}}
 	for _, m := range cfg.Machines {

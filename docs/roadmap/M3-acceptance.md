@@ -32,9 +32,9 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 ### Auto-reconnect
 - [ ] When a terminal's connection drops (network cut, app restart), it re-attaches by itself with backoff; the tmux session survives, the screen is restored and input works again, with no click needed.
   - U: T3 backoff schedule, jitter, immediate retry on `online`/visible, input dropped while disconnected (Vitest, fake timers). I: T3 a vanished client is dropped by ping timeout, its ssh process exits and the tmux session remains (`test/sshd`). E: T3 *Network cut re-attach* (desktop and phone) · T3 *App restart re-attach*. **Manual (T9):** toggle Wi-Fi on the phone.
-- [ ] A hung connection (no close, no data) is detected within 30 s, for the terminal and for the live session list.
+- [x] A hung connection (no close, no data) is detected within 30 s, for the terminal and for the live session list.
   - U: T3 term client ping + 25 s silence ⇒ `disconnected` · `LiveConnection` 40 s silence ⇒ reconnect (Vitest) · Go events handler sends `heartbeat` (fake ticker). I: T3 client `ping` → `pong` through the real bridge. E: T3 *Network cut re-attach* (the cut hangs TCP; a session created during the cut appears afterwards).
-- [ ] No automatic re-attach after a detach or when the session ended; a signed-out user gets the sign-in form instead of a retry loop.
+- [x] No automatic re-attach after a detach or when the session ended; a signed-out user gets the sign-in form instead of a retry loop.
   - U: T3 no retry after `exit`, after `close()`, or for an unlisted session · `401` stops and signs out (Vitest). I: n/a (client decision). E: T3 *Detach doesn't loop*.
 
 ### Links
@@ -74,9 +74,9 @@ Projects as in M2: `desktop-chromium` and `iphone-13-pro` on `http://localhost:9
 - [x] **(T2) Forced selection:** with tmux `mouse on`, a plain drag makes no selection, and Shift+drag does and copies.
 - [x] **(T2) OSC 52 yank:** a tmux copy-mode yank lands in the browser clipboard.
 - [x] **(T2) OSC 52 read refused:** an OSC 52 clipboard query gets no reply.
-- [ ] **(T3) Network cut re-attach:** cut and restore the app's network → the terminal re-attaches on its own, the old output is still on screen, input works, the same tmux session has one client, and the list shows a session created during the cut (desktop and `iphone-13-pro`).
-- [ ] **(T3) App restart re-attach:** after restarting the app the terminal re-attaches by itself and input works.
-- [ ] **(T3) Detach doesn't loop:** after `detach-client` the banner shows and nothing re-attaches for 5 s; **Reconnect** attaches.
+- [x] **(T3) Network cut re-attach:** cut and restore the app's network → the terminal re-attaches on its own, the old output is still on screen, input works, the same tmux session has one client, and the list shows a session created during the cut (desktop and `iphone-13-pro`).
+- [x] **(T3) App restart re-attach:** after restarting the app the terminal re-attaches by itself and input works.
+- [x] **(T3) Detach doesn't loop:** after `detach-client` the banner shows and nothing re-attaches for 5 s; **Reconnect** attaches.
 - [ ] **(T4) Click a URL:** clicking (tapping) a printed URL opens exactly it in a new page (desktop and `iphone-13-pro`).
 - [ ] **(T4) OSC 8 link:** an OSC 8 label shows its target on hover and opens it on click; a `javascript:` target opens nothing.
 - [ ] **(T5) Search scrollback:** a marker scrolled off screen is found (1 of 1) and scrolled into view; Escape returns input to the shell.

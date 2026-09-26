@@ -10,4 +10,14 @@ export const ctl = {
   /** Stops sshd on the target, dropping every open connection. */
   stopSshd: () => call('/sshd/stop'),
   startSshd: () => call('/sshd/start'),
+  /** Disconnects hostbud-e2e-app from the e2e network (connections hang). */
+  cutNetwork: () => call('/network/cut'),
+  /** Reconnects it; a no-op when it is connected. */
+  restoreNetwork: async () => {
+    try {
+      await call('/network/restore')
+    } catch (e) {
+      if (!/already exists/.test(String(e))) throw e
+    }
+  },
 }

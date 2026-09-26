@@ -10,6 +10,10 @@ const actions = {
   'POST /restart-app': ['docker', ['restart', '--time', '5', 'hostbud-e2e-app']],
   'POST /sshd/stop': ['docker', ['exec', 'hostbud-e2e-target', '/usr/local/bin/sshd-ctl.sh', 'stop']],
   'POST /sshd/start': ['docker', ['exec', 'hostbud-e2e-target', '/usr/local/bin/sshd-ctl.sh', 'start']],
+  // A network cut: the app's TCP connections hang (no close), as when a
+  // phone's Wi-Fi drops. Restore keeps the alias the Caddyfile proxies to.
+  'POST /network/cut': ['docker', ['network', 'disconnect', 'hostbud-e2e', 'hostbud-e2e-app']],
+  'POST /network/restore': ['docker', ['network', 'connect', '--alias', 'hostbud', 'hostbud-e2e', 'hostbud-e2e-app']],
 }
 
 createServer((req, res) => {

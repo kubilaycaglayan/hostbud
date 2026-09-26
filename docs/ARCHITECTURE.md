@@ -174,7 +174,8 @@ A session belongs to the project whose `path` is the **longest prefix** of the s
   `ssh -F cfg -tt <alias> -- tmux attach-session -t '=<name>'` (with `TERM=xterm-256color`).
 - Protocol: **binary frames** for terminal I/O in both directions; small **JSON text frames** for control (`{"type":"resize","cols":..,"rows":..}`, `{"type":"ping"}`; server → `{"type":"exit","code":..}`).
 - Resize → `pty.Setsize` → ssh forwards window-change → tmux resizes.
-- WebSocket close ⇒ kill the ssh process (tmux session survives). Client auto-reconnects with backoff and re-attaches; the tmux redraw restores the screen. The server holds **no terminal state**.
+- WebSocket close ⇒ kill the ssh process (tmux session survives). The server holds **no terminal state**. The server pings each client every 25 s and drops one that doesn't answer within 10 s (a vanished browser), which also ends its ssh process.
+- **Auto-reconnect** (`web/src/api/term.ts`, `TermSession`): the client sends `{"type":"ping"}` every 10 s, and 25 s without any frame (a network cut hangs TCP without a close) counts as a drop. After a drop it re-attaches with backoff 0.5 s, 1, 2, 4, 8, then every 10 s (±20 % jitter, no cap), right away on the browser's `online` event or when the page becomes visible; the backoff starts over once an attach has stayed up for 5 s. It re-attaches at the current size and keeps xterm's buffer (tmux's redraw replaces the screen; the scrollback stays searchable). Keys typed meanwhile are dropped, not queued. It does **not** retry after an `exit` frame (detach, or the session ended), after the view closed, for a session that left the live list, or when an attempt that failed before opening finds the sign-in gone (`/api/auth/me` 401 ⇒ the sign-in form). Exit code 255 is ssh's own failure (host unreachable, a dead ControlMaster), not tmux ending, so it is retried like a drop. While retrying, a strip over the terminal says "Reconnecting… (attempt n)" with **Retry now**.
 - Each tab/split pane = its own WebSocket + ssh process, all multiplexed over the machine's ControlMaster.
 - Same session open in two views: tmux sizes per its `window-size` option; document this, don't override it.
 - Backpressure: bounded write buffer per connection; drop the connection if the client stalls beyond a limit (it will reconnect and redraw).
@@ -281,7 +282,7 @@ POST   /api/machines/refresh              re-scan ~/.ssh/config
 GET    /api/machines/:id/hostkey          keyscan fingerprints
 POST   /api/machines/:id/hostkey/trust
 ```
-WebSockets: `/ws/events` (server → client state events), `/ws/term` (interactive).
+WebSockets: `/ws/events` (server → client state events), `/ws/term` (interactive). `/ws/events` also sends `{"type":"heartbeat"}` every 15 s (WebSocket pings are invisible to page scripts); the browser treats 40 s of silence as a hung connection and reconnects, and the next snapshot resyncs the list.
 
 **Security middleware (all routes):**
 - Public routes are limited to `GET /api/health`, `POST /api/auth/register` and `POST /api/auth/login`. All other routes require the server-side session cookie.
@@ -378,7 +379,7 @@ A separate Compose project `hostbud-e2e` (`test/e2e/`), started, run and torn do
 | `hostbud-e2e-app` | The real hostbud image, with `HOSTBUD_HOST_ADDR=hostbud-e2e-target`, the target's host keys mounted at `/run/host-keys`, and a short poll interval. |
 | `hostbud-e2e-caddy` | The production Caddy image (`deploy/caddy/Dockerfile`) and proxy config (`deploy/caddy/hostbud.caddy`: loopback-port site), so traffic goes through the production proxy path. `test/e2e/Caddyfile` adds the domain path for the test domain `hostbud.example.test` (the app's `HOSTBUD_DOMAIN`) with `tls internal`, since e2e has no Cloudflare token or tailnet; the name resolves to Caddy through `extra_hosts`. The production site's DNS-01 issuer is checked by `make test` (`caddy adapt`). |
 | `hostbud-e2e-target-notmux`, `hostbud-e2e-app-notmux` | The tmux-less target and a second app instance for it (same database), served by Caddy on `:9056` through `test/e2e/Caddyfile`, which imports the production Caddyfile unchanged and adds only that site. |
-| `hostbud-e2e-ctl` | Failure switches for the runner, which has no Docker access: a tiny HTTP service with the Docker socket that runs only fixed commands (restart `hostbud-e2e-app`, stop/start sshd on the target). |
+| `hostbud-e2e-ctl` | Failure switches for the runner, which has no Docker access: a tiny HTTP service with the Docker socket that runs only fixed commands (restart `hostbud-e2e-app`, stop/start sshd on the target, disconnect/reconnect `hostbud-e2e-app` from the `hostbud-e2e` network). |
 | `hostbud-e2e-runner` | Playwright. Uses `network_mode: service:hostbud-e2e-caddy`, so the browser opens `http://localhost:9055` exactly like the port-forward path (and the Origin check is exercised for real). Also has SSH access to the target to act as "a real terminal". |
 
 **Profiles:** Chromium desktop, and Playwright's `iPhone 13 Pro` device (WebKit, 390×844, touch), both on `http://localhost:9055`; plus `iphone-13-pro-domain`, the same device on `https://hostbud.example.test` (the phone and domain scenarios). WebKit on Linux is not real iOS Safari; iOS-specific behavior (on-screen keyboard, gestures) stays on the manual checklist.
@@ -388,7 +389,7 @@ A separate Compose project `hostbud-e2e` (`test/e2e/`), started, run and torn do
 - Out-of-band actions like a user's real terminal: the runner runs `tmux` on the target over SSH (create/kill/attach elsewhere) and asserts the UI follows within one poll interval.
 - `window.__hostbud` exists only in images built with `VITE_E2E=1`: every use is guarded by the statically replaced `import.meta.env.VITE_E2E === '1'`, and `web/scripts/check-dist.mjs` fails any other build whose output still mentions it.
 - Terminal content is asserted two ways: what tmux really shows (`tmux capture-pane -p` on the target, the ground truth) and what the browser shows (xterm buffer read through `window.__hostbud.termText()`, exposed only in builds with `VITE_E2E=1`).
-- Failure scenarios: restart `hostbud-e2e-app` (UI recovers), stop sshd on the target (unreachable banner, then recovery), tmux-less target (install hint).
+- Failure scenarios: restart `hostbud-e2e-app` (UI and terminals recover), stop sshd on the target (unreachable banner, then recovery), tmux-less target (install hint), cut and restore the app's network (terminals re-attach by themselves). The throwaway target's sshd sets `ClientAliveInterval 5` so a client that vanished in a cut is dropped along with its stale tmux client.
 - No real TUIs that need credentials (Claude Code, Codex); vim and htop cover full-screen apps. Claude Code stays a manual check.
 - Traces, screenshots and videos on failure → `test/e2e/results/` (gitignored).
 

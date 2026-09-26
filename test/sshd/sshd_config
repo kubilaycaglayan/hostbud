@@ -7,3 +7,7 @@ PubkeyAuthentication yes
 AuthorizedKeysFile .ssh/authorized_keys
 PrintMotd no
 AcceptEnv LANG LC_*
+# Drop a connection whose client vanished (the e2e network cut) after ~15 s,
+# taking its stale tmux client with it.
+ClientAliveInterval 5
+ClientAliveCountMax 3

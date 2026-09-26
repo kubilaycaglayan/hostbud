@@ -45,5 +45,16 @@ export const useAuthStore = defineStore('auth', () => {
     email.value = ''
   }
 
-  return { status, email, check, login, register, logout, sessionEnded }
+  /** After a connection failed: is the sign-in session still valid? True
+   * when hostbud itself can't be reached (keep retrying until it's back). */
+  async function stillAuthorized(): Promise<boolean> {
+    try {
+      await check()
+    } catch {
+      return true
+    }
+    return status.value === 'authenticated'
+  }
+
+  return { status, email, check, login, register, logout, sessionEnded, stillAuthorized }
 })

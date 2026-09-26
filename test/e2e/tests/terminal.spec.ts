@@ -1,5 +1,4 @@
 import { expect, test } from '../helpers/fixtures.ts'
-import { ctl } from '../helpers/ctl.ts'
 import { forbidInLogs } from '../helpers/api.ts'
 import { uniqueName, type Target } from '../helpers/target.ts'
 
@@ -134,33 +133,8 @@ test('exit state: prefix d and a program exiting show it; Reconnect re-attaches'
   await expect(ui.termStatus()).toContainText('Session detached or ended.', { timeout: 10_000 })
 })
 
-test.describe('recovery', () => {
-  test.use({
-    allowedBrowserErrors:
-      /WebSocket connection to 'ws:\/\/localhost:9055\/ws\/(events|term\?[^']*)' failed|^HTTP 502: GET http:\/\/localhost:9055\/api\/auth\/me|status of 502/,
-  })
-
-  // Terminal after restart (T17)
-  test('terminal after restart: Reconnect re-attaches once the app is back', async ({ ui, target }) => {
-    test.setTimeout(120_000)
-    const name = await newSession(target, 'e2e-rst')
-    await ui.open()
-    await ui.openTerminal(name)
-    await expect.poll(() => attached(target, name)).toBe('1')
-
-    await ctl.restartApp()
-    await expect(ui.termStatus()).toContainText('Disconnected', { timeout: 30_000 })
-    // Retry like a user until the app is back.
-    await expect(async () => {
-      if ((await ui.termStatus().count()) > 0) await ui.termStatus().getByRole('button', { name: 'Reconnect' }).click()
-      expect(await attached(target, name)).toBe('1')
-    }).toPass({ timeout: 60_000, intervals: [1_000, 2_000] })
-
-    const marker = uniqueName('e2e-back')
-    await ui.type(`echo ${marker}`, true)
-    await expect.poll(() => target.capture(name)).toContain(marker)
-  })
-})
+// Terminal after restart (T17): now automatic, see reconnect.spec.ts
+// (M3 T3 *App restart re-attach*).
 
 // Create with start command (T17 part): the program is visible in the terminal.
 test('create with start command: htop is visible in the terminal', async ({ ui, target }) => {

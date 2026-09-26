@@ -22,14 +22,7 @@ export const useLiveStore = defineStore('live', () => {
         sessions.apply(e)
       },
       onState: (s) => (state.value = s),
-      stillAuthorized: async () => {
-        try {
-          await auth.check()
-        } catch {
-          return true // hostbud itself is down: keep retrying
-        }
-        return auth.status === 'authenticated'
-      },
+      stillAuthorized: () => auth.stillAuthorized(),
       ...overrides,
     })
     conn.start()

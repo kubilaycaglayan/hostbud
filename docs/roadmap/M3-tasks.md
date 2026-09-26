@@ -11,8 +11,8 @@ Update this table in the same commit that finishes a task.
 |---|---|
 | T1 Mac editing keys | ✅ done |
 | T2 Copy and paste | ✅ done (owner checks in T9) |
-| T3 Auto-reconnect | next |
-| T4 Links | |
+| T3 Auto-reconnect | ✅ done (owner check in T9) |
+| T4 Links | next |
 | T5 Search | |
 | T6 UI state API | |
 | T7 Tabs | |
@@ -92,10 +92,12 @@ A terminal whose socket drops re-attaches by itself. The tmux session never noti
   - retry immediately on `window` `online` and when the page becomes visible;
   - on success, attach at the terminal's current size. Keep xterm's buffer (no `reset()`): tmux's redraw replaces the screen and the scrollback stays searchable (T5);
   - **no** auto-reconnect after an `exit` frame (detach, or the session ended), after the component unmounts, or when the session is gone from the live session list. The existing banner with **Reconnect** stays for those cases;
+  - *(Built:)* an `exit` with code 255 is ssh's own failure (host unreachable, or the app's ControlMaster hung by a cut), not tmux ending, so it is retried like a drop. The backoff starts over only once an attach has stayed up for 5 s, so an attach that opens and then fails in ssh doesn't retry every 0.5 s;
   - if an attempt fails before the socket opens, call `/api/auth/me`. On `401` stop and hand over to `auth.sessionEnded()` (the sign-in form), reusing `LiveConnection`'s `stillAuthorized` pattern.
 - **UI:** while retrying, a non-blocking status strip over the terminal says "Reconnecting… (attempt n)" and offers **Retry now**. Keystrokes typed while disconnected are dropped (not queued), because sending them late into a different screen state is worse than losing them.
 - **`/ws/events` liveness:** the server sends `{"type":"heartbeat"}` every 15 s (text frame; `events.go` ticker). `LiveConnection` treats 40 s of silence as a dead socket and reconnects with its existing backoff. The snapshot then resyncs the list.
 - **Server:** unchanged in behavior. Its WebSocket ping (25 s interval, 10 s timeout) already ends the bridge and kills the ssh process when the client is gone, and the tmux session survives. T3 adds the integration test that pins this.
+- **e2e target:** *(built)* the throwaway sshd sets `ClientAliveInterval 5` / `ClientAliveCountMax 3`. After a cut the app comes back with a new IP, so its old ssh connection is dead for good; the target drops it (and the stale tmux client with it) instead of keeping it until TCP gives up. The scenario also keeps the cut for ≥ 50 s: the app's hung ControlMaster needs `ServerAlive` (3 × 15 s) to give up before new attaches can work, as in a real cut of that length.
 - **e2e ctl:** `POST /network/cut` → `docker network disconnect hostbud-e2e hostbud-e2e-app`; `POST /network/restore` → `docker network connect --alias hostbud hostbud-e2e hostbud-e2e-app`. Both are fixed commands, as the other routes are. The harness always restores in `afterEach`.
 - ARCHITECTURE §6 (liveness, backoff, when not to retry) and §9 (`heartbeat` event).
 

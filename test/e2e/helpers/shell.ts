@@ -15,7 +15,9 @@ export async function openShell(ui: UI, target: Target, prefix: string): Promise
   await target.tmux('new-session', '-d', '-s', name, '-c', '/home/dev')
   await ui.open()
   await ui.openTerminal(name)
-  await expect.poll(() => target.display(name, '#{session_attached}')).toBe('1')
+  // The first attach after the stack was (re)built can take a few seconds
+  // on a busy machine.
+  await expect.poll(() => target.display(name, '#{session_attached}'), { timeout: 15_000 }).toBe('1')
   await expect.poll(() => promptLine(target, name)).toMatch(/\$$/)
   return name
 }

@@ -1,6 +1,8 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Session } from '@/api/types'
+import { useSessionsStore } from '@/stores/sessions'
 import { useToastsStore } from '@/stores/toasts'
 
 // Fake xterm (hoisted: vi.mock factories run before the module body).
@@ -174,12 +176,26 @@ describe('TerminalView', () => {
     expect(w.find('[role=status]').exists()).toBe(false)
   })
 
-  it('a dropped connection shows Disconnected with Reconnect', async () => {
+  it('a dropped connection re-attaches by itself, with a Retry now strip meanwhile', async () => {
+    useSessionsStore().apply({ type: 'snapshot', machines: [], sessions: { host: [{ name: 'acc-a' } as Session] } })
     const w = await mountTerm()
     FakeWS.all[0].onopen?.({} as Event)
     FakeWS.all[0].onclose?.({} as CloseEvent)
     await flushPromises()
-    expect(w.get('[role=status]').text()).toContain('Disconnected')
+    expect(w.get('[role=status]').text()).toContain('Reconnecting… (attempt 1)')
+    await w.get('[role=status] button').trigger('click') // Retry now
+    expect(FakeWS.all).toHaveLength(2)
+    FakeWS.all[1].onopen?.({} as Event)
+    await flushPromises()
+    expect(w.find('[role=status]').exists()).toBe(false)
+  })
+
+  it('a session that left the list shows Disconnected with Reconnect instead', async () => {
+    const w = await mountTerm()
+    FakeWS.all[0].onopen?.({} as Event)
+    FakeWS.all[0].onclose?.({} as CloseEvent)
+    await flushPromises()
+    expect(w.get('[role=status]').text()).toContain('Disconnected: the session is gone.')
     expect(w.get('[role=status] button').text()).toBe('Reconnect')
   })
 

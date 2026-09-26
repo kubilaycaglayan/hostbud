@@ -21,7 +21,10 @@ const (
 	readChunk    = 32 << 10
 	maxInput     = 1 << 20 // one pasted message
 	writeTimeout = 10 * time.Second
+	// A client that doesn't answer a WebSocket ping within pingTimeout is
+	// gone (e.g. its network dropped without a close): the attach ends.
 	pingInterval = 25 * time.Second
+	pingTimeout  = 10 * time.Second
 	// outQueue bounds buffered output per client (× readChunk bytes); a
 	// client that can't keep up is dropped and reconnects (tmux redraws).
 	outQueue = 64
@@ -42,6 +45,9 @@ type Handler struct {
 	// Shutdown, when closed, ends every open terminal with "going away"
 	// (a disconnect the client reconnects from), before ssh is torn down.
 	Shutdown <-chan struct{}
+	// PingInterval and PingTimeout override the WebSocket ping defaults
+	// (25s, 10s); tests shorten them.
+	PingInterval, PingTimeout time.Duration
 
 	active atomic.Int64
 }
@@ -165,7 +171,14 @@ func (h *Handler) bridge(ctx context.Context, cancel context.CancelFunc, c *webs
 		}
 	}()
 
-	ping := time.NewTicker(pingInterval)
+	interval, timeout := h.PingInterval, h.PingTimeout
+	if interval <= 0 {
+		interval = pingInterval
+	}
+	if timeout <= 0 {
+		timeout = pingTimeout
+	}
+	ping := time.NewTicker(interval)
 	defer ping.Stop()
 	exited := false
 loop:
@@ -188,7 +201,7 @@ loop:
 				break loop
 			}
 		case <-ping.C:
-			pctx, pcancel := context.WithTimeout(ctx, writeTimeout)
+			pctx, pcancel := context.WithTimeout(ctx, timeout)
 			err := c.Ping(pctx)
 			pcancel()
 			if err != nil {
