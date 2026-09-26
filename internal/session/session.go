@@ -63,6 +63,13 @@ type CopyModeState struct {
 	HistorySize    int  `json:"historySize"`
 }
 
+// WindowsState is an on-demand view of tmux windows and panes. This state is
+// intentionally transient and isn't published on the hostbud event bus.
+type WindowsState struct {
+	Windows   []tmux.Window `json:"windows"`
+	Truncated bool          `json:"truncated"`
+}
+
 // Tracker is what the service needs from the inventory of a machine.
 type Tracker interface {
 	Snapshot() (inventory.Machine, []tmux.Session)
@@ -290,6 +297,82 @@ func (s *Service) CopyMode(ctx context.Context, machine, name string, action tmu
 		return CopyModeState{}, errorf(CodeInternal, "Try again; if this continues, check the host's tmux version.", "could not read copy-mode state")
 	}
 	return CopyModeState{InMode: inMode, ScrollPosition: pos, HistorySize: size}, nil
+}
+
+// ListWindows reads a session's window and pane layout on demand.
+func (s *Service) ListWindows(ctx context.Context, machine, name string) (WindowsState, error) {
+	if _, _, _, err := s.ready(machine); err != nil {
+		return WindowsState{}, err
+	}
+	if err := tmux.ValidateName(name); err != nil {
+		return WindowsState{}, errorf(CodeInvalid, "Use letters, digits, '-' and '_' only (up to 64 characters).", "invalid session name")
+	}
+	args, _ := tmux.ListWindowsArgs(name)
+	out, err := s.exec.Exec(ctx, machine, args...)
+	if err != nil {
+		if isNotFound(err) {
+			return WindowsState{}, errorf(CodeNotFound, "It may have been closed; the list refreshes automatically.", "no session named %q", name)
+		}
+		return WindowsState{}, s.remoteError(err)
+	}
+	windows, truncated, err := tmux.ParseWindows(string(out))
+	if err != nil {
+		s.log.Warn("could not parse tmux window listing")
+		return WindowsState{}, errorf(CodeInternal, "Try again; if this continues, check the host's tmux version.", "could not read session windows")
+	}
+	return WindowsState{Windows: windows, Truncated: truncated}, nil
+}
+
+// SelectWindow selects a window and optional pane after verifying both ids
+// belong to the named session. No event is emitted; attached tmux clients see
+// the same selection directly.
+func (s *Service) SelectWindow(ctx context.Context, machine, name, windowID, paneID string) (WindowsState, error) {
+	if _, _, _, err := s.ready(machine); err != nil {
+		return WindowsState{}, err
+	}
+	if err := tmux.ValidateName(name); err != nil {
+		return WindowsState{}, errorf(CodeInvalid, "Use letters, digits, '-' and '_' only (up to 64 characters).", "invalid session name")
+	}
+	if _, err := tmux.SelectArgs(name, windowID, paneID); err != nil {
+		return WindowsState{}, errorf(CodeInvalid, "Choose a valid window and pane.", "invalid tmux window or pane id")
+	}
+	before, err := s.ListWindows(ctx, machine, name)
+	if err != nil {
+		return WindowsState{}, err
+	}
+	found := false
+	for _, window := range before.Windows {
+		if window.ID != windowID {
+			continue
+		}
+		if paneID == "" {
+			found = true
+			break
+		}
+		for _, pane := range window.Panes {
+			if pane.ID == paneID {
+				found = true
+				break
+			}
+		}
+	}
+	if !found {
+		return WindowsState{}, errorf(CodeNotFound, "The window or pane is no longer in this session.", "tmux window or pane not found in session")
+	}
+	args, _ := tmux.SelectArgs(name, windowID, paneID)
+	out, err := s.exec.Exec(ctx, machine, args...)
+	if err != nil {
+		if isNotFound(err) {
+			return WindowsState{}, errorf(CodeNotFound, "The session or window may have been closed.", "tmux target not found")
+		}
+		return WindowsState{}, s.remoteError(err)
+	}
+	windows, truncated, err := tmux.ParseWindows(string(out))
+	if err != nil {
+		s.log.Warn("could not parse tmux window listing after selection")
+		return WindowsState{}, errorf(CodeInternal, "Try again; if this continues, check the host's tmux version.", "could not read session windows")
+	}
+	return WindowsState{Windows: windows, Truncated: truncated}, nil
 }
 
 func (s *Service) refresh(ctx context.Context, t Tracker) {

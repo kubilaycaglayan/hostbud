@@ -14,6 +14,8 @@ import (
 )
 
 var nameRE = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
+var windowIDRE = regexp.MustCompile(`^@[0-9]+$`)
+var paneIDRE = regexp.MustCompile(`^%[0-9]+$`)
 
 // ErrInvalidName explains the session-name rule.
 var ErrInvalidName = errors.New("session names may only contain letters, digits, '-' and '_' (1–64 characters)")
@@ -146,6 +148,152 @@ func KillSessionArgs(name string) ([]string, error) {
 		return nil, err
 	}
 	return []string{"tmux", "kill-session", "-t", target(name)}, nil
+}
+
+// Pane is a pane in a window, with only the fields shown in the tree.
+type Pane struct {
+	ID      string `json:"id"`
+	Index   int    `json:"index"`
+	Active  bool   `json:"active"`
+	Command string `json:"command"`
+	Width   int    `json:"width"`
+	Height  int    `json:"height"`
+}
+
+// Window is a tmux window and its panes.
+type Window struct {
+	ID     string `json:"id"`
+	Index  int    `json:"index"`
+	Name   string `json:"name"`
+	Active bool   `json:"active"`
+	Panes  []Pane `json:"panes"`
+}
+
+const windowsFormat = "W\t#{window_id}\t#{window_index}\t#{window_active}\t#{window_panes}\t#{window_name}"
+const panesFormat = "P\t#{window_id}\t#{pane_id}\t#{pane_index}\t#{pane_active}\t#{pane_width}\t#{pane_height}\t#{pane_current_command}"
+
+func listWindowsCommands(name string) ([]string, error) {
+	if err := ValidateName(name); err != nil {
+		return nil, err
+	}
+	t := target(name)
+	return []string{"tmux", "list-windows", "-t", t, "-F", windowsFormat, ";", "list-panes", "-s", "-t", t, "-F", panesFormat}, nil
+}
+
+// ListWindowsArgs lists windows and panes in one tmux invocation.
+func ListWindowsArgs(name string) ([]string, error) { return listWindowsCommands(name) }
+
+// SelectArgs selects a window and optional pane, then returns the refreshed
+// listing in the same invocation. Callers must check membership first.
+func SelectArgs(name, windowID, paneID string) ([]string, error) {
+	if err := ValidateName(name); err != nil {
+		return nil, err
+	}
+	if !windowIDRE.MatchString(windowID) || (paneID != "" && !paneIDRE.MatchString(paneID)) {
+		return nil, errors.New("invalid tmux window or pane id")
+	}
+	t := target(name)
+	args := []string{"tmux", "select-window", "-t", t + ":" + windowID}
+	if paneID != "" {
+		args = append(args, ";", "select-pane", "-t", t+":"+windowID+"."+paneID)
+	}
+	list, _ := listWindowsCommands(name)
+	args = append(args, list[1:]...)
+	return args, nil
+}
+
+// ParseWindows parses the combined list-windows/list-panes output. Free-form
+// names and commands are last in their respective records and control bytes
+// are normalized so they cannot corrupt the row structure.
+func ParseWindows(out string) ([]Window, bool, error) {
+	windows := make([]Window, 0)
+	byID := make(map[string]int)
+	truncated := false
+	records := make([]string, 0)
+	for _, line := range strings.Split(strings.TrimRight(out, "\n"), "\n") {
+		if strings.HasPrefix(line, "W\t") || strings.HasPrefix(line, "P\t") {
+			records = append(records, line)
+		} else if len(records) > 0 {
+			// A literal newline in the last (free-form) field continues that
+			// field. The name/command sanitizer replaces it with a space.
+			records[len(records)-1] += "\n" + line
+		} else if line != "" {
+			return nil, false, fmt.Errorf("unexpected window listing record")
+		}
+	}
+	for _, line := range records {
+		if line == "" {
+			continue
+		}
+		if strings.HasPrefix(line, "W\t") {
+			f := strings.SplitN(line, "\t", 6)
+			if len(f) != 6 || !windowIDRE.MatchString(f[1]) {
+				return nil, false, fmt.Errorf("unexpected window record")
+			}
+			idx, e1 := strconv.Atoi(f[2])
+			active, e2 := strconv.Atoi(f[3])
+			paneCount, e3 := strconv.Atoi(f[4])
+			if errors.Join(e1, e2, e3) != nil || idx < 0 || (active != 0 && active != 1) || paneCount < 0 {
+				return nil, false, fmt.Errorf("invalid window fields")
+			}
+			if len(windows) >= 256 {
+				truncated = true
+				continue
+			}
+			if _, exists := byID[f[1]]; exists {
+				return nil, false, fmt.Errorf("duplicate window id")
+			}
+			byID[f[1]] = len(windows)
+			windows = append(windows, Window{ID: f[1], Index: idx, Active: active == 1, Name: cleanTmuxText(f[5], 256), Panes: []Pane{}})
+			continue
+		}
+		if strings.HasPrefix(line, "P\t") {
+			f := strings.SplitN(line, "\t", 8)
+			if len(f) != 8 || !windowIDRE.MatchString(f[1]) || !paneIDRE.MatchString(f[2]) {
+				return nil, false, fmt.Errorf("unexpected pane record")
+			}
+			wi, ok := byID[f[1]]
+			if !ok {
+				if truncated {
+					continue
+				}
+				return nil, false, fmt.Errorf("pane has unknown window")
+			}
+			idx, e1 := strconv.Atoi(f[3])
+			active, e2 := strconv.Atoi(f[4])
+			width, e3 := strconv.Atoi(f[5])
+			height, e4 := strconv.Atoi(f[6])
+			if errors.Join(e1, e2, e3, e4) != nil || idx < 0 || (active != 0 && active != 1) || width < 0 || height < 0 {
+				return nil, false, fmt.Errorf("invalid pane fields")
+			}
+			if len(windows[wi].Panes) >= 64 {
+				truncated = true
+				continue
+			}
+			windows[wi].Panes = append(windows[wi].Panes, Pane{ID: f[2], Index: idx, Active: active == 1, Width: width, Height: height, Command: cleanTmuxText(f[7], 256)})
+			continue
+		}
+		return nil, false, fmt.Errorf("unexpected window listing record")
+	}
+	slices.SortFunc(windows, func(a, b Window) int { return a.Index - b.Index })
+	for i := range windows {
+		slices.SortFunc(windows[i].Panes, func(a, b Pane) int { return a.Index - b.Index })
+	}
+	return windows, truncated, nil
+}
+
+func cleanTmuxText(s string, maxBytes int) string {
+	var b strings.Builder
+	for _, r := range s {
+		if r < 0x20 || r == 0x7f {
+			r = ' '
+		}
+		if b.Len()+len(string(r)) > maxBytes {
+			break
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
 }
 
 // CopyAction is a closed set of side-channel copy-mode operations.

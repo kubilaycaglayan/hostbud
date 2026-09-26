@@ -122,6 +122,16 @@ func (f *fakeService) CopyMode(_ context.Context, m, name string, action tmux.Co
 	return session.CopyModeState{InMode: true, ScrollPosition: 4, HistorySize: 10}, f.err
 }
 
+func (f *fakeService) ListWindows(_ context.Context, m, name string) (session.WindowsState, error) {
+	f.calls = append(f.calls, "windows "+m+" "+name)
+	return session.WindowsState{Windows: []tmux.Window{{ID: "@1", Index: 0, Name: "shell", Active: true, Panes: []tmux.Pane{{ID: "%1", Index: 0, Active: true, Command: "bash", Width: 80, Height: 24}}}}}, f.err
+}
+
+func (f *fakeService) SelectWindow(_ context.Context, m, name, window, pane string) (session.WindowsState, error) {
+	f.calls = append(f.calls, "select "+m+" "+name+" "+window+" "+pane)
+	return session.WindowsState{Windows: []tmux.Window{{ID: window, Index: 0, Active: true}}}, f.err
+}
+
 const testToken = "test-session-token"
 
 // otherToken signs in a second account (u2).
@@ -427,6 +437,57 @@ func TestCopyModeAPIValidationAndAccess(t *testing.T) {
 	e.svc.err = &session.Error{Code: session.CodeTmuxVersion, Message: "needs tmux 2.4", Hint: "upgrade tmux"}
 	if got := e.do(t, http.MethodPost, "/api/machines/host/sessions/a/copy-mode", `{"action":"enter"}`, nil).Code; got != 409 {
 		t.Errorf("old tmux status = %d", got)
+	}
+}
+
+func TestWindowsAPIValidationAndAccess(t *testing.T) {
+	e := newEnv(t)
+	res := e.do(t, http.MethodGet, "/api/machines/host/sessions/work/windows", "", nil)
+	if res.Code != 200 {
+		t.Fatalf("list windows: %d %s", res.Code, res.Body)
+	}
+	state := decodeBody[session.WindowsState](t, res)
+	if len(state.Windows) != 1 || state.Windows[0].Panes[0].Command != "bash" {
+		t.Fatalf("windows response: %+v", state)
+	}
+	res = e.do(t, http.MethodPost, "/api/machines/host/sessions/work/select", `{"window":"@1","pane":"%1"}`, map[string]string{"Origin": origin})
+	if res.Code != 200 {
+		t.Fatalf("select window/pane: %d %s", res.Code, res.Body)
+	}
+	if got := e.svc.calls[len(e.svc.calls)-1]; got != "select host work @1 %1" {
+		t.Fatalf("select service call = %q", got)
+	}
+	if got := e.do(t, http.MethodPost, "/api/machines/host/sessions/work/select", `{"window":"@1"}`, map[string]string{"Origin": "https://hostbud.example.com"}).Code; got != 200 {
+		t.Errorf("allowed domain Origin = %d", got)
+	}
+	for _, tc := range []struct {
+		method, path, body string
+		status             int
+	}{
+		{http.MethodGet, "/api/machines/host/sessions/bad.name/windows", "", 400},
+		{http.MethodPost, "/api/machines/host/sessions/work/select", `{"window":"@"}`, 400},
+		{http.MethodPost, "/api/machines/host/sessions/work/select", `{"window":"@1","extra":true}`, 400},
+		{http.MethodGet, "/api/machines/nope/sessions/work/windows", "", 404},
+		{http.MethodPost, "/api/machines/nope/sessions/work/select", `{"window":"@1"}`, 404},
+		{http.MethodGet, "/api/machines/host/sessions/work/select", "", 405},
+		{http.MethodPost, "/api/machines/host/sessions/work/windows", "", 405},
+	} {
+		if got := e.do(t, tc.method, tc.path, tc.body, nil).Code; got != tc.status {
+			t.Errorf("%s %s = %d; want %d", tc.method, tc.path, got, tc.status)
+		}
+	}
+	if got := e.do(t, http.MethodGet, "/api/machines/host/sessions/work/windows", "", map[string]string{"Cookie": ""}).Code; got != 401 {
+		t.Errorf("signed out list = %d", got)
+	}
+	if got := e.do(t, http.MethodPost, "/api/machines/host/sessions/work/select", `{"window":"@1"}`, map[string]string{"Origin": "http://evil.example.com"}).Code; got != 403 {
+		t.Errorf("foreign Origin = %d", got)
+	}
+	e.svc.err = &session.Error{Code: session.CodeNotFound, Message: "missing"}
+	if got := e.do(t, http.MethodGet, "/api/machines/host/sessions/missing/windows", "", nil).Code; got != 404 {
+		t.Errorf("unknown session = %d", got)
+	}
+	if got := e.do(t, http.MethodPost, "/api/machines/host/sessions/work/select", `{"window":"@1"}`, nil).Code; got != 404 {
+		t.Errorf("selection not found = %d", got)
 	}
 }
 

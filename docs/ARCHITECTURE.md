@@ -148,7 +148,7 @@ Per **active** machine (v1: the host, always active), one poller goroutine runs 
 ```
 tmux list-sessions -F '#{session_id}\t#{session_name}\t#{session_path}\t#{session_attached}\t#{session_windows}\t#{session_created}\t#{session_activity}'
 ```
-(“no server running” ⇒ empty list, not an error.) Window/pane listing (`list-windows -a`) is fetched lazily when a session node is expanded.
+(“no server running” ⇒ empty list, not an error.) Window and pane listing is fetched lazily when a session node is expanded, in one side-channel exec using `list-windows -t '=<name>'` followed by `list-panes -s -t '=<name>'`. The response is sorted by window/pane index and capped at 256 windows and 64 panes per window; free-form names and commands are sanitized and capped at 256 bytes. This layout is not polled or published as an event. An authenticated `POST /api/machines/:id/sessions/:name/select` validates window/pane ids against that session before issuing `select-window` / `select-pane`; selecting a window is visible to every client attached to the session, as with tmux's `prefix n`.
 
 The poller diffs against the in-memory cache and publishes `sessions.changed` / `machine.status` events on the bus. Browsers receive them over the events WebSocket. Pollers back off exponentially on failure and mark the machine `unreachable`.
 
@@ -286,6 +286,8 @@ POST   /api/machines/:id/sessions         {name, path, startCommand?}
 PATCH  /api/machines/:id/sessions/:name   rename
 DELETE /api/machines/:id/sessions/:name   kill (UI confirms)
 POST   /api/machines/:id/sessions/:name/copy-mode
+GET    /api/machines/:id/sessions/:name/windows
+POST   /api/machines/:id/sessions/:name/select  {window, pane?}
 GET    /api/machines/:id/fs?path=         list dir
 POST   /api/machines/:id/fs/mkdir
 GET    /api/machines/:id/fs/home
@@ -308,6 +310,7 @@ GET    /api/machines/:id/hostkey          keyscan fingerprints
 POST   /api/machines/:id/hostkey/trust
 ```
 The copy-mode endpoint body is `{action, lines?}` and its response is `{inMode, scrollPosition, historySize}`. `lines` is valid only for `scroll-up`/`scroll-down`, from 1 to 500. Unknown actions, names and values are rejected before SSH execution; an old tmux version returns 409 with an upgrade hint.
+The windows endpoint returns `{windows, truncated}` with windows and panes in index order; it does not include pane paths. `select` returns the refreshed listing after changing the active window and optional pane. These routes read tmux state on demand and publish no hostbud event: tmux owns the window layout and all attached clients observe selection directly.
 Session records in the list endpoint and initial/live events WebSocket payload include `projectId` when the placement service matches an explicit session link or a project path. The browser uses that placement before applying the same-machine longest path-component match as a fallback. A successful project session start records its non-empty command; opening the picker or selecting a suggestion never starts a command by itself. Recent commands preserve their exact text, reject blank/NUL/oversize values, and keep the 20 newest distinct strings per project. Reusing a command moves it to the front; there is no manual clear action, and older values are pruned during an upsert.
 `/api/ui-state/:key` accepts only allowlisted keys (`layout`; M4 adds `tree` for per-account left-bar session/group order; M6 adds `theme`; others 404). A PUT body must be valid JSON (400) of at most 64 KiB (413). The server stores it without interpreting it and publishes no event (it's a per-account preference); the client validates what it reads back.
 

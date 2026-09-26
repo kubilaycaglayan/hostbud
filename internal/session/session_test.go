@@ -174,6 +174,70 @@ func TestCopyModeRejectsMissingSessionAndOldTmux(t *testing.T) {
 	}
 }
 
+func TestListWindowsAndSelectCheckMembership(t *testing.T) {
+	out := []byte("W\t@1\t0\t1\t2\tmain\nW\t@2\t1\t0\t1\tother window\n" +
+		"P\t@1\t%1\t0\t1\t80\t24\tbash\nP\t@1\t%2\t1\t0\t80\t24\tvim\nP\t@2\t%3\t0\t1\t80\t24\tzsh\n")
+	f, tracker := &fakeExec{output: out}, okHost("work")
+	svc := newSvc(f, tracker)
+	state, err := svc.ListWindows(context.Background(), "host", "work")
+	if err != nil || len(state.Windows) != 2 || state.Windows[1].Name != "other window" {
+		t.Fatalf("list state=%+v err=%v", state, err)
+	}
+	state, err = svc.SelectWindow(context.Background(), "host", "work", "@1", "%2")
+	if err != nil || len(state.Windows) != 2 {
+		t.Fatalf("select state=%+v err=%v", state, err)
+	}
+	calls := f.tmuxCalls()
+	if len(calls) != 3 || calls[2][1] != "select-window" || calls[2][3] != "=work:@1" ||
+		!slices.Contains(calls[2], "=work:@1.%2") {
+		t.Fatalf("tmux calls: %#v", calls)
+	}
+	if _, err := svc.SelectWindow(context.Background(), "host", "work", "@2", "%2"); code(err) != CodeNotFound {
+		t.Fatalf("pane outside requested window: %v", err)
+	}
+	if len(f.tmuxCalls()) != 4 {
+		t.Fatalf("membership rejection executed selection: %#v", f.tmuxCalls())
+	}
+	if _, err := svc.SelectWindow(context.Background(), "host", "work", "@9", "%9"); code(err) != CodeNotFound {
+		t.Fatalf("pane from another session: %v", err)
+	}
+	if len(f.tmuxCalls()) != 5 {
+		t.Fatalf("foreign pane reached select: %#v", f.tmuxCalls())
+	}
+}
+
+func TestWindowsRejectInvalidBeforeExecAndMapsMissing(t *testing.T) {
+	f, tracker := &fakeExec{}, okHost("work")
+	svc := newSvc(f, tracker)
+	if _, err := svc.ListWindows(context.Background(), "host", "bad.name"); code(err) != CodeInvalid || len(f.calls) != 0 {
+		t.Fatalf("invalid name err=%v calls=%v", err, f.calls)
+	}
+	f.handler = func(args []string) error {
+		if args[0] == "tmux" {
+			return remote(1, "can't find session: =gone")
+		}
+		return nil
+	}
+	if _, err := svc.ListWindows(context.Background(), "host", "gone"); code(err) != CodeNotFound {
+		t.Fatalf("missing session: %v", err)
+	}
+}
+
+func TestWindowsNamesAndCommandsAreNotLoggedAtInfo(t *testing.T) {
+	var logs bytes.Buffer
+	f := &fakeExec{output: []byte("W\t@1\t0\t1\t1\tprivate-window-name\nP\t@1\t%1\t0\t1\t80\t24\tprivate-command-name\n")}
+	tracker := okHost("private-session-name")
+	svc := New(f, map[string]Tracker{"host": tracker}, slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelInfo})))
+	if _, err := svc.ListWindows(context.Background(), "host", "private-session-name"); err != nil {
+		t.Fatal(err)
+	}
+	for _, secret := range []string{"private-session-name", "private-window-name", "private-command-name"} {
+		if strings.Contains(logs.String(), secret) {
+			t.Errorf("info log contains %q: %s", secret, logs.String())
+		}
+	}
+}
+
 func TestCopyModeDoesNotLogSessionName(t *testing.T) {
 	var logs bytes.Buffer
 	tracker := okHost("private-session-name")

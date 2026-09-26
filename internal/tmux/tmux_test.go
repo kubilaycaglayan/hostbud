@@ -2,7 +2,9 @@ package tmux
 
 import (
 	"errors"
+	"fmt"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -109,6 +111,80 @@ func TestExactTargets(t *testing.T) {
 	}
 	if _, err := AttachArgs(""); !errors.Is(err, ErrInvalidName) {
 		t.Error("attach of empty name accepted")
+	}
+}
+
+func TestWindowAndPaneArgs(t *testing.T) {
+	wantList := []string{"tmux", "list-windows", "-t", "=work", "-F", windowsFormat, ";", "list-panes", "-s", "-t", "=work", "-F", panesFormat}
+	got, err := ListWindowsArgs("work")
+	if err != nil || !slices.Equal(got, wantList) {
+		t.Fatalf("list argv = %q, %v; want %q", got, err, wantList)
+	}
+	wantSelect := []string{"tmux", "select-window", "-t", "=work:@2", ";", "select-pane", "-t", "=work:@2.%4"}
+	wantSelect = append(wantSelect, wantList[1:]...)
+	got, err = SelectArgs("work", "@2", "%4")
+	if err != nil || !slices.Equal(got, wantSelect) {
+		t.Fatalf("select argv = %q, %v; want %q", got, err, wantSelect)
+	}
+	for _, tc := range []struct{ name, window, pane string }{
+		{"bad.name", "@1", ""}, {"work", "@", ""}, {"work", "@x", ""}, {"work", "1", ""},
+		{"work", "@1;x", ""}, {"work", "@1", "%"}, {"work", "@1", "%x"}, {"work", "@1", "1"},
+		{"work", "@1", "%1;kill-server"},
+	} {
+		if _, err := SelectArgs(tc.name, tc.window, tc.pane); err == nil {
+			t.Errorf("accepted invalid ids/name %q %q %q", tc.name, tc.window, tc.pane)
+		}
+	}
+	if _, err := ListWindowsArgs("bad.name"); !errors.Is(err, ErrInvalidName) {
+		t.Fatalf("invalid listing name: %v", err)
+	}
+}
+
+func TestParseWindows(t *testing.T) {
+	out := "W\t@2\t2\t0\t1\tlast\twindow\n" +
+		"W\t@0\t0\t1\t2\tfirst\twin\ndow\n" +
+		"W\t@3\t3\t0\t1\tthird\n" +
+		"P\t@0\t%2\t1\t0\t80\t24\t\n" +
+		"P\t@0\t%1\t0\t1\t80\t24\tvim\twith\ttab\n" +
+		"P\t@2\t%3\t0\t1\t120\t40\tzsh\n" +
+		"P\t@3\t%4\t0\t1\t120\t40\tsh\n"
+	got, truncated, err := ParseWindows(out)
+	if err != nil || truncated {
+		t.Fatalf("parse: truncated=%v err=%v", truncated, err)
+	}
+	if len(got) != 3 || got[0].ID != "@0" || got[0].Name != "first win dow" ||
+		len(got[0].Panes) != 2 || got[0].Panes[0].ID != "%1" ||
+		got[0].Panes[0].Command != "vim with tab" || got[0].Panes[1].Command != "" ||
+		got[1].Index != 2 || got[1].Panes[0].Command != "zsh" || got[2].Name != "third" {
+		t.Fatalf("parsed windows = %#v", got)
+	}
+	if got, truncated, err := ParseWindows(""); err != nil || truncated || len(got) != 0 {
+		t.Fatalf("empty listing = %#v, %v, %v", got, truncated, err)
+	}
+	for _, bad := range []string{"W\t@x\t0\t1\t1\tname\n", "P\t@1\t%2\t0\t1\t80\t24\tcmd\n", "X\tbad"} {
+		if _, _, err := ParseWindows(bad); err == nil {
+			t.Errorf("accepted malformed listing %q", bad)
+		}
+	}
+}
+
+func TestParseWindowsCaps(t *testing.T) {
+	var b strings.Builder
+	for i := 0; i < 257; i++ {
+		fmt.Fprintf(&b, "W\t@%d\t%d\t0\t0\tw\n", i, i)
+	}
+	got, truncated, err := ParseWindows(b.String())
+	if err != nil || !truncated || len(got) != 256 {
+		t.Fatalf("windows cap: len=%d truncated=%v err=%v", len(got), truncated, err)
+	}
+	b.Reset()
+	b.WriteString("W\t@1\t0\t0\t65\tw\n")
+	for i := 0; i < 65; i++ {
+		fmt.Fprintf(&b, "P\t@1\t%%%d\t%d\t0\t80\t24\tsh\n", i, i)
+	}
+	got, truncated, err = ParseWindows(b.String())
+	if err != nil || !truncated || len(got) != 1 || len(got[0].Panes) != 64 {
+		t.Fatalf("pane cap: %#v truncated=%v err=%v", got, truncated, err)
 	}
 }
 

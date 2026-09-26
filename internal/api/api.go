@@ -68,6 +68,8 @@ func New(cfg Config) http.Handler {
 	}
 	if cfg.Sessions != nil {
 		mux.HandleFunc("POST /api/machines/{machine}/sessions/{name}/copy-mode", s.copyMode)
+		mux.HandleFunc("GET /api/machines/{machine}/sessions/{name}/windows", s.listWindows)
+		mux.HandleFunc("POST /api/machines/{machine}/sessions/{name}/select", s.selectWindow)
 	}
 	mux.HandleFunc("GET /api/machines", s.listMachines)
 	mux.HandleFunc("GET /api/machines/{machine}/sessions", s.listSessions)

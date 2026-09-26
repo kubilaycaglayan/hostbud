@@ -18,6 +18,8 @@ type SessionService interface {
 	Rename(ctx context.Context, machine, from, to string) error
 	Kill(ctx context.Context, machine, name string) error
 	CopyMode(ctx context.Context, machine, name string, action tmux.CopyAction, lines int) (session.CopyModeState, error)
+	ListWindows(ctx context.Context, machine, name string) (session.WindowsState, error)
+	SelectWindow(ctx context.Context, machine, name, windowID, paneID string) (session.WindowsState, error)
 }
 
 func (s *server) listMachines(w http.ResponseWriter, _ *http.Request) {
@@ -184,6 +186,53 @@ func (s *server) copyMode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	state, err := s.cfg.Sessions.CopyMode(r.Context(), r.PathValue("machine"), name, req.Action, lines)
+	if err != nil {
+		s.writeSessionError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, state)
+}
+
+func (s *server) listWindows(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.machine(w, r); !ok {
+		return
+	}
+	name := r.PathValue("name")
+	if err := tmux.ValidateName(name); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid session name", err.Error())
+		return
+	}
+	state, err := s.cfg.Sessions.ListWindows(r.Context(), r.PathValue("machine"), name)
+	if err != nil {
+		s.writeSessionError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, state)
+}
+
+type selectRequest struct {
+	Window string `json:"window"`
+	Pane   string `json:"pane,omitempty"`
+}
+
+func (s *server) selectWindow(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.machine(w, r); !ok {
+		return
+	}
+	name := r.PathValue("name")
+	if err := tmux.ValidateName(name); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid session name", err.Error())
+		return
+	}
+	var req selectRequest
+	if !decode(w, r, &req) {
+		return
+	}
+	if _, err := tmux.SelectArgs(name, req.Window, req.Pane); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid window or pane", "Use a window id such as @1 and an optional pane id such as %1.")
+		return
+	}
+	state, err := s.cfg.Sessions.SelectWindow(r.Context(), r.PathValue("machine"), name, req.Window, req.Pane)
 	if err != nil {
 		s.writeSessionError(w, err)
 		return

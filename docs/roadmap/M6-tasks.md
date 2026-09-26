@@ -10,7 +10,7 @@ Update this table in the same commit that finishes a task.
 
 | Task | Status |
 |---|---|
-| T1 Windows and panes API | Not started |
+| T1 Windows and panes API | Done |
 | T2 Tree state v2 and accessible tree | Not started |
 | T3 Windows and panes in the tree | Not started |
 | T4 Inline rename | Not started |
