@@ -186,6 +186,8 @@ A session belongs to the project whose `path` is the **longest prefix** of the s
 
 **OSC 52** (`@xterm/addon-clipboard` with a custom provider) is **write-only**: writes (any selection parameter; tmux sends an empty one) go to the browser clipboard, without awaiting, so a refused write never stalls the terminal; payloads over 1 MiB decoded, empty or undecodable ones are ignored. Queries (`52;c;?`) are swallowed by a handler registered after the addon, so nothing answers them and no program on the host can read the browser clipboard. tmux's default `set-clipboard external` forwards copy-mode yanks as OSC 52 (`xterm*` has the `clipboard` feature); programs inside tmux (vim, Claude Code) need `set -g set-clipboard on` in the user's `~/.tmux.conf`, which hostbud documents and never changes.
 
+**Links** (`web/src/lib/links.ts`): printed URLs (`web-links` addon) and OSC 8 hyperlinks (xterm's `linkHandler`, e.g. `ls --hyperlink`, Claude Code) open on click or tap, only for `http:`/`https:`, in a new tab with `noopener,noreferrer`; anything else (`javascript:`, `file:`, `data:`, `ssh:` …) is ignored. An OSC 8 link's text can differ from its target, so hovering shows the target in a tooltip. tmux forwards OSC 8 only to terminals with its `hyperlinks` feature, which isn't in its defaults: users add `set -as terminal-features ',xterm*:hyperlinks'` (documented; hostbud never changes tmux config).
+
 **Frontend terminal:** `@xterm/xterm` + addons `fit`, `webgl` (fallback to canvas/DOM), `web-links`, `unicode11`, `search`, `clipboard`. Font: a bundled Nerd-Font-compatible monospace (self-hosted, no external CDN).
 
 ---

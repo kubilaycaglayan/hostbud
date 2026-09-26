@@ -12,8 +12,8 @@ Update this table in the same commit that finishes a task.
 | T1 Mac editing keys | ✅ done |
 | T2 Copy and paste | ✅ done (owner checks in T9) |
 | T3 Auto-reconnect | ✅ done (owner check in T9) |
-| T4 Links | next |
-| T5 Search | |
+| T4 Links | ✅ done |
+| T5 Search | next |
 | T6 UI state API | |
 | T7 Tabs | |
 | T8 Split view | |
@@ -121,6 +121,7 @@ A terminal whose socket drops re-attaches by itself. The tmux session never noti
   - activation: a plain click (xterm shows the underline on hover). A drag that starts on a link still selects text (xterm's default).
 - **OSC 8 hyperlinks** (`ls --hyperlink`, `gcc`, Claude Code): xterm's `linkHandler` option uses the same allowlist and handler. Because an OSC 8 link's text can differ from its target, the hover tooltip (`linkHandler.hover`) shows the real URL.
 - Phones: a tap on a link opens it (xterm treats a tap as a click).
+- *(Built:)* tmux forwards OSC 8 only to terminals with its `hyperlinks` feature, which isn't in tmux's defaults. README documents `set -as terminal-features ',xterm*:hyperlinks'`; the e2e scenario sets it on the throwaway target before attaching.
 - ARCHITECTURE §6: link rules.
 
 **Tests:** U (Vitest): the scheme allowlist (`http`, `https` open; `javascript:`, `file:`, `data:`, `ssh:` ignored); `window.open` gets `_blank` and `noopener,noreferrer`; the OSC 8 hover shows the target. I: n/a (the browser handles clicks; nothing reaches the host).

@@ -10,6 +10,7 @@ import { TermSession, termURL, type SessionState } from '@/api/term'
 import TerminalMenu from '@/components/TerminalMenu.vue'
 import { copySelection, installOsc52 } from '@/lib/clipboard'
 import { installE2EHooks, removeE2EHooks } from '@/lib/e2eHooks'
+import { hyperlinkHandler, openLink, type LinkHover } from '@/lib/links'
 import { clipboardKey, editingKey } from '@/lib/terminalKeys'
 import { useAuthStore } from '@/stores/auth'
 import { useSessionsStore } from '@/stores/sessions'
@@ -20,6 +21,7 @@ const emit = defineEmits<{ back: [] }>()
 const el = ref<HTMLDivElement>()
 const state = ref<SessionState>('connecting')
 const attempt = ref(0)
+const linkHover = ref<LinkHover | null>(null)
 const term = shallowRef<Terminal>()
 let fit: FitAddon | null = null
 let conn: TermSession | null = null
@@ -99,12 +101,14 @@ onMounted(async () => {
     // Option+drag selects even when the program captures the mouse (Shift+drag
     // does on other platforms).
     macOptionClickForcesSelection: true,
+    // OSC 8 hyperlinks: http(s) only; hovering shows the real target.
+    linkHandler: hyperlinkHandler((h) => (linkHover.value = h)),
     scrollback: 5000,
     theme: { background: '#0f1115', foreground: '#d7dae0', cursor: '#5fb3f9' },
   })
   fit = new FitAddon()
   t.loadAddon(fit)
-  t.loadAddon(new WebLinksAddon())
+  t.loadAddon(new WebLinksAddon((_ev, uri) => openLink(uri)))
   const unicode = new Unicode11Addon()
   t.loadAddon(unicode)
   t.unicode.activeVersion = '11'
@@ -227,6 +231,17 @@ defineExpose({ refit, reconnect, showKeyboard })
           data-testid="terminal"
           class="min-h-0 flex-1 touch-manipulation overflow-hidden bg-bg p-1"
         />
+        <div
+          v-if="linkHover && el"
+          role="tooltip"
+          class="pointer-events-none absolute z-20 max-w-[80%] truncate rounded border border-border bg-surface px-2 py-1 text-fg shadow"
+          :style="{
+            left: `${linkHover.x - el.getBoundingClientRect().left}px`,
+            top: `${linkHover.y - el.getBoundingClientRect().top + 16}px`,
+          }"
+        >
+          {{ linkHover.url }}
+        </div>
         <!-- Over the terminal, so its size (and tmux's) doesn't change. -->
         <div
           v-if="state === 'reconnecting'"

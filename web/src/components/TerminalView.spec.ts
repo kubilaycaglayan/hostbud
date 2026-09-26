@@ -59,7 +59,12 @@ const h = vi.hoisted(() => {
       this.onDataFn(data)
     }
   }
-  const h = { terms: [] as FakeTerminal[], fitSize: { cols: 100, rows: 30 }, FakeTerminal }
+  const h = {
+    terms: [] as FakeTerminal[],
+    fitSize: { cols: 100, rows: 30 },
+    FakeTerminal,
+    linkClick: (() => {}) as (ev: MouseEvent, uri: string) => void,
+  }
   return h
 })
 type FakeTerminal = InstanceType<typeof h.FakeTerminal>
@@ -79,7 +84,13 @@ vi.mock('@xterm/addon-fit', () => ({
   },
 }))
 vi.mock('@xterm/addon-webgl', () => ({ WebglAddon: class { onContextLoss() {} } }))
-vi.mock('@xterm/addon-web-links', () => ({ WebLinksAddon: class {} }))
+vi.mock('@xterm/addon-web-links', () => ({
+  WebLinksAddon: class {
+    constructor(handler: (ev: MouseEvent, uri: string) => void) {
+      h.linkClick = handler
+    }
+  },
+}))
 vi.mock('@xterm/addon-unicode11', () => ({ Unicode11Addon: class {} }))
 vi.mock('@xterm/addon-clipboard', () => ({
   ClipboardAddon: class {
@@ -286,6 +297,27 @@ describe('TerminalView', () => {
     t.keyHandler(new KeyboardEvent('keydown', { key: 'C', ctrlKey: true, shiftKey: true }))
     await flushPromises()
     expect(useToastsStore().toasts.map((x) => x.title)).toEqual(["Couldn't copy"])
+  })
+
+  it('printed URLs open in a new tab (http/https only)', async () => {
+    const open = vi.fn()
+    vi.stubGlobal('open', open)
+    await mountTerm()
+    h.linkClick(new MouseEvent('click'), 'https://example.com/x')
+    h.linkClick(new MouseEvent('click'), 'javascript:alert(1)')
+    expect(open.mock.calls).toEqual([['https://example.com/x', '_blank', 'noopener,noreferrer']])
+  })
+
+  it('OSC 8 links: hovering shows the real target in a tooltip', async () => {
+    const w = await mountTerm()
+    const handler = h.terms[0].options.linkHandler as import('@xterm/xterm').ILinkHandler
+    const range = { start: { x: 1, y: 1 }, end: { x: 5, y: 1 } }
+    handler.hover!(new MouseEvent('mousemove', { clientX: 30, clientY: 40 }), 'https://example.com/real', range)
+    await flushPromises()
+    expect(w.get('[role=tooltip]').text()).toBe('https://example.com/real')
+    handler.leave!(new MouseEvent('mouseleave'), 'https://example.com/real', range)
+    await flushPromises()
+    expect(w.find('[role=tooltip]').exists()).toBe(false)
   })
 
   it('offers a way back to the list (narrow screens)', async () => {

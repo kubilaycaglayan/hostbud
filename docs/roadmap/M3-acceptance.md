@@ -38,7 +38,7 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
   - U: T3 no retry after `exit`, after `close()`, or for an unlisted session · `401` stops and signs out (Vitest). I: n/a (client decision). E: T3 *Detach doesn't loop*.
 
 ### Links
-- [ ] URLs printed in the terminal open in a new tab on click (tap on phones); OSC 8 hyperlinks work and show their real target on hover; only `http`/`https` open.
+- [x] URLs printed in the terminal open in a new tab on click (tap on phones); OSC 8 hyperlinks work and show their real target on hover; only `http`/`https` open.
   - U: T4 scheme allowlist, `window.open` with `noopener,noreferrer`, OSC 8 hover (Vitest). I: n/a (browser only). E: T4 *Click a URL* (desktop and phone) · T4 *OSC 8 link*.
 
 ### Search
@@ -77,8 +77,8 @@ Projects as in M2: `desktop-chromium` and `iphone-13-pro` on `http://localhost:9
 - [x] **(T3) Network cut re-attach:** cut and restore the app's network → the terminal re-attaches on its own, the old output is still on screen, input works, the same tmux session has one client, and the list shows a session created during the cut (desktop and `iphone-13-pro`).
 - [x] **(T3) App restart re-attach:** after restarting the app the terminal re-attaches by itself and input works.
 - [x] **(T3) Detach doesn't loop:** after `detach-client` the banner shows and nothing re-attaches for 5 s; **Reconnect** attaches.
-- [ ] **(T4) Click a URL:** clicking (tapping) a printed URL opens exactly it in a new page (desktop and `iphone-13-pro`).
-- [ ] **(T4) OSC 8 link:** an OSC 8 label shows its target on hover and opens it on click; a `javascript:` target opens nothing.
+- [x] **(T4) Click a URL:** clicking (tapping) a printed URL opens exactly it in a new page (desktop and `iphone-13-pro`).
+- [x] **(T4) OSC 8 link:** an OSC 8 label shows its target on hover and opens it on click; a `javascript:` target opens nothing.
 - [ ] **(T5) Search scrollback:** a marker scrolled off screen is found (1 of 1) and scrolled into view; Escape returns input to the shell.
 - [ ] **(T5) Search options:** match case and regex change the counts; an invalid regex says so.
 - [ ] **(T5) Search on the phone:** the 🔍 button opens search and finds a marker (`iphone-13-pro`).
@@ -99,7 +99,7 @@ Projects as in M2: `desktop-chromium` and `iphone-13-pro` on `http://localhost:9
 ## Security (AGENTS.md checklist, M3 scope)
 - [x] OSC 52 is write-only: programs on the host can't read the browser clipboard.
   - U: T2 provider refuses reads (Vitest). I: n/a (client decision). E: T2 *OSC 52 read refused*.
-- [ ] Terminal links open only `http`/`https`, with `noopener,noreferrer`.
+- [x] Terminal links open only `http`/`https`, with `noopener,noreferrer`.
   - U: T4 allowlist (Vitest). I: n/a. E: T4 *OSC 8 link* (`javascript:` target).
 - [ ] `PUT /api/ui-state/{key}` requires a signed-in session and an allowed `Origin`; values are size-limited and scoped to the account.
   - U: T6 handler (Go). I: T6 store (PostgreSQL). E: T6 *UI state API*.
