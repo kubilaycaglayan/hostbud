@@ -1,5 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useToastsStore } from '@/stores/toasts'
 
 // Fake xterm (hoisted: vi.mock factories run before the module body).
 const h = vi.hoisted(() => {
@@ -10,8 +12,18 @@ const h = vi.hoisted(() => {
     onDataFn: (d: string) => void = () => {}
     unicode = { activeVersion: '6' }
     buffer = { active: { length: 0, getLine: () => undefined } }
-    constructor() {
+    selection = ''
+    modes = { mouseTrackingMode: 'none' }
+    oscHandlers: number[] = []
+    parser = { registerOscHandler: (id: number) => this.oscHandlers.push(id) }
+    constructor(readonly options: Record<string, unknown>) {
       h.terms.push(this)
+    }
+    hasSelection() {
+      return this.selection !== ''
+    }
+    getSelection() {
+      return this.selection
     }
     loadAddon(a: { activate?: (t: FakeTerminal) => void }) {
       a.activate?.(this)
@@ -67,6 +79,13 @@ vi.mock('@xterm/addon-fit', () => ({
 vi.mock('@xterm/addon-webgl', () => ({ WebglAddon: class { onContextLoss() {} } }))
 vi.mock('@xterm/addon-web-links', () => ({ WebLinksAddon: class {} }))
 vi.mock('@xterm/addon-unicode11', () => ({ Unicode11Addon: class {} }))
+vi.mock('@xterm/addon-clipboard', () => ({
+  ClipboardAddon: class {
+    activate(t: FakeTerminal) {
+      t.parser.registerOscHandler(52)
+    }
+  },
+}))
 
 import TerminalView from './TerminalView.vue'
 
@@ -93,6 +112,7 @@ class FakeWS {
 let resizeCallback: () => void = () => {}
 
 beforeEach(() => {
+  setActivePinia(createPinia())
   h.terms = []
   h.fitSize = { cols: 100, rows: 30 }
   FakeWS.all = []
@@ -195,6 +215,61 @@ describe('TerminalView', () => {
     // Anything else goes to xterm as usual.
     expect(t.keyHandler(new KeyboardEvent('keydown', { key: 'Backspace' }))).toBe(true)
     expect(ws.sent).toHaveLength(1)
+  })
+
+  it('Option+click forces selection on macOS; OSC 52 is loaded', async () => {
+    await mountTerm()
+    expect(h.terms[0].options.macOptionClickForcesSelection).toBe(true)
+    // The addon's handler, then the query guard registered after it.
+    expect(h.terms[0].oscHandlers).toEqual([52, 52])
+  })
+
+  it('copy keys write the selection, send no bytes and keep the selection', async () => {
+    const writeText = vi.fn(async () => {})
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } })
+    await mountTerm()
+    const ws = FakeWS.all[0]
+    ws.onopen?.({} as Event)
+    const t = h.terms[0]
+    t.selection = 'copied text'
+    const down = new KeyboardEvent('keydown', { key: 'C', ctrlKey: true, shiftKey: true, cancelable: true })
+    expect(t.keyHandler(down)).toBe(false)
+    expect(down.defaultPrevented).toBe(true)
+    expect(t.keyHandler(new KeyboardEvent('keyup', { key: 'C', ctrlKey: true, shiftKey: true }))).toBe(false)
+    expect(t.keyHandler(new KeyboardEvent('keydown', { key: 'c', metaKey: true }))).toBe(false)
+    await flushPromises()
+    expect(writeText.mock.calls).toEqual([['copied text'], ['copied text']])
+    expect(t.selection).toBe('copied text')
+    expect(ws.sent).toEqual([])
+    // Ctrl+C stays the program's interrupt, selection or not.
+    expect(t.keyHandler(new KeyboardEvent('keydown', { key: 'c', ctrlKey: true }))).toBe(true)
+  })
+
+  it('paste keys send no bytes and keep the browser default (its paste event)', async () => {
+    await mountTerm()
+    const ws = FakeWS.all[0]
+    ws.onopen?.({} as Event)
+    const t = h.terms[0]
+    for (const init of [
+      { key: 'V', ctrlKey: true, shiftKey: true },
+      { key: 'V', metaKey: true, shiftKey: true },
+      { key: 'v', metaKey: true },
+    ]) {
+      const down = new KeyboardEvent('keydown', { ...init, cancelable: true })
+      expect(t.keyHandler(down)).toBe(false)
+      expect(down.defaultPrevented).toBe(false)
+    }
+    expect(ws.sent).toEqual([])
+  })
+
+  it('a refused copy shows a toast', async () => {
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText: () => Promise.reject(new Error('denied')) } })
+    await mountTerm()
+    const t = h.terms[0]
+    t.selection = 'x'
+    t.keyHandler(new KeyboardEvent('keydown', { key: 'C', ctrlKey: true, shiftKey: true }))
+    await flushPromises()
+    expect(useToastsStore().toasts.map((x) => x.title)).toEqual(["Couldn't copy"])
   })
 
   it('offers a way back to the list (narrow screens)', async () => {

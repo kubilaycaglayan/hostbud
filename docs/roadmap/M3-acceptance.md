@@ -18,9 +18,9 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
   - U: T1 unmapped keys and extra modifiers (Vitest). I: n/a. E: M1 *Attach and type*, *Full-screen apps* (vim arrows, Escape) stay green.
 
 ### Copy and paste (owner request)
-- [ ] Text selected with the mouse is copied with Ctrl+Shift+C / Cmd+Shift+C (and Cmd+C with a selection); Ctrl+C still interrupts the program.
+- [x] Text selected with the mouse is copied with Ctrl+Shift+C / Cmd+Shift+C (and Cmd+C with a selection); Ctrl+C still interrupts the program.
   - U: T2 `clipboardKey` table · `TerminalView` copy writes the selection and sends no bytes · failed write → toast (Vitest). I: n/a (browser clipboard; nothing reaches the host). E: T2 *Copy selection* · T2 *Ctrl+C still interrupts*.
-- [ ] The terminal's context menu offers Copy, Paste and Select all; Shift+right-click (Option on macOS) opens it even when the program captures the mouse.
+- [x] The terminal's context menu offers Copy, Paste and Select all; Shift+right-click (Option on macOS) opens it even when the program captures the mouse.
   - U: T2 `TerminalMenu` (Vitest). I: n/a (browser only). E: T2 *Copy selection* (menu Copy) · T2 *Bracketed paste* (menu Paste).
 - [ ] Shift+drag (Option+drag on macOS) selects text even when the program or tmux `mouse on` captures the mouse.
   - U: T2 terminal options include `macOptionClickForcesSelection` (Vitest). I: n/a (xterm selection is client-side). E: T2 *Forced selection*. **Manual (T9):** Option+drag on a Mac.
@@ -68,12 +68,12 @@ Projects as in M2: `desktop-chromium` and `iphone-13-pro` on `http://localhost:9
 
 - [x] **(T1) Delete word and line:** Option+Backspace and Cmd+Backspace edit a bash command line (desktop).
 - [x] **(T1) Move by word and line:** Option+←/→ and Cmd+←/→ move the cursor so typed text lands in the right place (desktop).
-- [ ] **(T2) Copy selection:** a drag-selected line is in the clipboard after Ctrl+Shift+C and after the menu's Copy.
-- [ ] **(T2) Ctrl+C still interrupts:** with a selection present, Ctrl+C interrupts `sleep` and leaves the clipboard alone.
-- [ ] **(T2) Bracketed paste:** a two-line paste (keys and menu) sits in the command line until Enter, then each command runs once.
-- [ ] **(T2) Forced selection:** with tmux `mouse on`, a plain drag makes no selection, and Shift+drag does and copies.
-- [ ] **(T2) OSC 52 yank:** a tmux copy-mode yank lands in the browser clipboard.
-- [ ] **(T2) OSC 52 read refused:** an OSC 52 clipboard query gets no reply.
+- [x] **(T2) Copy selection:** a drag-selected line is in the clipboard after Ctrl+Shift+C and after the menu's Copy.
+- [x] **(T2) Ctrl+C still interrupts:** with a selection present, Ctrl+C interrupts `sleep` and leaves the clipboard alone.
+- [x] **(T2) Bracketed paste:** a two-line paste (keys and menu) sits in the command line until Enter, then each command runs once.
+- [x] **(T2) Forced selection:** with tmux `mouse on`, a plain drag makes no selection, and Shift+drag does and copies.
+- [x] **(T2) OSC 52 yank:** a tmux copy-mode yank lands in the browser clipboard.
+- [x] **(T2) OSC 52 read refused:** an OSC 52 clipboard query gets no reply.
 - [ ] **(T3) Network cut re-attach:** cut and restore the app's network → the terminal re-attaches on its own, the old output is still on screen, input works, the same tmux session has one client, and the list shows a session created during the cut (desktop and `iphone-13-pro`).
 - [ ] **(T3) App restart re-attach:** after restarting the app the terminal re-attaches by itself and input works.
 - [ ] **(T3) Detach doesn't loop:** after `detach-client` the banner shows and nothing re-attaches for 5 s; **Reconnect** attaches.
@@ -97,7 +97,7 @@ Projects as in M2: `desktop-chromium` and `iphone-13-pro` on `http://localhost:9
 - [ ] **(T9) Stable:** two consecutive full runs pass from a clean checkout.
 
 ## Security (AGENTS.md checklist, M3 scope)
-- [ ] OSC 52 is write-only: programs on the host can't read the browser clipboard.
+- [x] OSC 52 is write-only: programs on the host can't read the browser clipboard.
   - U: T2 provider refuses reads (Vitest). I: n/a (client decision). E: T2 *OSC 52 read refused*.
 - [ ] Terminal links open only `http`/`https`, with `noopener,noreferrer`.
   - U: T4 allowlist (Vitest). I: n/a. E: T4 *OSC 8 link* (`javascript:` target).

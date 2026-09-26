@@ -10,8 +10,8 @@ Update this table in the same commit that finishes a task.
 | Task | Status |
 |---|---|
 | T1 Mac editing keys | ✅ done |
-| T2 Copy and paste | next |
-| T3 Auto-reconnect | |
+| T2 Copy and paste | ✅ done (owner checks in T9) |
+| T3 Auto-reconnect | next |
 | T4 Links | |
 | T5 Search | |
 | T6 UI state API | |
@@ -54,12 +54,12 @@ Scope: the *Copy and paste* bullet of [ROADMAP M3](../ROADMAP.md#m3--terminal-wo
   - Ctrl+Shift+V, Cmd+Shift+V and Cmd+V → paste.
   - Ctrl+C (no Shift) stays unmapped, so xterm sends `^C`. Ctrl+V stays xterm's default.
 - **Copy:** `navigator.clipboard.writeText(term.getSelection())`. The selection stays in place afterwards (like a desktop terminal). If the write fails (no permission, or the page isn't a secure context), a toast says so: "Couldn't copy: the browser blocked clipboard access."
-- **Paste:** the key handler returns `false` without `preventDefault`, so the browser runs its own paste into xterm's textarea. xterm's paste listener then calls `term.paste()`, which wraps the text in `ESC[200~ … ESC[201~` when the program enabled bracketed paste (mode 2004: bash ≥ 5.1, zsh, vim, Claude Code) and normalizes newlines to CR. The native path needs no clipboard-read permission prompt. If Chromium doesn't fire `paste` for Ctrl+Shift+V in e2e, fall back to `navigator.clipboard.readText()` + `term.paste()` for that combination only, and note that here.
+- **Paste:** the key handler returns `false` without `preventDefault`, so the browser runs its own paste into xterm's textarea. xterm's paste listener then calls `term.paste()`, which wraps the text in `ESC[200~ … ESC[201~` when the program enabled bracketed paste (mode 2004: bash ≥ 5.1, zsh, vim, Claude Code) and normalizes newlines to CR. The native path needs no clipboard-read permission prompt. If Chromium doesn't fire `paste` for Ctrl+Shift+V in e2e, fall back to `navigator.clipboard.readText()` + `term.paste()` for that combination only, and note that here. *(Built: Chromium fires `paste` for Ctrl+Shift+V, so no fallback was needed.)*
 - **Context menu** (`TerminalMenu.vue`, Reka UI `ContextMenu` on the terminal element): **Copy** (disabled with no selection), **Paste** (`readText()` + `term.paste()`, since a menu click is a user gesture) and **Select all**. Right-click opens it when the program doesn't capture the mouse. Shift+right-click (Option+right-click on macOS) opens it even when the program does capture the mouse (tmux `mouse on`), because right-click then belongs to tmux's own menu. A long press on touch screens opens the menu too.
 - **Forced selection:** xterm option `macOptionClickForcesSelection: true`. Shift+drag already forces selection on other platforms. Document both in the README.
 - **OSC 52** (`@xterm/addon-clipboard`), with a custom `IClipboardProvider`:
   - writes: decoded base64 → `navigator.clipboard.writeText`. The browser may reject a write that doesn't come from a user gesture. The provider tries, and a failure is silent (logged at debug in the console). In practice a yank follows a keypress.
-  - reads (`OSC 52 ; c ; ?`): **refused** (answered with nothing). Otherwise any program on the host could read the browser's clipboard.
+  - reads (`OSC 52 ; c ; ?`): **refused** (answered with nothing). Otherwise any program on the host could read the browser's clipboard. *(Built: the addon always answers a query, so a second OSC 52 handler registered after it swallows queries before the addon sees them.)*
   - size cap: payloads over 1 MiB decoded are ignored.
 - **tmux:** tmux's default `set-clipboard external` already forwards copy-mode yanks to the outer terminal as OSC 52 (`xterm*` has the `clipboard` feature by default). Programs *inside* tmux (vim, Claude Code) need `set -g set-clipboard on` in the user's `~/.tmux.conf`. README documents both, and hostbud never changes the user's tmux config.
 - **Secure context:** the clipboard API works on `http://localhost:${HOSTBUD_LOCAL_PORT}` and `https://${HOSTBUD_DOMAIN}`. README says a plain-HTTP LAN address won't work.

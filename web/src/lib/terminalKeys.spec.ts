@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { editingKey } from './terminalKeys'
+import { clipboardKey, editingKey } from './terminalKeys'
 
 const key = (key: string, mods: Partial<Record<'altKey' | 'metaKey' | 'ctrlKey' | 'shiftKey', boolean>> = {}) => ({
   key,
@@ -37,5 +37,36 @@ describe('editingKey', () => {
     expect(editingKey(key('Backspace', { altKey: true, ctrlKey: true }))).toBeUndefined()
     expect(editingKey(key('Backspace', { altKey: true, metaKey: true }))).toBeUndefined()
     expect(editingKey(key('Backspace', { ctrlKey: true }))).toBeUndefined()
+  })
+})
+
+describe('clipboardKey', () => {
+  it.each([
+    ['C', { ctrlKey: true, shiftKey: true }, false, 'copy'],
+    ['C', { metaKey: true, shiftKey: true }, false, 'copy'],
+    ['c', { metaKey: true }, true, 'copy'],
+    ['V', { ctrlKey: true, shiftKey: true }, false, 'paste'],
+    ['V', { metaKey: true, shiftKey: true }, false, 'paste'],
+    ['v', { metaKey: true }, false, 'paste'],
+  ] as const)('%s with %o (selection: %s) → %s', (k, mods, sel, action) => {
+    expect(clipboardKey(key(k, mods), sel)).toBe(action)
+  })
+
+  it('Cmd+C without a selection does nothing', () => {
+    expect(clipboardKey(key('c', { metaKey: true }), false)).toBeUndefined()
+  })
+
+  it('leaves Ctrl+C (interrupt) and Ctrl+V to the program, even with a selection', () => {
+    expect(clipboardKey(key('c', { ctrlKey: true }), true)).toBeUndefined()
+    expect(clipboardKey(key('v', { ctrlKey: true }), true)).toBeUndefined()
+  })
+
+  it('leaves plain keys and other combinations alone', () => {
+    expect(clipboardKey(key('c'), true)).toBeUndefined()
+    expect(clipboardKey(key('C', { shiftKey: true }), true)).toBeUndefined()
+    expect(clipboardKey(key('x', { ctrlKey: true, shiftKey: true }), true)).toBeUndefined()
+    expect(clipboardKey(key('c', { altKey: true }), true)).toBeUndefined()
+    expect(clipboardKey(key('C', { ctrlKey: true, metaKey: true, shiftKey: true }), true)).toBeUndefined()
+    expect(clipboardKey(key('C', { ctrlKey: true, altKey: true, shiftKey: true }), true)).toBeUndefined()
   })
 })

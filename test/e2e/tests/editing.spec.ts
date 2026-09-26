@@ -1,5 +1,5 @@
 import { expect, test } from '../helpers/fixtures.ts'
-import { uniqueName, type Target } from '../helpers/target.ts'
+import { openShell, promptLine } from '../helpers/shell.ts'
 
 // Mac editing keys (M3 T1): Option is Alt, Cmd is Meta. A hardware-keyboard
 // feature, so desktop only. Results are checked in the real shell on the
@@ -9,22 +9,6 @@ test.beforeEach(async ({ target, isMobile }) => {
   test.skip(isMobile, 'hardware keyboard shortcuts')
   await target.resetTmux()
 })
-
-/** The last non-empty line of the pane: the shell's current prompt line. */
-async function promptLine(target: Target, name: string): Promise<string> {
-  const lines = (await target.capture(name)).split('\n').map((l) => l.trimEnd()).filter(Boolean)
-  return lines.at(-1) ?? ''
-}
-
-async function openShell(ui: import('../helpers/ui.ts').UI, target: Target, prefix: string) {
-  const name = uniqueName(prefix)
-  await target.tmux('new-session', '-d', '-s', name, '-c', '/home/dev')
-  await ui.open()
-  await ui.openTerminal(name)
-  await expect.poll(() => target.display(name, '#{session_attached}')).toBe('1')
-  await expect.poll(() => promptLine(target, name)).toMatch(/\$$/)
-  return name
-}
 
 // Delete word and line (T1)
 test('delete word and line: Option+Backspace and Cmd+Backspace', async ({ ui, target }) => {

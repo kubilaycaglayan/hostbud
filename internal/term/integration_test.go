@@ -4,9 +4,11 @@ package term_test
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -193,4 +195,44 @@ func TestIntegrationHtop(t *testing.T) {
 	e.eventually("htop quit", func() bool {
 		return e.sh("tmux display -p -t =term-htop: '#{pane_current_command}'") == "bash"
 	})
+}
+
+// osc52 matches an OSC 52 clipboard write (tmux sends an empty selection).
+var osc52 = regexp.MustCompile(`\x1b\]52;[a-z0-9]*;([A-Za-z0-9+/=]+)(?:\x07|\x1b\\)`)
+
+// A tmux copy-mode yank reaches the browser side as OSC 52 with tmux's
+// defaults (set-clipboard external; TERM=xterm-256color has the clipboard
+// feature): the tmux half of the M3 copy path.
+func TestIntegrationCopyModeEmitsOSC52(t *testing.T) {
+	e := setup(t)
+	e.newSession("term-osc")
+	conn, out := e.attach("term-osc", 100, 30)
+	send(t, conn, "echo yank-$((6*7))\r")
+	out.waitFor(t, "yank-42")
+	e.eventually("output in the pane", func() bool { return strings.Contains(e.capture("term-osc"), "\nyank-42") })
+
+	e.sh("tmux copy-mode -t =term-osc: && " +
+		"tmux send-keys -t =term-osc: -X search-backward yank-42 && " +
+		"tmux send-keys -t =term-osc: -X select-line && " +
+		"tmux send-keys -t =term-osc: -X copy-selection-and-cancel")
+
+	deadline := time.After(10 * time.Second)
+	for {
+		if m := osc52.FindStringSubmatch(out.seen.String()); m != nil {
+			text, err := base64.StdEncoding.DecodeString(m[1])
+			if err != nil {
+				t.Fatalf("OSC 52 payload %q: %v", m[1], err)
+			}
+			if strings.TrimRight(string(text), "\n") != "yank-42" {
+				t.Fatalf("OSC 52 carried %q, want the yanked line", text)
+			}
+			return
+		}
+		select {
+		case chunk := <-out.text:
+			out.seen.WriteString(chunk)
+		case <-deadline:
+			t.Fatalf("no OSC 52 in the terminal output after the yank: %q", out.seen.String())
+		}
+	}
 }

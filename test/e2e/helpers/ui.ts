@@ -2,7 +2,12 @@ import { expect, type Page } from '@playwright/test'
 
 declare global {
   interface Window {
-    __hostbud?: { termText: () => string; termSize: () => { cols: number; rows: number } }
+    __hostbud?: {
+      termText: () => string
+      termSize: () => { cols: number; rows: number }
+      termSelection: () => string
+      termTextRect: (needle: string) => { x: number; y: number; width: number; height: number } | null
+    }
   }
 }
 

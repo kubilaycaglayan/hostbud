@@ -7,8 +7,10 @@ import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
 import { onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import { TermConnection, termURL, type TermState } from '@/api/term'
+import TerminalMenu from '@/components/TerminalMenu.vue'
+import { copySelection, installOsc52 } from '@/lib/clipboard'
 import { installE2EHooks, removeE2EHooks } from '@/lib/e2eHooks'
-import { editingKey } from '@/lib/terminalKeys'
+import { clipboardKey, editingKey } from '@/lib/terminalKeys'
 
 const props = defineProps<{ machine: string; session: string }>()
 const emit = defineEmits<{ back: [] }>()
@@ -81,6 +83,9 @@ onMounted(async () => {
     cursorBlink: true,
     fontFamily: "'JetBrains Mono', ui-monospace, monospace",
     fontSize: 14,
+    // Option+drag selects even when the program captures the mouse (Shift+drag
+    // does on other platforms).
+    macOptionClickForcesSelection: true,
     scrollback: 5000,
     theme: { background: '#0f1115', foreground: '#d7dae0', cursor: '#5fb3f9' },
   })
@@ -90,6 +95,7 @@ onMounted(async () => {
   const unicode = new Unicode11Addon()
   t.loadAddon(unicode)
   t.unicode.activeVersion = '11'
+  installOsc52(t)
   t.open(el.value!)
   prepareInput(t.textarea)
   try {
@@ -106,10 +112,21 @@ onMounted(async () => {
   // default (Cmd+← would navigate back).
   t.attachCustomKeyEventHandler((ev) => {
     const bytes = editingKey(ev)
-    if (bytes === undefined) return true
-    if (ev.type === 'keydown') {
-      ev.preventDefault()
-      t.input(bytes)
+    if (bytes !== undefined) {
+      if (ev.type === 'keydown') {
+        ev.preventDefault()
+        t.input(bytes)
+      }
+      return false
+    }
+    // Copy/paste shortcuts. Paste keeps the browser default: its paste event
+    // reaches xterm, which sends the text as bracketed paste (and needs no
+    // clipboard-read permission).
+    const action = clipboardKey(ev, t.hasSelection())
+    if (action === undefined) return true
+    if (action === 'copy' && ev.type === 'keydown') {
+      ev.preventDefault() // Ctrl+Shift+C would open the browser's inspector
+      void copySelection(t)
     }
     return false
   })
@@ -133,6 +150,22 @@ onMounted(async () => {
         return lines.join('\n').trimEnd()
       },
       termSize: () => ({ cols: t.cols, rows: t.rows }),
+      termSelection: () => t.getSelection(),
+      termTextRect: (needle) => {
+        // The last on-screen occurrence, in page pixels (cells are laid out
+        // evenly over the screen element).
+        const b = t.buffer.active
+        const screen = t.element?.querySelector('.xterm-screen')?.getBoundingClientRect()
+        if (!screen) return null
+        const cw = screen.width / t.cols
+        const ch = screen.height / t.rows
+        for (let row = t.rows - 1; row >= 0; row--) {
+          const col = b.getLine(b.viewportY + row)?.translateToString(true).indexOf(needle) ?? -1
+          if (col >= 0)
+            return { x: screen.left + col * cw, y: screen.top + row * ch, width: needle.length * cw, height: ch }
+        }
+        return null
+      },
     })
 })
 
@@ -173,11 +206,16 @@ defineExpose({ refit, reconnect, showKeyboard })
         ⌨
       </button>
     </div>
-    <div
-      ref="el"
-      data-testid="terminal"
-      class="min-h-0 flex-1 touch-manipulation overflow-hidden bg-bg p-1"
-    />
+    <TerminalMenu :term="term">
+      <!-- The menu's trigger; the ref sits inside it (as-child clones it). -->
+      <div class="flex min-h-0 flex-1 flex-col">
+        <div
+          ref="el"
+          data-testid="terminal"
+          class="min-h-0 flex-1 touch-manipulation overflow-hidden bg-bg p-1"
+        />
+      </div>
+    </TerminalMenu>
     <div
       v-if="state === 'exited' || state === 'disconnected'"
       role="status"

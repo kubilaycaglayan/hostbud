@@ -8,6 +8,10 @@ export interface HostbudHooks {
   termText: () => string
   /** The terminal's size in cells. */
   termSize: () => { cols: number; rows: number }
+  /** The terminal's selected text ('' without a selection). */
+  termSelection: () => string
+  /** Where the last on-screen occurrence of `needle` is drawn (page px). */
+  termTextRect: (needle: string) => { x: number; y: number; width: number; height: number } | null
 }
 
 declare global {

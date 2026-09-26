@@ -179,7 +179,11 @@ A session belongs to the project whose `path` is the **longest prefix** of the s
 - Same session open in two views: tmux sizes per its `window-size` option; document this, don't override it.
 - Backpressure: bounded write buffer per connection; drop the connection if the client stalls beyond a limit (it will reconnect and redraw).
 
-**Keys:** Mac "natural text editing" shortcuts (`web/src/lib/terminalKeys.ts`) send what a macOS terminal sends: Option+Backspace `ESC DEL`, Cmd+Backspace `Ctrl-U`, Option+←/→ `ESC b`/`ESC f`, Cmd+←/→ `Ctrl-A`/`Ctrl-E`; other keys are xterm's.
+**Keys:** Mac "natural text editing" shortcuts (`web/src/lib/terminalKeys.ts`) send what a macOS terminal sends: Option+Backspace `ESC DEL`, Cmd+Backspace `Ctrl-U`, Option+←/→ `ESC b`/`ESC f`, Cmd+←/→ `Ctrl-A`/`Ctrl-E`. Copy is Ctrl+Shift+C / Cmd+Shift+C (and Cmd+C with a selection); paste is Ctrl+Shift+V / Cmd+Shift+V / Cmd+V. Ctrl+C and Ctrl+V stay the program's. Other keys are xterm's.
+
+**Clipboard** (`web/src/lib/clipboard.ts`): copy writes the selection with `navigator.clipboard.writeText` and keeps it; a refusal shows a toast. The paste keys keep the browser's default, so its `paste` event reaches xterm, which wraps the text in `ESC[200~ … ESC[201~` when the program enabled bracketed paste (no clipboard-read permission needed); the context menu's Paste uses `readText()` + `term.paste()`. The context menu (Copy, Paste, Select all) opens on right-click or a long press, and with Shift/Option+right-click when the program captures the mouse (a plain right-click then belongs to the program, e.g. tmux's menu). Shift+drag (Option+drag on macOS, `macOptionClickForcesSelection`) selects when the mouse is captured. The clipboard API needs a secure context: `http://localhost` and the HTTPS domain qualify, a plain-HTTP LAN address doesn't.
+
+**OSC 52** (`@xterm/addon-clipboard` with a custom provider) is **write-only**: writes (any selection parameter; tmux sends an empty one) go to the browser clipboard, without awaiting, so a refused write never stalls the terminal; payloads over 1 MiB decoded, empty or undecodable ones are ignored. Queries (`52;c;?`) are swallowed by a handler registered after the addon, so nothing answers them and no program on the host can read the browser clipboard. tmux's default `set-clipboard external` forwards copy-mode yanks as OSC 52 (`xterm*` has the `clipboard` feature); programs inside tmux (vim, Claude Code) need `set -g set-clipboard on` in the user's `~/.tmux.conf`, which hostbud documents and never changes.
 
 **Frontend terminal:** `@xterm/xterm` + addons `fit`, `webgl` (fallback to canvas/DOM), `web-links`, `unicode11`, `search`, `clipboard`. Font: a bundled Nerd-Font-compatible monospace (self-hosted, no external CDN).
 
@@ -334,6 +338,7 @@ machine_capacity(machine_id PK, max_concurrent_runs)
 - **Narrow screens (M1):** the session list and the open terminal take turns (a "Back to sessions" button), so the terminal gets the full width; the host banner stays above both.
 - **Phones (M2):** the app is pinned to the visual viewport (`--app-height`, `lib/appHeight.ts`), so the on-screen keyboard shrinks the terminal instead of covering it; the terminal's hidden input uses a 16px font (no iOS zoom on focus) with autocorrect/autocapitalize off; a ⌨ button on touch screens refocuses it.
 - **Mobile:** tree becomes a drawer; single terminal view; an on-screen key bar (Esc, Tab, Ctrl, Alt, arrows, `|`, `~`, `/`, Scroll-mode button → copy-mode API); larger touch targets.
+- **Terminal context menu (M3):** Reka UI `ContextMenu` around the terminal (`TerminalMenu.vue`): Copy (disabled with no selection), Paste, Select all; see §6 *Clipboard*.
 - No external CDNs at runtime (fonts and assets bundled).
 
 ---

@@ -26,3 +26,21 @@ export function editingKey(ev: Keys): string | undefined {
   if (ev.ctrlKey || ev.shiftKey || ev.altKey === ev.metaKey) return undefined
   return (ev.altKey ? OPTION : CMD)[ev.key]
 }
+
+export type ClipboardAction = 'copy' | 'paste'
+
+/**
+ * Copy and paste shortcuts: Ctrl+Shift+C/V (Linux terminals), Cmd+Shift+C/V,
+ * and the macOS habits Cmd+V and Cmd+C (the latter only with a selection;
+ * without one it does nothing). Ctrl+C (the interrupt) and Ctrl+V stay
+ * unmapped, so they reach the program as before.
+ */
+export function clipboardKey(ev: Keys, hasSelection: boolean): ClipboardAction | undefined {
+  if (ev.altKey || ev.ctrlKey === ev.metaKey) return undefined
+  const k = ev.key.toLowerCase()
+  if (k !== 'c' && k !== 'v') return undefined
+  // Ctrl needs Shift (Ctrl+C/V belong to the program); Cmd works either way.
+  if (ev.ctrlKey && !ev.shiftKey) return undefined
+  if (k === 'v') return 'paste'
+  return ev.shiftKey || hasSelection ? 'copy' : undefined
+}
