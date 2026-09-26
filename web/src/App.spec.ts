@@ -95,6 +95,11 @@ describe('App shell', () => {
     expect(dialog?.textContent).toContain('Browse files')
     expect(wrapper.get('aside').text()).toContain('Projects & sessions')
     expect(wrapper.get('aside').text()).not.toContain('Current path')
+    const close = document.body.querySelector<HTMLButtonElement>('button[aria-label="Close file browser"]')
+    expect(close).not.toBeNull()
+    close?.click()
+    await flushPromises()
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
     wrapper.unmount()
   })
 
