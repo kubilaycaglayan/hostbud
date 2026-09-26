@@ -9,7 +9,7 @@ for (const profile of ['desktop', 'phone'] as const) {
   test.describe(`project browser ${profile}`, () => {
     test.use(profile === 'phone' ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } : {})
 
-    test('Path autocomplete and invalid paths', async ({ page, target }) => {
+    test('(T4) Path autocomplete and invalid paths', async ({ page, target }) => {
       const name = uniqueName('e2e-browser')
       const dir = `/home/dev/${name}`
       await target.run(`mkdir -p ${shq(`${dir}/child`)}; touch ${shq(`${dir}/not-a-directory`)}`)

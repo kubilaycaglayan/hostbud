@@ -9,7 +9,7 @@ const homePath = `/api/machines/${MACHINE}/fs/home`
 const statPath = `/api/machines/${MACHINE}/fs/stat`
 const mkdirPath = `/api/machines/${MACHINE}/fs/mkdir`
 
-test('filesystem API: browse home, literal paths, hidden files and symlink state', async ({ target, request }) => {
+test('(T1) filesystem API: browse home, literal paths, hidden files and symlink state', async ({ target, request }) => {
   const dir = uniqueName('e2e-fs')
   const base = `/home/dev/${dir}`
   const odd = `${base}/space quote ' 雪;$()`
