@@ -60,11 +60,15 @@ export const useAuthStore = defineStore('auth', () => {
    * when hostbud itself can't be reached (keep retrying until it's back). */
   async function stillAuthorized(): Promise<boolean> {
     try {
-      await check()
-    } catch {
+      await authApi.me()
+      return true
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) {
+        sessionEnded()
+        return false
+      }
       return true
     }
-    return status.value === 'authenticated'
   }
 
   return { status, email, serverError, check, login, register, logout, sessionEnded, stillAuthorized }

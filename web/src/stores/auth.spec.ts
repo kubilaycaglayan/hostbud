@@ -44,6 +44,18 @@ describe('auth store', () => {
     expect(auth.serverError).toContain('hostbud returned an error')
   })
 
+  it('keeps a signed-in state during a reconnect auth check unless the server answers 401', async () => {
+    const auth = useAuthStore()
+    auth.status = 'authenticated'
+    stubFetch(() => ({ status: 503, body: { error: 'unavailable' } }))
+    expect(await auth.stillAuthorized()).toBe(true)
+    expect(auth.status).toBe('authenticated')
+
+    stubFetch(() => ({ status: 401, body: { error: 'sign in required' } }))
+    expect(await auth.stillAuthorized()).toBe(false)
+    expect(auth.status).toBe('anonymous')
+  })
+
   it('registers, then signs in', async () => {
     const calls = stubFetch((method, path) =>
       path === '/api/auth/me' ? { status: 200, body: { email: 'person@example.com' } } : { status: method === 'POST' && path.endsWith('register') ? 201 : 200, body: {} },

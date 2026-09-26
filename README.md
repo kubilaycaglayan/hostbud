@@ -86,6 +86,12 @@ The domain works only inside your tailnet: its DNS record points at the host's T
 - **Links:** click (tap) a URL in the terminal to open it in a new tab; only `http`/`https` links open. OSC 8 hyperlinks (`ls --hyperlink`, Claude Code) show their real target on hover; inside tmux they need `set -as terminal-features ',xterm*:hyperlinks'` in your `~/.tmux.conf`.
 - **On a phone,** the project tree is the home screen and opens as a drawer over the terminal from ☰. A compact tab bar switches tabs; a split tab shows one pane at a time, with a "Pane n of m" button to switch. Tap the terminal (or ⌨) to bring up the keyboard; the terminal shrinks to stay above it, and rotating the phone resizes the tmux window. The key bar supplies Esc, Tab, Ctrl, Alt, arrows and common symbols; **Scroll history** opens tmux scrollback controls.
 
+### Using hostbud on a phone
+
+Open ☰ to switch projects or sessions without detaching the terminal. On the key bar, tap Ctrl or Alt before a key or typed character; double-tap to lock a modifier. Arrow keys follow the running program's cursor mode. **Scroll history** requires tmux 2.4 or newer; its controls and swipes move the shared pane history, and Done, Bottom or typing exits copy mode.
+
+To install on iPhone, open `https://${HOSTBUD_DOMAIN}` in Safari and choose **Share → Add to Home Screen**. Sign in once in the installed app; iOS keeps its cookies separate from Safari. Android and desktop Chromium can install from the browser prompt. Updates take over on the next app launch. If hostbud is offline at startup, the app shell shows **Can't reach hostbud** and retries. Installation and offline launch require the HTTPS domain or `localhost`; plain-HTTP LAN addresses are not secure contexts.
+
 PostgreSQL credentials are supplied through the local, gitignored `.env` using the documented `HOSTBUD_DB_*` variables. They are not copied into tracked files, images or logs. For owner maintenance, use `docker compose exec hostbud-postgres psql ...` or the optional loopback-only maintenance port. Choose an uncommon `HOSTBUD_DB_LOCAL_PORT`, verify it is unused with `ss -ltn`, and never expose it on `0.0.0.0`, the Tailscale address or the public domain.
 
 PostgreSQL is initialized as a fresh application database. The previous provisional SQLite database is not migrated because this deployment has not been used; its file, if present in the existing app data volume, is left untouched and ignored.

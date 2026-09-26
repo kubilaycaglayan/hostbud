@@ -166,8 +166,8 @@ Profiles: `desktop-chromium`, `iphone-13-pro` (`http://localhost:9055`) and `iph
 - [x] **(T5) Scroll into history:** after `seq 1 400`, Scroll history → `pane_in_mode` 1, `scroll_position` > 0, and earlier numbers are visible in the browser; Page up scrolls further (both phone projects).
 - [x] **(T5) Leave scroll mode:** Done exits copy mode and the key bar returns, and a typed command runs; Bottom makes tmux leave copy mode by itself and the UI follows (both phone projects).
 - [x] **(T5) Scroll works with a full-screen program:** with htop running, Scroll history enters copy mode and Done returns to htop (both phone projects).
-- [ ] **(T6) Unreachable at start-up:** `/api/auth/me` aborted or 502 → **Can't reach hostbud**, never the sign-in form or a session name; after un-routing, Try again → signed-in app (desktop and `iphone-13-pro`).
-- [ ] **(T6) Offline sign-in error:** a network-aborted login shows the connection message; the next correct login succeeds without throttling (desktop).
+- [x] **(T6) Unreachable at start-up:** `/api/auth/me` aborted or 502 → **Can't reach hostbud**, never the sign-in form or a session name; after un-routing, Try again → signed-in app (desktop and `iphone-13-pro`).
+- [x] **(T6) Offline sign-in error:** a network-aborted login shows the connection message; the next correct login succeeds without throttling (desktop).
 - [x] **(T7) Manifest and icons:** manifest linked, served as `application/manifest+json`, with the required fields; every icon and the apple-touch-icon load as PNGs of their declared size through Caddy; no off-origin request (desktop-chromium).
 - [x] **(T7) Theme and status-bar meta:** `theme-color`, `apple-mobile-web-app-capable` and `viewport-fit=cover` present (both phone projects).
 - [x] **(T8) Service worker registers and controls after reload:** no controller on first load; after `ready` and a reload the page is controlled with scope `/` (desktop-chromium).
