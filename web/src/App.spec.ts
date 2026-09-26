@@ -103,6 +103,35 @@ describe('App shell', () => {
     wrapper.unmount()
   })
 
+  it("opens only the new-session dialog from a project row's plus button", async () => {
+    const project = { id: 'p1', machineId: 'host', path: '/home/dev/work', name: 'work', sortOrder: 0, pinned: false, createdAt: '', updatedAt: '' }
+    stubFetch((method, path) =>
+      path === '/api/auth/me'
+        ? { status: 200, body: { email: 'person@example.com' } }
+        : path.startsWith('/api/ui-state/')
+          ? { status: 404, body: { error: 'nothing saved yet' } }
+          : path === '/api/projects?machine=host'
+            ? { status: 200, body: { projects: [project] } }
+            : path === '/api/projects/p1/recent-commands'
+              ? { status: 200, body: { commands: [] } }
+              : path === '/api/machines/host/fs/home'
+                ? { status: 200, body: { path: '/home/dev' } }
+                : path.startsWith('/api/machines/host/fs/list')
+                  ? { status: 200, body: { path: '/home/dev', entries: [] } }
+                  : { status: method === 'POST' ? 204 : 200 },
+    )
+    const wrapper = mount(App, { attachTo: document.body })
+    await flushPromises()
+    useTreeStore().sync()
+    await flushPromises()
+    await wrapper.get('button[aria-label="New session in work"]').trigger('click')
+    await flushPromises()
+    const dialogs = [...document.body.querySelectorAll('[role="dialog"]')]
+    expect(dialogs.map((d) => d.getAttribute('aria-label') ?? d.querySelector('h2')?.textContent?.trim())).toEqual(['New session here'])
+    expect(dialogs[0].textContent).toContain('New session in work')
+    wrapper.unmount()
+  })
+
   it('signs out back to the sign-in screen', async () => {
     const calls = signedIn()
     const wrapper = mount(App)
