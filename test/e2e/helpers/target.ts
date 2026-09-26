@@ -57,7 +57,8 @@ export class Target {
   async sessions(): Promise<string[]> {
     const r = await this.exec("tmux list-sessions -F '#{session_name}'")
     if (r.code !== 0) {
-      if (/no server running|error connecting/.test(r.stderr)) return []
+      // No server, or it shut down while we asked (its last session ended).
+      if (/no server running|error connecting|server exited unexpectedly/.test(r.stderr)) return []
       throw new Error(`target: tmux list-sessions exited ${r.code}: ${r.stderr.trim()}`)
     }
     return r.stdout.split('\n').filter(Boolean)
