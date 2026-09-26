@@ -146,18 +146,14 @@ describe('validate', () => {
 })
 
 describe('splits', () => {
-  // A tab showing `a`, split as asked; returns the layout and a pane lookup.
-  function tabOf(first = 'a') {
-    const l = withTabs(first)
-    const pane = (l2: Layout, s: string) => allPanes(l2).find((p) => p.session === s)!.id
-    return { l, pane }
-  }
+  // The id of the pane showing a session.
+  const pane = (l: Layout, s: string) => allPanes(l).find((p) => p.session === s)!.id
   const tree = (n: LayoutNode): unknown =>
     n.type === 'pane' ? n.session : { [n.dir]: n.children.map(tree), sizes: n.sizes }
   const root = (l: Layout) => tree(l.tabs[0].root)
 
   it('split right, then right again: siblings share the space equally', () => {
-    let { l, pane } = tabOf()
+    let l = withTabs('a')
     const r = splitPane(l, pane(l, 'a'), 'row', 'host', 'b')
     expect(r.result).toBe('split')
     l = r.layout
@@ -168,7 +164,7 @@ describe('splits', () => {
   })
 
   it('the other direction nests a split', () => {
-    let { l, pane } = tabOf()
+    let l = withTabs('a')
     l = splitPane(l, pane(l, 'a'), 'row', 'host', 'b').layout
     l = splitPane(l, pane(l, 'b'), 'column', 'host', 'c').layout
     expect(root(l)).toEqual({ row: ['a', { column: ['b', 'c'], sizes: [50, 50] }], sizes: [50, 50] })
@@ -177,7 +173,7 @@ describe('splits', () => {
   })
 
   it(`holds at most ${MAX_TAB_PANES} panes per tab`, () => {
-    let { l, pane } = tabOf()
+    let l = withTabs('a')
     for (const s of ['b', 'c', 'd']) l = splitPane(l, pane(l, 'a'), 'row', 'host', s).layout
     const r = splitPane(l, pane(l, 'a'), 'column', 'host', 'e')
     expect(r.result).toBe('tab-full')
@@ -195,7 +191,7 @@ describe('splits', () => {
   })
 
   it('closing a pane gives its space back; a split left with one child collapses', () => {
-    let { l, pane } = tabOf()
+    let l = withTabs('a')
     l = splitPane(l, pane(l, 'a'), 'row', 'host', 'b').layout
     l = splitPane(l, pane(l, 'b'), 'column', 'host', 'c').layout
     l = setSizes(l, (l.tabs[0].root as Split).id, [70, 30])
@@ -210,7 +206,7 @@ describe('splits', () => {
   })
 
   it('removing panes rebalances in proportion, and merges a same-direction split', () => {
-    let { l, pane } = tabOf()
+    let l = withTabs('a')
     l = splitPane(l, pane(l, 'a'), 'row', 'host', 'b').layout
     l = splitPane(l, pane(l, 'b'), 'column', 'host', 'c').layout
     l = splitPane(l, pane(l, 'c'), 'row', 'host', 'd').layout
@@ -222,7 +218,7 @@ describe('splits', () => {
   })
 
   it('focus: set, cycled in reading order', () => {
-    let { l, pane } = tabOf()
+    let l = withTabs('a')
     l = splitPane(l, pane(l, 'a'), 'row', 'host', 'b').layout
     const t = l.tabs[0].id
     l = focusPane(l, t, pane(l, 'a'))
@@ -233,7 +229,7 @@ describe('splits', () => {
   })
 
   it('opening a session shown in a split focuses that pane; rename reaches split panes', () => {
-    let { l, pane } = tabOf()
+    let l = withTabs('a')
     l = splitPane(l, pane(l, 'a'), 'row', 'host', 'b').layout
     l = openSession(l, 'host', 'a').layout
     expect(active(l)).toBe('a')
@@ -241,7 +237,7 @@ describe('splits', () => {
   })
 
   it('divider sizes are kept summing to 100', () => {
-    let { l, pane } = tabOf()
+    let l = withTabs('a')
     l = splitPane(l, pane(l, 'a'), 'row', 'host', 'b').layout
     l = setSizes(l, (l.tabs[0].root as Split).id, [1, 3])
     expect((l.tabs[0].root as Split).sizes).toEqual([25, 75])

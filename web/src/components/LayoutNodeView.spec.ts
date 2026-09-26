@@ -38,7 +38,7 @@ describe('LayoutNodeView', () => {
       { session: 'c', focused: 'true' },
     ])
     const stub = w.findAll('terminal-view-stub')[0]
-    expect(stub.attributes()).toMatchObject({ 'pane-index': '1', 'pane-count': '3', 'can-split': 'true' })
+    expect(stub.attributes()).toMatchObject({ paneindex: '1', panecount: '3', cansplit: 'true' }) // stub attributes are lowercased
   })
 
   it('pane events reach the layout: focus, split, close; New session… asks App', async () => {
@@ -69,7 +69,7 @@ describe('TabView on narrow screens', () => {
     const shown = () =>
       w.findAll('terminal-view-stub').filter((t) => (t.element.parentElement as HTMLElement).style.display !== 'none')
     expect(shown().map((t) => t.attributes('session'))).toEqual(['c'])
-    expect(shown()[0].attributes()).toMatchObject({ 'pane-index': '3', 'pane-count': '3', narrow: 'true', active: 'true' })
+    expect(shown()[0].attributes()).toMatchObject({ paneindex: '3', panecount: '3', narrow: 'true', active: 'true' })
     // Hidden panes don't take input or refit.
     expect(w.findAll('terminal-view-stub').map((t) => t.attributes('active'))).toEqual(['false', 'false', 'true'])
     w.findAllComponents({ name: 'TerminalView' })[2].vm.$emit('cyclePane')

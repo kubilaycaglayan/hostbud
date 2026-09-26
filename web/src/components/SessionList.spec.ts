@@ -42,22 +42,16 @@ describe('SessionList', () => {
     expect(w.emitted('kill')).toEqual([['a']])
   })
 
-  it('the row menu opens a session in a split, right or down', async () => {
+  it.each([
+    ['Open in split right', 'row'],
+    ['Open in split down', 'column'],
+  ])('the row menu: %s', async (label, dir) => {
     const w = mount(SessionList, { props: { sessions: [s('a'), s('b')] }, attachTo: document.body })
-    const open = async () => {
-      await w.get('button[aria-label="More actions for b"]').trigger('keydown', { key: 'Enter' })
-      await new Promise((r) => setTimeout(r))
-    }
-    const item = (text: string) =>
-      [...document.body.querySelectorAll<HTMLElement>('[role=menuitem]')].find((x) => x.textContent?.trim() === text)!
-    await open()
-    item('Open in split right').click()
-    await open()
-    item('Open in split down').click()
-    expect(w.emitted('split')).toEqual([
-      ['b', 'row'],
-      ['b', 'column'],
-    ])
+    await w.get('button[aria-label="More actions for b"]').trigger('keydown', { key: 'Enter' })
+    await new Promise((r) => setTimeout(r))
+    const item = [...document.body.querySelectorAll<HTMLElement>('[role=menuitem]')].find((x) => x.textContent?.trim() === label)
+    item!.click()
+    expect(w.emitted('split')).toEqual([['b', dir]])
     w.unmount()
   })
 })
