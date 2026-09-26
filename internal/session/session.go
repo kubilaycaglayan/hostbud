@@ -409,7 +409,9 @@ func stderrOf(err error) string {
 }
 
 func isDuplicate(err error) bool { return strings.Contains(stderrOf(err), "duplicate session") }
-func isNotFound(err error) bool  { return strings.Contains(stderrOf(err), "can't find session") }
+func isNotFound(err error) bool {
+	return strings.Contains(stderrOf(err), "can't find session") || tmux.NoServer(stderrOf(err))
+}
 func isServerGone(err error) bool {
 	return strings.Contains(stderrOf(err), "server exited unexpectedly") ||
 		strings.Contains(stderrOf(err), "lost server")

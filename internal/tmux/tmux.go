@@ -169,6 +169,9 @@ type Window struct {
 	Panes  []Pane `json:"panes"`
 }
 
+// Tmux sanitizes tab characters to underscores for a non-interactive SSH
+// client with the default C locale. Use printable separators and a UTF-8
+// locale; free-form fields remain last and are split with a field limit.
 const windowsFormat = "W\t#{window_id}\t#{window_index}\t#{window_active}\t#{window_panes}\t#{window_name}"
 const panesFormat = "P\t#{window_id}\t#{pane_id}\t#{pane_index}\t#{pane_active}\t#{pane_width}\t#{pane_height}\t#{pane_current_command}"
 
@@ -177,7 +180,7 @@ func listWindowsCommands(name string) ([]string, error) {
 		return nil, err
 	}
 	t := target(name)
-	return []string{"tmux", "list-windows", "-t", t, "-F", windowsFormat, ";", "list-panes", "-s", "-t", t, "-F", panesFormat}, nil
+	return []string{"env", "LC_ALL=C.UTF-8", "tmux", "list-windows", "-t", t, "-F", windowsFormat, ";", "list-panes", "-s", "-t", t, "-F", panesFormat}, nil
 }
 
 // ListWindowsArgs lists windows and panes in one tmux invocation.
@@ -193,12 +196,13 @@ func SelectArgs(name, windowID, paneID string) ([]string, error) {
 		return nil, errors.New("invalid tmux window or pane id")
 	}
 	t := target(name)
-	args := []string{"tmux", "select-window", "-t", t + ":" + windowID}
+	args := []string{"env", "LC_ALL=C.UTF-8", "tmux", "select-window", "-t", t + ":" + windowID}
 	if paneID != "" {
 		args = append(args, ";", "select-pane", "-t", t+":"+windowID+"."+paneID)
 	}
 	list, _ := listWindowsCommands(name)
-	args = append(args, list[1:]...)
+	args = append(args, ";")
+	args = append(args, list[3:]...)
 	return args, nil
 }
 

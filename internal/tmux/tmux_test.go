@@ -115,16 +115,22 @@ func TestExactTargets(t *testing.T) {
 }
 
 func TestWindowAndPaneArgs(t *testing.T) {
-	wantList := []string{"tmux", "list-windows", "-t", "=work", "-F", windowsFormat, ";", "list-panes", "-s", "-t", "=work", "-F", panesFormat}
+	wantList := []string{"env", "LC_ALL=C.UTF-8", "tmux", "list-windows", "-t", "=work", "-F", windowsFormat, ";", "list-panes", "-s", "-t", "=work", "-F", panesFormat}
 	got, err := ListWindowsArgs("work")
 	if err != nil || !slices.Equal(got, wantList) {
 		t.Fatalf("list argv = %q, %v; want %q", got, err, wantList)
 	}
-	wantSelect := []string{"tmux", "select-window", "-t", "=work:@2", ";", "select-pane", "-t", "=work:@2.%4"}
-	wantSelect = append(wantSelect, wantList[1:]...)
+	wantSelect := []string{"env", "LC_ALL=C.UTF-8", "tmux", "select-window", "-t", "=work:@2", ";", "select-pane", "-t", "=work:@2.%4", ";"}
+	wantSelect = append(wantSelect, wantList[3:]...)
 	got, err = SelectArgs("work", "@2", "%4")
 	if err != nil || !slices.Equal(got, wantSelect) {
 		t.Fatalf("select argv = %q, %v; want %q", got, err, wantSelect)
+	}
+	wantSelect = []string{"env", "LC_ALL=C.UTF-8", "tmux", "select-window", "-t", "=work:@1", ";"}
+	wantSelect = append(wantSelect, wantList[3:]...)
+	got, err = SelectArgs("work", "@1", "")
+	if err != nil || !slices.Equal(got, wantSelect) {
+		t.Fatalf("select window argv = %q, %v; want %q", got, err, wantSelect)
 	}
 	for _, tc := range []struct{ name, window, pane string }{
 		{"bad.name", "@1", ""}, {"work", "@", ""}, {"work", "@x", ""}, {"work", "1", ""},

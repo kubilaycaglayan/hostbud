@@ -36,8 +36,8 @@ func (f *fakeExec) Exec(_ context.Context, _ string, args ...string) ([]byte, er
 func (f *fakeExec) tmuxCalls() [][]string {
 	var out [][]string
 	for _, c := range f.calls {
-		if c[0] == "tmux" {
-			out = append(out, c)
+		if i := slices.Index(c, "tmux"); i >= 0 {
+			out = append(out, c[i:])
 		}
 	}
 	return out
@@ -213,7 +213,7 @@ func TestWindowsRejectInvalidBeforeExecAndMapsMissing(t *testing.T) {
 		t.Fatalf("invalid name err=%v calls=%v", err, f.calls)
 	}
 	f.handler = func(args []string) error {
-		if args[0] == "tmux" {
+		if slices.Contains(args, "tmux") {
 			return remote(1, "can't find session: =gone")
 		}
 		return nil

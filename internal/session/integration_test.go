@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -183,7 +184,9 @@ func TestIntegrationWindowsAndPanes(t *testing.T) {
 	}
 	state, err := svc.ListWindows(ctx, sshx.HostMachineID, name)
 	if err != nil {
-		t.Fatal(err)
+		args, _ := tmux.ListWindowsArgs(name)
+		out, execErr := c.Exec(ctx, sshx.HostMachineID, args...)
+		t.Fatalf("list windows: %v; raw exec error=%v output=%q", err, execErr, string(out))
 	}
 	if state.Truncated || len(state.Windows) != 3 || len(state.Windows[0].Panes) != 2 || state.Windows[1].Name != "space λ" {
 		t.Fatalf("windows = %+v", state)
@@ -193,12 +196,12 @@ func TestIntegrationWindowsAndPanes(t *testing.T) {
 			t.Errorf("window order: index at %d = %d", i, w.Index)
 		}
 	}
-	directWindows, err := c.Exec(ctx, sshx.HostMachineID, "tmux", "list-windows", "-t", "="+name,
+	directWindows, err := c.Exec(ctx, sshx.HostMachineID, "env", "LC_ALL=C.UTF-8", "tmux", "list-windows", "-t", "="+name,
 		"-F", "W\t#{window_id}\t#{window_index}\t#{window_active}\t#{window_panes}\t#{window_name}")
 	if err != nil {
 		t.Fatal(err)
 	}
-	directPanes, err := c.Exec(ctx, sshx.HostMachineID, "tmux", "list-panes", "-s", "-t", "="+name,
+	directPanes, err := c.Exec(ctx, sshx.HostMachineID, "env", "LC_ALL=C.UTF-8", "tmux", "list-panes", "-s", "-t", "="+name,
 		"-F", "P\t#{window_id}\t#{pane_id}\t#{pane_index}\t#{pane_active}\t#{pane_width}\t#{pane_height}\t#{pane_current_command}")
 	if err != nil {
 		t.Fatal(err)
@@ -254,7 +257,7 @@ type killBeforeSelect struct {
 }
 
 func (e *killBeforeSelect) Exec(ctx context.Context, machine string, args ...string) ([]byte, error) {
-	if !e.killed && len(args) > 1 && args[0] == "tmux" && args[1] == "select-window" {
+	if i := slices.Index(args, "tmux"); !e.killed && i >= 0 && len(args) > i+1 && args[i+1] == "select-window" {
 		e.killed = true
 		_, _ = e.inner.Exec(ctx, machine, "tmux", "kill-session", "-t", "="+e.name)
 	}
@@ -263,13 +266,13 @@ func (e *killBeforeSelect) Exec(ctx context.Context, machine string, args ...str
 
 func TestIntegrationSessionEndsBetweenListingAndSelect(t *testing.T) {
 	c := testenv.Connected(t, testenv.SSHD)
-	testenv.Sh(t, c, "tmux kill-server 2>/dev/null")
+	testenv.Sh(t, c, "tmux kill-server 2>/dev/null || true")
 	inv := inventory.New(c, events.NewBus(), inventory.Options{MachineID: sshx.HostMachineID, Interval: time.Second})
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { inv.Run(ctx); close(done) }()
 	t.Cleanup(func() {
-		testenv.Sh(t, c, "tmux kill-server 2>/dev/null")
+		testenv.Sh(t, c, "tmux kill-server 2>/dev/null || true")
 		cancel()
 		<-done
 	})
