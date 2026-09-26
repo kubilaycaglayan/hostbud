@@ -139,7 +139,7 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
   - U: T7/T8 `spaHandler` serves the new files without a session; unknown `/icons/*` and root `*.js` → 404 (Go); T8 routing leaves `/api` and `/ws` to the network (Vitest).
   - I: n/a (no server-side auth change; M1 integration covers the auth middleware).
   - E: T8 *API never served from the cache* · T1 *Copy-mode API* (auth and Origin).
-- [ ] M5 adds no env var, migration, published port or new remote command path: copy mode goes through `tmux` argument builders and `sshx` like every other tmux command.
+- [x] M5 adds no env var, migration, published port or new remote command path: copy mode goes through `tmux` argument builders and `sshx` like every other tmux command.
   - U: T1 `CopyModeArgs` lives in `internal/tmux`, and the existing architecture tests (`internal/archtest`) still pass (no exec outside `sshx`, no SQL outside `store`) (Go).
   - I: the existing deploy-config check (published ports, mounts, `user`) still passes unchanged (T9 CP4).
   - E: n/a: nothing new is reachable beyond the routes and files covered above.
