@@ -57,10 +57,29 @@ Each criterion names **U** (unit), **I** (integration against `test/sshd`, Postg
   - U: T3 unmatched grouping and save action state; assert it calls project creation only.
   - I: T3 PostgreSQL project insert and session cache remains unchanged; target `#{session_id}` and `#{session_path}` are unchanged.
   - E: T5 *Other sessions and Save as project* (desktop and iPhone 13 Pro).
-- [ ] Project names and ordering are rendered from persisted metadata; projects with equal or nested paths remain distinct entries. Existing M6 tree customization is not pulled forward into M4.
+- [ ] Project names and saved user order are rendered from persisted metadata; projects with equal or nested paths remain distinct entries.
   - U: T3 tree projection and deterministic ordering for equal names/paths.
   - I: T2 project list repository order and uniqueness constraints.
   - E: T5 *Distinct project tree entries* (desktop).
+
+## Left bar and account controls
+
+- [ ] The left bar's project and session rows use a user-controlled order. Users can reorder projects and sessions within their project or Other sessions group; the order is persisted per account and restored after reload, sign-out/sign-in and app restart. New rows are added without automatically re-sorting existing rows. No alphabetical, activity, or recency auto-sort overrides the saved order.
+  - U: T5 tree ordering operations, insertion of newly observed projects/sessions, serialization and validation; invalid or duplicate order entries are repaired deterministically.
+  - I: T5 per-account project and session order round-trip through the PostgreSQL-backed `tree` UI-state key; order for one account does not affect another.
+  - E: T5 *Left bar custom order* (desktop and iPhone 13 Pro): reorder project and session rows, create a new session/project and verify existing order stays put, reload/restart and verify order persists.
+- [ ] For each session row, the close/kill ×, three-dot actions menu and pencil rename control sit in a compact action group immediately to the right of the session title in the left bar. The × still opens the existing destructive-action confirmation; the menu and rename behavior remain available. This placement applies only to the left bar, not terminal tabs, panes or other views.
+  - U: T5 `SessionList` action order, accessible names, and callbacks; kill confirmation remains wired.
+  - I: n/a — control placement and callbacks are frontend behavior; the existing kill/rename endpoint integration coverage remains authoritative for effects.
+  - E: T5 *Left bar session actions* (desktop and iPhone 13 Pro): verify the action group follows the row title, rename works, and × requires confirmation before killing.
+- [ ] The signed-in account email and Sign out action appear at the top-right of the app header, rather than the bottom of the left bar. Sign out continues to revoke the session and clear live/layout state. On narrow screens, the email and Sign out remain reachable without opening the left bar.
+  - U: T5 header placement/accessibility and sign-out callback; existing auth-store tests cover session clearing.
+  - I: n/a — placement is frontend behavior; M1 authentication integration covers session revocation.
+  - E: T5 *Account controls in app header* (desktop and iPhone 13 Pro): verify email/Sign out at top right with the left bar both visible and closed; sign out returns to sign-in and stops live updates.
+- [ ] Session rows do not show tmux window counts.
+  - U: T5 `SessionList` does not render a window-count label for zero, one or multiple windows.
+  - I: n/a — presentation of the existing session `windows` field is frontend-only.
+  - E: T5 *No window counts* (desktop): sessions with one and multiple windows both render without a count label.
 
 ## Recent start commands
 
@@ -111,6 +130,10 @@ Projects remain `desktop-chromium` and `iphone-13-pro` against the throwaway tar
 - [ ] **(T5) Linked session rename and cleanup:** project-created session link follows UI rename and is removed/invalidated after session end (desktop).
 - [ ] **(T5) Other sessions and Save as project:** unmatched session is grouped separately; save it, see it move under a project, and verify tmux session id is unchanged (desktop and phone).
 - [ ] **(T5) Distinct project tree entries:** nested paths and similar names remain separate, deterministic entries (desktop).
+- [ ] **(T5) Left bar custom order:** reorder projects and sessions, add new rows, and verify existing custom order persists through reload and restart (desktop and phone).
+- [ ] **(T5) Left bar session actions:** the ×, ⋯ and pencil sit directly to the right of the title; rename works; × prompts before kill (desktop and phone).
+- [ ] **(T5) Account controls in app header:** email and Sign out appear top-right whether the left bar is open or closed; sign out revokes the session (desktop and phone).
+- [ ] **(T5) No window counts:** one-window and multi-window rows both omit the count label (desktop).
 - [ ] **(T6) Recent start command:** choose a recent command on a second project session; it runs in the correct project directory (desktop and phone).
 - [ ] **(T6) Recent commands are project-scoped and require selection:** another project's command is absent and opening the picker runs nothing (desktop).
 

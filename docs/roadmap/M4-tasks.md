@@ -79,11 +79,16 @@ Tasks proceed in order. Before implementation, re-check M3's acceptance gates an
 - Replace the flat session grouping with Project → Session and an Other sessions group, preserving the tree's existing event-driven session updates and M3 layout behavior.
 - Recompute placement from current projects and live session state using the T3 placement service. Project-created links take precedence; otherwise use longest path-component match. Do not use project display name for matching.
 - Add Save as project for unmatched sessions. It creates/chooses the project for that session path and only changes metadata/grouping; it must not rename, detach, restart or kill the tmux session.
-- Keep similar project names and nested paths distinct and ordering deterministic. Avoid pulling M6 sorting/pinning/collapse customization into this milestone.
+- Keep similar project names and nested paths distinct. Pinning and collapse customization remain in M6.
+- Implement the left bar custom-order interaction for project rows and session rows within each group. Persist the account's explicit order, append new rows without moving existing rows, and never auto-sort by name, activity or recency. This moves drag-to-sort into M4 from M6; M6 must not re-add it.
+- Persist both project and session/group order per account with a new `tree` key in `/api/ui-state/:key`; extend the key allowlist in M4 (M6 later extends it with `theme`). Keep the stored format versioned and validate it before applying. Do not use the global `projects.sort_order` field for this account-specific presentation state.
+- Move each session row's kill ×, more-actions ⋯ and rename pencil into a compact cluster immediately to the right of its title in the left bar only. Preserve the existing kill confirmation and action semantics.
+- Move the signed-in email and Sign out control from the sidebar footer to the top-right of the app header; keep them reachable on narrow screens when the sidebar is closed.
+- Remove tmux window-count labels from session rows entirely.
 
-**Tests:** U (Vitest): tree projection for nested and similar paths, unmatched grouping, typed event updates, duplicate/replayed events, save-as-project state and no session mutation; Go unit coverage from T3 remains authoritative for path matching. I: T3 integration covers session ids/paths; add integration case for out-of-band-created sessions if absent.
+**Tests:** U (Vitest): tree projection for nested and similar paths, unmatched grouping, typed event updates, duplicate/replayed events, save-as-project state and no session mutation; custom reorder/persistence and append-without-resort; left-bar action order/handlers and kill confirmation wiring; account header placement and sign-out wiring; no window-count rendering. Go unit coverage from T3 remains authoritative for path matching. I: T3 integration covers session ids/paths; add integration case for out-of-band-created sessions if absent; per-user tree UI-state round-trip covers account-scoped project and session order.
 
-**E2E:** add **(T5) Longest-prefix project mapping**, **Linked session rename and cleanup**, **Other sessions and Save as project**, and **Distinct project tree entries** to the acceptance checklist. Use real-terminal-created sessions on the throwaway target; type-check only.
+**E2E:** add **(T5) Longest-prefix project mapping**, **Linked session rename and cleanup**, **Other sessions and Save as project**, **Distinct project tree entries**, **Left bar custom order**, **Left bar session actions**, **Account controls in app header**, and **No window counts** to the acceptance checklist. Use real-terminal-created sessions on the throwaway target; type-check only.
 
 **Done:** live sessions appear in the correct project or Other sessions group; save-as-project moves metadata only; scenarios compile.
 
@@ -101,7 +106,7 @@ Tasks proceed in order. Before implementation, re-check M3's acceptance gates an
 
 ## T7 — Documentation, audit and release
 
-- Update README usage for browsing, creating projects, starting a session in a project, Other sessions/Save as project, recent commands, hidden files, SFTP requirements and the absence of remote delete/rename.
+- Update README usage for browsing, creating projects, starting a session in a project, Other sessions/Save as project, recent commands, hidden files, SFTP requirements and the absence of remote delete/rename. Include the left-bar custom order and account-control locations if they need explanation.
 - Reconcile ARCHITECTURE §§7–9, 11 and 13 with actual behavior, including endpoint shapes, event types, path matching, symlink policy, recent command history limit and tests. Update ROADMAP only if the scope changes.
 - *(host)* `make deploy`; verify browser and project persistence with the real host only after automated checks pass. Never touch or stop user tmux sessions except through explicitly authorized UI actions; filesystem browsing remains read/list/stat/mkdir only.
 - Audit every acceptance criterion's U/I/E line and task attribution, docs, `.env.example`, `make lint test`, `make gitleaks`, and E2E TypeScript compilation. Do not run the e2e stack or suite during M4. Report manual host checks and any env vars in the summary.

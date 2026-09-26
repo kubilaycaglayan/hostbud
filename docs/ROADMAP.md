@@ -83,6 +83,7 @@ Tasks: [roadmap/M4-tasks.md](roadmap/M4-tasks.md) · Checklist: [roadmap/M4-acce
 - "Open as project", "New session here"; projects persisted; recents.
 - Longest-prefix mapping of sessions to projects + `session_links`; "Other sessions" node with "Save as project".
 - Recent start commands per project (e.g. `claude`, `codex`).
+- Left bar has explicit user-controlled order for projects and sessions; new rows do not auto-sort existing entries. Session row actions sit to the right of the title; account email/sign-out move to the app header's top-right. Session rows do not show window counts.
 
 **E2E:** browse home → into a folder → create a folder → "Open as project" → "New session here" → session appears under that project with the right path; a session started from a real terminal inside a project dir lands under it; one outside lands in "Other sessions" and "Save as project" moves it; hidden-files toggle and path autocomplete work; recent start command is offered next time.
 
@@ -98,7 +99,7 @@ Tasks: [roadmap/M4-tasks.md](roadmap/M4-tasks.md) · Checklist: [roadmap/M4-acce
 **Accept:** from a phone, attach to a session, type, scroll history, and switch sessions comfortably; hostbud installs to the phone's home screen from the domain and opens full-screen (manual check on the owner's iPhone: Safari → Share → Add to Home Screen).
 
 ### M6 — Tree customization and polish
-- Drag-to-sort projects; inline rename; hide/unhide; pin projects.
+- Inline rename; hide/unhide; pin projects. M4 provides drag-to-sort and persistent manual ordering for projects and sessions; M6 must preserve it and must not introduce automatic re-sorting.
 - Collapse state persisted; lazily loaded windows/panes under sessions.
 - Command palette (Ctrl/⌘-K); keyboard shortcuts.
 - Theme setting: **Dark / Light / System**. System follows the OS `prefers-color-scheme` and switches live when the OS changes. The setting applies to the whole UI and the xterm terminal palette, is persisted in `ui_state` (default: System), and is applied before first paint (no flash of the wrong theme).
