@@ -13,10 +13,10 @@ Update this table in the same commit that finishes a task.
 | T1 SFTP service and API | Done |
 | T2 Project and recent-command persistence | Done |
 | T3 Project API, events and session placement service | Done |
-| T4 File browser and project actions | Done |
+| T4 File browser and project actions | In progress |
 | T5 Project tree and unmatched sessions | Done |
 | T6 Recent start commands | Done |
-| T7 Documentation, audit and release | Done |
+| T7 Documentation, audit and release | In progress |
 
 Tasks proceed in order. Before implementation, re-check M3's acceptance gates and the M4 acceptance coverage below. Every behavior-changing task writes its unit, integration and e2e coverage in the same commit. Run `make lint test` and `make gitleaks` per repository rules; from M4 onward do not run `make e2e`, `e2e-up` or `e2e-run` before M7. Each task that changes e2e files only type-checks the suite with `tsc` as part of lint. E2E scenarios are authored now and run once with the full suite in M7.
 
@@ -65,12 +65,13 @@ Tasks proceed in order. Before implementation, re-check M3's acceptance gates an
 - Build the browser view with breadcrumb navigation, current-path input/autocomplete, directory-first listing, hidden toggle, keyboard navigation and actionable loading/empty/error states.
 - Add Create folder with validation and immediate refreshed listing. No delete or remote rename UI.
 - Add Open as project, using the existing project when the path is already saved. Add New session here for the selected project, wired to the single session service and existing session creation UI conventions.
+- Open the file browser in a modal dialog from an icon-only FolderPlus button outside the left gutter; never squeeze the browser into the project/session sidebar. Render directory project actions as related icon buttons (FolderPlus for saving, FolderOpen for an existing project) with accessible names and tooltips. Add and import `lucide-vue-next` for these icons.
 - On phone widths, make directory navigation, folder creation, project selection and new session actions usable with touch targets and the app's existing list/terminal navigation model.
 - Update README and ARCHITECTURE if the browser/API or user-facing semantics differ from existing design contracts.
 
-**Tests:** U (Vitest): breadcrumb/path input, autocomplete and keyboard behavior, error recovery, hidden toggle, folder form validation, duplicate project selection, project action exact path, session action calls service and handles errors without phantom projects. I: T1/T2/T3 integration contracts cover remote path and persistence; no additional I test unless UI introduces a new server behavior.
+**Tests:** U (Vitest): breadcrumb/path input, autocomplete and keyboard behavior, error recovery, hidden toggle, folder form validation, duplicate project selection, project action exact path, dialog open/close and accessible icon actions, session action calls service and handles errors without phantom projects. I: T1/T2/T3 integration contracts cover remote path and persistence; n/a for dialog/icon presentation because it adds no server behavior.
 
-**E2E:** add **(T4) Path autocomplete and invalid paths**, **Hidden toggle and lazy symlink status in the browser**, **Create folder**, **Open as project and persist**, **Project persists and updates live**, and **New session here** to [M4-acceptance.md](M4-acceptance.md#e2e-scenarios-make-e2e-simulated-user), desktop and phone where specified. Type-check only.
+**E2E:** add **(T4) Path autocomplete and invalid paths**, **Hidden toggle and lazy symlink status in the browser**, **Create folder**, **Open as project and persist**, **Project persists and updates live**, **New session here**, and **File browser dialog and icon actions** to [M4-acceptance.md](M4-acceptance.md#e2e-scenarios-make-e2e-simulated-user), desktop and phone where specified. Type-check only.
 
 **Done:** browse, mkdir, save project and create-in-project flows work in both responsive profiles; scenarios compile.
 
