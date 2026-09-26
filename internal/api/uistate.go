@@ -13,10 +13,10 @@ import (
 // maxUIState bounds one stored UI state value (the layout is a few KiB).
 const maxUIState = 64 << 10
 
-// uiStateKeys are the UI state keys a client may store (M6 adds tree and
-// theme). The server doesn't interpret the values; clients validate what
+// uiStateKeys are the UI state keys a client may store (M6 adds theme).
+// The server doesn't interpret the values; clients validate what
 // they read back.
-var uiStateKeys = map[string]bool{"layout": true}
+var uiStateKeys = map[string]bool{"layout": true, "tree": true}
 
 // UIStateStore keeps UI state per account (store.Store).
 type UIStateStore interface {

@@ -5,8 +5,9 @@ import type { Project } from '@/api/types'
 import FormError from './FormError.vue'
 import { describeError } from '@/stores/toasts'
 import { useProjectsStore } from '@/stores/projects'
+import { useTreeStore } from '@/stores/tree'
 
-const props = defineProps<{ machine: string }>()
+const props = defineProps<{ machine: string; startProjectId?: string }>()
 const emit = defineEmits<{ created: [name: string] }>()
 const path = ref('')
 const pathInput = ref('')
@@ -49,8 +50,15 @@ async function initialize() {
     const home = await filesystemApi.home(props.machine)
     await navigate(home.path)
     await projectStore.load(props.machine)
+    useTreeStore().sync()
+    const requested = projectStore.items.find((item) => item.id === props.startProjectId)
+    if (requested) sessionProject.value = requested
   } catch (e) { error.value = describeError(e) }
 }
+watch(() => props.startProjectId, (id) => {
+  const requested = projectStore.items.find((item) => item.id === id)
+  if (requested) sessionProject.value = requested
+})
 watch(hidden, () => { if (path.value) void navigate(path.value) })
 onMounted(() => { void initialize() })
 

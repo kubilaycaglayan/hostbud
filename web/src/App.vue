@@ -3,10 +3,10 @@ import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue'
 import AuthView from '@/components/AuthView.vue'
 import CreateSessionDialog from '@/components/CreateSessionDialog.vue'
 import FileBrowser from '@/components/FileBrowser.vue'
+import SessionTree from '@/components/SessionTree.vue'
 import KillSessionDialog from '@/components/KillSessionDialog.vue'
 import RenameSessionDialog from '@/components/RenameSessionDialog.vue'
 import HostBanner from '@/components/HostBanner.vue'
-import SessionList from '@/components/SessionList.vue'
 import TabBar from '@/components/TabBar.vue'
 import TabView from '@/components/TabView.vue'
 import { NEW_SESSION_FOR_SPLIT } from '@/components/layoutKeys'
@@ -18,22 +18,24 @@ import { useAuthStore } from '@/stores/auth'
 import { useLayoutStore } from '@/stores/layout'
 import { useLiveStore } from '@/stores/live'
 import { useMachinesStore } from '@/stores/machines'
-import { useSessionsStore } from '@/stores/sessions'
+import { useTreeStore } from '@/stores/tree'
+import { useProjectsStore } from '@/stores/projects'
 
 const app = useAppStore()
 const auth = useAuthStore()
 const layout = useLayoutStore()
 const live = useLiveStore()
 const machines = useMachinesStore()
-const sessions = useSessionsStore()
+const tree = useTreeStore()
+const projects = useProjectsStore()
 
 // v1 has one machine: the host.
 const MACHINE = 'host'
 const host = computed(() => machines.byId(MACHINE))
-const hostSessions = computed(() => sessions.list(MACHINE))
 
 const creating = ref(false)
 const browsing = ref(false)
+const requestedProjectId = ref<string | undefined>()
 const renaming = ref(false)
 const killing = ref(false)
 const target = ref('') // the session a rename/kill dialog is about
@@ -71,6 +73,16 @@ function newSession() {
   splitTarget.value = null
   creating.value = true
 }
+function newProjectSession(project: { id: string }) {
+  requestedProjectId.value = project.id
+  browsing.value = true
+}
+function showTree() {
+  browsing.value = false
+  requestedProjectId.value = undefined
+  app.sidebarOpen = true
+  app.showList()
+}
 function onCreated(name: string) {
   const t = splitTarget.value
   splitTarget.value = null
@@ -99,7 +111,12 @@ watch(
       app.showList()
       return
     }
-    await layout.load()
+    await Promise.all([
+      layout.load(),
+      tree.load(),
+      projects.load(MACHINE).catch((error) => console.warn("hostbud: can't load projects", error)),
+    ])
+    tree.sync()
     if (auth.status === 'authenticated') live.start()
   },
 )
@@ -129,6 +146,29 @@ onUnmounted(() => {
     class="flex h-full flex-col"
   >
     <HostBanner :machine="host" />
+    <header class="flex min-h-12 items-center gap-3 border-b border-border bg-surface px-3">
+      <h1 class="font-bold text-accent">
+        hostbud
+      </h1>
+      <button
+        type="button"
+        class="min-h-11 rounded px-2"
+        :aria-label="narrow ? 'Back to project tree' : app.sidebarOpen ? 'Hide project tree' : 'Show project tree'"
+        @click="narrow ? showTree() : app.toggleSidebar()"
+      >
+        {{ narrow ? '☰' : 'Projects' }}
+      </button>
+      <div class="ml-auto flex min-w-0 items-center gap-2 text-sm text-muted">
+        <span class="max-w-40 truncate">{{ auth.email }}</span>
+        <button
+          type="button"
+          class="min-h-11 rounded border border-border px-3"
+          @click="auth.logout()"
+        >
+          Sign out
+        </button>
+      </div>
+    </header>
     <!-- Narrow screens show the list or the open terminal, one at a time. -->
     <div class="flex min-h-0 flex-1">
       <aside
@@ -138,9 +178,6 @@ onUnmounted(() => {
         :class="app.terminalShown ? 'hidden' : 'flex'"
       >
         <div class="flex items-center justify-between gap-2">
-          <h1 class="font-bold text-accent">
-            hostbud
-          </h1>
           <button
             type="button"
             class="rounded border border-border px-2 py-1"
@@ -166,6 +203,7 @@ onUnmounted(() => {
         <FileBrowser
           v-if="browsing"
           :machine="MACHINE"
+          :start-project-id="requestedProjectId"
           class="min-h-0 flex-1 overflow-y-auto"
           @created="onCreated"
         />
@@ -173,24 +211,14 @@ onUnmounted(() => {
           v-else
           class="mt-3 min-h-0 flex-1 overflow-y-auto"
         >
-          <SessionList
-            :sessions="hostSessions"
+          <SessionTree
             :selected="selectedSession"
             @select="openSession"
             @split="openInSplit"
             @rename="askRename"
             @kill="askKill"
+            @session-in-project="newProjectSession"
           />
-        </div>
-        <div class="mt-2 flex items-center justify-between gap-2 text-muted">
-          <span class="truncate">{{ auth.email }}</span>
-          <button
-            type="button"
-            class="rounded border border-border px-2 py-1"
-            @click="auth.logout()"
-          >
-            Sign out
-          </button>
         </div>
       </aside>
       <main

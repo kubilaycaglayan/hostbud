@@ -7,6 +7,7 @@ import { useLayoutStore } from './layout'
 import { useMachinesStore } from './machines'
 import { useSessionsStore } from './sessions'
 import { useProjectsStore } from './projects'
+import { useTreeStore } from './tree'
 
 /** Owns the /ws/events connection and feeds the machines/sessions stores. */
 export const useLiveStore = defineStore('live', () => {
@@ -25,6 +26,7 @@ export const useLiveStore = defineStore('live', () => {
         machines.apply(e)
         sessions.apply(e)
         projects.apply(e)
+        useTreeStore().sync()
         closeEndedSessions(e)
       },
       onState: (s) => (state.value = s),
@@ -53,6 +55,7 @@ export const useLiveStore = defineStore('live', () => {
     useMachinesStore().reset()
     useSessionsStore().reset()
     useProjectsStore().reset()
+    useTreeStore().reset()
   }
 
   return { state, start, stop, closeEndedSessions }

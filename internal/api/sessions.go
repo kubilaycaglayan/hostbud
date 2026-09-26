@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"hostbud/internal/inventory"
+	"hostbud/internal/projects"
 	"hostbud/internal/session"
 	"hostbud/internal/tmux"
 )
@@ -41,7 +42,30 @@ func (s *server) listSessions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_, sessions := m.Snapshot()
-	writeJSON(w, http.StatusOK, map[string][]tmux.Session{"sessions": sessions})
+	writeJSON(w, http.StatusOK, map[string][]tmux.Session{"sessions": s.withProjectPlacement(r.Context(), r.PathValue("machine"), sessions)})
+}
+
+type sessionPlacementResolver interface {
+	Place(context.Context, string, string, string) (projects.Placement, error)
+}
+
+func (s *server) withProjectPlacement(ctx context.Context, machine string, sessions []tmux.Session) []tmux.Session {
+	resolver, ok := s.cfg.Projects.(sessionPlacementResolver)
+	if !ok {
+		return sessions
+	}
+	placed := append([]tmux.Session(nil), sessions...)
+	for i := range placed {
+		placement, err := resolver.Place(ctx, machine, placed[i].Name, placed[i].Path)
+		if err != nil {
+			s.cfg.Log.Warn("resolve session project placement", "machine", machine, "session", placed[i].Name, "err", err)
+			continue
+		}
+		if placement.Matched {
+			placed[i].ProjectID = placement.ProjectID
+		}
+	}
+	return placed
 }
 
 type createRequest struct {

@@ -55,7 +55,7 @@ func (s *server) eventsSocket(w http.ResponseWriter, r *http.Request) {
 	for _, id := range s.order {
 		m, sessions := s.machines[id].Snapshot()
 		snap.Machines = append(snap.Machines, m)
-		snap.Sessions[id] = sessions
+		snap.Sessions[id] = s.withProjectPlacement(r.Context(), id, sessions)
 	}
 	if write(ctx, c, snap) != nil {
 		return
@@ -73,6 +73,10 @@ func (s *server) eventsSocket(w http.ResponseWriter, r *http.Request) {
 			if !ok {
 				_ = c.Close(websocket.StatusTryAgainLater, "fell behind; reconnect to resync")
 				return
+			}
+			if change, ok := e.Payload.(inventory.SessionsChanged); ok {
+				change.Sessions = s.withProjectPlacement(ctx, e.Machine, change.Sessions)
+				e.Payload = change
 			}
 			if write(ctx, c, e) != nil {
 				return

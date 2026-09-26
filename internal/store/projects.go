@@ -103,9 +103,10 @@ func scanProject(row interface{ Scan(...any) error }) (Project, error) {
 	return p, nil
 }
 
-// Projects returns projects for one machine in stable presentation order.
+// Projects returns projects for one machine in creation order. Per-account
+// presentation order is stored separately in UI state.
 func (s *Store) Projects(ctx context.Context, machineID string) ([]Project, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT `+projectCols+` FROM projects WHERE machine_id = $1 ORDER BY sort_order, name, path, id`, machineID)
+	rows, err := s.db.QueryContext(ctx, `SELECT `+projectCols+` FROM projects WHERE machine_id = $1 ORDER BY created_at, id`, machineID)
 	if err != nil {
 		return nil, err
 	}

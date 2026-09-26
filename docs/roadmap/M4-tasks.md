@@ -14,7 +14,7 @@ Update this table in the same commit that finishes a task.
 | T2 Project and recent-command persistence | Done |
 | T3 Project API, events and session placement service | Done |
 | T4 File browser and project actions | Done |
-| T5 Project tree and unmatched sessions | Planned |
+| T5 Project tree and unmatched sessions | Done |
 | T6 Recent start commands | Planned |
 | T7 Documentation, audit and release | Planned |
 

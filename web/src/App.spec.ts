@@ -38,7 +38,11 @@ const signedIn = () =>
       ? { status: 200, body: { email: 'person@example.com' } }
       : path === '/api/ui-state/layout'
         ? { status: 404, body: { error: 'nothing saved yet' } }
-        : { status: method === 'POST' ? 204 : 200 },
+        : path === '/api/ui-state/tree'
+          ? { status: 404, body: { error: 'nothing saved yet' } }
+          : path === '/api/projects?machine=host'
+            ? { status: 200, body: { projects: [] } }
+            : { status: method === 'POST' ? 204 : 200 },
   )
 
 describe('App shell', () => {
@@ -55,8 +59,8 @@ describe('App shell', () => {
     signedIn()
     const wrapper = mount(App)
     await flushPromises()
-    expect(wrapper.get('aside[aria-label="Sessions"]').text()).toContain('hostbud')
-    expect(wrapper.get('aside').text()).toContain('person@example.com')
+    expect(wrapper.get('header').text()).toContain('hostbud')
+    expect(wrapper.get('header').text()).toContain('person@example.com')
     expect(wrapper.get('main').text()).toContain('Select a session')
     // Signed in ⇒ live updates start (no polling).
     expect(IdleSocket.instances.map((x) => x.url)).toEqual(['ws://localhost:3000/ws/events'])
@@ -83,6 +87,16 @@ describe('App shell', () => {
     expect(IdleSocket.instances[0].closed).toBe(true) // live updates stop on sign-out
     expect(wrapper.find('input[type=password]').exists()).toBe(true)
   })
+
+  it('keeps account controls in the app header while the sidebar is closed', async () => {
+    signedIn()
+    const wrapper = mount(App)
+    await flushPromises()
+    useAppStore().toggleSidebar()
+    await wrapper.vm.$nextTick()
+    expect(wrapper.get('header').text()).toContain('person@example.com')
+    expect(wrapper.get('header').findAll('button').some((button) => button.text() === 'Sign out')).toBe(true)
+  })
 })
 
 describe('tabs', () => {
@@ -99,6 +113,7 @@ describe('tabs', () => {
     const gate = new Promise<void>((r) => (release = r))
     stubFetch((method, path) => {
       if (path === '/api/auth/me') return { status: 200, body: { email: 'person@example.com' } }
+      if (path === '/api/projects?machine=host') return { status: 200, body: { projects: [] } }
       if (path === '/api/ui-state/layout' && method === 'GET')
         return saved === null ? { status: 404, body: { error: 'nothing saved yet' } } : { status: 200, body: saved }
       return { status: 204 }

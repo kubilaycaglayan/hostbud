@@ -165,12 +165,26 @@ func TestUIStateForUser(t *testing.T) {
 	if err := s.PutUIStateForUser(ctx, "user-b", "layout", json.RawMessage(`{"b":2}`)); err != nil {
 		t.Fatal(err)
 	}
+	if err := s.PutUIStateForUser(ctx, "user-a", "tree", json.RawMessage(`{"version":1,"projects":["project-a"],"sessions":{}}`)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.PutUIStateForUser(ctx, "user-b", "tree", json.RawMessage(`{"version":1,"projects":["project-b"],"sessions":{}}`)); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := s.UIStateForUser(ctx, "user-c", "layout"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("an account without state: %v", err)
 	}
 	for user, want := range map[string]string{"user-a": `{"a":1}`, "user-b": `{"b":2}`} {
 		if v, err := s.UIStateForUser(ctx, user, "layout"); err != nil || string(v) != want {
 			t.Fatalf("%s: %s, %v", user, v, err)
+		}
+	}
+	for user, want := range map[string]string{
+		"user-a": `{"version":1,"projects":["project-a"],"sessions":{}}`,
+		"user-b": `{"version":1,"projects":["project-b"],"sessions":{}}`,
+	} {
+		if v, err := s.UIStateForUser(ctx, user, "tree"); err != nil || string(v) != want {
+			t.Fatalf("%s tree order: %s, %v", user, v, err)
 		}
 	}
 	// Namespaced in the shared table: no bare "layout" row.

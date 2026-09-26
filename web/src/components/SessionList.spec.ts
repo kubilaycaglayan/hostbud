@@ -14,16 +14,29 @@ describe('SessionList', () => {
     expect(w.find('[role=alert]').exists()).toBe(false)
   })
 
-  it('lists name, attached dot and window count', () => {
+  it('lists names and attached state without rendering window counts', () => {
     const w = mount(SessionList, { props: { sessions: [s('acc-a', 1, 3), s('acc-b', 0, 1)] } })
     const items = w.findAll('li')
     expect(items).toHaveLength(2)
     expect(items[0].get('button').attributes('aria-label')).toBe('acc-a')
     expect(items[0].get('[role=img]').attributes('aria-label')).toBe('attached')
-    expect(items[0].text()).toContain('3 windows')
     expect(items[1].get('[role=img]').attributes('aria-label')).toBe('detached')
-    expect(items[1].text()).toContain('1 window')
-    expect(items[1].text()).not.toContain('1 windows')
+    expect(items.map((item) => item.text()).join(' ')).not.toMatch(/\b\d+ windows?\b/)
+  })
+
+  it('reorders sessions with the touch-friendly move control', async () => {
+    const w = mount(SessionList, { props: { sessions: [s('a'), s('b')], sortable: true } })
+    await w.get('button[aria-label="Move session b up"]').trigger('click')
+    expect(w.emitted('reorder')).toEqual([[['b', 'a']]])
+  })
+
+  it('keeps the session action group immediately after the title in kill/menu/rename order', () => {
+    const w = mount(SessionList, { props: { sessions: [s('a')] } })
+    const row = w.get('li')
+    expect(row.get('[data-session-row]').attributes('aria-label')).toBe('a')
+    expect(row.get('span.flex.shrink-0.items-center.gap-1').findAll('button').map((button) => button.attributes('aria-label'))).toEqual([
+      'Kill a', 'More actions for a', 'Rename a',
+    ])
   })
 
   it('emits select and marks the selected session', async () => {

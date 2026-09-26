@@ -32,13 +32,14 @@ func target(name string) string { return "=" + name }
 
 // Session is one line of list-sessions.
 type Session struct {
-	ID       string    `json:"id"`
-	Name     string    `json:"name"`
-	Path     string    `json:"path"`
-	Attached int       `json:"attached"` // number of attached clients
-	Windows  int       `json:"windows"`
-	Created  time.Time `json:"created"`
-	Activity time.Time `json:"activity"`
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	Path      string    `json:"path"`
+	ProjectID string    `json:"projectId,omitempty"`
+	Attached  int       `json:"attached"` // number of attached clients
+	Windows   int       `json:"windows"`
+	Created   time.Time `json:"created"`
+	Activity  time.Time `json:"activity"`
 }
 
 // listFormat is ':'-separated. tmux never allows ':' in session names (it

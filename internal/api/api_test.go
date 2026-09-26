@@ -24,12 +24,46 @@ import (
 	"hostbud/internal/events"
 	"hostbud/internal/fsbrowse"
 	"hostbud/internal/inventory"
+	"hostbud/internal/projects"
 	"hostbud/internal/session"
 	"hostbud/internal/store"
 	"hostbud/internal/tmux"
 )
 
 const origin = "http://localhost:9055"
+
+type placementResolverFake struct{ projectID string }
+
+func (f placementResolverFake) List(context.Context, string) ([]store.Project, error) {
+	return nil, nil
+}
+func (f placementResolverFake) Get(context.Context, string) (store.Project, error) {
+	return store.Project{}, store.ErrNotFound
+}
+func (f placementResolverFake) Create(context.Context, string, string, string) (store.Project, error) {
+	return store.Project{}, nil
+}
+func (f placementResolverFake) Rename(context.Context, string, string) (store.Project, error) {
+	return store.Project{}, nil
+}
+func (f placementResolverFake) CreateSession(context.Context, string, session.Spec) (string, error) {
+	return "", nil
+}
+func (f placementResolverFake) Place(_ context.Context, machine, _ string, _ string) (projects.Placement, error) {
+	return projects.Placement{MachineID: machine, ProjectID: f.projectID, Matched: f.projectID != ""}, nil
+}
+
+func TestWithProjectPlacementAddsExplicitPlacement(t *testing.T) {
+	s := &server{cfg: Config{Projects: placementResolverFake{projectID: "linked"}, Log: slog.New(slog.DiscardHandler)}}
+	sessions := []tmux.Session{{Name: "work", Path: "/work/app"}}
+	got := s.withProjectPlacement(context.Background(), "host", sessions)
+	if len(got) != 1 || got[0].ProjectID != "linked" {
+		t.Fatalf("placed sessions = %+v", got)
+	}
+	if sessions[0].ProjectID != "" {
+		t.Fatal("input snapshot was mutated")
+	}
+}
 
 type fakeMachine struct {
 	mu       sync.Mutex

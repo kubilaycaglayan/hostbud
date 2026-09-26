@@ -37,12 +37,11 @@ export class UI {
 
   /** Session names shown in the sidebar list. */
   async sessionNames(): Promise<string[]> {
-    const list = this.page.getByRole('list', { name: 'tmux sessions' })
-    if ((await list.count()) === 0) return []
-    // The first button of each row is the session itself (then rename, kill).
-    return list
+    const lists = this.page.locator('[aria-label="tmux sessions"], [aria-label^="Sessions in "], [aria-label="Other sessions"]')
+    if ((await lists.count()) === 0) return []
+    return lists
       .getByRole('listitem')
-      .evaluateAll((items) => items.map((li) => li.querySelector('button')?.getAttribute('aria-label') ?? ''))
+      .evaluateAll((items) => items.map((li) => li.querySelector('button[data-session-row]')?.getAttribute('aria-label') ?? ''))
   }
 
   /** The host problem banner (unreachable / tmux missing). */

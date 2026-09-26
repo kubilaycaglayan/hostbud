@@ -45,6 +45,9 @@ func TestUIStateRoundTripPerAccount(t *testing.T) {
 	if _, ok := e.ui.m["u1/layout"]; !ok {
 		t.Fatalf("stored under %v, want the signed-in account u1", e.ui.m)
 	}
+	if rec := e.do(t, http.MethodPut, "/api/ui-state/tree", `{"version":1,"projects":[],"sessions":{}}`, nil); rec.Code != http.StatusNoContent {
+		t.Fatalf("PUT tree = %d %s", rec.Code, rec.Body)
+	}
 	// Another account doesn't see it.
 	other := map[string]string{"Cookie": SessionCookie + "=" + otherToken}
 	if rec := e.do(t, http.MethodGet, "/api/ui-state/layout", "", other); rec.Code != http.StatusNotFound {

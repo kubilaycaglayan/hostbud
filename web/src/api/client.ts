@@ -102,12 +102,13 @@ export const filesystemApi = {
 export const projectsApi = {
   list: (machine: string) => request<{ projects: Project[] }>('GET', `/api/projects?machine=${encodeURIComponent(machine)}`),
   create: (machineId: string, path: string, name: string) => request<Project>('POST', '/api/projects', { machineId, path, name }),
+  rename: (id: string, name: string) => request<Project>('PATCH', `/api/projects/${encodeURIComponent(id)}`, { name }),
   createSession: (id: string, spec: { name?: string; startCommand?: string }) =>
     request<{ name: string }>('POST', `/api/projects/${encodeURIComponent(id)}/sessions`, spec),
 }
 
 /** UI state keys the server accepts (internal/api/uistate.go). */
-export type UIStateKey = 'layout'
+export type UIStateKey = 'layout' | 'tree'
 
 /** The account's saved UI state, or null if nothing is saved yet. The value
  * is whatever was stored: callers validate it. */
