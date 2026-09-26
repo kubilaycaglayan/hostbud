@@ -1,5 +1,9 @@
 import { expect, test } from '../helpers/fixtures.ts'
+import { newAccount } from '../helpers/auth.ts'
+import { owner } from '../helpers/db.ts'
+import { ctl } from '../helpers/ctl.ts'
 import { shq, uniqueName } from '../helpers/target.ts'
+import { forbidInLogs } from '../helpers/api.ts'
 
 for (const profile of ['desktop', 'phone'] as const) {
   test.describe(`project browser ${profile}`, () => {
@@ -65,11 +69,22 @@ for (const profile of ['desktop', 'phone'] as const) {
   })
 }
 
-test('Project persists and updates live', async ({ page, request, target }) => {
+test('(T4) Project persists and updates live', async ({ page, request, target, ui }) => {
   const name = uniqueName('e2e-live-project')
   const path = `/home/dev/${name}`
+  const account = newAccount('e2e-project-persist')
+  forbidInLogs(name, path, account.email, account.password)
+  await owner.allow(account.email)
   await target.run(`mkdir -p ${shq(path)}`)
   await page.goto('/')
+  await page.getByRole('button', { name: 'Sign out' }).click()
+  await expect(page.getByRole('tab', { name: 'Sign in' })).toBeVisible()
+  const auth = ui.authForm()
+  await auth.tab('Create account').click()
+  await auth.email.fill(account.email)
+  await auth.password.fill(account.password)
+  await auth.submit('Create account').click()
+  await expect(page.getByRole('complementary', { name: 'Sessions' })).toBeVisible()
   await page.getByRole('button', { name: 'Browse files' }).click()
   await page.getByLabel('Current path').fill('/home/dev')
   await page.getByRole('button', { name: 'Go' }).click()
@@ -88,12 +103,19 @@ test('Project persists and updates live', async ({ page, request, target }) => {
     return response.status() === 200 && data.projects.some((project: { path: string }) => project.path === path)
   }).toBe(true)
   await expect(page.getByRole('list', { name: 'Directory entries' }).getByRole('listitem').filter({ hasText: name }).getByRole('button', { name: 'Open project' })).toBeVisible()
-  await page.reload()
-  await page.getByRole('button', { name: 'Browse files' }).click()
-  await page.getByLabel('Current path').fill('/home/dev')
-  await page.getByRole('button', { name: 'Go' }).click()
-  await expect(page.getByRole('button', { name: 'Open project' }).first()).toBeVisible()
   await second.close()
+
+  await page.getByRole('button', { name: 'Sign out' }).click()
+  await expect(page.getByRole('tab', { name: 'Sign in' })).toBeVisible()
+  await ui.signIn(account.email, account.password)
+  await expect(page.getByRole('heading', { name, exact: true })).toBeVisible()
+
+  await page.reload()
+  await expect(page.getByRole('heading', { name, exact: true })).toBeVisible()
+  await ctl.restartApp()
+  await expect.poll(async () => (await request.get('/api/health')).status(), { timeout: 20_000 }).toBe(200)
+  await page.reload()
+  await expect(page.getByRole('heading', { name, exact: true })).toBeVisible()
 })
 
 test('(T4) Hidden toggle and lazy symlink status in the browser', async ({ page, target }) => {

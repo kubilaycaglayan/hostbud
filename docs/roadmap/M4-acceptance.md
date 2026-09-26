@@ -37,10 +37,10 @@ Each criterion names **U** (unit), **I** (integration against `test/sshd`, Postg
   - U: T2 normalization, uniqueness behavior, default name and repository validation.
   - I: T2 PostgreSQL migration/repository round-trip, duplicate path handling and append-only migration check.
   - E: T3 *Project API access control and events* covers project rename through the API; T4 *Open as project and persist* covers path defaulting, duplicate selection, and persistence (desktop and iPhone 13 Pro).
-- [ ] Projects are listed in the tree and survive sign-out/sign-in, page reload and app-container restart. Project list updates are driven by typed events after a successful state change; the UI does not poll projects.
+- [x] Projects are listed in the tree and survive sign-out/sign-in, page reload and app-container restart. Project list updates are driven by typed events after a successful state change; the UI does not poll projects.
   - U: T3 typed event publication; T4 project store applies project events to the browser; T5 tree store handles duplicate/replayed updates idempotently.
   - I: T2 PostgreSQL persistence across repository/process reconnect; T3 event publication from project mutations.
-  - E: T4 *Project persists and updates live* (desktop; create from a second page and verify event-driven update without reload, then reload/restart persistence).
+  - E: T4 *Project persists and updates live* (desktop; create from a second page and verify event-driven update without reload, then sign out/in and verify persistence after app restart).
 - [ ] A new session created from a project uses that project's exact directory as its working directory and is created through the existing single session service. The session appears under that project after the session list/event update.
   - U: T3 project action passes `{machine, name, path, env, startCommand}` to the session service and handles failure without a phantom tree node.
   - I: T3 against `test/sshd`: session `#{session_path}` equals the chosen project path and list diff associates the session.

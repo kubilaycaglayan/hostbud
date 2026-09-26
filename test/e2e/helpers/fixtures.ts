@@ -14,8 +14,8 @@ export const EMPTY_LAYOUT = { version: 1, tabs: [], activeTab: null }
 
 // A new account has no saved layout yet: the app's first GET answers 404
 // (M3 T6), which is the API's normal answer, not a problem.
-const NEW_ACCOUNT_LAYOUT =
-  /^HTTP 404: GET https?:\/\/[^/]+\/api\/ui-state\/layout$|^console error: Failed to load resource: the server responded with a status of 404 .*@ https?:\/\/[^/]+\/api\/ui-state\/layout$/
+const NEW_ACCOUNT_UI_STATE =
+  /^HTTP 404: GET https?:\/\/[^/]+\/api\/ui-state\/(layout|tree)$|^console error: Failed to load resource: the server responded with a status of 404 .*@ https?:\/\/[^/]+\/api\/ui-state\/(layout|tree)$/
 
 export const test = base.extend<Fixtures>({
   allowedBrowserErrors: [undefined, { option: true }],
@@ -32,7 +32,7 @@ export const test = base.extend<Fixtures>({
   page: async ({ page, allowedBrowserErrors, baseURL }, use) => {
     const problems: string[] = []
     const report = (line: string) => {
-      if (!allowedBrowserErrors?.test(line) && !NEW_ACCOUNT_LAYOUT.test(line)) problems.push(line)
+      if (!allowedBrowserErrors?.test(line) && !NEW_ACCOUNT_UI_STATE.test(line)) problems.push(line)
     }
     page.on('console', (m) => {
       // A failed load names its URL only in the location.
