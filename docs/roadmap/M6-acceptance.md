@@ -253,7 +253,7 @@ Profiles: `desktop-chromium`, `iphone-13-pro` (`http://localhost:9055`) and `iph
 
 On a desktop browser (port forward, a Mac if available) and the owner's iPhone over `https://${HOSTBUD_DOMAIN}`. These are the owner's backlog, not blockers: they don't hold back M6's done state or the next milestone, and no agent waits for them. Record the date and the result here when the owner does one; an unchecked item stays open in the summary.
 
-- [ ] macOS: ⌘K opens the palette from a terminal in Chrome and Safari; ⌘/ opens the help; ⌘⇧E moves focus; Ctrl+K in a shell still kills to the end of the line.
+- [ ] macOS: ⌘K opens the palette from a terminal in Chrome and Safari; ⌘/ opens the help; ⌘⇧E moves focus; Ctrl+Shift+] / [ switch to the next/previous hostbud tab from a focused terminal (while ⌘⇧]/[ still switch browser tabs); Ctrl+K in a shell still kills to the end of the line.
 - [ ] Theme: switch macOS appearance with hostbud in System mode, and the UI and a running vim/htop repaint without a reload; Dark and Light ignore the OS switch.
 - [ ] No flash: hard-reload in Light with the OS in dark (and the reverse), and nothing dark (or light) flashes.
 - [ ] iPhone: Light and Dark look right in Safari and in the installed app (status bar color, sheets, drawer, key bar); System follows iOS appearance.
