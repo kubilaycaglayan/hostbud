@@ -179,6 +179,8 @@ A session belongs to the project whose `path` is the **longest prefix** of the s
 - Same session open in two views: tmux sizes per its `window-size` option; document this, don't override it.
 - Backpressure: bounded write buffer per connection; drop the connection if the client stalls beyond a limit (it will reconnect and redraw).
 
+**Keys:** Mac "natural text editing" shortcuts (`web/src/lib/terminalKeys.ts`) send what a macOS terminal sends: Option+Backspace `ESC DEL`, Cmd+Backspace `Ctrl-U`, Option+←/→ `ESC b`/`ESC f`, Cmd+←/→ `Ctrl-A`/`Ctrl-E`; other keys are xterm's.
+
 **Frontend terminal:** `@xterm/xterm` + addons `fit`, `webgl` (fallback to canvas/DOM), `web-links`, `unicode11`, `search`, `clipboard`. Font: a bundled Nerd-Font-compatible monospace (self-hosted, no external CDN).
 
 ---

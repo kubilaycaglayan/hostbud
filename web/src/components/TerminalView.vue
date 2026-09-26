@@ -8,6 +8,7 @@ import { Terminal } from '@xterm/xterm'
 import { onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import { TermConnection, termURL, type TermState } from '@/api/term'
 import { installE2EHooks, removeE2EHooks } from '@/lib/e2eHooks'
+import { editingKey } from '@/lib/terminalKeys'
 
 const props = defineProps<{ machine: string; session: string }>()
 const emit = defineEmits<{ back: [] }>()
@@ -100,6 +101,18 @@ onMounted(async () => {
   }
   term.value = t
   t.onData((d) => conn?.send(d))
+  // Mac editing shortcuts (Option/Cmd+Backspace, +←/→): send what a Mac
+  // terminal sends, once per keydown, instead of xterm's or the browser's
+  // default (Cmd+← would navigate back).
+  t.attachCustomKeyEventHandler((ev) => {
+    const bytes = editingKey(ev)
+    if (bytes === undefined) return true
+    if (ev.type === 'keydown') {
+      ev.preventDefault()
+      t.input(bytes)
+    }
+    return false
+  })
   refit()
   connect()
   observer = new ResizeObserver(() => refit())

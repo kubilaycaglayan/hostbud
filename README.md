@@ -68,6 +68,7 @@ The domain works only inside your tailnet: its DNS record points at the host's T
 - **New session**: a directory (default `~`, `~/…` works), an optional name (default: the directory's name; `name-1`, `name-2`, … if taken) and an optional start command such as `htop` or `claude`.
 - ✎ renames, ✕ kills (after a confirmation). Click a session to attach in the terminal; closing the tab only detaches — the session keeps running. After a detach (`prefix d`), the program exiting or a restart, use **Reconnect**.
 - A banner explains host problems (sshd unreachable, tmux missing) with the fix; hostbud recovers by itself once they're fixed.
+- Mac editing keys work in the terminal: Option+Backspace deletes a word, Cmd+Backspace deletes to the start of the line, Option+←/→ move by word, Cmd+←/→ jump to the start/end of the line.
 - On a phone, the list and the terminal take turns (← goes back to the list). Tap the terminal (or ⌨) to bring up the keyboard; the terminal shrinks to stay above it, and rotating the phone resizes the tmux window.
 
 PostgreSQL credentials are supplied through the local, gitignored `.env` using the documented `HOSTBUD_DB_*` variables. They are not copied into tracked files, images or logs. For owner maintenance, use `docker compose exec hostbud-postgres psql ...` or the optional loopback-only maintenance port. Choose an uncommon `HOSTBUD_DB_LOCAL_PORT`, verify it is unused with `ss -ltn`, and never expose it on `0.0.0.0`, the Tailscale address or the public domain.

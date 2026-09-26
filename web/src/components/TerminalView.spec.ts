@@ -36,6 +36,14 @@ const h = vi.hoisted(() => {
     onData(fn: (d: string) => void) {
       this.onDataFn = fn
     }
+    keyHandler: (ev: KeyboardEvent) => boolean = () => true
+    attachCustomKeyEventHandler(fn: (ev: KeyboardEvent) => boolean) {
+      this.keyHandler = fn
+    }
+    // Like xterm: input from the user goes out through onData.
+    input(data: string) {
+      this.onDataFn(data)
+    }
   }
   const h = { terms: [] as FakeTerminal[], fitSize: { cols: 100, rows: 30 }, FakeTerminal }
   return h
@@ -172,6 +180,21 @@ describe('TerminalView', () => {
     const before = h.terms[0].focused
     await button.trigger('click')
     expect(h.terms[0].focused).toBe(before + 1)
+  })
+
+  it('Mac editing keys: sent once on keydown, browser default prevented', async () => {
+    await mountTerm()
+    const ws = FakeWS.all[0]
+    ws.onopen?.({} as Event)
+    const t = h.terms[0]
+    const down = new KeyboardEvent('keydown', { key: 'Backspace', metaKey: true, cancelable: true })
+    expect(t.keyHandler(down)).toBe(false)
+    expect(down.defaultPrevented).toBe(true)
+    expect(t.keyHandler(new KeyboardEvent('keyup', { key: 'Backspace', metaKey: true }))).toBe(false)
+    expect(ws.sent.map((d) => new TextDecoder().decode(d as Uint8Array))).toEqual(['\x15'])
+    // Anything else goes to xterm as usual.
+    expect(t.keyHandler(new KeyboardEvent('keydown', { key: 'Backspace' }))).toBe(true)
+    expect(ws.sent).toHaveLength(1)
   })
 
   it('offers a way back to the list (narrow screens)', async () => {
