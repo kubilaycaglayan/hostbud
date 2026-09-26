@@ -29,7 +29,7 @@ for (const profile of ['desktop', 'phone'] as const) {
       await expect(page.getByRole('button', { name: 'child/' })).toBeVisible()
     })
 
-    test('(T4) Create folder, open as project and create a session here', async ({ page, target, request }) => {
+    test('(T4) Create folder, open as project and create a session here', async ({ page, target, request, ui }) => {
       const name = uniqueName('e2e-project-browser')
       const dir = `/home/dev/${name}`
       await target.run(`mkdir -p ${shq(dir)}`)
@@ -53,7 +53,6 @@ for (const profile of ['desktop', 'phone'] as const) {
       await page.getByRole('button', { name: 'New session here' }).click()
       await expect(page.getByRole('dialog', { name: 'New session here' })).toBeVisible()
       await page.getByLabel('Name').fill(name)
-      await page.getByLabel('Start command').fill('printf browser-project')
       await page.getByRole('button', { name: 'Create session' }).click()
       await expect.poll(async () => {
         const res = await request.get('/api/machines/host/sessions')
@@ -65,6 +64,10 @@ for (const profile of ['desktop', 'phone'] as const) {
         const data = await res.json()
         return data.projects.some((project: { path: string }) => project.path === `${dir}/created`)
       }).toBe(true)
+      await ui.type('printf project-session-input', true)
+      await expect.poll(() => ui.termText(name)).toContain('project-session-input')
+      await ui.showList()
+      await expect(page.getByRole('list', { name: 'Sessions in created' }).getByRole('button', { name, exact: true })).toBeVisible()
     })
   })
 }

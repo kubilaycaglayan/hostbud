@@ -41,7 +41,7 @@ Each criterion names **U** (unit), **I** (integration against `test/sshd`, Postg
   - U: T3 typed event publication; T4 project store applies project events to the browser; T5 tree store handles duplicate/replayed updates idempotently.
   - I: T2 PostgreSQL persistence across repository/process reconnect; T3 event publication from project mutations.
   - E: T4 *Project persists and updates live* (desktop; create from a second page and verify event-driven update without reload, then sign out/in and verify persistence after app restart).
-- [ ] A new session created from a project uses that project's exact directory as its working directory and is created through the existing single session service. The session appears under that project after the session list/event update.
+- [x] A new session created from a project uses that project's exact directory as its working directory and is created through the existing single session service. The session appears under that project after the session list/event update.
   - U: T3 project action passes `{machine, name, path, env, startCommand}` to the session service and handles failure without a phantom tree node.
   - I: T3 against `test/sshd`: session `#{session_path}` equals the chosen project path and list diff associates the session.
   - E: T4 *New session here* (desktop and iPhone 13 Pro): create from a project and assert the exact target session path; T5 verifies project tree placement.
