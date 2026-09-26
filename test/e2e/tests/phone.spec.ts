@@ -46,7 +46,7 @@ async function softType(page: Page, line: string) {
 }
 
 // Phone attach and type (T3)
-test('phone attach and type: tap a session and the terminal, type with the on-screen keyboard', async ({
+test('(T3) phone attach and type: tap a session and the terminal, type with the on-screen keyboard', async ({
   ui,
   target,
 }) => {
@@ -67,8 +67,8 @@ test('phone attach and type: tap a session and the terminal, type with the on-sc
   await expect(input(ui.page)).toBeFocused()
 })
 
-// Switch sessions (T3)
-test('switch sessions: back to the list, open another session, type there', async ({ ui, target }) => {
+// Switch sessions from the tree drawer (T2)
+test('(T2) switch sessions from the tree drawer and type there', async ({ ui, target }) => {
   const first = await newSession(target, 'e2e-sw1')
   const second = await newSession(target, 'e2e-sw2')
   const marker = uniqueName('e2e-mark')
@@ -84,8 +84,8 @@ test('switch sessions: back to the list, open another session, type there', asyn
   expect(await attached(target, first)).toBe('1')
 })
 
-// Rotate (T3)
-test('rotate: portrait → landscape → portrait resizes the tmux window', async ({ page, ui, target }) => {
+// Rotate (T2)
+test('(T2) rotate: portrait → landscape → portrait resizes the tmux window', async ({ page, ui, target }) => {
   const name = await newSession(target, 'e2e-rot')
   await ui.open()
   await tapSession(ui, target, name)
@@ -105,7 +105,7 @@ test('rotate: portrait → landscape → portrait resizes the tmux window', asyn
 })
 
 // Fits the viewport (T3)
-test('fits the viewport: in both orientations, no horizontal scroll, 16px input', async ({ page, ui, target }) => {
+test('(T3) fits the viewport: in both orientations, no horizontal scroll, 16px input', async ({ page, ui, target }) => {
   const name = await newSession(target, 'e2e-fit')
   await ui.open()
   await tapSession(ui, target, name)
