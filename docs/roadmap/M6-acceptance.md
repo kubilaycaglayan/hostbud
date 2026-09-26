@@ -47,6 +47,10 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
   - U: T2 `SessionTree` renders the project header with icon, name and `~`-shortened path plus the full path as `title`; a session row's indent grows with `aria-level`; Other uses the header style without a path (Vitest).
   - I: n/a (frontend presentation only).
   - E: T2 *Tree shows hierarchy* (desktop and `iphone-13-pro` in the drawer).
+- [ ] The Other sessions group is shown only while it has sessions: with none, neither its header nor "No tmux sessions yet." is rendered. It appears as soon as an unmatched session exists and disappears when the last one ends or is saved as a project, keeping its collapse state and order. With no projects and no sessions at all, the tree shows a single "No tmux sessions yet." empty state.
+  - U: T2 `SessionTree` omits Other with zero sessions, renders it with one, keeps its collapse state across hide/show; the all-empty tree shows one empty-state line (Vitest).
+  - I: n/a (frontend presentation only).
+  - E: T2 *Empty Other sessions hidden* (desktop); M1 T15 *Empty list* still covers the all-empty tree.
 - [ ] Keyboard navigation in the tree: ↑/↓ move, → expands or moves to the first child, ← collapses or moves to the parent, Home/End, Enter opens a session (M3 rules: focus its tab or open one), Enter on a project or Other toggles it, and Alt+↑/↓ moves the focused project or session one place within its section (the keyboard equivalent of drag, saved like a drag).
   - U: T2 key handler table on a fixture tree, including Alt+↑/↓ at section edges (no-op) and across a pinned boundary (no-op) (Vitest).
   - I: n/a (frontend only).
@@ -281,6 +285,7 @@ Profiles: `desktop-chromium`, `iphone-13-pro` (`http://localhost:9055`) and `iph
 - [ ] **(T2) Keyboard tree navigation:** focus the tree, walk it with the arrow keys, Home/End, open a session with Enter, move a session with Alt+↓, reload → the order persists (desktop).
 - [ ] **(T2) Collapse state persists:** collapse a project and Other sessions, reload and restart → still collapsed; a terminal open on a collapsed session keeps its tmux client PID (desktop and `iphone-13-pro` in the drawer).
 - [ ] **(T2) Tree shows hierarchy:** with a project holding two sessions and one Other session, the project header shows its name and `~`-shortened path; each session row's text starts to the right of its project header's text (bounding boxes); the header background differs from a session row's (computed style); Other sessions is a header row of the same style (desktop and `iphone-13-pro` in the drawer).
+- [ ] **(T2) Empty Other sessions hidden:** with only a project session, there's no Other sessions header and no "No tmux sessions yet."; an unmatched session started from the real terminal makes Other appear within one poll interval; saving it as a project makes Other disappear (desktop).
 - [ ] **(T3) Windows load when a session is expanded:** no `/windows` request before expanding; expanding shows the target's windows and a split window's panes; reload and restart → still expanded with rows loaded (desktop and `iphone-13-pro`).
 - [ ] **(T3) Window rows follow the real terminal:** `tmux new-window` / `kill-window` on the target add/remove the row within one poll interval, without a reload (desktop).
 - [ ] **(T3) Open at a window and pane:** clicking window 2's row opens the session at window 2, and a pane row makes that pane active (`display -p` on the target, and a marker printed there shows in the browser terminal) (desktop and `iphone-13-pro`).

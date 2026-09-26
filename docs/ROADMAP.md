@@ -107,7 +107,7 @@ Tasks: [roadmap/M6-tasks.md](roadmap/M6-tasks.md) · Checklist: [roadmap/M6-acce
 
 - Inline rename; hide/unhide; pin projects. M4 provides drag-to-sort and persistent manual ordering for projects and sessions; M6 must preserve it and must not introduce automatic re-sorting.
 - Collapse state persisted; lazily loaded windows/panes under sessions.
-- Visual tree hierarchy: projects (and Other sessions) render as parent headers with icon, name and `~`-shortened path; child rows are indented with a guide line.
+- Visual tree hierarchy: projects (and Other sessions) render as parent headers with icon, name and `~`-shortened path; child rows are indented with a guide line. The Other sessions group is hidden while it has no sessions.
 - Command palette (Ctrl/⌘-K); keyboard shortcuts, including next/previous tab with Ctrl+Shift+] / Ctrl+Shift+[ (on macOS too, since ⌘⇧]/[ belong to the browser), and Ctrl+Shift+D to switch between the two most recently selected tabs (Ctrl on macOS too, never ⌘).
 - Remove a project (for every account, after a confirmation): its sessions keep running and move to the next matching project or Other sessions; nothing on disk or in tmux changes. Hide stays the per-account alternative.
 - File browser: add (or open) the directory being shown as a project from the path bar, not only its child folders.
