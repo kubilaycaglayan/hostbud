@@ -10,7 +10,7 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 ## Functional
 
 ### Domain and TLS
-- [ ] Caddy is a custom build that includes the Cloudflare DNS provider, and the e2e stack uses the same image.
+- [x] Caddy is a custom build that includes the Cloudflare DNS provider, and the e2e stack uses the same image.
   - U: n/a (no code; a build file). I: T1 deploy-config check: built from `deploy/caddy/Dockerfile`; `caddy list-modules` lists `dns.providers.cloudflare`. E: T1 *Custom Caddy image*.
 - [ ] `https://${HOSTBUD_DOMAIN}` is served with a certificate obtained via ACME DNS-01 (Cloudflare); the token is read from the environment at runtime and certificates persist across restarts.
   - U: n/a (Caddy config, no hostbud code). I: T2 `caddy adapt` of the production Caddyfile: ACME issuer with the Cloudflare DNS provider and `{env.CLOUDFLARE_API_TOKEN}`, no token value in the config, adapts with `ACME_EMAIL` empty · T1 certificate volumes. E: T2 *HTTPS domain path* (same proxy config on an internal-CA certificate). **Manual (T4):** the real certificate is valid on the phone (issuer Let's Encrypt, name matches).
@@ -40,7 +40,7 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 ## E2E (`make e2e`, simulated user)
 Projects: `desktop-chromium` and `iphone-13-pro` on `http://localhost:9055` (the port-forward path, as in M1), plus `iphone-13-pro-domain` on `https://hostbud.example.test` (the domain path with an internal-CA certificate). API-level items run in `desktop-chromium` only. Each item is tagged with the task that adds it, in the same commit as the behavior.
 
-- [ ] **(T1) Custom Caddy image:** the e2e Caddy is built from `deploy/caddy/Dockerfile`, and the suite runs through it.
+- [x] **(T1) Custom Caddy image:** the e2e Caddy is built from `deploy/caddy/Dockerfile`, and the suite runs through it.
 - [ ] **(T2) HTTPS domain path:** over `https://hostbud.example.test`, sign-in sets a `Secure`, `HttpOnly` cookie; the sessions API lists a real-terminal session; `/ws/events` snapshots and `/ws/term` attaches over WSS (a marker reaches `capture-pane`).
 - [ ] **(T2) Origin on both paths:** `Origin: https://hostbud.example.test` is accepted on the domain site for a POST and a WebSocket upgrade; `http://hostbud.example.test` and a foreign origin are rejected; `http://localhost:9055` keeps working.
 - [ ] **(T2) Domain UI:** in `iphone-13-pro-domain` the app loads over HTTPS with no console errors, the user signs in through the form and sees the session list.

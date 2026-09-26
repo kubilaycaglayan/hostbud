@@ -167,7 +167,9 @@ services:
   # The real Caddyfile (loopback-port site); the runner shares its network
   # namespace, so the browser opens http://localhost:9055 like a port forward.
   hostbud-e2e-caddy:
-    image: caddy:2.11.4
+    # The production Caddy image (deploy/caddy/Dockerfile).
+    build: { context: ../../deploy/caddy }
+    image: hostbud-e2e-caddy:local
     container_name: hostbud-e2e-caddy
     depends_on: [hostbud-e2e-app, hostbud-e2e-app-notmux]
     environment:

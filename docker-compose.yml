@@ -91,8 +91,9 @@ services:
     networks: [hostbud]
 
   hostbud-caddy:
-    # Stock image for now; M2 switches to a custom build with caddy-dns/cloudflare.
-    image: caddy:2.11.4
+    # Caddy + the Cloudflare DNS provider (ACME DNS-01 for the domain's cert).
+    build: { context: ./deploy/caddy }
+    image: hostbud-caddy:local
     container_name: hostbud-caddy
     restart: unless-stopped
     depends_on: [hostbud]
@@ -103,6 +104,9 @@ services:
       - 127.0.0.1:${HOSTBUD_LOCAL_PORT:-9055}:${HOSTBUD_LOCAL_PORT:-9055}
     volumes:
       - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificates and ACME account survive restarts (Let's Encrypt rate limits).
+      - hostbud-caddy-data:/data
+      - hostbud-caddy-config:/config
     networks: [hostbud]
 
 networks:
@@ -119,3 +123,7 @@ volumes:
     name: hostbud-data
   hostbud-postgres-data:
     name: hostbud-postgres-data
+  hostbud-caddy-data:
+    name: hostbud-caddy-data
+  hostbud-caddy-config:
+    name: hostbud-caddy-config

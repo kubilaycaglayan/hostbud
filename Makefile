@@ -39,9 +39,10 @@ go-test: test-env ## Go unit + integration tests (-tags=integration, against tes
 go-unit: ## Go unit tests only (no containers besides the toolbox)
 	$(GO) go test -race ./...
 
-test-env: ## Start the integration targets (hostbud-test-sshd[-notmux]; kept running) and render the deploy config
+test-env: ## Start the integration targets (hostbud-test-sshd[-notmux]; kept running) and render the deploy and Caddy config
 	scripts/test-sshd.sh up
 	scripts/compose-config.sh
+	scripts/caddy-config.sh
 
 test-down: ## Remove the integration targets, their network and keys
 	scripts/test-sshd.sh down

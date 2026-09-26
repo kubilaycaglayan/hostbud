@@ -9,8 +9,8 @@ Update this table in the same commit that finishes a task.
 
 | Task | Status |
 |---|---|
-| T1 Custom Caddy image | next |
-| T2 TLS site on the Tailscale IP | |
+| T1 Custom Caddy image | ✅ done |
+| T2 TLS site on the Tailscale IP | next |
 | T3 Phone usability | |
 | T4 Deployment guide and release | |
 

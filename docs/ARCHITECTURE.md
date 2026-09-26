@@ -69,7 +69,7 @@ Services in `docker-compose.yml` (Compose project `hostbud`; everything named wi
 
 | Service | Image | Notes |
 |---|---|---|
-| `hostbud-caddy` | custom build (`caddy:builder` + `xcaddy` + `caddy-dns/cloudflare`) | Publishes `${TAILSCALE_IP}:443:443`, `${TAILSCALE_IP}:80:80` and `127.0.0.1:${HOSTBUD_LOCAL_PORT}:${HOSTBUD_LOCAL_PORT}` **only** (never `0.0.0.0`). Two sites: `${HOSTBUD_DOMAIN}` with a cert via DNS-01 using `CLOUDFLARE_API_TOKEN`, and `http://:${HOSTBUD_LOCAL_PORT}` (plain HTTP, loopback only, for SSH port forwarding). Both reverse-proxy to `hostbud:8080` (WebSocket upgrade supported by default). |
+| `hostbud-caddy` | custom build (`caddy:builder` + `xcaddy` + `caddy-dns/cloudflare`) | Publishes `${TAILSCALE_IP}:443:443`, `${TAILSCALE_IP}:80:80` and `127.0.0.1:${HOSTBUD_LOCAL_PORT}:${HOSTBUD_LOCAL_PORT}` **only** (never `0.0.0.0`). Certificates and the ACME account live in the `hostbud-caddy-data` / `hostbud-caddy-config` volumes, so restarts don't re-issue. Two sites: `${HOSTBUD_DOMAIN}` with a cert via DNS-01 using `CLOUDFLARE_API_TOKEN`, and `http://:${HOSTBUD_LOCAL_PORT}` (plain HTTP, loopback only, for SSH port forwarding). Both reverse-proxy to `hostbud:8080` (WebSocket upgrade supported by default). |
 | `hostbud` | built from repo `Dockerfile` | No published ports. Runs as `${HOST_UID}:${HOST_GID}`. |
 | `hostbud-postgres` | pinned official PostgreSQL image | No public or tailnet exposure. Owner maintenance access is optional and loopback-only at `127.0.0.1:${HOSTBUD_DB_LOCAL_PORT}:5432`; credentials come from the untracked `.env`. |
 
@@ -368,7 +368,7 @@ A separate Compose project `hostbud-e2e` (`test/e2e/`), started, run and torn do
 | `hostbud-e2e-target` | Throwaway "host": `openssh-server`, `tmux`, `vim`, `htop`, user `dev`; host keys and a client key generated per run. A variant without tmux is used for the "tmux missing" scenario. |
 | `hostbud-e2e-agent` | `ssh-agent` holding the throwaway client key; its socket is shared with the app, mirroring the production agent-socket mount. |
 | `hostbud-e2e-app` | The real hostbud image, with `HOSTBUD_HOST_ADDR=hostbud-e2e-target`, the target's host keys mounted at `/run/host-keys`, and a short poll interval. |
-| `hostbud-e2e-caddy` | The real Caddyfile (loopback-port site), so traffic goes through the production proxy path. |
+| `hostbud-e2e-caddy` | The production Caddy image (`deploy/caddy/Dockerfile`) and Caddyfile (loopback-port site), so traffic goes through the production proxy path. |
 | `hostbud-e2e-target-notmux`, `hostbud-e2e-app-notmux` | The tmux-less target and a second app instance for it (same database), served by Caddy on `:9056` through `test/e2e/Caddyfile`, which imports the production Caddyfile unchanged and adds only that site. |
 | `hostbud-e2e-ctl` | Failure switches for the runner, which has no Docker access: a tiny HTTP service with the Docker socket that runs only fixed commands (restart `hostbud-e2e-app`, stop/start sshd on the target). |
 | `hostbud-e2e-runner` | Playwright. Uses `network_mode: service:hostbud-e2e-caddy`, so the browser opens `http://localhost:9055` exactly like the port-forward path (and the Origin check is exercised for real). Also has SSH access to the target to act as "a real terminal". |

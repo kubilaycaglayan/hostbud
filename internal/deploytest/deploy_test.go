@@ -1,9 +1,11 @@
 //go:build integration
 
-// Package deploytest checks the real deploy config (docker-compose.yml and
-// Dockerfile) against the security checklist in AGENTS.md. `make test`
-// renders the compose file with placeholder values into
-// .cache/compose-config.json first (scripts/compose-config.sh).
+// Package deploytest checks the real deploy config (docker-compose.yml,
+// Dockerfile and the Caddy image) against the security checklist in
+// AGENTS.md. `make test` renders the compose file with placeholder values
+// into .cache/compose-config.json (scripts/compose-config.sh) and records
+// facts about the built Caddy image in .cache/caddy/ (scripts/caddy-config.sh)
+// first.
 package deploytest
 
 import (
@@ -13,6 +15,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -30,10 +33,18 @@ type volume struct {
 	ReadOnly bool   `json:"read_only"`
 }
 
+type build struct {
+	Context    string `json:"context"`
+	Dockerfile string `json:"dockerfile"`
+}
+
 type service struct {
-	User    string   `json:"user"`
-	Ports   []port   `json:"ports"`
-	Volumes []volume `json:"volumes"`
+	Build       *build             `json:"build"`
+	Image       string             `json:"image"`
+	User        string             `json:"user"`
+	Ports       []port             `json:"ports"`
+	Volumes     []volume           `json:"volumes"`
+	Environment map[string]*string `json:"environment"`
 }
 
 type composeConfig struct {
@@ -163,5 +174,54 @@ func TestHostbudMountsOnlyDataAgentAndPublicHostKeys(t *testing.T) {
 	}
 	if data != 1 || agent != 1 || keys == 0 {
 		t.Fatalf("mounts: data=%d agent=%d host keys=%d", data, agent, keys)
+	}
+}
+
+// readCache returns a file scripts/caddy-config.sh wrote into .cache/caddy.
+func readCache(t *testing.T, name string) string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(repoRoot(), ".cache", "caddy", name)) //nolint:gosec // fixed file names from the tests
+	if err != nil {
+		t.Fatalf("%v (run via `make test`, which writes it)", err)
+	}
+	return string(data)
+}
+
+func TestCaddyIsTheCustomBuildWithCloudflareDNS(t *testing.T) {
+	c := load(t)
+	caddy := c.Services["hostbud-caddy"]
+	if caddy.Build == nil || filepath.Base(caddy.Build.Context) != "caddy" ||
+		filepath.Base(filepath.Dir(caddy.Build.Context)) != "deploy" || caddy.Build.Dockerfile != "Dockerfile" {
+		t.Fatalf("hostbud-caddy build = %+v, want deploy/caddy/Dockerfile", caddy.Build)
+	}
+	if caddy.Image != "hostbud-caddy:local" {
+		t.Errorf("hostbud-caddy image = %q, want hostbud-caddy:local", caddy.Image)
+	}
+	modules := strings.Fields(readCache(t, "modules.txt"))
+	if !slices.Contains(modules, "dns.providers.cloudflare") {
+		t.Fatal("the built Caddy image lacks dns.providers.cloudflare (caddy list-modules)")
+	}
+}
+
+func TestCaddyMountsOnlyConfigAndCertVolumes(t *testing.T) {
+	c := load(t)
+	want := map[string]string{"/data": "hostbud-caddy-data", "/config": "hostbud-caddy-config"}
+	var files int
+	for _, v := range c.Services["hostbud-caddy"].Volumes {
+		switch {
+		case v.Type == "volume" && want[v.Target] == v.Source:
+			delete(want, v.Target)
+		case v.Type == "bind" && strings.HasPrefix(v.Target, "/etc/caddy/") &&
+			filepath.Base(filepath.Dir(v.Source)) == "caddy" && v.Target == "/etc/caddy/"+filepath.Base(v.Source):
+			if !v.ReadOnly {
+				t.Errorf("%s is not read-only", v.Source)
+			}
+			files++
+		default:
+			t.Errorf("unexpected hostbud-caddy mount %+v", v)
+		}
+	}
+	if files == 0 || len(want) != 0 {
+		t.Fatalf("hostbud-caddy: %d config files mounted, missing volumes %v", files, want)
 	}
 }
