@@ -113,14 +113,19 @@ Tasks: [roadmap/M6-tasks.md](roadmap/M6-tasks.md) · Checklist: [roadmap/M6-acce
 **Accept:** every tree customization survives reload and container restart; the Dark / Light / System theme setting works for the UI and terminal, persists, and in System mode follows the OS live.
 
 ### M7 — Hardening
-- Timeouts/limits everywhere (exec, WS buffers, SFTP).
-- Optional Tailscale identity allowlist via LocalAPI whois.
-- `make backup` / restore docs.
-- Integration test suite against `test/sshd`.
+Tasks: [roadmap/M7-tasks.md](roadmap/M7-tasks.md) · Checklist: [roadmap/M7-acceptance.md](roadmap/M7-acceptance.md)
 
-**E2E:** foreign-Origin requests and WebSockets rejected; a stalled terminal client is dropped and recovers by reconnecting; long-running exec/SFTP calls time out with a user-visible error instead of hanging; the full suite from all previous milestones still passes.
+- Timeouts/limits everywhere (exec, WS buffers, SFTP), plus HTTP requests and database queries: one documented inventory (ARCHITECTURE §15), a few operator-tunable values (`HOSTBUD_EXEC_TIMEOUT`, `HOSTBUD_SFTP_TIMEOUT`, terminal caps), ControlMaster self-healing, and actionable errors instead of hangs.
+- Security headers and a strict CSP (allowing only M6's theme boot script by hash); HSTS on the domain site.
+- Container hardening: read-only root filesystem, dropped capabilities, `no-new-privileges`, a healthcheck, bounded logs.
+- Optional Tailscale identity allowlist via LocalAPI whois (domain path only, opt-in Compose override).
+- `make backup` fixed for PostgreSQL, plus `make restore-check` (non-destructive) and a guarded `make restore`, with docs.
+- Integration test suite against `test/sshd`: a coverage matrix with its gaps filled (failure modes, host-key mismatch) and a log-hygiene test.
+- Fresh-host install: `make doctor` preflight checks, a docs consistency check, and a step-by-step README.
 
-**Full e2e run (last task of M7):** the first `make e2e` since M3. Run the whole suite, fix every failure (regression tests for bugs, test fixes for stale scenarios), then run it twice in a row from a clean checkout to check stability.
+**E2E:** foreign-Origin requests and WebSockets rejected (every route, from one shared list); a stalled terminal client is dropped and recovers by reconnecting; long-running exec/SFTP calls time out with a user-visible error instead of hanging; security headers present with no CSP violations anywhere; the Tailscale allowlist (against a fake LocalAPI); the full suite from all previous milestones still passes.
+
+**Full e2e run (last code task of M7, before release and Docker cleanup):** the first `make e2e` since M3. Run the whole suite, fix every failure (regression tests for bugs, test fixes for stale scenarios), then run it twice in a row from a clean checkout to check stability.
 
 **Accept:** security checklist in AGENTS.md fully satisfied; fresh-host install from README works end to end; `make e2e` green twice in a row.
 
