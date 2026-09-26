@@ -28,7 +28,7 @@ Update this table in the same commit that finishes a task.
 | T15 App shell and session list | ✅ done |
 | T16 Session actions | ✅ done |
 | T17 Terminal view | ✅ done |
-| T18 Docs and release | ⏭ next |
+| T18 Docs and release | ✅ done (open for the owner: Claude Code check, `chmod 600 .env`) |
 
 Work top to bottom; each task ends with a green `make lint test` **and `make e2e`**, a clean `make gitleaks`, and its own conventional commit(s). Tasks marked *(host)* need the real host (agent socket, sshd) to verify.
 
@@ -312,6 +312,6 @@ Design: [ARCHITECTURE §13.1](../ARCHITECTURE.md#131-e2e-environment). Built now
 - `.env.example` for any new vars; ARCHITECTURE updated if the design moved.
 - E2E audit: every item in the E2E section of [M1-acceptance.md](M1-acceptance.md) has its scenario (added by the task it's tagged with) and passes in both projects, twice in a row from a clean checkout. Any gap is a bug in the task that missed it: fix it there, don't just add it here.
 - Coverage audit: every functional and security criterion's U / I / E tests exist and pass; each n/a has its reason.
-- Manual-only checks: Claude Code, htop mouse clicks, `ss -ltn`, `docker compose exec hostbud id`.
+- Manual-only checks: Claude Code, `ss -ltn`, `docker compose exec hostbud id`. htop mouse clicks are automated on desktop (*htop mouse* scenario); phone taps stay manual.
 - Run the full [M1-acceptance.md](M1-acceptance.md) checklist.
 - Summary to the owner: what changed, env vars to set, manual host steps.

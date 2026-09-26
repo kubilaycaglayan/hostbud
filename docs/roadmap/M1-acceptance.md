@@ -58,11 +58,12 @@ A layer may be **n/a** only with a one-line reason (e.g. pure byte passthrough h
 - [x] Clicking a session attaches in a full terminal; typing works.
   - U: T13 frame codec and attach-command builder · T17 terminal WS client (Vitest, fake socket). I: T13 attach, send keys, read output on test sshd. E: T13 *Terminal WS* · T17 *Attach and type*.
 - [ ] Claude Code renders and behaves correctly (input, scrolling output, colors).
+  - Status (T18): not checked by the agent; it needs the owner's Claude credentials. Owner: create a session with start command `claude` and use it for a minute.
   - U: n/a (byte passthrough, covered by T13 codec). I: n/a (needs credentials). E: n/a (needs credentials; vim/htop stand in). **Manual** (T18).
 - [x] vim works (insert mode, `:q`, arrow keys, colors).
   - U: n/a (byte passthrough, covered by T13 codec). I: T13 attach running vim: `i` shows `-- INSERT --` in `capture-pane`, `:q` exits. E: T17 *Full-screen apps*.
-- [ ] htop renders correctly and responds to keys; mouse clicks work if tmux `mouse` is on.
-  - U: n/a (byte passthrough). I: T13 htop starts and `q` quits (pane command changes). E: T17 *Full-screen apps*. Mouse clicks: **manual** (T18).
+- [x] htop renders correctly and responds to keys; mouse clicks work if tmux `mouse` is on.
+  - U: n/a (byte passthrough). I: T13 htop starts and `q` quits (pane command changes). E: T17 *Full-screen apps*; mouse clicks: T18 *htop mouse* (desktop: with `mouse on` for that session, a click on htop's "F10 Quit" label quits it). On phones taps aren't mouse clicks: **manual** there.
 - [x] Resizing the browser window resizes the tmux window (`tmux display -p '#{window_width}x#{window_height}'`).
   - U: T13 `resize` frame → PTY size · T17 ResizeObserver → fit → `resize` frame (Vitest). I: T13 resize changes the window size on test sshd. E: T13 *Terminal WS* · T17 *Resize*.
 - [x] Closing the tab ends only the attach: the session keeps running (`tmux ls`).
@@ -84,7 +85,7 @@ Every scenario passes in **both** Playwright projects (`desktop-chromium`, `ipho
 **Each item is tagged with the task that must add it, in the same commit as the behavior.** An unchecked item whose task is ✅ done in [M1-tasks.md](M1-tasks.md) is a bug in that task, not work for the end of the milestone.
 
 Authentication and database
-- [ ] **(T8A) PostgreSQL stack:** the throwaway E2E app starts against its disposable PostgreSQL service; no production database volume or credentials are used.
+- [x] **(T8A) PostgreSQL stack:** the throwaway E2E app starts against its disposable PostgreSQL service; no production database volume or credentials are used.
 - [x] **(T8B) Whitelist-gated registration:** an unlisted generated email is rejected; after the test inserts an enabled row through the owner SQL path, registration succeeds.
 - [x] **(T8B) Registration/sign-in/logout:** the user registers, signs in, reaches the protected app, logs out, and is rejected from protected API/WebSocket routes afterward.
 - [x] **(T8B) Whitelist-gated login:** disabling the generated email's allowlist row blocks a new sign-in without deleting the account.
@@ -121,6 +122,7 @@ UI
 - [x] **(T16) Kill:** Cancel keeps the session; Confirm removes it from `tmux ls` and the list.
 - [x] **(T17) Attach and type:** the user clicks a session and types `echo e2e-$RANDOM` + Enter → the marker is in `capture-pane` and in the browser terminal.
 - [x] **(T17) Full-screen apps:** vim (insert text, `:wq` writes the file on the target) and htop (renders, `q` quits) behave correctly.
+- [x] **(T18) htop mouse:** with tmux `mouse` on for that session, clicking htop's "F10 Quit" label in the browser terminal quits htop (desktop; phone taps stay manual).
 - [x] **(T17) Resize:** changing the viewport changes `#{window_width}x#{window_height}` on the target.
 - [x] **(T17) Leave without killing:** closing the page ends the attach; the session is still in `tmux ls`.
 - [x] **(T17) Exit state:** detaching (`prefix d`) or the program exiting shows the exit state; Reconnect re-attaches.
@@ -128,40 +130,42 @@ UI
 
 Overall
 - [ ] **(every task) Kept green:** each task's commit ran `make e2e` green, including tasks with no new scenario.
-- [ ] **(T18) Stable:** two consecutive full runs pass (no flakes); failures leave traces/screenshots/videos in `test/e2e/results/`.
+  - Status (T18): not literally true. During the two-agent overlap, the T10 and T11 package-only commits (not yet wired into the app) were verified by lint, unit and integration tests without their own e2e run; every later commit ran it, and the milestone ends with two clean full runs.
+- [x] **(T18) Stable:** two consecutive full runs pass (no flakes); failures leave traces/screenshots/videos in `test/e2e/results/`.
 
 ## Security (AGENTS.md checklist, M1 scope)
 - [x] Authentication is required for all application API and WebSocket routes except health, registration and sign-in; sessions use opaque HttpOnly/SameSite cookies and passwords use Argon2id hashes.
   - U: T8B auth middleware, cookie and password-hash tests. I: T8B protected-route and session persistence checks. E: T8B *Registration/sign-in/logout*.
 - [ ] PostgreSQL credentials never appear in tracked files, images or logs; the optional database port is uncommon, configurable, loopback-only and verified free before deployment.
   - U: T8A config/redaction tests. I: T8A Compose/mount/port inspection. E: n/a (runner does not inspect the host network); **Manual** owner checks `.env` permissions and `ss -ltn`.
-- [ ] `ss -ltn` on the host: 9055 bound on `127.0.0.1` only; nothing on `0.0.0.0` from hostbud/Caddy; hostbud container publishes no ports.
+  - Status (T18): automated parts pass (placeholders only in tracked files, credentials passed at runtime, the e2e DB password is a *Logs clean* marker; the port is uncommon and loopback-only and was free before deploying). Open: the owner's `.env` is group/world-readable (664); run `chmod 600 .env`.
+- [x] `ss -ltn` on the host: 9055 bound on `127.0.0.1` only; nothing on `0.0.0.0` from hostbud/Caddy; hostbud container publishes no ports.
   - U: n/a (no code). I: T8 deploy-config check: `docker compose config` shows `hostbud` with no ports and every Caddy port bound to `127.0.0.1` (or `${TAILSCALE_IP}` from M2). E: n/a (the e2e project publishes nothing by design). **Manual** `ss -ltn` (T4, T18).
 - [x] A request with a foreign `Origin` (e.g. `curl -H 'Origin: http://evil.example.com' -X POST …`) and a WebSocket upgrade with a foreign Origin are rejected.
   - U: T12/T13 `httptest` Origin middleware (allowed, foreign, missing). I: n/a (pure HTTP middleware, no remote side). E: T12 and T13 *Origin*.
-- [ ] Remote commands only go through the `sshx` builder with quoted args (code review); session names validated server-side.
+- [x] Remote commands only go through the `sshx` builder with quoted args (code review); session names validated server-side.
   - U: T7 quoting (quotes, spaces, `$`, newlines) · T7 architecture test: `os/exec` is imported only by `sshx` and `term` · T9 name validation. I: T8 quoting round-trip: `printf %s` with hostile args on test sshd returns them verbatim. E: T12 *API validation*.
-- [ ] `/data/ssh/config` has `StrictHostKeyChecking yes` and `BatchMode yes`; `/data/ssh/known_hosts` contains only the pinned host keys from `/run/host-keys`.
+- [x] `/data/ssh/config` has `StrictHostKeyChecking yes` and `BatchMode yes`; `/data/ssh/known_hosts` contains only the pinned host keys from `/run/host-keys`.
   - U: T7 config generation and ordering · T7 known_hosts from `*.pub` only. I: T8 connects to test sshd with pinned keys only. E: n/a (not user-visible; the e2e app only boots and connects because pinning works, T7).
-- [ ] Swapping in a wrong pinned key → connection refused with a host-key mismatch error (integration test).
+- [x] Swapping in a wrong pinned key → connection refused with a host-key mismatch error (integration test).
   - U: T7 mismatch error mapping. I: T8 wrong key ⇒ refused, mapped error. E: n/a (needs tampering with the app's mounts; integration covers it).
 - [x] Kill requires confirmation in the UI.
   - U: T16 kill dialog (Vitest). I: n/a (UI-only). E: T16 *Kill*.
-- [ ] `docker compose exec hostbud id` shows `${HOST_UID}:${HOST_GID}`, not root.
+- [x] `docker compose exec hostbud id` shows `${HOST_UID}:${HOST_GID}`, not root.
   - U: n/a (no code). I: T8 deploy-config check: `hostbud` has `user: ${HOST_UID}:${HOST_GID}` and the image's `USER` is not root. E: n/a (the runner has no Docker access). **Manual** `id` (T18).
-- [ ] No private keys in the container: only the agent socket and `*.pub` host keys are mounted (`docker inspect` mounts).
+- [x] No private keys in the container: only the agent socket and `*.pub` host keys are mounted (`docker inspect` mounts).
   - U: n/a (no code). I: T8 deploy-config check: `hostbud`'s mounts are exactly the data volume, the agent socket and `*.pub` files. E: n/a (the runner has no Docker access).
-- [ ] `make logs` at info level contains no tokens, user paths or command strings.
+- [x] `make logs` at info level contains no tokens, user paths or command strings.
   - U: T12 captured info-level logs from create/rename/kill requests contain no path or command. I: n/a (covered by U and E). E: T12 *Logs clean*: after the run, the `hostbud-e2e-app` info logs contain none of the scenarios' paths, commands or markers.
 
 ## Definition of done
 Process checks; they apply to the whole milestone, not to individual tests.
 
-- [ ] `make lint test` green (Go unit + integration against `test/sshd`, frontend lint/type-check/Vitest), run with only Docker installed.
-- [ ] `make e2e` green (both projects), and every E2E item above was added by the task it's tagged with (no end-of-milestone catch-up).
-- [ ] Every functional and security criterion's U / I / E tests exist and pass. Each n/a has its reason, and "manual" is used only where allowed.
-- [ ] `make gitleaks` clean; pre-commit hook installed via `make hooks` and blocking a planted fake secret.
-- [ ] No real hostnames, domains, IPs, usernames or home paths in tracked files (`git grep` for the values in `.env`).
-- [ ] README documents M1 usage; `.env.example` lists every new variable; ARCHITECTURE matches what was built.
-- [ ] README documents PostgreSQL owner access, whitelist SQL, credential location, and the loopback-only uncommon-port requirement without containing real credentials.
-- [ ] Summary delivered: what changed, env vars the owner must set, manual host steps.
+- [x] `make lint test` green (Go unit + integration against `test/sshd`, frontend lint/type-check/Vitest), run with only Docker installed.
+- [x] `make e2e` green (both projects), and every E2E item above was added by the task it's tagged with (no end-of-milestone catch-up).
+- [x] Every functional and security criterion's U / I / E tests exist and pass. Each n/a has its reason, and "manual" is used only where allowed.
+- [x] `make gitleaks` clean; pre-commit hook installed via `make hooks` and blocking a planted fake secret.
+- [x] No real hostnames, domains, IPs, usernames or home paths in tracked files (`git grep` for the values in `.env`).
+- [x] README documents M1 usage; `.env.example` lists every new variable; ARCHITECTURE matches what was built.
+- [x] README documents PostgreSQL owner access, whitelist SQL, credential location, and the loopback-only uncommon-port requirement without containing real credentials.
+- [x] Summary delivered: what changed, env vars the owner must set, manual host steps.

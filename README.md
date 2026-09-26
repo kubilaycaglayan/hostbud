@@ -2,21 +2,54 @@
 
 Manage the tmux sessions on your server from a web UI: browse directories, organize them as projects, and attach to sessions in a full browser terminal. Built for terminal-first and agentic-coding workflows. Self-hosted; reachable only via SSH port forward or your Tailscale tailnet. (Multi-machine support is planned.)
 
-> Status: early development. See [docs/ROADMAP.md](docs/ROADMAP.md).
+> Status: **M1** — the tmux manager works over an SSH port forward (`http://localhost:9055`). Access on your own domain over Tailscale (HTTPS) arrives in M2. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## How it works
-- Runs in Docker on one host, behind Caddy: plain HTTP on `127.0.0.1:9055` for SSH port forwarding, and HTTPS on your domain bound to the host's Tailscale IP.
-- Reaches the host's tmux over SSH using your ssh-agent (keys never enter the container).
-- Stores account/session metadata and UI metadata in PostgreSQL; tmux sessions live on the host.
+- Runs in Docker on one host, behind Caddy: plain HTTP on `127.0.0.1:9055` for SSH port forwarding (and, from M2, HTTPS on your domain bound to the host's Tailscale IP).
+- Reaches the host's tmux over SSH using a dedicated key in your ssh-agent (private keys never enter the container) and pins the host's own SSH host keys.
+- Accounts are email + password, limited to addresses you allow with plain SQL; sign-in is throttled.
+- Stores accounts and UI metadata in PostgreSQL; tmux sessions live on the host.
 
-## Quick start
-1. Prerequisites on the host: Docker + Compose (nothing else — build, tests and lint run in containers), Tailscale, `sshd` running (hostbud reaches the host over SSH too), a stable ssh-agent socket with your keys loaded, and your own public key in `~/.ssh/authorized_keys`.
-2. Cloudflare: create an `A` record for your subdomain → the host's Tailscale IP, **DNS only (grey cloud)**. Create an API token with `Zone:DNS:Edit` for that zone.
-3. `cp .env.example .env` and fill it in, including a new random `HOSTBUD_DB_PASSWORD`.
-4. Before deploying, check that the chosen uncommon `HOSTBUD_DB_LOCAL_PORT` is unused with `ss -ltn`. It will bind to loopback only.
-5. `make deploy` (the host's `/etc/ssh/ssh_host_{ed25519,ecdsa,rsa}_key.pub` must exist; drop the mount in `docker-compose.yml` for any key type your sshd doesn't have).
-6. Add the first permitted email to the PostgreSQL `email_allowlist` table with plain SQL before registering. The whitelist is intentionally owner-managed; there is no web admin flow.
-7. Open `https://<your subdomain>` from a device on your tailnet, or from any machine with SSH access: `ssh -L 9055:localhost:9055 <host>` → `http://localhost:9055`, then create the account and sign in.
+## Quick start (M1)
+1. **Prerequisites on the host:** Docker + Compose (nothing else — build, tests and lint run in containers), `sshd` running (hostbud reaches the host over SSH), tmux, and a systemd user session.
+2. **A dedicated SSH key for hostbud**, allowed only from Docker networks and without forwarding:
+   ```sh
+   ssh-keygen -t ed25519 -N '' -C hostbud -f ~/.ssh/hostbud_ed25519
+   echo "from=\"172.16.0.0/12\",no-agent-forwarding,no-port-forwarding,no-X11-forwarding $(cat ~/.ssh/hostbud_ed25519.pub)" >> ~/.ssh/authorized_keys
+   ```
+   The Compose network uses a fixed subnet inside `172.16.0.0/12` (`HOSTBUD_SUBNET`), so the `from=` restriction matches only hostbud.
+3. **Load the key into a stable agent socket at boot.** With systemd's user `ssh-agent.socket` the socket is `/run/user/<uid>/openssh_agent`. Create `~/.config/systemd/user/hostbud-ssh-add.service`:
+   ```ini
+   [Unit]
+   Description=Load the hostbud SSH key into the ssh-agent
+   Requires=ssh-agent.socket
+   After=ssh-agent.socket
+
+   [Service]
+   Type=oneshot
+   RemainAfterExit=yes
+   Environment=SSH_AUTH_SOCK=%t/openssh_agent
+   ExecStart=/usr/bin/ssh-add %h/.ssh/hostbud_ed25519
+
+   [Install]
+   WantedBy=default.target
+   ```
+   then `systemctl --user daemon-reload && systemctl --user enable --now ssh-agent.socket hostbud-ssh-add.service`, and `sudo loginctl enable-linger "$USER"` so both start at boot without a login.
+4. **Configure:** `cp .env.example .env` and set at least `HOST_UID` / `HOST_GID` (`id -u` / `id -g`), `HOST_SSH_USER`, `HOST_SSH_AUTH_SOCK` (the socket above) and a new random `HOSTBUD_DB_PASSWORD`. Check that `HOSTBUD_LOCAL_PORT` (9055) and the uncommon `HOSTBUD_DB_LOCAL_PORT` are free with `ss -ltn`; both bind to loopback only. The domain, Cloudflare and Tailscale settings are for M2 and can stay as placeholders.
+5. **Deploy:** `make deploy`. The host's `/etc/ssh/ssh_host_{ed25519,ecdsa,rsa}_key.pub` must exist (drop the mount in `docker-compose.yml` for a key type your sshd doesn't have). `curl http://localhost:9055/api/health` answers `{"status":"ok"}`.
+6. **Allow your address** (there is deliberately no web admin for this):
+   ```sh
+   docker compose exec hostbud-postgres psql -U hostbud -d hostbud \
+     -c "INSERT INTO email_allowlist (email_normalized) VALUES ('you@example.com');"
+   ```
+7. **Open it** from any machine with SSH access to the host: `ssh -L 9055:localhost:9055 <host>`, then browse to `http://localhost:9055` (use `localhost`, not `127.0.0.1`: requests are checked against that origin), choose **Create account**, and you're signed in.
+
+## Using hostbud
+- The sidebar lists the host's tmux sessions (● attached / ○ detached, window count) and follows changes made anywhere (e.g. `tmux new -d -s x` in a real terminal) within one poll interval (`HOSTBUD_POLL_INTERVAL`, default 3s).
+- **New session**: a directory (default `~`, `~/…` works), an optional name (default: the directory's name; `name-1`, `name-2`, … if taken) and an optional start command such as `htop` or `claude`.
+- ✎ renames, ✕ kills (after a confirmation). Click a session to attach in the terminal; closing the tab only detaches — the session keeps running. After a detach (`prefix d`), the program exiting or a restart, use **Reconnect**.
+- A banner explains host problems (sshd unreachable, tmux missing) with the fix; hostbud recovers by itself once they're fixed.
+- On a phone, the list and the terminal take turns (← goes back to the list).
 
 PostgreSQL credentials are supplied through the local, gitignored `.env` using the documented `HOSTBUD_DB_*` variables. They are not copied into tracked files, images or logs. For owner maintenance, use `docker compose exec hostbud-postgres psql ...` or the optional loopback-only maintenance port. Choose an uncommon `HOSTBUD_DB_LOCAL_PORT`, verify it is unused with `ss -ltn`, and never expose it on `0.0.0.0`, the Tailscale address or the public domain.
 
