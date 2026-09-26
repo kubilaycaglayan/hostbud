@@ -120,7 +120,7 @@ Each criterion names **U** (unit), **I** (integration against `test/sshd`, Postg
 Projects remain `desktop-chromium` and `iphone-13-pro` against the throwaway target only. Each scenario is tagged to the task that writes it. Scenarios must not access the real host's filesystem or tmux. While M4 is being built, only the e2e suite type-check runs; execution is reserved for M7's final full-suite run.
 
 - [x] **(T1) Browse home and navigate:** authenticated API returns the target home and navigates nested paths containing spaces, quotes, Unicode and shell metacharacters through Caddy. T4 adds the desktop and phone UI navigation.
-- [ ] **(T1) Hidden entries and symlinks:** API hidden toggle and directory-first ordering work; symlinks remain unresolved in listings and explicit stat reports resolved, broken or looping state (desktop API).
+- [x] **(T1) Hidden entries and symlinks:** API hidden toggle and directory-first ordering work; symlinks remain unresolved in listings and explicit stat reports resolved, broken or looping state (desktop API).
 - [ ] **(T1) No destructive file actions:** API attempts cannot mutate or remove target entries; there is no delete or remote rename route.
 - [ ] **(T4) File browser dialog and icon actions:** open/close the modal from the FolderPlus header button outside the left gutter; project actions use icon buttons with accessible labels (desktop and iPhone 13 Pro).
 - [x] **(T1) Filesystem API access control:** auth and Origin enforcement through Caddy; unauthorized requests do not initiate SFTP.
