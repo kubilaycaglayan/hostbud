@@ -6,6 +6,8 @@
 export interface HostbudHooks {
   /** The visible terminal buffer as text (trailing blanks trimmed). */
   termText: () => string
+  /** The terminal's size in cells. */
+  termSize: () => { cols: number; rows: number }
 }
 
 declare global {

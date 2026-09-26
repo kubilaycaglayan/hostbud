@@ -103,6 +103,7 @@ onMounted(async () => {
         }
         return lines.join('\n').trimEnd()
       },
+      termSize: () => ({ cols: t.cols, rows: t.rows }),
     })
 })
 

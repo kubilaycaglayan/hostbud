@@ -55,6 +55,30 @@ test('full-screen apps: vim writes a file, htop renders and quits', async ({ ui,
   await expect.poll(() => command(target, name)).toBe('bash')
 })
 
+// htop mouse (T18: automates the "mouse clicks work if tmux mouse is on"
+// check). mouse is set on this throwaway session only.
+test('htop takes mouse clicks when tmux mouse is on', async ({ ui, target, isMobile }) => {
+  // Taps on a phone aren't mouse clicks, and htop's key bar needs ~80 columns.
+  test.skip(isMobile, 'desktop mouse only')
+  const name = uniqueName('e2e-mouse')
+  await target.tmux('new-session', '-d', '-s', name, 'htop')
+  await target.tmux('set-option', '-t', `=${name}:`, 'mouse', 'on')
+  await ui.open()
+  await ui.openTerminal(name)
+  await expect.poll(() => command(target, name)).toBe('htop')
+  await expect.poll(() => ui.termText()).toContain('Quit')
+
+  // Click htop's own "F10 Quit" label in the bottom row, like a user.
+  const box = (await ui.page.getByTestId('terminal').locator('.xterm-screen').boundingBox())!
+  const { cols, rows } = await ui.page.evaluate(() => window.__hostbud!.termSize())
+  const lines = (await ui.termText()).split('\n')
+  const row = lines.findLastIndex((l) => l.includes('Quit'))
+  const col = lines[row].indexOf('Quit')
+  await ui.page.mouse.click(box.x + ((col + 1.5) * box.width) / cols, box.y + ((row + 0.5) * box.height) / rows)
+  // htop was the session's program: quitting it ends the session.
+  await expect.poll(() => target.sessions()).not.toContain(name)
+})
+
 // Resize (T17)
 test('resize: a viewport change resizes the tmux window', async ({ page, ui, target }) => {
   const name = await newSession(target, 'e2e-size')

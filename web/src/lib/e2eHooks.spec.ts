@@ -5,8 +5,9 @@ afterEach(() => removeE2EHooks())
 
 describe('e2e hooks', () => {
   it('expose termText once installed, and go away', () => {
-    installE2EHooks({ termText: () => 'buffer' })
+    installE2EHooks({ termText: () => 'buffer', termSize: () => ({ cols: 80, rows: 24 }) })
     expect(window.__hostbud?.termText()).toBe('buffer')
+    expect(window.__hostbud?.termSize()).toEqual({ cols: 80, rows: 24 })
     removeE2EHooks()
     expect(window.__hostbud).toBeUndefined()
   })
