@@ -130,7 +130,10 @@ test('exit state: prefix d and a program exiting show it; Reconnect re-attaches'
   const short = uniqueName('e2e-short')
   await target.tmux('new-session', '-d', '-s', short, 'sleep 3')
   await ui.openTerminal(short)
-  await expect(ui.termStatus()).toContainText('Session detached or ended.', { timeout: 10_000 })
+  // Since M3 T7 an ended session's tab closes with a notice (the exit banner
+  // may show first, briefly).
+  await expect(ui.toast(`Session ${short} ended`)).toBeVisible({ timeout: 10_000 })
+  await expect(ui.pane(short)).toHaveCount(0)
 })
 
 // Terminal after restart (T17): now automatic, see reconnect.spec.ts

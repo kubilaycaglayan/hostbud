@@ -64,3 +64,21 @@ body {
 .xterm .xterm-helper-textarea {
   font-size: 16px;
 }
+
+/* Split view dividers (splitpanes ships them 1px wide and unthemed): a
+   6px grab area in the border color, accent while hovered or dragged. */
+.splitpanes__splitter {
+  flex-shrink: 0;
+  background-color: var(--color-border);
+  transition: background-color 0.15s;
+}
+.splitpanes__splitter:hover,
+.splitpanes--dragging > .splitpanes__splitter {
+  background-color: var(--color-accent);
+}
+.splitpanes--vertical > .splitpanes__splitter {
+  width: 6px;
+}
+.splitpanes--horizontal > .splitpanes__splitter {
+  height: 6px;
+}

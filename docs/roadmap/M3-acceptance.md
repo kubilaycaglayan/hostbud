@@ -48,13 +48,13 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 ### Tabs and splits
 - [x] Several sessions can be open at once in tabs; picking an already open session focuses its tab; each tab's input reaches its own session.
   - U: T7 layout store open/activate/close, the 16-terminal limit; tab bar roles and keys (Vitest). I: n/a (each pane is M1 T13's attach). E: T7 *Tabs*.
-- [ ] Closing a tab or pane only detaches the view (the tmux session keeps running; no confirmation).
+- [x] Closing a tab or pane only detaches the view (the tmux session keeps running; no confirmation).
   - U: T7 close · T8 close with collapse (Vitest). I: n/a (closing a socket ends only the attach; M1 T13). E: T7 *Close tab detaches* · T8 *Close pane*.
-- [ ] Renaming a session in the UI updates its tabs/panes; a session that disappears (killed anywhere) closes its tabs/panes with a notice.
+- [x] Renaming a session in the UI updates its tabs/panes; a session that disappears (killed anywhere) closes its tabs/panes with a notice.
   - U: T7 rename / drop-missing · T8 remove-missing with rebalance (Vitest). I: n/a (list events are M1's). E: T7 *Tabs follow rename and kill*.
-- [ ] A tab can be split horizontally and vertically (nested, up to 4 panes); typing goes to the focused pane; dragging a divider resizes each pane's tmux window.
+- [x] A tab can be split horizontally and vertically (nested, up to 4 panes); typing goes to the focused pane; dragging a divider resizes each pane's tmux window.
   - U: T8 tree operations and limit · `LayoutNodeView` focus (Vitest). I: n/a (resize → tmux is M1 T13's integration test). E: T8 *Split and type* · T8 *Resize split*.
-- [ ] The tab/split layout (order, active tab, splits, divider positions, focused pane) survives reload and container restart; panes whose session no longer exists are dropped.
+- [x] The tab/split layout (order, active tab, splits, divider positions, focused pane) survives reload and container restart; panes whose session no longer exists are dropped.
   - U: T7 serialize/validate/debounced save · T8 split validation (Vitest) · T6 handler (Go). I: T6 store round-trip (PostgreSQL). E: T7 *Tabs survive reload* · T8 *Splits survive reload*.
 - [ ] On narrow screens (phones) tabs work through a compact tab bar, and a split tab shows one pane at a time with a pane switcher.
   - U: T8 pane cycler (Vitest). I: n/a (frontend). E: T7 *Tabs on the phone* · T8 *Split on the phone*. **Manual (T9):** a real phone.
@@ -88,11 +88,11 @@ Projects as in M2: `desktop-chromium` and `iphone-13-pro` on `http://localhost:9
 - [x] **(T7) Tabs follow rename and kill:** a UI rename relabels the tab; an out-of-band kill closes it with a notice.
 - [x] **(T7) Tabs survive reload:** the same tabs, order and active tab after reload and after an app restart; a missing session's tab is dropped.
 - [x] **(T7) Tabs on the phone:** two tabs switched and typed into from the compact tab bar (`iphone-13-pro`).
-- [ ] **(T8) Split and type:** a nested split of three panes; each pane's input reaches its session.
-- [ ] **(T8) Resize split:** dragging a divider changes both panes' tmux `#{window_width}`.
-- [ ] **(T8) Close pane:** panes close down to one; closed sessions stay listed, detached.
-- [ ] **(T8) Splits survive reload:** tree, divider position and focus survive reload and an app restart.
-- [ ] **(T8) Split on the phone:** a split tab shows one pane, and the pane switcher changes which one (`iphone-13-pro`).
+- [x] **(T8) Split and type:** a nested split of three panes; each pane's input reaches its session.
+- [x] **(T8) Resize split:** dragging a divider changes both panes' tmux `#{window_width}`.
+- [x] **(T8) Close pane:** panes close down to one; closed sessions stay listed, detached.
+- [x] **(T8) Splits survive reload:** tree, divider position and focus survive reload and an app restart.
+- [x] **(T8) Split on the phone:** a split tab shows one pane, and the pane switcher changes which one (`iphone-13-pro`).
 - [ ] **(every task) Kept green:** T1–T5 each ran `make e2e` green in their commit; from T6 on, each test checkpoint (CP1–CP3 in [M3-tasks.md](M3-tasks.md#progress)) ran it green, and the M1 and M2 suites still pass.
 - [ ] **(T9) Stable:** two consecutive full runs pass from a clean checkout.
 

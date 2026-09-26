@@ -10,11 +10,21 @@ const emit = defineEmits<{ pick: [name: string]; new: [] }>()
 const open = ref(false)
 
 function pick(name: string) {
+  picked = true
   open.value = false
   emit('pick', name)
 }
 
+// After a pick the new pane takes focus: returning it to this trigger (in
+// the old pane) would focus the old pane again.
+let picked = false
+function onCloseFocus(ev: Event) {
+  if (picked) ev.preventDefault()
+  picked = false
+}
+
 function create() {
+  picked = true
   open.value = false
   emit('new')
 }
@@ -35,6 +45,7 @@ function create() {
         align="end"
         :side-offset="4"
         class="z-30 max-h-72 w-56 overflow-y-auto rounded border border-border bg-surface p-1 text-fg shadow-lg"
+        @close-auto-focus="onCloseFocus"
       >
         <p class="px-2 py-1 text-muted">
           {{ props.label }}
