@@ -20,6 +20,8 @@ async function openProjectSession(page: import('@playwright/test').Page, name: s
   await page.getByRole('button', { name: `New session in ${name}` }).click()
   const dialog = page.getByRole('dialog', { name: 'New session here' })
   await expect(dialog).toBeVisible()
+  // (fix) Only that dialog opens, not the file browser behind it.
+  await expect(page.getByRole('dialog', { name: 'Browse files' })).toHaveCount(0)
   return dialog
 }
 
@@ -64,6 +66,7 @@ test('(T5) Linked session rename and cleanup', async ({ page, target, request })
   await page.goto('/')
   await page.getByRole('button', { name: `New session in ${projectName}` }).click()
   await expect(page.getByRole('dialog', { name: 'New session here' })).toBeVisible()
+  await expect(page.getByRole('dialog', { name: 'Browse files' })).toHaveCount(0)
   await page.getByLabel('Name').fill(sessionName)
   await page.getByLabel('Start command').fill('sleep 6')
   await page.getByRole('button', { name: 'Create session' }).click()

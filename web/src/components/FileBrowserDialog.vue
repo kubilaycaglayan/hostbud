@@ -2,7 +2,7 @@
 import { DialogClose, DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
 import FileBrowser from './FileBrowser.vue'
 
-defineProps<{ machine: string; startProjectId?: string }>()
+defineProps<{ machine: string }>()
 const open = defineModel<boolean>('open', { default: false })
 const emit = defineEmits<{ created: [name: string] }>()
 </script>
@@ -32,7 +32,6 @@ const emit = defineEmits<{ created: [name: string] }>()
         <FileBrowser
           v-if="open"
           :machine="machine"
-          :start-project-id="startProjectId"
           class="min-h-0 flex-1 overflow-y-auto"
           @created="emit('created', $event)"
         />

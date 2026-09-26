@@ -3,12 +3,13 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { filesystemApi, projectsApi, type FileEntry } from '@/api/client'
 import type { Project } from '@/api/types'
 import FormError from './FormError.vue'
+import ProjectSessionDialog from './ProjectSessionDialog.vue'
 import { describeError } from '@/stores/toasts'
 import { useProjectsStore } from '@/stores/projects'
 import { useTreeStore } from '@/stores/tree'
 import { FolderOpen, FolderPlus } from 'lucide-vue-next'
 
-const props = defineProps<{ machine: string; startProjectId?: string }>()
+const props = defineProps<{ machine: string }>()
 const emit = defineEmits<{ created: [name: string] }>()
 const path = ref('')
 const pathInput = ref('')
@@ -25,10 +26,6 @@ const folderError = ref('')
 const busy = ref(false)
 const sessionProject = ref<Project | null>(null)
 const selectedProject = ref<Project | null>(null)
-const sessionName = ref('')
-const command = ref('')
-const recentCommands = ref<string[]>([])
-const recentCommandsError = ref('')
 const suggestions = computed(() => {
   const query = pathInput.value.trim()
   if (!query || query === path.value) return []
@@ -56,14 +53,8 @@ async function initialize() {
     await navigate(home.path)
     await projectStore.load(props.machine)
     useTreeStore().sync()
-    const requested = projectStore.items.find((item) => item.id === props.startProjectId)
-    if (requested) void beginSession(requested)
   } catch (e) { error.value = describeError(e) }
 }
-watch(() => props.startProjectId, (id) => {
-  const requested = projectStore.items.find((item) => item.id === id)
-  if (requested) void beginSession(requested)
-})
 watch(hidden, () => { if (path.value) void navigate(path.value) })
 onMounted(() => { void initialize() })
 
@@ -93,20 +84,6 @@ async function resolveLink(entry: FileEntry) {
   }
 }
 
-async function beginSession(project: Project) {
-  sessionProject.value = project
-  sessionName.value = ''
-  command.value = ''
-  recentCommands.value = []
-  recentCommandsError.value = ''
-  try {
-    const result = await projectsApi.recentCommands(project.id)
-    if (sessionProject.value?.id === project.id) recentCommands.value = result.commands
-  } catch (e) {
-    if (sessionProject.value?.id === project.id) recentCommandsError.value = describeError(e).message
-  }
-}
-
 async function openProject(entry: FileEntry) {
   const existing = projects.value.find((p) => p.path === entry.path)
   if (existing) { selectedProject.value = existing; return }
@@ -117,19 +94,6 @@ async function openProject(entry: FileEntry) {
     if (prior) { selectedProject.value = prior; return }
     projectStore.remember(project)
     selectedProject.value = project
-  } catch (e) { error.value = describeError(e) }
-  finally { busy.value = false }
-}
-async function createSession() {
-  if (!sessionProject.value) return
-  busy.value = true
-  error.value = null
-  try {
-    const startCommand = command.value.trim() ? command.value : undefined
-    const result = await projectsApi.createSession(sessionProject.value.id, { name: sessionName.value.trim() || undefined, startCommand })
-    sessionProject.value = null
-    recentCommands.value = []
-    emit('created', result.name)
   } catch (e) { error.value = describeError(e) }
   finally { busy.value = false }
 }
@@ -321,82 +285,14 @@ async function createSession() {
       <button
         type="button"
         class="min-h-11 rounded bg-accent px-3 font-bold text-bg"
-        @click="beginSession(selectedProject)"
+        @click="sessionProject = selectedProject"
       >
         New session here
       </button>
     </div>
-    <div
-      v-if="sessionProject"
-      role="dialog"
-      aria-modal="true"
-      aria-label="New session here"
-      class="fixed inset-0 z-30 flex items-center justify-center bg-black/50 p-4"
-    >
-      <form
-        class="w-full max-w-md rounded border border-border bg-surface p-4"
-        @submit.prevent="createSession"
-      >
-        <h2 class="font-bold">
-          New session in {{ sessionProject.name }}
-        </h2>
-        <label class="mt-3 block">Name <input
-          v-model="sessionName"
-          class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3"
-        ></label>
-        <label class="mt-3 block">Start command <input
-          v-model="command"
-          class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3"
-        ></label>
-        <p
-          v-if="recentCommandsError"
-          role="status"
-          class="mt-1 text-sm text-muted"
-        >
-          Recent commands couldn't be loaded: {{ recentCommandsError }}
-        </p>
-        <div
-          v-if="recentCommands.length"
-          class="mt-2"
-        >
-          <p class="text-sm text-muted">
-            Recent commands for this project
-          </p>
-          <ul class="mt-1 max-h-32 overflow-y-auto rounded border border-border">
-            <li
-              v-for="recent in recentCommands"
-              :key="recent"
-            >
-              <button
-                type="button"
-                class="min-h-11 w-full truncate px-2 text-left text-sm hover:bg-bg"
-                :aria-label="`Use recent command ${recent}`"
-                @click="command = recent"
-              >
-                {{ recent }}
-              </button>
-            </li>
-          </ul>
-        </div>
-        <p class="mt-2 text-sm text-muted">
-          Directory: {{ sessionProject.path }}
-        </p>
-        <div class="mt-4 flex justify-end gap-2">
-          <button
-            type="button"
-            class="min-h-11 px-3"
-            @click="sessionProject = null"
-          >
-            Cancel
-          </button><button
-            type="submit"
-            :disabled="busy"
-            class="min-h-11 rounded bg-accent px-3 font-bold text-bg"
-          >
-            Create session
-          </button>
-        </div>
-      </form>
-    </div>
+    <ProjectSessionDialog
+      v-model:project="sessionProject"
+      @created="emit('created', $event)"
+    />
   </section>
 </template>

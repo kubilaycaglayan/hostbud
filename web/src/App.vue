@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue'
 import AuthView from '@/components/AuthView.vue'
 import CreateSessionDialog from '@/components/CreateSessionDialog.vue'
 import FileBrowserDialog from '@/components/FileBrowserDialog.vue'
+import ProjectSessionDialog from '@/components/ProjectSessionDialog.vue'
 import SessionTree from '@/components/SessionTree.vue'
 import KillSessionDialog from '@/components/KillSessionDialog.vue'
 import RenameSessionDialog from '@/components/RenameSessionDialog.vue'
@@ -10,6 +11,7 @@ import HostBanner from '@/components/HostBanner.vue'
 import TabBar from '@/components/TabBar.vue'
 import TabView from '@/components/TabView.vue'
 import { NEW_SESSION_FOR_SPLIT } from '@/components/layoutKeys'
+import type { Project } from '@/api/types'
 import type { SplitDir } from '@/lib/layout'
 import { useMediaQuery, WIDE_QUERY } from '@/lib/media'
 import ToastRegion from '@/components/ToastRegion.vue'
@@ -36,13 +38,10 @@ const host = computed(() => machines.byId(MACHINE))
 
 const creating = ref(false)
 const browsing = ref(false)
-const requestedProjectId = ref<string | undefined>()
+const sessionProject = ref<Project | null>(null) // the project a New session here dialog is for
 const renaming = ref(false)
 const killing = ref(false)
 const target = ref('') // the session a rename/kill dialog is about
-watch(browsing, (open) => {
-  if (!open) requestedProjectId.value = undefined
-})
 
 function askRename(name: string) {
   target.value = name
@@ -77,13 +76,11 @@ function newSession() {
   splitTarget.value = null
   creating.value = true
 }
-function newProjectSession(project: { id: string }) {
-  requestedProjectId.value = project.id
-  browsing.value = true
+function newProjectSession(project: Project) {
+  sessionProject.value = project
 }
 function showTree() {
   browsing.value = false
-  requestedProjectId.value = undefined
   app.sidebarOpen = true
   app.showList()
 }
@@ -270,7 +267,10 @@ onUnmounted(() => {
     <FileBrowserDialog
       v-model:open="browsing"
       :machine="MACHINE"
-      :start-project-id="requestedProjectId"
+      @created="onCreated"
+    />
+    <ProjectSessionDialog
+      v-model:project="sessionProject"
       @created="onCreated"
     />
     <RenameSessionDialog
