@@ -194,6 +194,11 @@ func (s *server) copyMode(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) listWindows(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", http.MethodGet)
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed", "Use GET to list session windows and panes.")
+		return
+	}
 	if _, ok := s.machine(w, r); !ok {
 		return
 	}
@@ -216,6 +221,11 @@ type selectRequest struct {
 }
 
 func (s *server) selectWindow(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", http.MethodPost)
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed", "Use POST to select a session window or pane.")
+		return
+	}
 	if _, ok := s.machine(w, r); !ok {
 		return
 	}
