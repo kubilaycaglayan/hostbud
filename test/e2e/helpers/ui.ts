@@ -20,12 +20,31 @@ export class UI {
   async sessionNames(): Promise<string[]> {
     const list = this.page.getByRole('list', { name: 'tmux sessions' })
     if ((await list.count()) === 0) return []
-    return list.getByRole('button').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label') ?? ''))
+    // The first button of each row is the session itself (then rename, kill).
+    return list
+      .getByRole('listitem')
+      .evaluateAll((items) => items.map((li) => li.querySelector('button')?.getAttribute('aria-label') ?? ''))
   }
 
   /** The host problem banner (unreachable / tmux missing). */
   banner() {
-    return this.page.getByRole('alert')
+    return this.page.getByRole('alert', { name: /Host unreachable|tmux not found on the host/ })
+  }
+
+  /** An error toast, by its title. */
+  toast(title: string) {
+    return this.page.getByRole('region', { name: 'Notifications' }).getByRole('alert', { name: title })
+  }
+
+  /** Opens the create dialog, fills the given fields and submits. */
+  async createSession(fields: { directory?: string; name?: string; startCommand?: string }): Promise<void> {
+    const p = this.page
+    await p.getByRole('button', { name: 'New session' }).click()
+    const dialog = p.getByRole('dialog', { name: 'New session' })
+    if (fields.directory !== undefined) await dialog.getByLabel('Directory').fill(fields.directory)
+    if (fields.name !== undefined) await dialog.getByLabel('Name').fill(fields.name)
+    if (fields.startCommand !== undefined) await dialog.getByLabel('Start command').fill(fields.startCommand)
+    await dialog.getByRole('button', { name: 'Create' }).click()
   }
 
   /** The sign-in / registration screen. */

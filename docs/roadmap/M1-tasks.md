@@ -26,7 +26,8 @@ Update this table in the same commit that finishes a task.
 | T13 Terminal bridge | ✅ done |
 | T14 Client and stores | ✅ done |
 | T15 App shell and session list | ✅ done |
-| T16–T18 | ⬜ todo |
+| T16 Session actions | ✅ done |
+| T17–T18 | ⬜ todo |
 
 Work top to bottom; each task ends with a green `make lint test` **and `make e2e`**, a clean `make gitleaks`, and its own conventional commit(s). Tasks marked *(host)* need the real host (agent socket, sshd) to verify.
 
@@ -272,7 +273,7 @@ Design: [ARCHITECTURE §13.1](../ARCHITECTURE.md#131-e2e-environment). Built now
 ### T16 — Session actions
 - Create dialog: name (optional), path (default `~`), start command (optional); inline validation matching the backend regex.
 - Rename (dialog or inline); Kill via Reka UI `AlertDialog` confirmation.
-- Error toasts showing the backend's actionable message.
+- Error toasts showing the backend's actionable message. While a create/rename dialog is open the error shows inside it (`role="alert"`): a modal hides everything outside it from assistive technology, toasts included; toasts carry errors after a dialog has closed (kill).
 
 **Tests:** U (Vitest): create-dialog defaults and inline validation (same regex as the backend); error toast shows `{error, hint}`; rename dialog; kill dialog: Cancel makes no API call, Confirm calls DELETE. I: n/a (frontend).
 

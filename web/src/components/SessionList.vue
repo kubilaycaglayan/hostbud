@@ -5,7 +5,7 @@ const props = defineProps<{
   sessions: Session[]
   selected?: string
 }>()
-const emit = defineEmits<{ select: [name: string] }>()
+const emit = defineEmits<{ select: [name: string]; rename: [name: string]; kill: [name: string] }>()
 
 const windowsLabel = (n: number) => (n === 1 ? '1 window' : `${n} windows`)
 </script>
@@ -45,6 +45,24 @@ const windowsLabel = (n: number) => (n === 1 ? '1 window' : `${n} windows`)
         {{ s.name }}
       </button>
       <span class="shrink-0 text-muted">{{ windowsLabel(s.windows) }}</span>
+      <button
+        type="button"
+        :aria-label="`Rename ${s.name}`"
+        title="Rename"
+        class="shrink-0 rounded px-1 text-muted hover:text-fg"
+        @click="emit('rename', s.name)"
+      >
+        ✎
+      </button>
+      <button
+        type="button"
+        :aria-label="`Kill ${s.name}`"
+        title="Kill"
+        class="shrink-0 rounded px-1 text-muted hover:text-danger"
+        @click="emit('kill', s.name)"
+      >
+        ✕
+      </button>
     </li>
   </ul>
 </template>

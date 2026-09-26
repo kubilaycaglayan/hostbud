@@ -69,7 +69,7 @@ describe('App shell', () => {
     const calls = signedIn()
     const wrapper = mount(App)
     await flushPromises()
-    await wrapper.get('button').trigger('click')
+    await wrapper.findAll('button').find((b) => b.text() === 'Sign out')!.trigger('click')
     await flushPromises()
     expect(calls).toContainEqual(expect.objectContaining({ method: 'POST', path: '/api/auth/logout' }))
     expect(wrapper.find('aside').exists()).toBe(false)

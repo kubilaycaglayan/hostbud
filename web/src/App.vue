@@ -1,9 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import AuthView from '@/components/AuthView.vue'
+import CreateSessionDialog from '@/components/CreateSessionDialog.vue'
+import KillSessionDialog from '@/components/KillSessionDialog.vue'
+import RenameSessionDialog from '@/components/RenameSessionDialog.vue'
 import HostBanner from '@/components/HostBanner.vue'
 import SessionList from '@/components/SessionList.vue'
 import TerminalView from '@/components/TerminalView.vue'
+import ToastRegion from '@/components/ToastRegion.vue'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { useLiveStore } from '@/stores/live'
@@ -20,6 +24,26 @@ const sessions = useSessionsStore()
 const MACHINE = 'host'
 const host = computed(() => machines.byId(MACHINE))
 const hostSessions = computed(() => sessions.list(MACHINE))
+
+const creating = ref(false)
+const renaming = ref(false)
+const killing = ref(false)
+const target = ref('') // the session a rename/kill dialog is about
+
+function askRename(name: string) {
+  target.value = name
+  renaming.value = true
+}
+function askKill(name: string) {
+  target.value = name
+  killing.value = true
+}
+function onRenamed(from: string, to: string) {
+  if (app.selected?.name === from) app.select(MACHINE, to)
+}
+function onKilled(name: string) {
+  if (app.selected?.name === name) app.clearSelection()
+}
 
 // Live state only while signed in; the server pushes every change.
 watch(
@@ -50,9 +74,18 @@ onUnmounted(() => live.stop())
       aria-label="Sessions"
       class="flex w-64 shrink-0 flex-col border-r border-border bg-surface p-3"
     >
-      <h1 class="font-bold text-accent">
-        hostbud
-      </h1>
+      <div class="flex items-center justify-between gap-2">
+        <h1 class="font-bold text-accent">
+          hostbud
+        </h1>
+        <button
+          type="button"
+          class="rounded border border-border px-2 py-1"
+          @click="creating = true"
+        >
+          New session
+        </button>
+      </div>
       <p
         v-if="live.state === 'reconnecting' || live.state === 'connecting'"
         role="status"
@@ -65,6 +98,8 @@ onUnmounted(() => live.stop())
           :sessions="hostSessions"
           :selected="app.selected?.name"
           @select="(name) => app.select(MACHINE, name)"
+          @rename="askRename"
+          @kill="askKill"
         />
       </div>
       <div class="mt-2 flex items-center justify-between gap-2 text-muted">
@@ -95,5 +130,23 @@ onUnmounted(() => live.stop())
         </p>
       </main>
     </div>
+    <CreateSessionDialog
+      v-model:open="creating"
+      :machine="MACHINE"
+      @created="(name) => app.select(MACHINE, name)"
+    />
+    <RenameSessionDialog
+      v-model:open="renaming"
+      :machine="MACHINE"
+      :session="target"
+      @renamed="onRenamed"
+    />
+    <KillSessionDialog
+      v-model:open="killing"
+      :machine="MACHINE"
+      :session="target"
+      @killed="onKilled"
+    />
   </div>
+  <ToastRegion />
 </template>

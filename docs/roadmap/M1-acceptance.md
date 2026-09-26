@@ -41,17 +41,17 @@ A layer may be **n/a** only with a one-line reason (e.g. pure byte passthrough h
   - U: T9 parser (attached field) · T10 diff on attached change · T15 dot component. I: T9 list shows attached while a PTY client is attached on test sshd. E: T15 *Attached state*.
 
 ### Create / rename / kill
-- [ ] Create with only a path (default `~`) → session named after the directory's last path segment (`/root/docs/dev` → `dev`; `dev-1`, `dev-2`, … if taken), started in that directory. A custom name is used as given.
+- [x] Create with only a path (default `~`) → session named after the directory's last path segment (`/root/docs/dev` → `dev`; `dev-1`, `dev-2`, … if taken), started in that directory. A custom name is used as given.
   - U: T11 default name from the last path segment, `-1`, `-2`, … on clash, custom name kept, `~` expansion (fake executor) · T16 create-dialog defaults (Vitest). I: T11 create on test sshd; `#{session_path}` matches. E: T16 *Create with defaults*.
 - [ ] Create with a name, a path like `~/some/dir`, and a start command (e.g. `htop`) → session runs the command in that directory; `tmux ls` in the real terminal shows it.
   - U: T9 `new-session` builder (`-c`, `-e`, command, `=` targets) · T11 `~/` expansion. I: T11 create with start command on test sshd (`#{pane_current_command}`). E: T16 *Create with start command* · T17 visible in terminal.
-- [ ] Invalid name (e.g. `a.b`, `a:b`, a space) is rejected in the form and by the API.
+- [x] Invalid name (e.g. `a.b`, `a:b`, a space) is rejected in the form and by the API.
   - U: T9 name validation · T12 `httptest` 400 `{error, hint}` · T16 form validation (Vitest). I: n/a (validation runs before any remote call; T8 checks that nothing reaches ssh unvalidated). E: T12 *API validation* · T16 *Invalid input*.
-- [ ] Duplicate name or a non-existent path → clear, actionable error.
+- [x] Duplicate name or a non-existent path → clear, actionable error.
   - U: T11 error mapping (fake executor) · T16 error toast (Vitest). I: T11 duplicate name and missing path against real tmux on test sshd (real error text is mapped). E: T16 *Invalid input*.
-- [ ] Rename from the UI → `tmux ls` shows the new name; the UI updates.
+- [x] Rename from the UI → `tmux ls` shows the new name; the UI updates.
   - U: T9 `rename-session` builder · T11 refresh after rename · T16 rename dialog (Vitest). I: T9 rename on test sshd. E: T12 *API mutations* · T16 *Rename*.
-- [ ] Kill from the UI asks for confirmation; Cancel leaves the session alive; Confirm kills it.
+- [x] Kill from the UI asks for confirmation; Cancel leaves the session alive; Confirm kills it.
   - U: T9 `kill-session` builder · T16 dialog: Cancel makes no API call, Confirm calls DELETE (Vitest). I: T9 kill on test sshd. E: T16 *Kill*.
 
 ### Terminal
@@ -114,11 +114,11 @@ UI
 - [x] **(T15) App restart:** after restarting `hostbud-e2e-app` the UI recovers and lists the same sessions.
 - [x] **(T15) Host unreachable:** stopping sshd on the target shows the unreachable banner with its hint; starting it again recovers without reloading.
 - [x] **(T15) tmux missing:** against the tmux-less target, the UI shows the install hint.
-- [ ] **(T16) Create with defaults:** the user opens the create dialog and gives only a path → the session appears named after the directory, and `tmux display -p '#{session_path}'` matches.
-- [ ] **(T16) Create with start command:** name + path + `htop` → the session's pane is running htop (`#{pane_current_command}`). T17 adds the check that it's visible in the terminal.
-- [ ] **(T16) Invalid input:** names like `a.b`, `a:b`, `a b` are rejected in the form; a duplicate name and a missing path show the actionable error text.
-- [ ] **(T16) Rename:** rename via the UI → the new name is in `tmux ls` and the list.
-- [ ] **(T16) Kill:** Cancel keeps the session; Confirm removes it from `tmux ls` and the list.
+- [x] **(T16) Create with defaults:** the user opens the create dialog and gives only a path → the session appears named after the directory, and `tmux display -p '#{session_path}'` matches.
+- [x] **(T16) Create with start command:** name + path + `htop` → the session's pane is running htop (`#{pane_current_command}`). T17 adds the check that it's visible in the terminal.
+- [x] **(T16) Invalid input:** names like `a.b`, `a:b`, `a b` are rejected in the form; a duplicate name and a missing path show the actionable error text.
+- [x] **(T16) Rename:** rename via the UI → the new name is in `tmux ls` and the list.
+- [x] **(T16) Kill:** Cancel keeps the session; Confirm removes it from `tmux ls` and the list.
 - [ ] **(T17) Attach and type:** the user clicks a session and types `echo e2e-$RANDOM` + Enter → the marker is in `capture-pane` and in the browser terminal.
 - [ ] **(T17) Full-screen apps:** vim (insert text, `:wq` writes the file on the target) and htop (renders, `q` quits) behave correctly.
 - [ ] **(T17) Resize:** changing the viewport changes `#{window_width}x#{window_height}` on the target.
@@ -145,7 +145,7 @@ Overall
   - U: T7 config generation and ordering · T7 known_hosts from `*.pub` only. I: T8 connects to test sshd with pinned keys only. E: n/a (not user-visible; the e2e app only boots and connects because pinning works, T7).
 - [ ] Swapping in a wrong pinned key → connection refused with a host-key mismatch error (integration test).
   - U: T7 mismatch error mapping. I: T8 wrong key ⇒ refused, mapped error. E: n/a (needs tampering with the app's mounts; integration covers it).
-- [ ] Kill requires confirmation in the UI.
+- [x] Kill requires confirmation in the UI.
   - U: T16 kill dialog (Vitest). I: n/a (UI-only). E: T16 *Kill*.
 - [ ] `docker compose exec hostbud id` shows `${HOST_UID}:${HOST_GID}`, not root.
   - U: n/a (no code). I: T8 deploy-config check: `hostbud` has `user: ${HOST_UID}:${HOST_GID}` and the image's `USER` is not root. E: n/a (the runner has no Docker access). **Manual** `id` (T18).

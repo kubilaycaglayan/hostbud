@@ -21,9 +21,13 @@ const title = computed(() => {
   <div
     v-if="title"
     role="alert"
+    aria-labelledby="host-banner-title"
     class="border-b border-danger bg-surface px-3 py-2"
   >
-    <p class="font-bold text-danger">
+    <p
+      id="host-banner-title"
+      class="font-bold text-danger"
+    >
       {{ title }}
     </p>
     <p

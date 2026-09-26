@@ -28,9 +28,17 @@ describe('SessionList', () => {
 
   it('emits select and marks the selected session', async () => {
     const w = mount(SessionList, { props: { sessions: [s('a'), s('b')], selected: 'b' } })
-    expect(w.findAll('button')[1].attributes('aria-current')).toBe('true')
-    expect(w.findAll('button')[0].attributes('aria-current')).toBeUndefined()
-    await w.findAll('button')[0].trigger('click')
+    expect(w.get('button[aria-label="b"]').attributes('aria-current')).toBe('true')
+    expect(w.get('button[aria-label="a"]').attributes('aria-current')).toBeUndefined()
+    await w.get('button[aria-label="a"]').trigger('click')
     expect(w.emitted('select')).toEqual([['a']])
+  })
+
+  it('offers rename and kill per session', async () => {
+    const w = mount(SessionList, { props: { sessions: [s('a')] } })
+    await w.get('button[aria-label="Rename a"]').trigger('click')
+    await w.get('button[aria-label="Kill a"]').trigger('click')
+    expect(w.emitted('rename')).toEqual([['a']])
+    expect(w.emitted('kill')).toEqual([['a']])
   })
 })
