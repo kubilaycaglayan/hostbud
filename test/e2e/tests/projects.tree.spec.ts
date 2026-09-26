@@ -178,8 +178,17 @@ for (const profile of ['desktop', 'phone'] as const) {
       const session = page.locator('[data-session-row]').filter({ hasText: name })
       await expect(session).toBeVisible()
       const row = page.getByRole('listitem').filter({ has: page.locator(`[data-session-row][aria-label="${name}"]`) })
+      const actionsFollowTitle = await row.evaluate((element) => {
+        const title = element.querySelector('[data-session-row]')
+        const actions = title?.nextElementSibling
+        return actions?.tagName === 'SPAN' && actions.querySelectorAll('button').length === 3
+      })
+      expect(actionsFollowTitle).toBe(true)
       const labels = await row.locator('button').evaluateAll((buttons) => buttons.map((button) => button.getAttribute('aria-label')).filter(Boolean))
       expect(labels?.slice(-3)).toEqual([`Kill ${name}`, `More actions for ${name}`, `Rename ${name}`])
+      await row.getByRole('button', { name: `More actions for ${name}` }).click()
+      await expect(page.getByRole('menuitem', { name: 'Open in split right' })).toBeVisible()
+      await page.keyboard.press('Escape')
       await row.getByRole('button', { name: `Rename ${name}` }).click()
       const dialog = page.getByRole('dialog', { name: 'Rename session' })
       await dialog.getByLabel('New name').fill(`${name}-renamed`)

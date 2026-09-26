@@ -72,7 +72,7 @@ Each criterion names **U** (unit), **I** (integration against `test/sshd`, Postg
   - U: T5 tree ordering operations, insertion of newly observed projects/sessions, serialization and validation; invalid or duplicate order entries are repaired deterministically.
   - I: T5 per-account project and session order round-trip through the PostgreSQL-backed `tree` UI-state key; order for one account does not affect another.
   - E: T5 *Left bar custom order* (desktop and iPhone 13 Pro): reorder project and session rows, create a new session/project and verify existing order stays put, reload/restart and verify order persists.
-- [ ] For each session row, the close/kill ×, three-dot actions menu and pencil rename control sit in a compact action group immediately to the right of the session title in the left bar. The × still opens the existing destructive-action confirmation; the menu and rename behavior remain available. This placement applies only to the left bar, not terminal tabs, panes or other views.
+- [x] For each session row, the close/kill ×, three-dot actions menu and pencil rename control sit in a compact action group immediately to the right of the session title in the left bar. The × still opens the existing destructive-action confirmation; the menu and rename behavior remain available. This placement applies only to the left bar, not terminal tabs, panes or other views.
   - U: T5 `SessionList` action order, accessible names, and callbacks; kill confirmation remains wired.
   - I: n/a — control placement and callbacks are frontend behavior; the existing kill/rename endpoint integration coverage remains authoritative for effects.
   - E: T5 *Left bar session actions* (desktop and iPhone 13 Pro): verify the action group follows the row title, rename works, and × requires confirmation before killing.
@@ -137,7 +137,7 @@ Projects remain `desktop-chromium` and `iphone-13-pro` against the throwaway tar
 - [x] **(T5) Other sessions and Save as project:** unmatched session is grouped separately; save it, see it move under a project, and verify tmux session id is unchanged (desktop and phone).
 - [x] **(T5) Distinct project tree entries:** nested paths and similar names remain separate, deterministic entries (desktop).
 - [x] **(T5) Left bar custom order:** reorder projects and sessions, add new rows, and verify existing custom order persists through reload, sign-out/sign-in and restart (desktop and phone).
-- [ ] **(T5) Left bar session actions:** the ×, ⋯ and pencil sit directly to the right of the title; rename works; × prompts before kill (desktop and phone).
+- [x] **(T5) Left bar session actions:** the ×, ⋯ and pencil sit directly to the right of the title; rename works; × prompts before kill (desktop and phone).
 - [ ] **(T5) Account controls in app header:** email and Sign out appear top-right whether the left bar is open or closed; sign out revokes the session (desktop and phone).
 - [ ] **(T5) No window counts:** one-window and multi-window rows both omit the count label (desktop).
 - [ ] **(T6) Recent start command:** choose a recent command on a second project session; it runs in the correct project directory (desktop and phone).

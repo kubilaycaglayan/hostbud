@@ -36,6 +36,9 @@ describe('SessionList', () => {
     const w = mount(SessionList, { props: { sessions: [s('a')] } })
     const row = w.get('li')
     expect(row.get('[data-session-row]').attributes('aria-label')).toBe('a')
+    const actions = row.get('[data-session-row]').element.nextElementSibling
+    expect(actions?.tagName).toBe('SPAN')
+    expect(actions?.classList.contains('gap-0.5')).toBe(true)
     expect(row.findAll('button').slice(-3).map((button) => button.attributes('aria-label'))).toEqual([
       'Kill a', 'More actions for a', 'Rename a',
     ])
