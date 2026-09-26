@@ -19,7 +19,7 @@ Update this table in the same commit that finishes a task.
 | T7 Web app manifest, icons and safe areas | Done |
 | T8 Service worker | Done |
 | T9 Docs, audit and release | Done |
-| T10 Safe Docker cleanup | Not started |
+| T10 Safe Docker cleanup | Done — 0 B immediately reclaimed; 2.892 GB is now reclaimable and was left untouched |
 
 ## Rules for this milestone
 
