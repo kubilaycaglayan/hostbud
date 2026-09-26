@@ -12,7 +12,7 @@ import (
 
 // placeholderHTML is served when the binary was built without the frontend.
 const placeholderHTML = `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>hostbud</title></head>
+<html lang="en"><head><meta charset="utf-8"><title>HostBud 🚀</title></head>
 <body style="background:#0f1115;color:#d7dae0;font-family:monospace;padding:2rem">
 <h1>hostbud</h1>
 <p>The web UI was not built into this binary. Run <code>make build</code> (or <code>make deploy</code>).</p>
