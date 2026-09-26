@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { useProjectsStore } from './projects'
 import { useSessionsStore } from './sessions'
 import { useTreeStore } from './tree'
+import { useMachinesStore } from './machines'
 import { stubFetch } from '@/test-utils'
 import type { Project, Session } from '@/api/types'
 
@@ -16,6 +17,41 @@ afterEach(() => {
 })
 
 describe('tree order store', () => {
+  it('keeps saved session order before the host has a reachable session snapshot', async () => {
+    stubFetch((method, path) => path === '/api/ui-state/tree' && method === 'GET'
+      ? { status: 200, body: { version: 1, projects: [], sessions: { __other__: ['saved-session'] } } }
+      : { status: 204 })
+    const tree = useTreeStore()
+    await tree.load()
+    useMachinesStore().apply({
+      type: 'snapshot',
+      machines: [{ id: 'host', label: 'Host', status: 'unknown', os: '', home: '', tmuxVersion: '', tmuxMissing: false }],
+      sessions: { host: [] },
+    })
+    useSessionsStore().apply({ type: 'snapshot', machines: [], sessions: { host: [] } })
+
+    // App.vue calls sync after tree.load but before live.start has delivered
+    // the first reachable inventory snapshot.
+    tree.sync()
+    expect(tree.order.sessions.__other__).toEqual(['saved-session'])
+  })
+
+  it.each(['unknown', 'unreachable'] as const)('keeps saved entries when machine status is %s', async (status) => {
+    stubFetch((method, path) => path === '/api/ui-state/tree' && method === 'GET'
+      ? { status: 200, body: { version: 1, projects: [], sessions: { __other__: ['stale-session'] } } }
+      : { status: 204 })
+    const tree = useTreeStore()
+    await tree.load()
+    useMachinesStore().apply({
+      type: 'snapshot',
+      machines: [{ id: 'host', label: 'Host', status, os: '', home: '', tmuxVersion: '', tmuxMissing: false }],
+      sessions: { host: [] },
+    })
+    useSessionsStore().apply({ type: 'snapshot', machines: [], sessions: { host: [] } })
+    tree.sync()
+    expect(tree.order.sessions.__other__).toEqual(['stale-session'])
+  })
+
   it('loads account order, appends observed rows, and persists project and group order', async () => {
     const calls = stubFetch((method, path) => path === '/api/ui-state/tree' && method === 'GET'
       ? { status: 200, body: { version: 1, projects: ['b', 'a'], sessions: { a: ['second', 'first'] } } }
