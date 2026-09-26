@@ -3,7 +3,7 @@ import { FOREIGN_ORIGIN, ORIGIN, mutate, forbidInLogs } from '../helpers/api.ts'
 import { expect, test } from '../helpers/fixtures.ts'
 import { shq, uniqueName } from '../helpers/target.ts'
 
-test('project API: auth, Origin and live project events', async ({ page, request, target, baseURL }) => {
+test('(T3) project API: auth, Origin and live project events', async ({ page, request, target, baseURL }) => {
   const name = uniqueName('e2e-project')
   const path = `/home/dev/${name}`
   forbidInLogs(path, name)

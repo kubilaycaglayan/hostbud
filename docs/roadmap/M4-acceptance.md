@@ -102,7 +102,7 @@ Each criterion names **U** (unit), **I** (integration against `test/sshd`, Postg
   - U: T1 filesystem handler auth/Origin/method tests.
   - I: T1 route tests against the running app and `test/sshd`; unauthenticated calls do not open remote SFTP.
   - E: T1 *Filesystem API access control* (API-level through Caddy): signed-out request gets 401; foreign-Origin mkdir gets 403; allowed Origin works.
-- [ ] Project routes require authentication, state-changing requests enforce the existing Origin allowlist, and successful mutations publish typed events consumed by connected clients. `/ws/events` retains its existing auth and Origin checks.
+- [x] Project routes require authentication, state-changing requests enforce the existing Origin allowlist, and successful mutations publish typed events consumed by connected clients. `/ws/events` retains its existing auth and Origin checks.
   - U: T3 project handler auth/Origin/status and typed event tests.
   - I: T3 PostgreSQL-backed mutation and event publication test.
   - E: T3 *Project API access control and events* (API-level through Caddy): signed-out request gets 401; foreign-Origin mutation gets 403; allowed-origin create is visible through the project API and connected event stream.
@@ -124,7 +124,7 @@ Projects remain `desktop-chromium` and `iphone-13-pro` against the throwaway tar
 - [ ] **(T1) No destructive file actions:** API attempts cannot mutate or remove target entries; there is no delete or remote rename route.
 - [ ] **(T4) File browser dialog and icon actions:** open/close the modal from the FolderPlus header button outside the left gutter; project actions use icon buttons with accessible labels (desktop and iPhone 13 Pro).
 - [x] **(T1) Filesystem API access control:** auth and Origin enforcement through Caddy; unauthorized requests do not initiate SFTP.
-- [ ] **(T3) Project API access control and events:** auth and Origin enforcement through Caddy; successful create is returned by the API and published to the event stream.
+- [x] **(T3) Project API access control and events:** auth and Origin enforcement through Caddy; successful create is returned by the API and published to the event stream.
 - [ ] **(T1) SFTP unavailable recovery:** failure is actionable and browsing works after target recovery.
 - [ ] **(T4) Path autocomplete and invalid paths:** choose an autocomplete result, submit an existing typed path, and recover from missing/non-directory paths (desktop and phone).
 - [ ] **(T4) Hidden toggle and lazy symlink status in the browser:** hidden entries appear only when requested, and checking a symlink lazily shows its broken/resolved/loop status (desktop).
