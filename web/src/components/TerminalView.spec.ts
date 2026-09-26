@@ -163,6 +163,18 @@ async function mountTerm(props: { active?: boolean; focused?: boolean } = {}) {
 }
 
 describe('TerminalView', () => {
+  it('shows the key bar on touch and applies modifiers to soft-keyboard input', async () => {
+    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })))
+    const w = await mountTerm()
+    expect(w.find('[data-testid="key-bar"]').exists()).toBe(true)
+    FakeWS.all[0].onopen?.({} as Event)
+    const control = w.get('button[aria-label="Control"]')
+    control.element.dispatchEvent(new Event('pointerdown', { bubbles: true, cancelable: true }))
+    h.terms[0].input('c')
+    const sent = FakeWS.all[0].sent.at(-1) as Uint8Array
+    expect(new TextDecoder().decode(sent)).toBe('\x03')
+  })
+
   it('marks terminal header controls as touch targets', async () => {
     const w = await mountTerm()
     expect(w.get('button[aria-label="Search"]').classes()).toContain('touch-target')

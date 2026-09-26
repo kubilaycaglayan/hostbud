@@ -28,10 +28,11 @@ export function toggleModifier(modifiers: KeyModifiers, name: ModifierName, now 
   state.lastTap = now
 }
 
-export function keyBytes(key: KeyBarKey, applicationCursorKeys = false, ctrl = false, alt = false): string {
+export function keyBytes(key: KeyBarKey | string, applicationCursorKeys = false, ctrl = false, alt = false): string {
   const arrow = ARROWS[key]
   if (arrow) {
-    if (ctrl || alt) return `\x1b[1;${ctrl && alt ? '5;3' : ctrl ? '5' : '3'}${arrow}`
+    if (ctrl && alt) return `\x1b\x1b[1;5${arrow}`
+    if (ctrl || alt) return `\x1b[1;${ctrl ? '5' : '3'}${arrow}`
     return applicationCursorKeys ? `\x1bO${arrow}` : `\x1b[${arrow}`
   }
   let bytes = key === 'Escape' ? '\x1b' : key === 'Tab' ? '\t' : key

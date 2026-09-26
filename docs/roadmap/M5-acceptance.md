@@ -62,23 +62,23 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 
 ## On-screen key bar
 
-- [ ] On touch screens, a key bar under the terminal offers Esc, Tab, Ctrl, Alt, ←↑↓→, `|`, `~`, `/`, `-` and Scroll history, each with an accessible name. It can be collapsed and expanded, and it scrolls inside itself if it doesn't fit; the page never scrolls.
+- [x] On touch screens, a key bar under the terminal offers Esc, Tab, Ctrl, Alt, ←↑↓→, `|`, `~`, `/`, `-` and Scroll history, each with an accessible name. It can be collapsed and expanded, and it scrolls inside itself if it doesn't fit; the page never scrolls.
   - U: T4 `KeyBar` renders the keys, names and collapse state; hidden on fine pointer (Vitest).
   - I: n/a (frontend only).
-  - E: T4 *Tab, Alt and symbols* (both phone projects).
-- [ ] Keys send the same bytes a hardware keyboard would, through xterm's input path. Arrows follow the program's cursor-key mode (`ESC [ A` normally, `ESC O A` in application mode), so shell history, vim, less and htop all work.
+  - E: T4 *Tab, Alt and symbols* (`keybar.phone.spec.ts`, both phone projects).
+- [x] Keys send the same bytes a hardware keyboard would, through xterm's input path. Arrows follow the program's cursor-key mode (`ESC [ A` normally, `ESC O A` in application mode), so shell history, vim, less and htop all work.
   - U: T4 `lib/keyBar.ts` table in both cursor modes (Vitest).
   - I: n/a (byte passthrough through the M1 T13 PTY bridge; no new server code).
-  - E: T4 *Arrows recall history* · T4 *Application cursor keys* · T4 *Esc leaves vim insert mode* (both phone projects).
-- [ ] Ctrl and Alt are sticky one-shot modifiers that apply to the next key-bar key **or** the next character typed on the on-screen keyboard (a double tap locks them): Ctrl, then `c` interrupts a running command; Alt, then `b` moves back a word. An armed modifier shows as pressed.
+  - E: T4 *Arrows recall history* · T4 *Application cursor keys* · T4 *Esc leaves vim insert mode* (`keybar.phone.spec.ts`, both phone projects).
+- [x] Ctrl and Alt are sticky one-shot modifiers that apply to the next key-bar key **or** the next character typed on the on-screen keyboard (a double tap locks them): Ctrl, then `c` interrupts a running command; Alt, then `b` moves back a word. An armed modifier shows as pressed.
   - U: T4 modifier state machine, control-code table, Alt prefix, Ctrl+Alt, applied once to the next soft-keyboard character, `aria-pressed` (Vitest).
   - I: n/a (byte passthrough).
-  - E: T4 *Ctrl-C interrupts* · T4 *Tab, Alt and symbols* (both phone projects).
-- [ ] Tapping key-bar keys never takes focus from the terminal, so the on-screen keyboard stays open. Arrow keys repeat while held.
+  - E: T4 *Ctrl-C interrupts* · T4 *Tab, Alt and symbols* (`keybar.phone.spec.ts`, both phone projects).
+- [x] Tapping key-bar keys never takes focus from the terminal, so the on-screen keyboard stays open. Arrow keys repeat while held.
   - U: T4 pointerdown + `preventDefault`, `document.activeElement` stays the terminal textarea; auto-repeat timing and stop on cancel (Vitest, fake timers).
   - I: n/a (browser focus only).
-  - E: T4 *Key bar keeps the keyboard* (both phone projects). **Manual (T9):** on the iPhone, the keyboard stays up while tapping Esc, Ctrl and arrows, and holding ↑ repeats.
-- [ ] Hardware-keyboard behavior on the desktop is unchanged (M3 Mac editing keys, copy/paste keys).
+  - E: T4 *Key bar keeps the keyboard* (`keybar.phone.spec.ts`, both phone projects). **Manual (T9):** on the iPhone, the keyboard stays up while tapping Esc, Ctrl and arrows, and holding ↑ repeats.
+- [x] Hardware-keyboard behavior on the desktop is unchanged (M3 Mac editing keys, copy/paste keys).
   - U: T4 `terminalKeys.ts` tests still pass unchanged; the key bar isn't mounted on fine pointer (Vitest).
   - I: n/a.
   - E: the M3 *Delete word and line* / *Move by word and line* scenarios still type-check unchanged.
@@ -157,12 +157,12 @@ Profiles: `desktop-chromium`, `iphone-13-pro` (`http://localhost:9055`) and `iph
 - [x] **(T3) Touch targets:** every visible interactive element on the tree, drawer, terminal header, each sheet and the file browser is at least 44×44 px (both phone projects).
 - [x] **(T3) Usable without zoom:** viewport scale 1, no horizontal overflow in either orientation on each screen, form controls ≥ 16 px (both phone projects).
 - [x] **(T3) Long-press row menu:** long-pressing a session row opens its ⋯ menu; a tap still opens the session (`iphone-13-pro`).
-- [ ] **(T4) Ctrl-C interrupts:** `sleep 1000`, Ctrl then `c` → the prompt returns and `sleep` is no longer the pane's command (both phone projects).
-- [ ] **(T4) Esc leaves vim insert mode:** in vim, insert text, Esc, then `dd` deletes the line (checked with `capture-pane`) (both phone projects).
-- [ ] **(T4) Arrows recall history:** ↑ recalls the previous command and ← edits within the line (both phone projects).
-- [ ] **(T4) Tab, Alt and symbols:** Tab completes, `|` `~` `/` `-` insert their characters, Alt then `b` moves back a word (both phone projects).
-- [ ] **(T4) Key bar keeps the keyboard:** after several key taps, the focused element is still the terminal's textarea, and the keys meet the target size (both phone projects).
-- [ ] **(T4) Application cursor keys:** ↓ moves by line in a program that enables application cursor mode (both phone projects).
+- [x] **(T4) Ctrl-C interrupts:** `sleep 1000`, Ctrl then `c` → the prompt returns and `sleep` is no longer the pane's command (both phone projects).
+- [x] **(T4) Esc leaves vim insert mode:** in vim, insert text, Esc, then `dd` deletes the line (checked with `capture-pane`) (both phone projects).
+- [x] **(T4) Arrows recall history:** ↑ recalls the previous command and ← edits within the line (both phone projects).
+- [x] **(T4) Tab, Alt and symbols:** Tab completes, `|` `~` `/` `-` insert their characters, Alt then `b` moves back a word (both phone projects).
+- [x] **(T4) Key bar keeps the keyboard:** after several key taps, the focused element is still the terminal's textarea, and the keys meet the target size (both phone projects).
+- [x] **(T4) Application cursor keys:** ↓ moves by line in a program that enables application cursor mode (both phone projects).
 - [ ] **(T5) Scroll into history:** after `seq 1 400`, Scroll history → `pane_in_mode` 1, `scroll_position` > 0, and earlier numbers are visible in the browser; Page up scrolls further (both phone projects).
 - [ ] **(T5) Leave scroll mode:** Done exits copy mode and the key bar returns, and a typed command runs; Bottom makes tmux leave copy mode by itself and the UI follows (both phone projects).
 - [ ] **(T5) Scroll works with a full-screen program:** with htop running, Scroll history enters copy mode and Done returns to htop (both phone projects).

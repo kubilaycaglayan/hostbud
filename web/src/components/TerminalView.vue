@@ -6,18 +6,20 @@ import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
 import { TermSession, termURL, type SessionState } from '@/api/term'
 import SessionPicker from '@/components/SessionPicker.vue'
 import TerminalMenu from '@/components/TerminalMenu.vue'
 import TerminalSearch from '@/components/TerminalSearch.vue'
 import TabBar from '@/components/TabBar.vue'
+import KeyBar from '@/components/KeyBar.vue'
 import { copySelection, installOsc52 } from '@/lib/clipboard'
 import { registerPane, unregisterPane } from '@/lib/e2eHooks'
 import { hyperlinkHandler, openLink, type LinkHover } from '@/lib/links'
 import { keepScrollback } from '@/lib/scrollback'
 import type { SplitDir, Tab } from '@/lib/layout'
 import { clipboardKey, editingKey, searchKey } from '@/lib/terminalKeys'
+import { applyModifiers, createModifiers } from '@/lib/keyBar'
 import { useAuthStore } from '@/stores/auth'
 import { useSessionsStore } from '@/stores/sessions'
 
@@ -63,6 +65,7 @@ const search = shallowRef<SearchAddon>()
 const searchOpen = ref(false)
 const searchInitial = ref('')
 const searchBar = ref<InstanceType<typeof TerminalSearch>>()
+const modifiers = reactive(createModifiers())
 let fit: FitAddon | null = null
 let conn: TermSession | null = null
 let observer: ResizeObserver | null = null
@@ -190,7 +193,7 @@ onMounted(async () => {
     // No WebGL: xterm's DOM renderer is used.
   }
   term.value = t
-  t.onData((d) => conn?.send(d))
+  t.onData((d) => conn?.send(applyModifiers(d, modifiers)))
   // Mac editing shortcuts (Option/Cmd+Backspace, +←/→): send what a Mac
   // terminal sends, once per keydown, instead of xterm's or the browser's
   // default (Cmd+← would navigate back).
@@ -393,6 +396,7 @@ defineExpose({ refit, reconnect, showKeyboard })
         </div>
       </div>
     </TerminalMenu>
+    <KeyBar :term="term" :modifiers="modifiers" :focused="takesInput()" />
     <div
       v-if="state === 'exited' || state === 'disconnected'"
       role="status"
