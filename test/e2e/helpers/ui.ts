@@ -22,20 +22,42 @@ declare global {
 export class UI {
   constructor(readonly page: Page) {}
 
+  tree() {
+    return this.page.getByRole('navigation', { name: 'Project and session tree' })
+  }
+
+  async openAccountMenu(): Promise<void> {
+    const account = this.page.getByRole('button', { name: 'Account' })
+    if (await account.isVisible()) {
+      const isOpen = await account.evaluate((el) => el.parentElement instanceof HTMLDetailsElement && el.parentElement.open)
+      if (!isOpen) await account.click()
+    }
+  }
+
+  async signOut(): Promise<void> {
+    await this.openAccountMenu()
+    await this.page.getByRole('button', { name: 'Sign out' }).click()
+  }
+
+  async expectAccountEmail(email: string | RegExp): Promise<void> {
+    await this.openAccountMenu()
+    await expect(this.page.getByText(email, typeof email === 'string' ? { exact: true } : {})).toBeVisible()
+  }
+
   /** Opens the app and waits for the signed-in shell. */
   async open(): Promise<void> {
     await this.page.goto('/')
-    await expect(this.page.getByRole('complementary', { name: 'Sessions' })).toBeVisible()
+    await expect(this.tree()).toBeVisible()
   }
 
-  /** The list item of a session in the sidebar (exact name). Call
-   * showList() first if a terminal may be open on a narrow screen. */
+  /** The list item of a session in the tree (exact name). Call showList()
+   * first if a terminal may be open on a compact screen. */
   session(name: string) {
     const p = this.page
     return p.getByRole('listitem').filter({ has: p.getByRole('button', { name, exact: true }) })
   }
 
-  /** Session names shown in the sidebar list. */
+  /** Session names shown in the project tree. */
   async sessionNames(): Promise<string[]> {
     const lists = this.page.locator('[aria-label="tmux sessions"], [aria-label^="Sessions in "], [aria-label="Other sessions"]')
     if ((await lists.count()) === 0) return []
@@ -49,11 +71,12 @@ export class UI {
     return this.page.getByRole('alert', { name: /Host unreachable|tmux not found on the host/ })
   }
 
-  /** On narrow screens an open terminal replaces the list: go back to it. */
+  /** On compact screens, open the project-tree drawer over the terminal. */
   async showList(): Promise<void> {
-    const back = this.page.getByRole('button', { name: 'Back to sessions' })
-    if (await back.isVisible()) await back.click()
-    await expect(this.page.getByRole('complementary', { name: 'Sessions' })).toBeVisible()
+    const trigger = this.page.getByRole('button', { name: 'Show project tree' })
+    const terminal = this.page.getByRole('region', { name: /^Terminal: / }).first()
+    if (await terminal.isVisible() && (await trigger.getAttribute('aria-expanded')) !== 'true') await trigger.click()
+    await expect(this.tree()).toBeVisible()
   }
 
   /** Clicks a session and waits for its terminal (e2e build hook ready). */

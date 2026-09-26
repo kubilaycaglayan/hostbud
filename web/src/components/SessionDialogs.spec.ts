@@ -45,6 +45,21 @@ describe('session name rule', () => {
 })
 
 describe('CreateSessionDialog', () => {
+  it('renders compact create, rename and kill dialogs as bottom sheets', async () => {
+    const create = mountOpen(CreateSessionDialog, { machine: 'host', compact: true })
+    const rename = mountOpen(RenameSessionDialog, { machine: 'host', session: 'old', compact: true })
+    const kill = mountOpen(KillSessionDialog, { machine: 'host', session: 'old', compact: true })
+    await flushPromises()
+    expect($('[role="dialog"]')?.className).toContain('bottom-0')
+    expect($('[role="alertdialog"]')?.className).toContain('bottom-0')
+    const dialogs = [...document.body.querySelectorAll('[role="dialog"]')]
+    expect(dialogs.length).toBeGreaterThanOrEqual(2)
+    expect(dialogs.every((dialog) => dialog.className.includes('bottom-0'))).toBe(true)
+    create.unmount()
+    rename.unmount()
+    kill.unmount()
+  })
+
   it('defaults the directory to ~ and sends only what was given', async () => {
     const calls = stubFetch(() => ({ status: 201, body: { name: 'dev' } }))
     const w = mountOpen(CreateSessionDialog, { machine: 'host' })

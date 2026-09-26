@@ -26,8 +26,8 @@ async function openProjectSession(page: import('@playwright/test').Page, name: s
 }
 
 async function returnToTree(page: import('@playwright/test').Page, profile: 'desktop' | 'phone') {
-  if (profile === 'phone') await page.getByRole('button', { name: 'Back to project tree' }).click()
-  else await page.getByRole('button', { name: 'Sessions' }).click()
+  const trigger = page.getByRole('button', { name: 'Show project tree' })
+  if (profile === 'phone' && (await trigger.getAttribute('aria-expanded')) !== 'true') await trigger.click()
 }
 
 test('(T5) Longest-prefix project mapping', async ({ page, target, request }) => {
@@ -56,7 +56,7 @@ test('(T5) Longest-prefix project mapping', async ({ page, target, request }) =>
   await expect(page.getByRole('list', { name: 'Other sessions' }).getByRole('button', { name: otherSession, exact: true })).toBeVisible()
 })
 
-test('(T5) Linked session rename and cleanup', async ({ page, target, request }) => {
+test('(T5) Linked session rename and cleanup', async ({ page, target, request, ui }) => {
   const root = `/home/dev/${uniqueName('e2e-linked')}`
   const outside = `/home/dev/${uniqueName('e2e-reused')}`
   const projectName = uniqueName('linked-project')
@@ -74,7 +74,7 @@ test('(T5) Linked session rename and cleanup', async ({ page, target, request })
     const data = await (await request.get(`/api/machines/${MACHINE}/sessions`)).json()
     return data.sessions.find((session: { name: string }) => session.name === sessionName)?.path
   }).toBe(root)
-  await page.getByRole('button', { name: 'Back to sessions' }).click()
+  await ui.showList()
   await page.getByRole('button', { name: `Rename ${sessionName}` }).click()
   await page.getByRole('dialog', { name: 'Rename session' }).getByLabel('New name').fill(`${sessionName}-renamed`)
   await page.getByRole('dialog', { name: 'Rename session' }).getByRole('button', { name: 'Rename' }).click()
@@ -103,7 +103,7 @@ for (const profile of ['desktop', 'phone'] as const) {
       await expect(page.getByRole('button', { name: `Save ${name} as project` })).toHaveCount(0)
       await row.getByRole('button', { name, exact: true }).click()
       await expect(page.getByRole('region', { name: `Terminal: ${name}` })).toBeVisible()
-      if (profile === 'phone') await page.getByRole('button', { name: 'Back to project tree' }).click()
+      if (profile === 'phone') await returnToTree(page, profile)
       await row.getByRole('button', { name: `More actions for ${name}` }).click()
       await page.getByRole('menuitem', { name: 'Save as project' }).click()
       await expect(page.getByRole('list', { name: `Sessions in ${path.split('/').at(-1)}` }).getByRole('button', { name, exact: true })).toBeVisible()
@@ -134,13 +134,13 @@ for (const profile of ['desktop', 'phone'] as const) {
       await owner.allow(account.email)
       await target.run(`mkdir -p ${shq(first)} ${shq(second)}`)
       await page.goto('/')
-      await page.getByRole('button', { name: 'Sign out' }).click()
+      await ui.signOut()
       await expect(ui.authForm().tab('Sign in')).toBeVisible()
       await ui.authForm().tab('Create account').click()
       await ui.authForm().email.fill(account.email)
       await ui.authForm().password.fill(account.password)
       await ui.authForm().submit('Create account').click()
-      await expect(page.getByRole('complementary', { name: 'Sessions' })).toBeVisible()
+      await expect(ui.tree()).toBeVisible()
       await addProject(request, first, firstName)
       await addProject(request, second, secondName)
       const one = uniqueName('e2e-order')
@@ -162,7 +162,7 @@ for (const profile of ['desktop', 'phone'] as const) {
       await page.waitForTimeout(650)
       await page.reload()
       await expect.poll(orderedTestProjects).toEqual([secondName, firstName, thirdName])
-      await page.getByRole('button', { name: 'Sign out' }).click()
+      await ui.signOut()
       await expect(ui.authForm().tab('Sign in')).toBeVisible()
       await ui.signIn(account.email, account.password)
       await expect.poll(orderedTestProjects).toEqual([secondName, firstName, thirdName])
@@ -219,22 +219,21 @@ for (const profile of ['desktop', 'phone'] as const) {
       }
     })
 
-    test('(T5) Account controls in app header', async ({ page, target }) => {
+    test('(T5) Account controls in app header', async ({ page, target, ui }) => {
       const name = uniqueName('e2e-account-header')
       const path = `/home/dev/${name}`
       await target.run(`mkdir -p ${shq(path)}`)
       await createTargetSession(target, name, path)
       await page.goto('/')
       const header = page.locator('header')
+      await ui.expectAccountEmail(/@/)
       await expect(header.getByRole('button', { name: 'Sign out' })).toBeVisible()
-      await expect(header.getByText(/@/)).toBeVisible()
       await page.getByRole('button', { name, exact: true }).click()
       await expect(page.getByRole('region', { name: `Terminal: ${name}` })).toBeVisible()
-      if (profile === 'desktop') await page.getByRole('button', { name: 'Hide project tree' }).click()
-      await expect(page.getByRole('complementary', { name: 'Sessions' })).toBeHidden()
-      await expect(header.getByRole('button', { name: 'Sign out' })).toBeVisible()
-      await expect(header.getByText(/@/)).toBeVisible()
-      await header.getByRole('button', { name: 'Sign out' }).click()
+      if (profile === 'desktop') await page.getByRole('button', { name: 'Show project tree' }).click()
+      if (profile === 'desktop') await expect(ui.tree()).toBeHidden()
+      await ui.expectAccountEmail(/@/)
+      await ui.signOut()
       await expect(page.getByRole('tab', { name: 'Sign in' })).toBeVisible()
     })
 
@@ -289,13 +288,13 @@ test('(T6) Recent commands are project-scoped and require selection', async ({ p
   await first.getByLabel('Start command').fill('sleep 30')
   await first.getByRole('button', { name: 'Create session' }).click()
   await expect.poll(async () => (await (await request.get(`/api/projects?machine=${MACHINE}`)).json()).projects.length).toBeGreaterThanOrEqual(2)
-  await page.getByRole('button', { name: 'Sessions' }).click()
+  await page.getByRole('button', { name: 'Show project tree' }).click()
   const before = (await (await request.get(`/api/machines/${MACHINE}/sessions`)).json()).sessions.length
   const second = await openProjectSession(page, secondName)
   await expect(second.getByRole('button', { name: /^Use recent command/ })).toHaveCount(0)
   expect((await (await request.get(`/api/machines/${MACHINE}/sessions`)).json()).sessions).toHaveLength(before)
   await second.getByRole('button', { name: 'Cancel' }).click()
-  await page.getByRole('button', { name: 'Sessions' }).click()
+  await page.getByRole('button', { name: 'Show project tree' }).click()
   const firstAgain = await openProjectSession(page, firstName)
   const suggestion = firstAgain.getByRole('button', { name: 'Use recent command sleep 30' })
   await suggestion.click()

@@ -11,11 +11,12 @@ import { TermSession, termURL, type SessionState } from '@/api/term'
 import SessionPicker from '@/components/SessionPicker.vue'
 import TerminalMenu from '@/components/TerminalMenu.vue'
 import TerminalSearch from '@/components/TerminalSearch.vue'
+import TabBar from '@/components/TabBar.vue'
 import { copySelection, installOsc52 } from '@/lib/clipboard'
 import { registerPane, unregisterPane } from '@/lib/e2eHooks'
 import { hyperlinkHandler, openLink, type LinkHover } from '@/lib/links'
 import { keepScrollback } from '@/lib/scrollback'
-import type { SplitDir } from '@/lib/layout'
+import type { SplitDir, Tab } from '@/lib/layout'
 import { clipboardKey, editingKey, searchKey } from '@/lib/terminalKeys'
 import { useAuthStore } from '@/stores/auth'
 import { useSessionsStore } from '@/stores/sessions'
@@ -37,16 +38,19 @@ const props = withDefaults(
     canSplit?: boolean
     /** Narrow layout: one pane at a time, with a pane switcher. */
     narrow?: boolean
+    tabs?: Tab[]
+    activeTab?: string | null
   }>(),
   { paneId: 'pane', active: true, focused: true, paneIndex: 1, paneCount: 1, canSplit: false, narrow: false },
 )
 const emit = defineEmits<{
-  back: []
   focus: []
   /** Open a session (null: a new one) in a new pane beside this one. */
   split: [dir: SplitDir, session: string | null]
   close: []
   cyclePane: []
+  activateTab: [id: string]
+  closeTab: [id: string]
 }>()
 const takesInput = () => props.active && props.focused
 
@@ -280,18 +284,18 @@ defineExpose({ refit, reconnect, showKeyboard })
     :data-focused="takesInput() ? 'true' : undefined"
     @focusin="emit('focus')"
   >
-    <div class="flex items-center gap-2 border-b border-border px-3 py-2">
-      <button
-        type="button"
-        aria-label="Back to sessions"
-        class="rounded border border-border px-2 md:hidden"
-        @click="emit('back')"
-      >
-        ←
-      </button>
-      <h2 class="truncate font-bold">
+    <div class="flex min-w-0 items-center gap-2 border-b border-border px-2 py-1.5">
+      <h2 class="max-w-[22vw] shrink truncate font-bold">
         {{ props.session }}
       </h2>
+      <TabBar
+        v-if="props.narrow && props.tabs && props.activeTab !== undefined"
+        :tabs="props.tabs"
+        :active="props.activeTab"
+        compact
+        @activate="emit('activateTab', $event)"
+        @close="emit('closeTab', $event)"
+      />
       <!-- Narrow screens show one pane of a split at a time. -->
       <button
         v-if="props.narrow && props.paneCount > 1"

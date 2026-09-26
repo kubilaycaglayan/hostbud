@@ -94,7 +94,7 @@ test.describe('recovery', () => {
 test('tmux missing: the tmux-less host shows the install hint', async ({ page }) => {
   // A second app (same database, so the same session) on the tmux-less target.
   await page.goto('http://localhost:9056/')
-  await expect(page.getByRole('complementary', { name: 'Sessions' })).toBeVisible()
+  await expect(page.getByRole('navigation', { name: 'Project and session tree' })).toBeVisible()
   const banner = page.getByRole('alert', { name: 'tmux not found on the host' })
   await expect(banner).toContainText('tmux not found on the host', { timeout: 10_000 })
   await expect(banner).toContainText('sudo apt install tmux')

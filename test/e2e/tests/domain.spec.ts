@@ -34,6 +34,6 @@ test('domain UI: the app loads over HTTPS, the user signs in and sees the sessio
   await form.password.fill(account.password)
   await form.submit('Create account').click()
 
-  await expect(page.getByRole('complementary', { name: 'Sessions' })).toContainText(account.email)
+  await ui.expectAccountEmail(account.email)
   await expect(ui.session(name)).toBeVisible()
 })

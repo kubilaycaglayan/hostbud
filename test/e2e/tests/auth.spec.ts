@@ -47,7 +47,7 @@ test('whitelist-gated registration: refused until the owner allows the address',
 
   await owner.allow(account.email) // the owner's SQL
   await form.submit('Create account').click()
-  await expect(page.getByRole('complementary', { name: 'Sessions' })).toContainText(account.email)
+  await ui.expectAccountEmail(account.email)
   expect(await owner.userExists(account.email)).toBe(true)
 })
 
@@ -59,8 +59,8 @@ test('sign in, reach the app, sign out: protected routes refuse afterwards', asy
   expect((await page.request.get('/api/machines')).status()).toBe(401)
 
   await ui.signIn(account.email, account.password)
-  const sidebar = page.getByRole('complementary', { name: 'Sessions' })
-  await expect(sidebar).toContainText(account.email)
+  await expect(ui.tree()).toBeVisible()
+  await ui.expectAccountEmail(account.email)
   expect((await page.request.get('/api/machines')).status()).toBe(200)
   const cookie = (await context.cookies()).find((c) => c.name === 'hostbud_session')!
   expect(cookie.httpOnly).toBe(true)
@@ -69,7 +69,7 @@ test('sign in, reach the app, sign out: protected routes refuse afterwards', asy
   const cookieHeader = `${cookie.name}=${cookie.value}`
   expect(await upgradeStatus('/ws/events', ORIGIN, cookieHeader)).toBe(101)
 
-  await sidebar.getByRole('button', { name: 'Sign out' }).click()
+  await ui.signOut()
   await expect(ui.authForm().tab('Sign in')).toBeVisible()
   expect((await page.request.get('/api/machines')).status()).toBe(401)
   // The old cookie was revoked server-side, not just deleted in the browser.
@@ -85,7 +85,7 @@ test('whitelist-gated login: disabling the address blocks new sign-ins, the acco
   const account = await createAccount(page.request)
   await page.goto('/')
   await ui.signIn(account.email, account.password)
-  await expect(page.getByRole('complementary', { name: 'Sessions' })).toBeVisible()
+  await expect(ui.tree()).toBeVisible()
 
   await owner.disable(account.email) // the owner's SQL
   const other = await browser.newContext({ storageState: { cookies: [], origins: [] } })
@@ -96,7 +96,7 @@ test('whitelist-gated login: disabling the address blocks new sign-ins, the acco
   expect(await owner.userExists(account.email)).toBe(true)
 
   // In the UI: the same generic message.
-  await page.getByRole('button', { name: 'Sign out' }).click()
+  await ui.signOut()
   await ui.signIn(account.email, account.password)
   await expect(ui.authForm().alert).toHaveText('Invalid email or password.')
 })

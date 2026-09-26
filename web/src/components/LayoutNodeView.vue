@@ -10,7 +10,6 @@ import { NEW_SESSION_FOR_SPLIT } from './layoutKeys'
 // One node of a tab's layout tree (M3 T8): a terminal pane, or a split
 // rendered with splitpanes whose children are rendered recursively.
 const props = defineProps<{ node: LayoutNode; tab: Tab; active: boolean }>()
-const emit = defineEmits<{ back: [] }>()
 
 const layout = useLayoutStore()
 const newSessionFor = inject(NEW_SESSION_FOR_SPLIT, () => {})
@@ -44,7 +43,6 @@ function resized(splitId: string, e: SplitpanesResizedPayload) {
     @focus="layout.focusPane(props.tab.id, props.node.id)"
     @split="(dir, s) => split(props.node.id, dir, s)"
     @close="layout.closePane(props.node.id)"
-    @back="emit('back')"
   />
   <Splitpanes
     v-else
@@ -64,7 +62,6 @@ function resized(splitId: string, e: SplitpanesResizedPayload) {
         :node="child"
         :tab="props.tab"
         :active="props.active"
-        @back="emit('back')"
       />
     </SplitPane>
   </Splitpanes>

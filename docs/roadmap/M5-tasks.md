@@ -11,7 +11,7 @@ Update this table in the same commit that finishes a task.
 | Task | Status |
 |---|---|
 | T1 Copy-mode API | Done |
-| T2 Compact layout and tree drawer | Not started |
+| T2 Compact layout and tree drawer | Done |
 | T3 Touch targets and phone polish | Not started |
 | T4 On-screen key bar | Not started |
 | T5 Scroll mode | Not started |

@@ -14,7 +14,7 @@ import { sessionsApi } from '@/api/client'
 import { useToastsStore } from '@/stores/toasts'
 
 // Killing is destructive: it only happens after an explicit confirmation.
-const props = defineProps<{ machine: string; session: string }>()
+const props = defineProps<{ machine: string; session: string; compact?: boolean }>()
 const open = defineModel<boolean>('open', { default: false })
 const emit = defineEmits<{ killed: [name: string] }>()
 const busy = ref(false)
@@ -39,7 +39,8 @@ async function confirm() {
     <AlertDialogPortal>
       <AlertDialogOverlay class="fixed inset-0 z-40 bg-black/50" />
       <AlertDialogContent
-        class="fixed top-1/2 left-1/2 z-40 w-[min(24rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded border border-border bg-surface p-5 text-fg"
+        class="fixed z-40 border border-border bg-surface p-5 text-fg"
+        :class="props.compact ? 'inset-x-0 bottom-0 max-h-[90dvh] w-full overflow-y-auto rounded-t-2xl pb-[max(1.25rem,env(safe-area-inset-bottom))]' : 'top-1/2 left-1/2 w-[min(24rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded'"
       >
         <AlertDialogTitle class="text-base font-bold">
           Kill session {{ props.session }}?

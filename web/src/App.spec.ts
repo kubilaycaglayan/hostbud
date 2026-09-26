@@ -34,6 +34,7 @@ beforeEach(() => {
 afterEach(() => {
   useTreeStore().reset()
   vi.unstubAllGlobals()
+  document.body.innerHTML = ''
 })
 
 const signedIn = () =>
@@ -164,7 +165,7 @@ describe('tabs', () => {
     },
   }
 
-  async function signedInWith(saved: unknown) {
+  async function signedInWith(saved: unknown, attachTo?: Element) {
     let release = () => {}
     const gate = new Promise<void>((r) => (release = r))
     stubFetch((method, path) => {
@@ -182,7 +183,7 @@ describe('tabs', () => {
       return realFetch(path, init)
     })
     // xterm can't render in jsdom; TerminalView has its own spec.
-    const wrapper = mount(App, { global: { stubs: { TerminalView: true } } })
+    const wrapper = mount(App, { attachTo, global: { stubs: { TerminalView: true } } })
     const { useSessionsStore } = await import('./stores/sessions')
     const { useMachinesStore } = await import('./stores/machines')
     const feed = () => {
@@ -263,5 +264,99 @@ describe('tabs', () => {
     await flushPromises()
     expect(useLayoutStore().tabs).toEqual([])
     expect(useAppStore().terminalShown).toBe(false)
+  })
+
+  it('uses the tree as the compact home screen and opens it over a still-mounted terminal', async () => {
+    let mediaListener: (() => void) | undefined
+    let compactMatch = true
+    vi.stubGlobal('matchMedia', vi.fn(() => ({
+      media: '(max-width: 47.99rem), (pointer: coarse) and (max-height: 31.99rem)',
+      get matches() { return compactMatch },
+      addEventListener: (_: string, cb: () => void) => { mediaListener = cb },
+      removeEventListener: vi.fn(),
+    })))
+    const { wrapper, release, feed } = await signedInWith(null, document.body)
+    release()
+    await flushPromises()
+    feed()
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('main nav[aria-label="Project and session tree"]').exists()).toBe(true)
+    expect(wrapper.find('terminal-view-stub').exists()).toBe(false)
+
+    await wrapper.get('button[aria-label="acc-a"]').trigger('click')
+    const terminal = wrapper.get('terminal-view-stub').element
+    expect(wrapper.get('main').find('nav[aria-label="Project and session tree"]').exists()).toBe(false)
+    const trigger = wrapper.get('button[aria-label="Show project tree"]')
+    ;(trigger.element as HTMLButtonElement).focus()
+    await trigger.trigger('click')
+    await flushPromises()
+    let dialog = document.body.querySelector('[role="dialog"]') as HTMLElement
+    expect(dialog?.textContent).toContain('Project tree')
+    expect(dialog?.getAttribute('aria-labelledby')).not.toBeNull()
+    expect(wrapper.get('terminal-view-stub').element).toBe(terminal)
+
+    dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await flushPromises()
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+    expect(document.activeElement).toBe(trigger.element)
+
+    await trigger.trigger('click')
+    await flushPromises()
+    document.body.querySelector<HTMLElement>('.fixed.inset-0')?.dispatchEvent(
+      new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' }),
+    )
+    await flushPromises()
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+    await trigger.trigger('click')
+    await flushPromises()
+    dialog = document.body.querySelector('[role="dialog"]') as HTMLElement
+    dialog.querySelector<HTMLButtonElement>('[aria-label="Close project tree"]')?.click()
+    await flushPromises()
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+
+    await trigger.trigger('click')
+    await flushPromises()
+    const dialogContent = document.body.querySelector('[role="dialog"]')!
+    dialogContent.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientX: 200, clientY: 200 }))
+    dialogContent.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, clientX: 100, clientY: 205 }))
+    await flushPromises()
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+
+    // A compact landscape update stays compact and does not replace the terminal.
+    compactMatch = true
+    mediaListener?.()
+    await wrapper.vm.$nextTick()
+    expect(wrapper.get('terminal-view-stub').element).toBe(terminal)
+    feed()
+    await wrapper.vm.$nextTick()
+    await trigger.trigger('click')
+    await flushPromises()
+    dialog = document.body.querySelector('[role="dialog"]') as HTMLElement
+    dialog.querySelector<HTMLButtonElement>('button[aria-label="acc-b"]')?.click()
+    await flushPromises()
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+    expect(useLayoutStore().focused?.session).toBe('acc-b')
+    wrapper.unmount()
+  })
+
+  it('puts email and sign-out in the compact Account menu and opens dialogs as sheets', async () => {
+    vi.stubGlobal('matchMedia', vi.fn(() => ({
+      media: '(max-width: 47.99rem), (pointer: coarse) and (max-height: 31.99rem)',
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })))
+    const { wrapper, release } = await signedInWith(null, document.body)
+    release()
+    await flushPromises()
+    const account = wrapper.get('header summary[aria-label="Account"]')
+    await account.trigger('click')
+    expect(wrapper.get('[data-testid="account-email"]').text()).toBe('person@example.com')
+    expect(wrapper.get('header').text()).toContain('Sign out')
+    await wrapper.findAll('button').find((b) => b.text() === 'New session')!.trigger('click')
+    await flushPromises()
+    const sheet = [...document.body.querySelectorAll('[role="dialog"]')].find((element) => element.textContent?.includes('New session'))
+    expect(sheet?.className).toContain('bottom-0')
+    wrapper.unmount()
   })
 })

@@ -432,9 +432,9 @@ describe('TerminalView', () => {
     expect(w.find('[role=search]').exists()).toBe(true)
   })
 
-  it('offers a way back to the list (narrow screens)', async () => {
+  it('does not replace the tree drawer control with a terminal back button', async () => {
     const w = await mountTerm()
-    await w.get('button[aria-label="Back to sessions"]').trigger('click')
-    expect(w.emitted('back')).toHaveLength(1)
+    expect(w.find('button[aria-label="Back to sessions"]').exists()).toBe(false)
+    expect(w.get('h2').text()).toBe('acc-a')
   })
 })

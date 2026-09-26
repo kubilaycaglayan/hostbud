@@ -12,35 +12,35 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 
 ## Responsive layout
 
-- [ ] On a phone (compact layout: narrower than 48rem, or a coarse pointer with a height under 32rem, so portrait **and** landscape), the project tree is the home screen when no terminal is open. Once a terminal is open, the tree opens as a drawer from ☰ (**Show project tree**) over the terminal.
+- [x] On a phone (compact layout: narrower than 48rem, or a coarse pointer with a height under 32rem, so portrait **and** landscape), the project tree is the home screen when no terminal is open. Once a terminal is open, the tree opens as a drawer from ☰ (**Show project tree**) over the terminal.
   - U: T2 `COMPACT_QUERY` cases (portrait/landscape phone, tablet, desktop); `App` shows the tree without tabs and the drawer + terminal with tabs (Vitest).
   - I: n/a (frontend layout only; no server, tmux or database behavior).
   - E: T2 *Tree drawer* (both phone projects).
-- [ ] The drawer is a labelled modal ("Project tree") that traps focus. It closes on backdrop tap, Escape, **Close project tree**, a left swipe, or picking a session, and returns focus to ☰ (not the terminal, so iOS doesn't open the keyboard). Picking a session in it shows that session (focus its tab or open one).
+- [x] The drawer is a labelled modal ("Project tree") that traps focus. It closes on backdrop tap, Escape, **Close project tree**, a left swipe, or picking a session, and returns focus to ☰ (not the terminal, so iOS doesn't open the keyboard). Picking a session in it shows that session (focus its tab or open one).
   - U: T2 drawer open/close paths, focus trap and return, swipe threshold, session pick calls `layout.open` and closes (Vitest).
   - I: n/a (frontend only).
   - E: T2 *Tree drawer* (both phone projects). **Manual (T9):** the left swipe on a real iPhone.
-- [ ] Opening and closing the drawer, and rotating the phone, neither re-attach nor resize the terminal behind it: the same tmux client stays attached, and its size changes only for the rotation itself.
+- [x] Opening and closing the drawer, and rotating the phone, neither re-attach nor resize the terminal behind it: the same tmux client stays attached, and its size changes only for the rotation itself.
   - U: T2 the terminal component isn't unmounted when the drawer opens or on rotation (Vitest).
   - I: n/a (the attach/resize path is M1 T13's integration test; T2 only avoids re-mounting).
   - E: T2 *Drawer keeps the terminal attached* (`#{client_pid}` unchanged and `#{client_width}x#{client_height}` unchanged across open/close) · T2 *Single terminal view and rotation* (`#{client_pid}` unchanged across portrait → landscape → portrait while the size follows).
-- [ ] Compact layout shows exactly one terminal at a time (the focused pane of the active tab), edge to edge, with a one-row header: session name, compact tab switcher, pane cycler for split tabs, search, Show keyboard and the terminal menu. **Back to sessions** is gone.
+- [x] Compact layout shows exactly one terminal at a time (the focused pane of the active tab), edge to edge, with a one-row header: session name, compact tab switcher, pane cycler for split tabs, search, Show keyboard and the terminal menu. **Back to sessions** is gone.
   - U: T2 single-terminal rendering with several tabs and with a split tab (Vitest).
   - I: n/a (frontend only).
   - E: T2 *Single terminal view and rotation* (both phone projects; open two sessions and a split, and only one terminal is visible).
-- [ ] New session, Rename, Kill and the file browser open as full-width bottom sheets in compact layout, with their behavior unchanged. Kill still asks for confirmation.
+- [x] New session, Rename, Kill and the file browser open as full-width bottom sheets in compact layout, with their behavior unchanged. Kill still asks for confirmation.
   - U: T2 dialogs render as sheets in compact layout; Kill's confirmation is still required (Vitest).
   - I: n/a (presentation; M1/M4 integration tests cover the effects).
   - E: T2 *Tree drawer* creates a session from the drawer through the sheet · T3 *Touch targets* opens each sheet.
-- [ ] In compact layout the email and Sign out sit in an **Account** menu at the header's top right, reachable without opening the drawer. Sign out still revokes the session.
+- [x] In compact layout the email and Sign out sit in an **Account** menu at the header's top right, reachable without opening the drawer. Sign out still revokes the session.
   - U: T2 account menu contents and sign-out wiring (Vitest).
   - I: n/a (placement; M1 integration covers revocation).
   - E: T2 *Account menu on the phone* (both phone projects).
-- [ ] The wide layout (desktop, tablet) is unchanged: sidebar, tab bar and splits as in M3/M4, with no drawer and no key bar on a fine pointer.
+- [x] The wide layout (desktop, tablet) is unchanged: sidebar, tab bar and splits as in M3/M4, with no drawer and no key bar on a fine pointer.
   - U: T2 wide layout snapshot of the regions rendered; T4 key bar hidden on fine pointer (Vitest).
   - I: n/a (frontend only).
   - E: T2 *Wide layout unchanged* (desktop); every existing desktop scenario (M1–M4) still type-checks.
-- [ ] Every M1–M4 phone scenario that used the list/terminal switch now navigates through the drawer, with its intent unchanged.
+- [x] Every M1–M4 phone scenario that used the list/terminal switch now navigates through the drawer, with its intent unchanged.
   - U: n/a (test-suite maintenance; no product logic).
   - I: n/a (no server behavior).
   - E: T2 migrates `helpers/ui.ts`, `phone.spec.ts` and the M4 phone scenarios; T9 audits that no scenario references **Back to sessions**.
@@ -149,11 +149,11 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 Profiles: `desktop-chromium`, `iphone-13-pro` (`http://localhost:9055`) and `iphone-13-pro-domain` (`https://hostbud.example.test`), against the throwaway `hostbud-e2e-target` only, never the real host. Phone-only scenarios live in `*.phone.spec.ts` (run in both phone projects), and PWA scenarios in `pwa.spec.ts` (desktop-chromium only; service workers blocked everywhere else). Each scenario is tagged with the task that writes it. During M5 the suite is only type-checked; it runs in M7's final task.
 
 - [x] **(T1) Copy-mode API:** through Caddy: `enter` puts the target pane in copy mode with `scroll_position > 0`, `page-up` raises it, `exit` leaves (`pane_in_mode` 0) and a second `exit` still returns 200 `inMode:false`; signed out → 401; foreign Origin → 403; unknown session → 404 (desktop, API-level).
-- [ ] **(T2) Tree drawer:** with no terminal the tree is the home screen; open a session; ☰ opens the "Project tree" drawer; Escape, backdrop, close button and picking another session each close it; New session from the drawer (sheet) opens the new session (both phone projects).
-- [ ] **(T2) Drawer keeps the terminal attached:** the tmux client PID and client size are unchanged after opening and closing the drawer, and typed input still reaches the session (both phone projects).
-- [ ] **(T2) Single terminal view and rotation:** with two tabs and a split tab only one terminal is visible; portrait → landscape → portrait keeps the same client PID while `#{client_width}x#{client_height}` follows the orientation (both phone projects).
-- [ ] **(T2) Account menu on the phone:** the Account menu shows the email and Sign out without opening the drawer; Sign out returns to the sign-in form (both phone projects).
-- [ ] **(T2) Wide layout unchanged:** on desktop the sidebar, tab bar and splits are present, and there is no drawer dialog or key bar (desktop).
+- [x] **(T2) Tree drawer:** with no terminal the tree is the home screen; open a session; ☰ opens the "Project tree" drawer; Escape, backdrop, close button and picking another session each close it; New session from the drawer (sheet) opens the new session (both phone projects).
+- [x] **(T2) Drawer keeps the terminal attached:** the tmux client PID and client size are unchanged after opening and closing the drawer, and typed input still reaches the session (both phone projects).
+- [x] **(T2) Single terminal view and rotation:** with two tabs and a split tab only one terminal is visible; portrait → landscape → portrait keeps the same client PID while `#{client_width}x#{client_height}` follows the orientation (both phone projects).
+- [x] **(T2) Account menu on the phone:** the Account menu shows the email and Sign out without opening the drawer; Sign out returns to the sign-in form (both phone projects).
+- [x] **(T2) Wide layout unchanged:** on desktop the sidebar, tab bar and splits are present, and there is no drawer dialog or key bar (desktop).
 - [ ] **(T3) Touch targets:** every visible interactive element on the tree, drawer, terminal header, each sheet and the file browser is at least 44×44 px (both phone projects).
 - [ ] **(T3) Usable without zoom:** viewport scale 1, no horizontal overflow in either orientation on each screen, form controls ≥ 16 px (both phone projects).
 - [ ] **(T3) Long-press row menu:** long-pressing a session row opens its ⋯ menu; a tap still opens the session (`iphone-13-pro`).

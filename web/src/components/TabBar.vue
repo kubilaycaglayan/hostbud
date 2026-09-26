@@ -2,7 +2,7 @@
 import { nextTick, ref } from 'vue'
 import { panesOf, type Tab } from '@/lib/layout'
 
-const props = defineProps<{ tabs: Tab[]; active: string | null }>()
+const props = defineProps<{ tabs: Tab[]; active: string | null; compact?: boolean }>()
 const emit = defineEmits<{ activate: [id: string]; close: [id: string] }>()
 
 const list = ref<HTMLElement>()
@@ -44,12 +44,13 @@ function onAuxClick(ev: MouseEvent, id: string) {
     ref="list"
     role="tablist"
     aria-label="Open terminals"
-    class="flex shrink-0 overflow-x-auto border-b border-border bg-surface"
+    class="flex shrink-0 overflow-x-auto bg-surface"
+    :class="props.compact ? 'min-w-0 flex-1 border-0' : 'border-b border-border'"
   >
     <div
       v-for="(t, i) in props.tabs"
       :key="t.id"
-      class="flex shrink-0 items-center border-r border-border"
+      class="flex min-w-0 shrink-0 items-center border-r border-border"
       :class="t.id === props.active ? 'bg-bg' : ''"
       @auxclick="onAuxClick($event, t.id)"
       @mousedown.middle.prevent
@@ -63,7 +64,7 @@ function onAuxClick(ev: MouseEvent, id: string) {
         :aria-controls="`tabpanel-${t.id}`"
         :tabindex="t.id === props.active ? 0 : -1"
         class="max-w-48 truncate py-1 pr-1 pl-3 md:py-1.5"
-        :class="t.id === props.active ? 'font-bold text-fg' : 'text-muted'"
+        :class="[props.compact ? 'max-w-20 px-1 text-xs' : '', t.id === props.active ? 'font-bold text-fg' : 'text-muted']"
         @click="emit('activate', t.id)"
         @keydown="onKey($event, i)"
       >
@@ -75,6 +76,7 @@ function onAuxClick(ev: MouseEvent, id: string) {
         title="Close (the session keeps running)"
         tabindex="-1"
         class="px-2 py-1 text-muted hover:text-fg"
+        :class="props.compact ? 'px-1 text-xs' : ''"
         @click="emit('close', t.id)"
       >
         ×

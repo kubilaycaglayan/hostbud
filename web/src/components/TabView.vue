@@ -8,8 +8,8 @@ import { useLayoutStore } from '@/stores/layout'
 // One tab's content. Wide screens show its split tree; narrow ones show only
 // the focused pane, full size, with a "Pane n of m" switcher (the layout
 // itself is unchanged, so a wide screen shows the split again).
-const props = defineProps<{ tab: Tab; active: boolean; narrow: boolean }>()
-const emit = defineEmits<{ back: [] }>()
+const props = defineProps<{ tab: Tab; active: boolean; narrow: boolean; tabs?: Tab[]; activeTab?: string | null }>()
+const emit = defineEmits<{ activateTab: [id: string]; closeTab: [id: string] }>()
 
 const layout = useLayoutStore()
 const panes = computed(() => panesOf(props.tab.root))
@@ -21,7 +21,6 @@ const panes = computed(() => panesOf(props.tab.root))
     :node="props.tab.root"
     :tab="props.tab"
     :active="props.active"
-    @back="emit('back')"
   />
   <template v-else>
     <div
@@ -38,11 +37,14 @@ const panes = computed(() => panesOf(props.tab.root))
         :focused="p.id === props.tab.focusedPane"
         :pane-index="i + 1"
         :pane-count="panes.length"
+        :tabs="props.tabs"
+        :active-tab="props.activeTab"
         narrow
+        @activate-tab="emit('activateTab', $event)"
+        @close-tab="emit('closeTab', $event)"
         @focus="layout.focusPane(props.tab.id, p.id)"
         @close="layout.closePane(p.id)"
         @cycle-pane="layout.cycleFocus(props.tab.id)"
-        @back="emit('back')"
       />
     </div>
   </template>

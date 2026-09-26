@@ -29,8 +29,7 @@ const input = (page: Page) => page.getByRole('textbox', { name: 'Terminal input'
 
 /** Taps a session in the list and waits for its terminal to attach. */
 async function tapSession(ui: UI, target: Target, name: string) {
-  const back = ui.page.getByRole('button', { name: 'Back to sessions' })
-  if (await back.isVisible()) await back.tap()
+  await ui.showList()
   await ui.page.getByRole('button', { name, exact: true }).tap()
   await ui.waitForTerminal(name)
   await expect.poll(() => attached(target, name), { timeout: 10_000 }).toBe('1')

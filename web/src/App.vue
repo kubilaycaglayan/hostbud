@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue'
+import { DialogClose, DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
 import AuthView from '@/components/AuthView.vue'
 import CreateSessionDialog from '@/components/CreateSessionDialog.vue'
 import FileBrowserDialog from '@/components/FileBrowserDialog.vue'
 import ProjectSessionDialog from '@/components/ProjectSessionDialog.vue'
-import SessionTree from '@/components/SessionTree.vue'
+import TreePanel from '@/components/TreePanel.vue'
 import KillSessionDialog from '@/components/KillSessionDialog.vue'
 import RenameSessionDialog from '@/components/RenameSessionDialog.vue'
 import HostBanner from '@/components/HostBanner.vue'
@@ -13,7 +14,7 @@ import TabView from '@/components/TabView.vue'
 import { NEW_SESSION_FOR_SPLIT } from '@/components/layoutKeys'
 import type { Project } from '@/api/types'
 import type { SplitDir } from '@/lib/layout'
-import { useMediaQuery, WIDE_QUERY } from '@/lib/media'
+import { useMediaQuery, COMPACT_QUERY } from '@/lib/media'
 import ToastRegion from '@/components/ToastRegion.vue'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
@@ -41,6 +42,8 @@ const browsing = ref(false)
 const sessionProject = ref<Project | null>(null) // the project a New session here dialog is for
 const renaming = ref(false)
 const killing = ref(false)
+const drawerOpen = ref(false)
+const swipeStart = ref<{ x: number; y: number } | null>(null)
 const target = ref('') // the session a rename/kill dialog is about
 
 function askRename(name: string) {
@@ -57,11 +60,13 @@ function onKilled(name: string) {
 
 /** Shows a session: its open tab, or a new one. */
 function openSession(name: string) {
+  drawerOpen.value = false
   if (layout.open(MACHINE, name)) app.showTerminal()
 }
 
 /** A list row's "Open in split": beside the active tab's focused pane. */
 function openInSplit(name: string, dir: SplitDir) {
+  drawerOpen.value = false
   if (layout.splitFocused(dir, MACHINE, name)) app.showTerminal()
 }
 
@@ -73,16 +78,37 @@ provide(NEW_SESSION_FOR_SPLIT, (pane, dir) => {
   creating.value = true
 })
 function newSession() {
+  drawerOpen.value = false
   splitTarget.value = null
   creating.value = true
 }
 function newProjectSession(project: Project) {
+  drawerOpen.value = false
   sessionProject.value = project
 }
+
+function browseFiles() {
+  drawerOpen.value = false
+  browsing.value = true
+}
+
 function showTree() {
-  browsing.value = false
-  app.sidebarOpen = true
-  app.showList()
+  if (compact.value && hasTabs.value) {
+    drawerOpen.value = true
+    return
+  }
+  if (!compact.value) app.toggleSidebar()
+}
+
+function onDrawerPointerDown(event: PointerEvent) {
+  swipeStart.value = { x: event.clientX, y: event.clientY }
+}
+function onDrawerPointerUp(event: PointerEvent) {
+  if (!swipeStart.value) return
+  const dx = event.clientX - swipeStart.value.x
+  const dy = event.clientY - swipeStart.value.y
+  swipeStart.value = null
+  if (dx <= -60 && Math.abs(dx) > Math.abs(dy)) drawerOpen.value = false
 }
 function onCreated(name: string) {
   browsing.value = false
@@ -92,8 +118,8 @@ function onCreated(name: string) {
   else openSession(name)
 }
 
-const wide = useMediaQuery(WIDE_QUERY, true)
-const narrow = computed(() => !wide.value)
+const compact = useMediaQuery(COMPACT_QUERY)
+const hasTabs = computed(() => layout.loaded && layout.tabs.length > 0)
 
 function closeTab(id: string) {
   layout.closeTab(id)
@@ -155,78 +181,57 @@ onUnmounted(() => {
       <button
         type="button"
         class="min-h-11 rounded px-2"
-        :aria-label="narrow ? 'Back to project tree' : app.sidebarOpen ? 'Hide project tree' : 'Show project tree'"
-        @click="narrow ? showTree() : app.toggleSidebar()"
+        aria-label="Show project tree"
+        :aria-expanded="compact && hasTabs ? drawerOpen : app.sidebarOpen"
+        @click="showTree"
       >
-        {{ narrow ? '☰' : 'Projects' }}
+        ☰
       </button>
       <button
+        v-if="!compact"
         type="button"
         aria-label="Browse files"
         title="Browse files"
         class="inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border"
-        @click="browsing = true"
+        @click="browseFiles"
       >
         <FolderPlus
           :size="18"
           aria-hidden="true"
         />
       </button>
-      <div class="ml-auto flex min-w-0 items-center gap-2 text-sm text-muted">
-        <span class="max-w-40 truncate">{{ auth.email }}</span>
-        <button
-          type="button"
-          class="min-h-11 rounded border border-border px-3"
-          @click="auth.logout()"
-        >
-          Sign out
-        </button>
+      <div class="ml-auto min-w-0 text-sm text-muted">
+        <details v-if="compact" class="relative">
+          <summary aria-label="Account" class="flex min-h-11 cursor-pointer list-none items-center rounded border border-border px-3">Account</summary>
+          <div class="absolute right-0 top-full z-30 mt-1 w-56 rounded border border-border bg-surface p-2 shadow-lg">
+            <p class="truncate px-2 py-2" data-testid="account-email">{{ auth.email }}</p>
+            <button type="button" class="min-h-11 w-full rounded px-2 text-left" @click="auth.logout()">Sign out</button>
+          </div>
+        </details>
+        <div v-else class="flex items-center gap-2">
+          <span class="max-w-40 truncate">{{ auth.email }}</span>
+          <button type="button" class="min-h-11 rounded border border-border px-3" @click="auth.logout()">Sign out</button>
+        </div>
       </div>
     </header>
-    <!-- Narrow screens show the list or the open terminal, one at a time. -->
     <div class="flex min-h-0 flex-1">
       <aside
-        v-if="app.sidebarOpen"
+        v-if="!compact && app.sidebarOpen"
         aria-label="Sessions"
-        class="w-full shrink-0 flex-col border-r border-border bg-surface p-3 md:flex md:w-64"
-        :class="app.terminalShown ? 'hidden' : 'flex'"
+        class="flex w-64 shrink-0 flex-col border-r border-border bg-surface p-3"
       >
-        <h2 class="mb-2 px-1 text-sm font-semibold">
-          Projects &amp; sessions
-        </h2>
-        <div>
-          <button
-            type="button"
-            class="min-h-10 min-w-0 whitespace-nowrap rounded border border-border px-2 text-xs"
-            @click="newSession"
-          >
-            New session
-          </button>
-        </div>
-        <p
-          v-if="live.state === 'reconnecting' || live.state === 'connecting'"
-          role="status"
-          class="mt-1 text-muted"
-        >
-          {{ live.state === 'connecting' ? 'Connecting…' : 'Reconnecting…' }}
-        </p>
-        <div class="mt-3 min-h-0 flex-1 overflow-y-auto">
-          <SessionTree
-            :selected="selectedSession"
-            @select="openSession"
-            @split="openInSplit"
-            @rename="askRename"
-            @kill="askKill"
-            @session-in-project="newProjectSession"
-          />
-        </div>
+        <TreePanel :selected="selectedSession" :connection-state="live.state" @select="openSession" @split="openInSplit" @rename="askRename" @kill="askKill" @session-in-project="newProjectSession" @create="newSession" @browse="browseFiles" />
       </aside>
+      <main v-if="compact && !hasTabs" class="min-h-0 min-w-0 flex-1 overflow-y-auto bg-surface p-3">
+        <TreePanel :selected="selectedSession" :connection-state="live.state" @select="openSession" @split="openInSplit" @rename="askRename" @kill="askKill" @session-in-project="newProjectSession" @create="newSession" @browse="browseFiles" />
+      </main>
       <main
-        class="min-h-0 min-w-0 flex-1 flex-col md:flex"
-        :class="app.terminalShown ? 'flex' : 'hidden'"
+        v-else
+        class="flex min-h-0 min-w-0 flex-1 flex-col"
       >
         <template v-if="layout.loaded && layout.tabs.length > 0">
           <TabBar
+            v-if="!compact"
             :tabs="layout.tabs"
             :active="layout.layout.activeTab"
             @activate="layout.activate"
@@ -246,8 +251,11 @@ onUnmounted(() => {
             <TabView
               :tab="t"
               :active="t.id === layout.layout.activeTab"
-              :narrow="narrow"
-              @back="app.showList()"
+              :narrow="compact"
+              :tabs="layout.tabs"
+              :active-tab="layout.layout.activeTab"
+              @activate-tab="layout.activate"
+              @close-tab="closeTab"
             />
           </div>
         </template>
@@ -259,14 +267,33 @@ onUnmounted(() => {
         </p>
       </main>
     </div>
+    <DialogRoot v-if="compact && hasTabs" v-model:open="drawerOpen">
+      <DialogPortal>
+        <DialogOverlay class="fixed inset-0 z-40 bg-black/50" />
+        <DialogContent
+          class="fixed inset-y-0 left-0 z-50 flex w-[min(85vw,20rem)] flex-col border-r border-border bg-surface p-3 pt-[max(0.75rem,env(safe-area-inset-top))] text-fg shadow-xl"
+          @pointerdown="onDrawerPointerDown"
+          @pointerup="onDrawerPointerUp"
+        >
+          <div class="mb-2 flex items-center justify-between">
+            <DialogTitle class="text-base font-bold">Project tree</DialogTitle>
+            <DialogClose aria-label="Close project tree" class="min-h-11 min-w-11 rounded border border-border">×</DialogClose>
+          </div>
+          <DialogDescription class="sr-only">Choose a project or session.</DialogDescription>
+          <TreePanel :selected="selectedSession" :connection-state="live.state" @select="openSession" @split="openInSplit" @rename="askRename" @kill="askKill" @session-in-project="newProjectSession" @create="newSession" @browse="browseFiles" />
+        </DialogContent>
+      </DialogPortal>
+    </DialogRoot>
     <CreateSessionDialog
       v-model:open="creating"
       :machine="MACHINE"
+      :compact="compact"
       @created="onCreated"
     />
     <FileBrowserDialog
       v-model:open="browsing"
       :machine="MACHINE"
+      :compact="compact"
       @created="onCreated"
     />
     <ProjectSessionDialog
@@ -276,6 +303,7 @@ onUnmounted(() => {
     <RenameSessionDialog
       v-model:open="renaming"
       :machine="MACHINE"
+      :compact="compact"
       :session="target"
       @renaming="(from, to) => layout.expectRename(MACHINE, from, to)"
       @renamed="(from, to) => layout.renamed(MACHINE, from, to)"
@@ -284,6 +312,7 @@ onUnmounted(() => {
     <KillSessionDialog
       v-model:open="killing"
       :machine="MACHINE"
+      :compact="compact"
       :session="target"
       @killed="onKilled"
     />

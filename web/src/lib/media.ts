@@ -13,6 +13,5 @@ export function useMediaQuery(query: string, fallback = false): Ref<boolean> {
   return matches
 }
 
-/** Tailwind's `md` breakpoint: below it the app is in its narrow (phone)
- * layout. */
-export const WIDE_QUERY = '(min-width: 48rem)'
+/** Compact phones match in portrait and landscape without matching tablets. */
+export const COMPACT_QUERY = '(max-width: 47.99rem), (pointer: coarse) and (max-height: 31.99rem)'
