@@ -108,8 +108,8 @@ Projects as in M2: `desktop-chromium` and `iphone-13-pro` on `http://localhost:9
 
 ## Definition of done
 - [ ] `make lint test` green; `make e2e` green in all three projects; every E2E item above added by the task it's tagged with.
-- [ ] Every criterion's U / I / E tests exist and pass; each n/a has its reason, and "manual" is used only where allowed.
-- [ ] `make gitleaks` clean; no real hostnames, paths or usernames in tracked files.
+- [x] Every criterion's U / I / E tests exist and pass; each n/a has its reason, and "manual" is used only where allowed.
+- [x] `make gitleaks` clean; no real hostnames, paths or usernames in tracked files.
 - [x] README has the *Terminal* section (T9); ARCHITECTURE matches what was built; `.env.example` unchanged or documents any new variable.
 - [ ] Owner's manual checks done (T9) and recorded here.
-- [ ] Summary delivered: what changed, env vars the owner must set, manual host steps.
+- [x] Summary delivered: what changed, env vars the owner must set, manual host steps.

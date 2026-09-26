@@ -17,7 +17,7 @@ Update this table in the same commit that finishes a task.
 | T6 UI state API | ✅ done (tests run at CP1) |
 | T7 Tabs | ✅ done (tests run at CP1) |
 | T8 Split view | ✅ done (tests run at CP2) |
-| T9 Docs, audit and release | next |
+| T9 Docs, audit and release | ✅ done: deployed; the owner's manual checks and the two-run e2e stability check are open |
 
 **Test checkpoints (T6–T9, owner's trial of batched test runs).** From T6 on, each task still writes all the U/I/E tests it owes in the same commit as the behavior, but the suites run at checkpoints instead of per commit. Each commit gets only the fast checks: the Go packages it touches build and vet, and `vue-tsc` type-checks the frontend (and the e2e suite when it changes). `make gitleaks` still runs on every commit (pre-commit hook).
 
