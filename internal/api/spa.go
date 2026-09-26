@@ -44,6 +44,11 @@ func spaHandler(dist fs.FS) http.Handler {
 				if strings.HasPrefix(name, "assets/") {
 					// Vite content-hashes everything under assets/.
 					w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+				} else if name == "manifest.webmanifest" || name == "favicon.svg" || strings.HasPrefix(name, "icons/") {
+					w.Header().Set("Cache-Control", "no-cache")
+				}
+				if name == "manifest.webmanifest" {
+					w.Header().Set("Content-Type", "application/manifest+json")
 				}
 				files.ServeHTTP(w, r)
 				return

@@ -104,7 +104,7 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 
 ## Installable app (PWA)
 
-- [ ] The page links a web app manifest (`application/manifest+json`) with `id`, `name`, `short_name`, `start_url` and `scope` `/`, `display: standalone`, theme and background colors, and bundled 192, 512 and maskable 512 PNG icons. `index.html` also links an opaque 180 px `apple-touch-icon`, an SVG favicon, `theme-color` (light/dark), and the Apple web-app capable, title and status-bar metas. Everything is same-origin; there are no external assets.
+- [x] The page links a web app manifest (`application/manifest+json`) with `id`, `name`, `short_name`, `start_url` and `scope` `/`, `display: standalone`, theme and background colors, and bundled 192, 512 and maskable 512 PNG icons. `index.html` also links an opaque 180 px `apple-touch-icon`, an SVG favicon, `theme-color` (light/dark), and the Apple web-app capable, title and status-bar metas. Everything is same-origin; there are no external assets.
   - U: T7 `spaHandler` types and cache headers (Go); `check-dist` validates the manifest, icon files and their pixel sizes, and rejects off-origin URLs (node).
   - I: n/a (static files served by the Go handler; no target, database or deploy-config change).
   - E: T7 *Manifest and icons* (desktop-chromium) · T7 *Theme and status-bar meta* (both phone projects).
@@ -124,8 +124,8 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
   - U: T8 fake-`self` activate/install tests; `check-dist` rejects `skipWaiting` in `sw.js` (Vitest/node).
   - I: n/a (browser-side lifecycle).
   - E: T8 *Only hostbud caches are managed* (desktop-chromium). Taking over on the next launch needs two different builds in one run, which the e2e stack doesn't do. **Manual (T9):** after a `make deploy` with a change, the installed app shows the new version on its second launch.
-- [ ] Safe-area insets are respected: header, key bar/terminal column, drawer and sheets pad with `env(safe-area-inset-*)`, so nothing sits under the notch, the status bar or the home indicator in standalone mode or in landscape Safari.
-  - U: T7 the root, header, key bar and drawer carry the safe-area classes (Vitest).
+- [x] Safe-area insets are respected: header, key bar/terminal column, drawer and sheets pad with `env(safe-area-inset-*)`, so nothing sits under the notch, the status bar or the home indicator in standalone mode or in landscape Safari.
+  - U: T7 root safe-area CSS and inherited header/key-bar insets, plus drawer and sheet edge padding (node fixture check).
   - I: n/a (CSS only).
   - E: n/a: Playwright always reports 0 insets, so it can't observe them. **Manual (T9):** portrait and landscape on the iPhone, installed and in Safari.
 - [ ] hostbud installs to the iPhone's home screen from `https://${HOSTBUD_DOMAIN}` (Safari → Share → Add to Home Screen), shows its icon and name, and opens full-screen without Safari's UI; the installed app asks to sign in once and then works like the browser (attach, type, key bar, Scroll, drawer).
@@ -168,8 +168,8 @@ Profiles: `desktop-chromium`, `iphone-13-pro` (`http://localhost:9055`) and `iph
 - [x] **(T5) Scroll works with a full-screen program:** with htop running, Scroll history enters copy mode and Done returns to htop (both phone projects).
 - [ ] **(T6) Unreachable at start-up:** `/api/auth/me` aborted or 502 → **Can't reach hostbud**, never the sign-in form or a session name; after un-routing, Try again → signed-in app (desktop and `iphone-13-pro`).
 - [ ] **(T6) Offline sign-in error:** a network-aborted login shows the connection message; the next correct login succeeds without throttling (desktop).
-- [ ] **(T7) Manifest and icons:** manifest linked, served as `application/manifest+json`, with the required fields; every icon and the apple-touch-icon load as PNGs of their declared size through Caddy; no off-origin request (desktop-chromium).
-- [ ] **(T7) Theme and status-bar meta:** `theme-color`, `apple-mobile-web-app-capable` and `viewport-fit=cover` present (both phone projects).
+- [x] **(T7) Manifest and icons:** manifest linked, served as `application/manifest+json`, with the required fields; every icon and the apple-touch-icon load as PNGs of their declared size through Caddy; no off-origin request (desktop-chromium).
+- [x] **(T7) Theme and status-bar meta:** `theme-color`, `apple-mobile-web-app-capable` and `viewport-fit=cover` present (both phone projects).
 - [ ] **(T8) Service worker registers and controls after reload:** no controller on first load; after `ready` and a reload the page is controlled with scope `/` (desktop-chromium).
 - [ ] **(T8) Offline start shows the unreachable state:** with the worker in control, stop `hostbud-e2e-app`, reload → the shell comes from the worker and shows **Can't reach hostbud** without session names; start the app, Try again → signed in with live sessions (desktop-chromium).
 - [ ] **(T8) API never served from the cache:** no `/api` response has `fromServiceWorker()`, and the cache holds no `/api` or `/ws` URL (desktop-chromium).

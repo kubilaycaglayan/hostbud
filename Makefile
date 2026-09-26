@@ -17,7 +17,7 @@ PNPM     = scripts/tool.sh node $(NODE_IMAGE) web corepack pnpm
 PNPM_E2E = scripts/tool.sh node $(NODE_IMAGE) test/e2e corepack pnpm
 GITLEAKS = scripts/tool.sh gitleaks $(GITLEAKS_IMAGE) . gitleaks
 
-.PHONY: help build test lint fmt tidy gitleaks gitleaks-staged hooks \
+.PHONY: help build test lint fmt tidy icons gitleaks gitleaks-staged hooks \
 	go-build go-test go-unit test-env test-down go-lint web-install web-build web-test web-lint e2e e2e-up e2e-run e2e-down e2e-install e2e-lint \
 	deploy logs backup tools-down docker-clean
 
@@ -55,6 +55,9 @@ web-install: ## Install frontend dependencies from the lockfile
 
 web-build: web-install ## Build the SPA into web/dist
 	$(PNPM) run build
+
+icons: web-install ## Generate the committed hostbud PWA icons
+	$(PNPM) run icons
 
 web-test: web-install ## Run frontend unit tests (Vitest)
 	$(PNPM) run test

@@ -6,7 +6,8 @@
   "packageManager": "pnpm@12.6.0",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/check-dist.mjs",
+    "build": "vite build && node --test scripts/check-dist.test.mjs && node scripts/check-dist.mjs",
+    "icons": "node scripts/icons.mjs",
     "typecheck": "vue-tsc --build",
     "lint": "eslint . && vue-tsc --build",
     "test": "vitest run"

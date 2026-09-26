@@ -276,7 +276,7 @@ onUnmounted(() => {
       <DialogPortal>
         <DialogOverlay class="fixed inset-0 z-40 bg-black/50" />
         <DialogContent
-          class="fixed inset-y-0 left-0 z-50 flex w-[min(85vw,20rem)] flex-col border-r border-border bg-surface p-3 pt-[max(0.75rem,env(safe-area-inset-top))] text-fg shadow-xl"
+          class="fixed inset-y-0 left-0 z-50 flex w-[min(85vw,20rem)] flex-col border-r border-border bg-surface p-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] pl-[max(0.75rem,env(safe-area-inset-left))] text-fg shadow-xl"
           @pointerdown="onDrawerPointerDown"
           @pointerup="onDrawerPointerUp"
         >
