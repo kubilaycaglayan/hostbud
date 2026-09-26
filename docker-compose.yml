@@ -22,7 +22,7 @@ services:
       HOSTBUD_POLL_INTERVAL: ${HOSTBUD_POLL_INTERVAL:-3s}
       HOSTBUD_LOG_LEVEL: ${HOSTBUD_LOG_LEVEL:-info}
       HOSTBUD_LOCAL_PORT: ${HOSTBUD_LOCAL_PORT:-9055}
-      HOSTBUD_DOMAIN: ${HOSTBUD_DOMAIN:-}
+      HOSTBUD_DOMAIN: ${HOSTBUD_DOMAIN:?set HOSTBUD_DOMAIN in .env}
       HOSTBUD_HOST_ADDR: ${HOSTBUD_HOST_ADDR:-host.docker.internal}
       HOSTBUD_HOST_LABEL: ${HOSTBUD_HOST_LABEL:-Host machine}
       HOSTBUD_DB_HOST: ${HOSTBUD_DB_HOST:-hostbud-postgres}
@@ -99,11 +99,18 @@ services:
     depends_on: [hostbud]
     environment:
       HOSTBUD_LOCAL_PORT: ${HOSTBUD_LOCAL_PORT:-9055}
+      HOSTBUD_DOMAIN: ${HOSTBUD_DOMAIN:?set HOSTBUD_DOMAIN in .env}
+      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:?set CLOUDFLARE_API_TOKEN in .env (Zone:DNS:Edit on the domain's zone)}
+      ACME_EMAIL: ${ACME_EMAIL:-}
     ports:
-      # Loopback only — never 0.0.0.0.
+      # Never 0.0.0.0: the loopback site for SSH port forwards, and the TLS
+      # site on the Tailscale IP only (reachable inside the tailnet).
       - 127.0.0.1:${HOSTBUD_LOCAL_PORT:-9055}:${HOSTBUD_LOCAL_PORT:-9055}
+      - ${TAILSCALE_IP:?set TAILSCALE_IP in .env}:443:443
+      - ${TAILSCALE_IP:?set TAILSCALE_IP in .env}:80:80
     volumes:
       - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./deploy/caddy/hostbud.caddy:/etc/caddy/hostbud.caddy:ro
       # Certificates and ACME account survive restarts (Let's Encrypt rate limits).
       - hostbud-caddy-data:/data
       - hostbud-caddy-config:/config

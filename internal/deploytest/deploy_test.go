@@ -11,6 +11,7 @@ package deploytest
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -80,20 +81,35 @@ func TestHostbudPublishesNoPorts(t *testing.T) {
 	}
 }
 
-func TestCaddyBindsLoopbackOnly(t *testing.T) {
+// Placeholder values scripts/compose-config.sh and caddy-config.sh render with.
+const (
+	placeholderDomain = "hostbud.example.com"
+	placeholderTSIP   = "100.64.0.1"
+	placeholderToken  = "placeholder-cloudflare-token"
+)
+
+func TestCaddyPublishesOnlyLoopbackAndTailscale(t *testing.T) {
 	c := load(t)
 	caddy, ok := c.Services["hostbud-caddy"]
 	if !ok {
 		t.Fatal("no hostbud-caddy service")
 	}
-	if len(caddy.Ports) == 0 {
-		t.Fatal("hostbud-caddy publishes nothing")
+	// Never 0.0.0.0 or all interfaces: the loopback site for SSH port
+	// forwards, and the TLS site on the Tailscale IP only.
+	want := map[string]bool{
+		"127.0.0.1:9055->9055":        true,
+		placeholderTSIP + ":443->443": true,
+		placeholderTSIP + ":80->80":   true,
 	}
 	for _, p := range caddy.Ports {
-		// Never 0.0.0.0 or all interfaces. (M2 adds the ${TAILSCALE_IP} site.)
-		if p.HostIP != "127.0.0.1" {
-			t.Errorf("port %s bound to %q, want 127.0.0.1", p.Published, p.HostIP)
+		key := fmt.Sprintf("%s:%s->%d", p.HostIP, p.Published, p.Target)
+		if !want[key] {
+			t.Errorf("unexpected hostbud-caddy port %s", key)
 		}
+		delete(want, key)
+	}
+	if len(want) != 0 {
+		t.Errorf("hostbud-caddy doesn't publish %v", want)
 	}
 	for name, s := range c.Services {
 		if name == "hostbud-caddy" || name == "hostbud-postgres" {
@@ -101,6 +117,37 @@ func TestCaddyBindsLoopbackOnly(t *testing.T) {
 		}
 		if len(s.Ports) != 0 {
 			t.Errorf("service %s publishes ports", name)
+		}
+	}
+}
+
+func env(s service, key string) (string, bool) {
+	v, ok := s.Environment[key]
+	if !ok || v == nil {
+		return "", false
+	}
+	return *v, true
+}
+
+func TestDomainAndTokenWiring(t *testing.T) {
+	c := load(t)
+	// The app needs the domain for its Origin allowlist; Caddy for its site.
+	for _, name := range []string{"hostbud", "hostbud-caddy"} {
+		if d, _ := env(c.Services[name], "HOSTBUD_DOMAIN"); d != placeholderDomain {
+			t.Errorf("%s: HOSTBUD_DOMAIN = %q", name, d)
+		}
+	}
+	// Only Caddy gets the Cloudflare token, as an env var.
+	for name, s := range c.Services {
+		tok, ok := env(s, "CLOUDFLARE_API_TOKEN")
+		if name == "hostbud-caddy" {
+			if tok != placeholderToken {
+				t.Errorf("hostbud-caddy: CLOUDFLARE_API_TOKEN = %q", tok)
+			}
+			continue
+		}
+		if ok {
+			t.Errorf("service %s receives CLOUDFLARE_API_TOKEN", name)
 		}
 	}
 }
@@ -223,5 +270,122 @@ func TestCaddyMountsOnlyConfigAndCertVolumes(t *testing.T) {
 	}
 	if files == 0 || len(want) != 0 {
 		t.Fatalf("hostbud-caddy: %d config files mounted, missing volumes %v", files, want)
+	}
+}
+
+// adapted loads a Caddyfile adapted to JSON by scripts/caddy-config.sh.
+func adapted(t *testing.T, name string) (raw string, cfg map[string]any) {
+	t.Helper()
+	raw = readCache(t, name)
+	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+		t.Fatal(err)
+	}
+	return raw, cfg
+}
+
+// dig follows keys (string) and indexes (int) into decoded JSON.
+func dig(v any, path ...any) any {
+	for _, p := range path {
+		switch k := p.(type) {
+		case string:
+			m, _ := v.(map[string]any)
+			v = m[k]
+		case int:
+			a, _ := v.([]any)
+			if k >= len(a) {
+				return nil
+			}
+			v = a[k]
+		}
+	}
+	return v
+}
+
+// upstreams lists the dial addresses of every reverse_proxy handler under v.
+func upstreams(v any) []string {
+	var out []string
+	switch x := v.(type) {
+	case map[string]any:
+		if x["handler"] == "reverse_proxy" {
+			for _, u := range x["upstreams"].([]any) {
+				out = append(out, dig(u, "dial").(string))
+			}
+		}
+		for _, c := range x {
+			out = append(out, upstreams(c)...)
+		}
+	case []any:
+		for _, c := range x {
+			out = append(out, upstreams(c)...)
+		}
+	}
+	return out
+}
+
+func TestCaddyfileServesBothSites(t *testing.T) {
+	raw, cfg := adapted(t, "adapt.json")
+	if dig(cfg, "admin", "disabled") != true {
+		t.Error("the Caddy admin API is enabled")
+	}
+	servers, _ := dig(cfg, "apps", "http", "servers").(map[string]any)
+	var tlsSite, localSite bool
+	for name, srv := range servers {
+		listen := fmt.Sprint(dig(srv, "listen"))
+		if p := fmt.Sprint(dig(srv, "protocols")); p != "[h1 h2]" {
+			t.Errorf("%s: protocols %s, want h1 h2 (no HTTP/3: UDP isn't published)", name, p)
+		}
+		if ups := upstreams(srv); len(ups) == 0 || slices.ContainsFunc(ups, func(u string) bool { return u != "hostbud:8080" }) {
+			t.Errorf("%s (%s) proxies to %v, want hostbud:8080", name, listen, ups)
+		}
+		switch listen {
+		case "[:443]":
+			tlsSite = fmt.Sprint(dig(srv, "routes", 0, "match", 0, "host")) == "["+placeholderDomain+"]"
+		case "[:9055]":
+			// Plain HTTP: no TLS on the loopback site.
+			localSite = dig(srv, "tls_connection_policies") == nil
+		default:
+			t.Errorf("unexpected server %s listening on %s", name, listen)
+		}
+	}
+	if !tlsSite || !localSite {
+		t.Fatalf("sites: domain on :443 %v, plain-HTTP loopback on :9055 %v", tlsSite, localSite)
+	}
+
+	// The domain's certificate: ACME DNS-01 via Cloudflare, token from env.
+	policies, _ := dig(cfg, "apps", "tls", "automation", "policies").([]any)
+	if len(policies) != 1 || fmt.Sprint(dig(policies[0], "subjects")) != "["+placeholderDomain+"]" {
+		t.Fatalf("TLS policies = %v", policies)
+	}
+	issuers, _ := dig(policies[0], "issuers").([]any)
+	if len(issuers) == 0 {
+		t.Fatal("no ACME issuer")
+	}
+	for _, is := range issuers {
+		if dig(is, "module") != "acme" || dig(is, "challenges", "dns", "provider", "name") != "cloudflare" ||
+			dig(is, "challenges", "dns", "provider", "api_token") != "{env.CLOUDFLARE_API_TOKEN}" {
+			t.Errorf("issuer %v: want acme with the cloudflare DNS provider and {env.CLOUDFLARE_API_TOKEN}", is)
+		}
+		if dig(is, "email") != nil {
+			t.Errorf("issuer has an email with ACME_EMAIL empty: %v", dig(is, "email"))
+		}
+	}
+	if strings.Contains(raw, placeholderToken) {
+		t.Error("the token value is written into the adapted config")
+	}
+}
+
+func TestCaddyfileTakesAnOptionalACMEEmail(t *testing.T) {
+	raw, cfg := adapted(t, "adapt-email.json")
+	issuers, _ := dig(cfg, "apps", "tls", "automation", "policies", 0, "issuers").([]any)
+	if len(issuers) == 0 {
+		t.Fatal("no issuers")
+	}
+	for _, is := range issuers {
+		if dig(is, "email") != "owner@example.com" {
+			t.Errorf("issuer email = %v", dig(is, "email"))
+		}
+	}
+	if strings.Contains(raw, placeholderToken) {
+		t.Error("the token value is written into the adapted config")
 	}
 }

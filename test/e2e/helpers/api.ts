@@ -1,11 +1,16 @@
 import { appendFileSync, mkdirSync } from 'node:fs'
 import { request as httpRequest } from 'node:http'
+import { request as httpsRequest } from 'node:https'
 import { randomBytes } from 'node:crypto'
 import type { APIRequestContext } from '@playwright/test'
 
 // The allowed Origin for the port-forward path (the page's own origin).
 export const ORIGIN = 'http://localhost:9055'
 export const FOREIGN_ORIGIN = 'http://evil.example.com'
+// The domain path: HOSTBUD_DOMAIN of the e2e app, served over HTTPS by the
+// e2e Caddy with a certificate from its internal CA.
+export const DOMAIN = 'hostbud.example.test'
+export const DOMAIN_URL = `https://${DOMAIN}`
 export const MACHINE = 'host'
 // HOSTBUD_POLL_INTERVAL in compose.yml.
 export const POLL_INTERVAL_MS = 1_000
@@ -45,13 +50,17 @@ export function forbidInLogs(...values: string[]): void {
 }
 
 /** Raw WebSocket upgrade with an arbitrary Origin (and optional Cookie
- * header); resolves the HTTP status. */
-export function upgradeStatus(path: string, origin: string, cookie?: string): Promise<number> {
+ * header) to `base` (the loopback site unless given); resolves the HTTP
+ * status. The domain's internal-CA certificate isn't verified. */
+export function upgradeStatus(path: string, origin: string, cookie?: string, base = ORIGIN): Promise<number> {
+  const url = new URL(path, base)
+  const request = url.protocol === 'https:' ? httpsRequest : httpRequest
   return new Promise((resolve, reject) => {
-    const req = httpRequest({
-      host: 'localhost',
-      port: 9055,
-      path,
+    const req = request({
+      host: url.hostname,
+      port: url.port || (url.protocol === 'https:' ? 443 : 80),
+      path: url.pathname + url.search,
+      rejectUnauthorized: false,
       headers: {
         Connection: 'Upgrade',
         Upgrade: 'websocket',

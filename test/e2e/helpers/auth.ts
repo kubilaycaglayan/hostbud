@@ -3,6 +3,8 @@ import { randomBytes } from 'node:crypto'
 
 // Where global setup saves the signed-in session every scenario starts with.
 export const STORAGE_STATE = 'results/.auth.json'
+// The same account signed in on the domain path (its cookie is host-only).
+export const DOMAIN_STORAGE_STATE = 'results/.auth-domain.json'
 
 /** A throwaway account (example.com addresses only). */
 export function newAccount(prefix = 'e2e') {
@@ -10,9 +12,9 @@ export function newAccount(prefix = 'e2e') {
   return { email: `${prefix}-${id}@example.com`, password: `pw-${randomBytes(9).toString('hex')}` }
 }
 
-/** "hostbud_session=<token>" from the saved session, for raw requests. */
-export function sessionCookieHeader(): string {
-  const state = JSON.parse(readFileSync(STORAGE_STATE, 'utf8')) as { cookies: { name: string; value: string }[] }
+/** "hostbud_session=<token>" from a saved session, for raw requests. */
+export function sessionCookieHeader(file = STORAGE_STATE): string {
+  const state = JSON.parse(readFileSync(file, 'utf8')) as { cookies: { name: string; value: string }[] }
   const c = state.cookies.find((x) => x.name === 'hostbud_session')
   if (!c) throw new Error('no hostbud_session cookie in the saved state')
   return `${c.name}=${c.value}`

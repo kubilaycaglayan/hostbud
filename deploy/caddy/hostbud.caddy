@@ -1,0 +1,10 @@
+# Shared by the production Caddyfile and the e2e one: the proxy to hostbud
+# and the loopback-port site. Compose publishes that site on 127.0.0.1 only
+# (SSH port-forward access, plain HTTP; localhost is a secure context).
+(hostbud) {
+	reverse_proxy hostbud:8080
+}
+
+http://:{$HOSTBUD_LOCAL_PORT} {
+	import hostbud
+}

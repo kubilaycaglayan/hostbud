@@ -24,9 +24,9 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
   - U: M1 T12 Origin tests keep `http://localhost:<port>` · T2 `AllowedOrigins`. I: T2 `caddy adapt`: the loopback site is plain HTTP and proxies to `hostbud:8080`. E: the whole M1 suite (`desktop-chromium`, `iphone-13-pro` on `http://localhost:9055`) · T2 *Origin on both paths*. **Manual (T4):** port forward from another machine.
 
 ### Origin allowlist
-- [ ] State-changing requests and WebSocket upgrades are accepted from `https://${HOSTBUD_DOMAIN}` and `http://localhost:${HOSTBUD_LOCAL_PORT}` only.
+- [x] State-changing requests and WebSocket upgrades are accepted from `https://${HOSTBUD_DOMAIN}` and `http://localhost:${HOSTBUD_LOCAL_PORT}` only.
   - U: T2 `AllowedOrigins` and Origin middleware (both allowed, `http://<domain>`, other port, foreign; POST and upgrade). I: T2 deploy-config check: the app receives `HOSTBUD_DOMAIN`. E: T2 *Origin on both paths*.
-- [ ] Over HTTPS the session cookie is `Secure` (and still `HttpOnly`, `SameSite=Lax`); over the loopback path it works without `Secure`.
+- [x] Over HTTPS the session cookie is `Secure` (and still `HttpOnly`, `SameSite=Lax`); over the loopback path it works without `Secure`.
   - U: M1 T8B cookie flags behind a trusted HTTPS proxy. I: n/a (header logic; covered by U and E). E: T2 *HTTPS domain path* (cookie flags) · M1 T8B *Registration/sign-in/logout* (loopback).
 
 ### Phone usability
@@ -41,9 +41,9 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 Projects: `desktop-chromium` and `iphone-13-pro` on `http://localhost:9055` (the port-forward path, as in M1), plus `iphone-13-pro-domain` on `https://hostbud.example.test` (the domain path with an internal-CA certificate). API-level items run in `desktop-chromium` only. Each item is tagged with the task that adds it, in the same commit as the behavior.
 
 - [x] **(T1) Custom Caddy image:** the e2e Caddy is built from `deploy/caddy/Dockerfile`, and the suite runs through it.
-- [ ] **(T2) HTTPS domain path:** over `https://hostbud.example.test`, sign-in sets a `Secure`, `HttpOnly` cookie; the sessions API lists a real-terminal session; `/ws/events` snapshots and `/ws/term` attaches over WSS (a marker reaches `capture-pane`).
-- [ ] **(T2) Origin on both paths:** `Origin: https://hostbud.example.test` is accepted on the domain site for a POST and a WebSocket upgrade; `http://hostbud.example.test` and a foreign origin are rejected; `http://localhost:9055` keeps working.
-- [ ] **(T2) Domain UI:** in `iphone-13-pro-domain` the app loads over HTTPS with no console errors, the user signs in through the form and sees the session list.
+- [x] **(T2) HTTPS domain path:** over `https://hostbud.example.test`, sign-in sets a `Secure`, `HttpOnly` cookie; the sessions API lists a real-terminal session; `/ws/events` snapshots and `/ws/term` attaches over WSS (a marker reaches `capture-pane`).
+- [x] **(T2) Origin on both paths:** `Origin: https://hostbud.example.test` is accepted on the domain site for a POST and a WebSocket upgrade; `http://hostbud.example.test` and a foreign origin are rejected; `http://localhost:9055` keeps working.
+- [x] **(T2) Domain UI:** in `iphone-13-pro-domain` the app loads over HTTPS with no console errors, the user signs in through the form and sees the session list.
 - [ ] **(T3) Phone attach and type:** tap a session, tap the terminal, type a command like the on-screen keyboard (text input, then Enter) → the output is in the browser terminal and in `capture-pane` (both phone projects).
 - [ ] **(T3) Switch sessions:** back to the list, open a second session, type → the marker is in the second session; the first is detached (both phone projects).
 - [ ] **(T3) Rotate:** portrait → landscape → portrait changes `#{window_width}x#{window_height}` each time, wider in landscape (both phone projects).
@@ -54,7 +54,7 @@ Projects: `desktop-chromium` and `iphone-13-pro` on `http://localhost:9055` (the
 ## Security (AGENTS.md checklist, M2 scope)
 - [ ] Caddy publishes only on `${TAILSCALE_IP}` (TLS) and `127.0.0.1:${HOSTBUD_LOCAL_PORT}`; hostbud publishes no ports.
   - U: n/a (no code). I: T2 deploy-config check. E: n/a (the e2e stack publishes nothing). **Manual (T4):** `ss -ltn`.
-- [ ] WebSocket and state-changing requests check `Origin` against exactly `https://${HOSTBUD_DOMAIN}` and `http://localhost:${HOSTBUD_LOCAL_PORT}`.
+- [x] WebSocket and state-changing requests check `Origin` against exactly `https://${HOSTBUD_DOMAIN}` and `http://localhost:${HOSTBUD_LOCAL_PORT}`.
   - U: T2 Origin middleware. I: T2 deploy-config check (`HOSTBUD_DOMAIN` reaches the app). E: T2 *Origin on both paths*.
 - [ ] The Cloudflare token is never committed, logged or written into the adapted Caddy config; Caddy gets it as an env var and the app never sees it.
   - U: n/a (no hostbud code handles it). I: T2 deploy-config check (only `hostbud-caddy` has `CLOUDFLARE_API_TOKEN`) · T2 `caddy adapt` has no token value. E: n/a (e2e has no token). **Manual (T4):** `make gitleaks`; `make logs` shows no token.

@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -273,6 +274,10 @@ func TestOriginOnStateChangingRequests(t *testing.T) {
 	}{
 		{"http://localhost:9055", true},
 		{"https://hostbud.example.com", true},
+		{"http://hostbud.example.com", false},       // domain without TLS
+		{"https://hostbud.example.com:8443", false}, // other port
+		{"https://hostbud.example.com.evil.example.com", false},
+		{"https://HOSTBUD.example.com", false}, // browsers send it lowercased
 		{"http://evil.example.com", false},
 		{"http://localhost:9056", false},
 		{"http://127.0.0.1:9055", false},
@@ -302,12 +307,34 @@ func TestOriginOnStateChangingRequests(t *testing.T) {
 	}
 }
 
+func TestAllowedOrigins(t *testing.T) {
+	if got := AllowedOrigins("hostbud.example.com", 9055); !slices.Equal(got,
+		[]string{"http://localhost:9055", "https://hostbud.example.com"}) {
+		t.Errorf("with a domain: %v", got)
+	}
+	if got := AllowedOrigins("", 9056); !slices.Equal(got, []string{"http://localhost:9056"}) {
+		t.Errorf("without a domain: %v", got)
+	}
+}
+
 func TestEventsSocketOrigin(t *testing.T) {
 	e := newEnv(t)
 	srv := httptest.NewServer(e.h)
 	defer srv.Close()
 	url := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws/events"
-	for _, o := range []string{"http://evil.example.com", ""} {
+	// Both access paths may upgrade: the port forward and the domain.
+	for _, o := range []string{"http://localhost:9055", "https://hostbud.example.com"} {
+		hdr := http.Header{"Cookie": {SessionCookie + "=" + testToken}, "Origin": {o}}
+		c, resp, err := websocket.Dial(t.Context(), url, &websocket.DialOptions{HTTPHeader: hdr})
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
+		if err != nil {
+			t.Fatalf("origin %q: upgrade refused: %v", o, err)
+		}
+		_ = c.CloseNow()
+	}
+	for _, o := range []string{"http://evil.example.com", "http://hostbud.example.com", "https://hostbud.example.com:8443", ""} {
 		hdr := http.Header{"Cookie": {SessionCookie + "=" + testToken}}
 		if o != "" {
 			hdr.Set("Origin", o)
