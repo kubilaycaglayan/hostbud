@@ -90,6 +90,7 @@ func New(cfg Config) http.Handler {
 		mux.HandleFunc("POST /api/projects", s.createProject)
 		mux.HandleFunc("GET /api/projects/{id}", s.getProject)
 		mux.HandleFunc("PATCH /api/projects/{id}", s.renameProject)
+		mux.HandleFunc("POST /api/projects/{id}/sessions", s.createProjectSession)
 	}
 	mux.Handle("GET /", spaHandler(cfg.Dist))
 	return checkOrigin(cfg.Origins, requireAuth(cfg.Auth, mux))

@@ -1,7 +1,7 @@
 // Typed client for hostbud's JSON API. Errors carry the server's
 // {error, hint} shape (and Retry-After for 429s).
 
-import type { Machine, Session } from './types'
+import type { Machine, Project, Session } from './types'
 
 export class ApiError extends Error {
   constructor(
@@ -75,6 +75,35 @@ export const sessionsApi = {
   /** Kills a session: callers must have the user's confirmation. */
   kill: (machine: string, name: string) =>
     request<void>('DELETE', `${sessionsPath(machine)}/${encodeURIComponent(name)}`),
+}
+
+export interface FileEntry {
+  name: string
+  path: string
+  kind: string
+  size: number
+  modifiedAt: string
+  symlinkState?: string
+}
+
+export const filesystemApi = {
+  home: (machine: string) => request<{ path: string }>('GET', `/api/machines/${encodeURIComponent(machine)}/fs/home`),
+  list: (machine: string, path: string, hidden: boolean) => request<{ path: string; entries: FileEntry[] }>(
+    'GET', `/api/machines/${encodeURIComponent(machine)}/fs?path=${encodeURIComponent(path)}&hidden=${hidden}`,
+  ),
+  stat: (machine: string, path: string) => request<{ entry: FileEntry; symlink: boolean }>(
+    'GET', `/api/machines/${encodeURIComponent(machine)}/fs/stat?path=${encodeURIComponent(path)}`,
+  ),
+  mkdir: (machine: string, path: string, name: string) => request<{ path: string }>(
+    'POST', `/api/machines/${encodeURIComponent(machine)}/fs/mkdir`, { path, name },
+  ),
+}
+
+export const projectsApi = {
+  list: (machine: string) => request<{ projects: Project[] }>('GET', `/api/projects?machine=${encodeURIComponent(machine)}`),
+  create: (machineId: string, path: string, name: string) => request<Project>('POST', '/api/projects', { machineId, path, name }),
+  createSession: (id: string, spec: { name?: string; startCommand?: string }) =>
+    request<{ name: string }>('POST', `/api/projects/${encodeURIComponent(id)}/sessions`, spec),
 }
 
 /** UI state keys the server accepts (internal/api/uistate.go). */

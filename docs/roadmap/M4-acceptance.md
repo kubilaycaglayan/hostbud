@@ -38,13 +38,13 @@ Each criterion names **U** (unit), **I** (integration against `test/sshd`, Postg
   - I: T2 PostgreSQL migration/repository round-trip, duplicate path handling and append-only migration check.
   - E: T4 *Open as project and persist* (desktop and iPhone 13 Pro).
 - [ ] Projects are listed in the tree and survive sign-out/sign-in, page reload and app-container restart. Project list updates are driven by typed events after a successful state change; the UI does not poll projects.
-  - U: T3 typed event publication; T5 tree store applies project events and handles duplicate/replayed updates idempotently.
+  - U: T3 typed event publication; T4 project store applies project events to the browser; T5 tree store handles duplicate/replayed updates idempotently.
   - I: T2 PostgreSQL persistence across repository/process reconnect; T3 event publication from project mutations.
   - E: T4 *Project persists and updates live* (desktop; create from a second page and verify event-driven update without reload, then reload/restart persistence).
 - [ ] A new session created from a project uses that project's exact directory as its working directory and is created through the existing single session service. The session appears under that project after the session list/event update.
   - U: T3 project action passes `{machine, name, path, env, startCommand}` to the session service and handles failure without a phantom tree node.
   - I: T3 against `test/sshd`: session `#{session_path}` equals the chosen project path and list diff associates the session.
-  - E: T4 *New session here* (desktop and iPhone 13 Pro): create from a project, type a marker, and assert target session path and tree placement.
+  - E: T4 *New session here* (desktop and iPhone 13 Pro): create from a project and assert the exact target session path; T5 verifies project tree placement.
 - [ ] A session belongs to the project with the longest path-component prefix on the same machine. `/work/app` matches `/work/app`; `/work/application` does not. Matching is independent of project display name and does not use a raw string-prefix boundary error.
   - U: T3 path-component matching table, including root, trailing slash, sibling prefixes and unmatched paths.
   - I: T3 against `test/sshd` plus PostgreSQL fixtures: live sessions map correctly to persisted project paths.

@@ -8,7 +8,9 @@ import (
 	"strings"
 
 	"hostbud/internal/projects"
+	"hostbud/internal/session"
 	"hostbud/internal/store"
+	"hostbud/internal/tmux"
 )
 
 // ProjectService is the authenticated API's project service surface.
@@ -17,6 +19,7 @@ type ProjectService interface {
 	Get(context.Context, string) (store.Project, error)
 	Create(context.Context, string, string, string) (store.Project, error)
 	Rename(context.Context, string, string) (store.Project, error)
+	CreateSession(context.Context, string, session.Spec) (string, error)
 }
 
 type createProjectRequest struct {
@@ -27,6 +30,35 @@ type createProjectRequest struct {
 
 type renameProjectRequest struct {
 	Name string `json:"name"`
+}
+
+type createProjectSessionRequest struct {
+	Name         string `json:"name"`
+	StartCommand string `json:"startCommand"`
+}
+
+func (s *server) createProjectSession(w http.ResponseWriter, r *http.Request) {
+	var req createProjectSessionRequest
+	if !decode(w, r, &req) {
+		return
+	}
+	if req.Name != "" {
+		if err := tmux.ValidateName(req.Name); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid session name", err.Error())
+			return
+		}
+	}
+	name, err := s.cfg.Projects.CreateSession(r.Context(), r.PathValue("id"), session.Spec{Name: req.Name, StartCommand: req.StartCommand})
+	if err != nil {
+		var sessionErr *session.Error
+		if errors.As(err, &sessionErr) {
+			s.writeSessionError(w, err)
+			return
+		}
+		s.projectError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]string{"name": name})
 }
 
 func (s *server) projectMachine(w http.ResponseWriter, id string) bool {

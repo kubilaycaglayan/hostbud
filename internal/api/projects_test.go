@@ -8,19 +8,21 @@ import (
 	"testing/fstest"
 
 	"hostbud/internal/projects"
+	"hostbud/internal/session"
 	"hostbud/internal/store"
 )
 
 type fakeProjects struct {
-	items     []store.Project
-	get       store.Project
-	created   store.Project
-	renamed   store.Project
-	err       error
-	calls     []string
-	machineID string
-	path      string
-	name      string
+	items       []store.Project
+	get         store.Project
+	created     store.Project
+	renamed     store.Project
+	err         error
+	calls       []string
+	machineID   string
+	path        string
+	name        string
+	sessionSpec session.Spec
 }
 
 func (f *fakeProjects) List(_ context.Context, machineID string) ([]store.Project, error) {
@@ -41,6 +43,11 @@ func (f *fakeProjects) Rename(_ context.Context, id, name string) (store.Project
 	f.calls = append(f.calls, "rename "+id)
 	f.name = name
 	return f.renamed, f.err
+}
+func (f *fakeProjects) CreateSession(_ context.Context, id string, spec session.Spec) (string, error) {
+	f.calls = append(f.calls, "session "+id)
+	f.sessionSpec = spec
+	return "created-session", f.err
 }
 
 func TestProjectAPICreateListRenameAndValidation(t *testing.T) {
@@ -66,6 +73,17 @@ func TestProjectAPICreateListRenameAndValidation(t *testing.T) {
 	if rec := e.do(t, http.MethodPatch, "/api/projects/project-a", `{"name":"renamed"}`, nil); rec.Code != http.StatusOK || f.name != "renamed" {
 		t.Fatalf("rename = %d %s", rec.Code, rec.Body)
 	}
+	if rec := e.do(t, http.MethodPost, "/api/projects/project-a/sessions", `{"name":"my-session","startCommand":"make run"}`, nil); rec.Code != http.StatusCreated || f.sessionSpec.Name != "my-session" || f.sessionSpec.StartCommand != "make run" {
+		t.Fatalf("project session = %d %s, spec=%+v", rec.Code, rec.Body, f.sessionSpec)
+	}
+	if rec := e.do(t, http.MethodPost, "/api/projects/project-a/sessions", `{"name":"bad/name"}`, nil); rec.Code != http.StatusBadRequest {
+		t.Fatalf("invalid project session name = %d %s", rec.Code, rec.Body)
+	}
+	f.err = &session.Error{Code: session.CodePathNotFound, Message: "project directory is unavailable"}
+	if rec := e.do(t, http.MethodPost, "/api/projects/project-a/sessions", `{}`, nil); rec.Code != http.StatusBadRequest {
+		t.Fatalf("project session error mapping = %d %s", rec.Code, rec.Body)
+	}
+	f.err = nil
 	for _, c := range []struct{ path, body string }{
 		{"/api/projects", `{"path":"relative","name":"bad"}`},
 		{"/api/projects", `{"path":"/home/dev","extra":true}`},

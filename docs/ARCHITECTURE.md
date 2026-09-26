@@ -293,6 +293,7 @@ GET    /api/projects?machine=<id>     list projects for one machine
 POST   /api/projects                  {machineId, path, name?}
 GET    /api/projects/:id
 PATCH  /api/projects/:id              {name}
+POST   /api/projects/:id/sessions     {name?, startCommand?} — creates through the shared session service at the saved project path
 GET|PUT /api/ui-state/:key            the account's JSON (GET 404 before the first PUT; PUT 204)
 GET    /api/health
 

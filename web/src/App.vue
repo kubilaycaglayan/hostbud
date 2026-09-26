@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue'
 import AuthView from '@/components/AuthView.vue'
 import CreateSessionDialog from '@/components/CreateSessionDialog.vue'
+import FileBrowser from '@/components/FileBrowser.vue'
 import KillSessionDialog from '@/components/KillSessionDialog.vue'
 import RenameSessionDialog from '@/components/RenameSessionDialog.vue'
 import HostBanner from '@/components/HostBanner.vue'
@@ -32,6 +33,7 @@ const host = computed(() => machines.byId(MACHINE))
 const hostSessions = computed(() => sessions.list(MACHINE))
 
 const creating = ref(false)
+const browsing = ref(false)
 const renaming = ref(false)
 const killing = ref(false)
 const target = ref('') // the session a rename/kill dialog is about
@@ -147,6 +149,13 @@ onUnmounted(() => {
             New session
           </button>
         </div>
+        <button
+          type="button"
+          class="mt-2 min-h-11 rounded border border-border px-3"
+          @click="browsing = !browsing"
+        >
+          {{ browsing ? 'Sessions' : 'Browse files' }}
+        </button>
         <p
           v-if="live.state === 'reconnecting' || live.state === 'connecting'"
           role="status"
@@ -154,7 +163,16 @@ onUnmounted(() => {
         >
           {{ live.state === 'connecting' ? 'Connecting…' : 'Reconnecting…' }}
         </p>
-        <div class="mt-3 min-h-0 flex-1 overflow-y-auto">
+        <FileBrowser
+          v-if="browsing"
+          :machine="MACHINE"
+          class="min-h-0 flex-1 overflow-y-auto"
+          @created="onCreated"
+        />
+        <div
+          v-else
+          class="mt-3 min-h-0 flex-1 overflow-y-auto"
+        >
           <SessionList
             :sessions="hostSessions"
             :selected="selectedSession"

@@ -6,6 +6,7 @@ import { useAuthStore } from './auth'
 import { useLayoutStore } from './layout'
 import { useMachinesStore } from './machines'
 import { useSessionsStore } from './sessions'
+import { useProjectsStore } from './projects'
 
 /** Owns the /ws/events connection and feeds the machines/sessions stores. */
 export const useLiveStore = defineStore('live', () => {
@@ -16,12 +17,14 @@ export const useLiveStore = defineStore('live', () => {
     if (conn) return
     const machines = useMachinesStore()
     const sessions = useSessionsStore()
+    const projects = useProjectsStore()
     const auth = useAuthStore()
     conn = new LiveConnection({
       url: eventsURL(),
       onEvent: (e) => {
         machines.apply(e)
         sessions.apply(e)
+        projects.apply(e)
         closeEndedSessions(e)
       },
       onState: (s) => (state.value = s),
@@ -49,6 +52,7 @@ export const useLiveStore = defineStore('live', () => {
     conn = null
     useMachinesStore().reset()
     useSessionsStore().reset()
+    useProjectsStore().reset()
   }
 
   return { state, start, stop, closeEndedSessions }
