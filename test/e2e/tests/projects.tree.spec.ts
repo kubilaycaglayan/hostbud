@@ -1,4 +1,8 @@
 import { expect, test } from '../helpers/fixtures.ts'
+import { newAccount } from '../helpers/auth.ts'
+import { owner } from '../helpers/db.ts'
+import { forbidInLogs } from '../helpers/api.ts'
+import { ctl } from '../helpers/ctl.ts'
 import { MACHINE, mutate, ORIGIN } from '../helpers/api.ts'
 import { shq, uniqueName } from '../helpers/target.ts'
 
@@ -114,7 +118,7 @@ for (const profile of ['desktop', 'phone'] as const) {
       await expect(page.getByRole('list', { name: 'Projects' }).getByRole('heading', { name: displayName, exact: true })).toHaveCount(2)
     })
 
-    test('(T5) Left bar custom order', async ({ page, target, request }) => {
+    test('(T5) Left bar custom order', async ({ page, target, request, ui }) => {
       const orderPrefix = uniqueName(`order-${profile}`)
       const firstName = `${orderPrefix}-first`
       const secondName = `${orderPrefix}-second`
@@ -122,7 +126,18 @@ for (const profile of ['desktop', 'phone'] as const) {
       const root = `/home/dev/${uniqueName('e2e-order')}`
       const first = `${root}/first`
       const second = `${root}/second`
+      const account = newAccount(`e2e-tree-${profile}`)
+      forbidInLogs(account.email, account.password)
+      await owner.allow(account.email)
       await target.run(`mkdir -p ${shq(first)} ${shq(second)}`)
+      await page.goto('/')
+      await page.getByRole('button', { name: 'Sign out' }).click()
+      await expect(ui.authForm().tab('Sign in')).toBeVisible()
+      await ui.authForm().tab('Create account').click()
+      await ui.authForm().email.fill(account.email)
+      await ui.authForm().password.fill(account.password)
+      await ui.authForm().submit('Create account').click()
+      await expect(page.getByRole('complementary', { name: 'Sessions' })).toBeVisible()
       await addProject(request, first, firstName)
       await addProject(request, second, secondName)
       const one = uniqueName('e2e-order')
@@ -142,6 +157,14 @@ for (const profile of ['desktop', 'phone'] as const) {
       await expect.poll(async () => page.getByRole('list', { name: `Sessions in ${firstName}` }).locator('button[data-session-row]').allTextContents()).toEqual([two, one])
       await expect(page.getByRole('list', { name: `Sessions in ${thirdName}` }).locator('button[data-session-row]')).toHaveText(addedSession)
       await page.waitForTimeout(650)
+      await page.reload()
+      await expect.poll(orderedTestProjects).toEqual([secondName, firstName, thirdName])
+      await page.getByRole('button', { name: 'Sign out' }).click()
+      await expect(ui.authForm().tab('Sign in')).toBeVisible()
+      await ui.signIn(account.email, account.password)
+      await expect.poll(orderedTestProjects).toEqual([secondName, firstName, thirdName])
+      await ctl.restartApp()
+      await expect.poll(async () => (await request.get('/api/health')).status(), { timeout: 20_000 }).toBe(200)
       await page.reload()
       await expect.poll(orderedTestProjects).toEqual([secondName, firstName, thirdName])
     })

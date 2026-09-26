@@ -68,7 +68,7 @@ Each criterion names **U** (unit), **I** (integration against `test/sshd`, Postg
 
 ## Left bar and account controls
 
-- [ ] The left bar's project and session rows use a user-controlled order. Users can reorder projects and sessions within their project or Other sessions group; the order is persisted per account and restored after reload, sign-out/sign-in and app restart. New rows are added without automatically re-sorting existing rows. No alphabetical, activity, or recency auto-sort overrides the saved order.
+- [x] The left bar's project and session rows use a user-controlled order. Users can reorder projects and sessions within their project or Other sessions group; the order is persisted per account and restored after reload, sign-out/sign-in and app restart. New rows are added without automatically re-sorting existing rows. No alphabetical, activity, or recency auto-sort overrides the saved order.
   - U: T5 tree ordering operations, insertion of newly observed projects/sessions, serialization and validation; invalid or duplicate order entries are repaired deterministically.
   - I: T5 per-account project and session order round-trip through the PostgreSQL-backed `tree` UI-state key; order for one account does not affect another.
   - E: T5 *Left bar custom order* (desktop and iPhone 13 Pro): reorder project and session rows, create a new session/project and verify existing order stays put, reload/restart and verify order persists.
@@ -136,7 +136,7 @@ Projects remain `desktop-chromium` and `iphone-13-pro` against the throwaway tar
 - [x] **(T5) Linked session rename and cleanup:** project-created session link follows UI rename and is removed/invalidated after session end (desktop).
 - [x] **(T5) Other sessions and Save as project:** unmatched session is grouped separately; save it, see it move under a project, and verify tmux session id is unchanged (desktop and phone).
 - [x] **(T5) Distinct project tree entries:** nested paths and similar names remain separate, deterministic entries (desktop).
-- [ ] **(T5) Left bar custom order:** reorder projects and sessions, add new rows, and verify existing custom order persists through reload and restart (desktop and phone).
+- [x] **(T5) Left bar custom order:** reorder projects and sessions, add new rows, and verify existing custom order persists through reload, sign-out/sign-in and restart (desktop and phone).
 - [ ] **(T5) Left bar session actions:** the ×, ⋯ and pencil sit directly to the right of the title; rename works; × prompts before kill (desktop and phone).
 - [ ] **(T5) Account controls in app header:** email and Sign out appear top-right whether the left bar is open or closed; sign out revokes the session (desktop and phone).
 - [ ] **(T5) No window counts:** one-window and multi-window rows both omit the count label (desktop).
