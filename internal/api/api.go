@@ -30,6 +30,7 @@ type Config struct {
 	Bus        *events.Bus
 	Machines   []Snapshotter // v1: the host only
 	Sessions   SessionService
+	Projects   ProjectService
 	FileSystem FileBrowser  // authenticated SFTP-backed filesystem service
 	Terminal   http.Handler // /ws/term (term.Handler)
 	UIState    UIStateStore // /api/ui-state/{key}
@@ -83,6 +84,12 @@ func New(cfg Config) http.Handler {
 		mux.HandleFunc("GET /api/machines/{machine}/fs", s.fsList)
 		mux.HandleFunc("GET /api/machines/{machine}/fs/stat", s.fsStat)
 		mux.HandleFunc("POST /api/machines/{machine}/fs/mkdir", s.fsMkdir)
+	}
+	if cfg.Projects != nil {
+		mux.HandleFunc("GET /api/projects", s.listProjects)
+		mux.HandleFunc("POST /api/projects", s.createProject)
+		mux.HandleFunc("GET /api/projects/{id}", s.getProject)
+		mux.HandleFunc("PATCH /api/projects/{id}", s.renameProject)
 	}
 	mux.Handle("GET /", spaHandler(cfg.Dist))
 	return checkOrigin(cfg.Origins, requireAuth(cfg.Auth, mux))

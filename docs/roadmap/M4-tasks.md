@@ -12,7 +12,7 @@ Update this table in the same commit that finishes a task.
 |---|---|
 | T1 SFTP service and API | Done |
 | T2 Project and recent-command persistence | Done |
-| T3 Project API, events and session placement service | Planned |
+| T3 Project API, events and session placement service | Done |
 | T4 File browser and project actions | Planned |
 | T5 Project tree and unmatched sessions | Planned |
 | T6 Recent start commands | Planned |
@@ -49,7 +49,7 @@ Tasks proceed in order. Before implementation, re-check M3's acceptance gates an
 
 ## T3 — Project API, events and session placement service
 
-- Implement authenticated project routes matching ARCHITECTURE §9 (`GET|POST|PATCH|DELETE /api/projects[/:id]`), with the current M4 scope limited to list/create/rename and safe project metadata updates. Do not expose project delete until tree references and the roadmap define its behavior; unsupported operations return the documented API response.
+- Implement authenticated project routes matching ARCHITECTURE §9 (list/get/create/rename). Keep project delete unsupported until tree references and the roadmap define its behavior; unsupported methods return the documented API response.
 - Publish typed project change events on the existing event bus only after successful persistence. Browsers consume these through `/ws/events`; no polling endpoint or timer is added.
 - Add the project placement service: `session_links` hint first, then longest path-component prefix on the same machine, otherwise Other sessions. UI-created sessions call the single existing session creation service with the project's path. For links, handle rename and ended-session cleanup without binding a later unrelated same-name session.
 - Keep `machine_id` on all service and event structures so multi-machine support can return without schema/API rewrite.

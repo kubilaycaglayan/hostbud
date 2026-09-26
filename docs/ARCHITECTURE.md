@@ -163,7 +163,7 @@ The poller diffs against the in-memory cache and publishes `sessions.changed` / 
 - **Never modify the user's tmux config or global options.**
 
 ### 5.3 Project ↔ session mapping
-A session belongs to the project whose `path` is the **longest prefix** of the session's `session_path` on the same machine. Unmatched sessions appear under an "Other sessions" node with a "Save as project" action. When a session is created from a project, record `(machine_id, session_name) → project_id` in `session_links` as a hint that takes precedence.
+A session belongs to its `session_links` project when a link exists on the same machine; otherwise it belongs to the project whose `path` is the **longest path-component prefix** of `session_path` on that machine. Unmatched sessions appear under an "Other sessions" node with a "Save as project" action. Project-created sessions record `(machine_id, session_name) → project_id` as a hint. A successful UI rename updates this link before inventory publishes its refreshed session list; ended sessions have links removed when a full `sessions.changed` snapshot no longer includes them. The placement service is event-driven and adds no polling loop.
 
 ---
 
@@ -289,7 +289,10 @@ POST   /api/machines/:id/sessions/:name/copy-mode
 GET    /api/machines/:id/fs?path=         list dir
 POST   /api/machines/:id/fs/mkdir
 GET    /api/machines/:id/fs/home
-GET|POST|PATCH|DELETE /api/projects[/:id]
+GET    /api/projects?machine=<id>     list projects for one machine
+POST   /api/projects                  {machineId, path, name?}
+GET    /api/projects/:id
+PATCH  /api/projects/:id              {name}
 GET|PUT /api/ui-state/:key            the account's JSON (GET 404 before the first PUT; PUT 204)
 GET    /api/health
 

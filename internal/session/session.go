@@ -67,14 +67,27 @@ type Service struct {
 	exec     inventory.Executor
 	machines map[string]Tracker
 	log      *slog.Logger
+	hooks    LifecycleHooks
+}
+
+// LifecycleHooks synchronize metadata after a remote session mutation.
+// RenameSessionLink and EndSessionLink run before inventory refresh publishes
+// its complete changed snapshot.
+type LifecycleHooks interface {
+	RenameSessionLink(context.Context, string, string, string) error
+	EndSessionLink(context.Context, string, string) error
 }
 
 // New returns a Service for the given machines (v1: just the host).
-func New(exec inventory.Executor, machines map[string]Tracker, log *slog.Logger) *Service {
+func New(exec inventory.Executor, machines map[string]Tracker, log *slog.Logger, hooks ...LifecycleHooks) *Service {
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
-	return &Service{exec: exec, machines: machines, log: log}
+	s := &Service{exec: exec, machines: machines, log: log}
+	if len(hooks) > 0 {
+		s.hooks = hooks[0]
+	}
+	return s
 }
 
 // ready returns the machine's tracker and state, or an error if the machine
@@ -188,6 +201,11 @@ func (s *Service) Rename(ctx context.Context, machine, from, to string) error {
 		}
 		return s.remoteError(err)
 	}
+	if s.hooks != nil {
+		if err := s.hooks.RenameSessionLink(ctx, machine, from, to); err != nil {
+			s.log.Warn("session renamed but project link update failed", "machine", machine, "err", err)
+		}
+	}
 	s.log.Info("session renamed", "machine", machine, "from", from, "to", to)
 	s.refresh(ctx, t)
 	return nil
@@ -208,6 +226,11 @@ func (s *Service) Kill(ctx context.Context, machine, name string) error {
 			return errorf(CodeNotFound, "It may have been closed already.", "no session named %q", name)
 		}
 		return s.remoteError(err)
+	}
+	if s.hooks != nil {
+		if err := s.hooks.EndSessionLink(ctx, machine, name); err != nil {
+			s.log.Warn("session ended but project link cleanup failed", "machine", machine, "err", err)
+		}
 	}
 	s.log.Info("session killed", "machine", machine, "session", name)
 	s.refresh(ctx, t)

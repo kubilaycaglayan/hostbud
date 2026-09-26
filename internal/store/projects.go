@@ -23,31 +23,31 @@ const (
 
 // Project is a saved target directory and its display metadata.
 type Project struct {
-	ID         string
-	MachineID  string
-	Path       string
-	Name       string
-	SortOrder  int
-	Pinned     bool
-	LastUsedAt *time.Time
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	ID         string     `json:"id"`
+	MachineID  string     `json:"machineId"`
+	Path       string     `json:"path"`
+	Name       string     `json:"name"`
+	SortOrder  int        `json:"sortOrder"`
+	Pinned     bool       `json:"pinned"`
+	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
+	CreatedAt  time.Time  `json:"createdAt"`
+	UpdatedAt  time.Time  `json:"updatedAt"`
 }
 
 // SessionLink records the project explicitly associated with a live session.
 type SessionLink struct {
-	MachineID   string
-	SessionName string
-	ProjectID   string
-	CreatedAt   time.Time
+	MachineID   string    `json:"machineId"`
+	SessionName string    `json:"sessionName"`
+	ProjectID   string    `json:"projectId"`
+	CreatedAt   time.Time `json:"createdAt"`
 }
 
 // RecentCommand is an exact start-command string recently used in a project.
 type RecentCommand struct {
-	ID         int64
-	ProjectID  string
-	Command    string
-	LastUsedAt time.Time
+	ID         int64     `json:"id"`
+	ProjectID  string    `json:"projectId"`
+	Command    string    `json:"command"`
+	LastUsedAt time.Time `json:"lastUsedAt"`
 }
 
 const projectCols = `id, machine_id, path, name, sort_order, pinned, last_used_at, created_at, updated_at`
@@ -110,7 +110,7 @@ func (s *Store) Projects(ctx context.Context, machineID string) ([]Project, erro
 		return nil, err
 	}
 	defer func() { _ = rows.Close() }()
-	var out []Project
+	out := make([]Project, 0)
 	for rows.Next() {
 		p, err := scanProject(rows)
 		if err != nil {
@@ -241,6 +241,18 @@ func (s *Store) DeleteSessionLink(ctx context.Context, machineID, sessionName st
 	return err
 }
 
+// PruneSessionLinks removes associations for sessions absent from the latest
+// full inventory snapshot. An empty activeNames list removes every link on
+// that machine.
+func (s *Store) PruneSessionLinks(ctx context.Context, machineID string, activeNames []string) error {
+	if len(activeNames) == 0 {
+		_, err := s.db.ExecContext(ctx, `DELETE FROM session_links WHERE machine_id = $1`, machineID)
+		return err
+	}
+	_, err := s.db.ExecContext(ctx, `DELETE FROM session_links WHERE machine_id = $1 AND NOT (session_name = ANY($2))`, machineID, activeNames)
+	return err
+}
+
 // RecentCommands returns the most recently used commands first, with a stable
 // lexical tie-break for equal timestamps.
 func (s *Store) RecentCommands(ctx context.Context, projectID string) ([]RecentCommand, error) {
@@ -249,7 +261,7 @@ func (s *Store) RecentCommands(ctx context.Context, projectID string) ([]RecentC
 		return nil, err
 	}
 	defer func() { _ = rows.Close() }()
-	var out []RecentCommand
+	out := make([]RecentCommand, 0)
 	for rows.Next() {
 		var c RecentCommand
 		if err := rows.Scan(&c.ID, &c.ProjectID, &c.Command, &c.LastUsedAt); err != nil {

@@ -44,10 +44,17 @@ type fakeTracker struct {
 	machine   inventory.Machine
 	sessions  []tmux.Session
 	refreshes int
+	onRefresh func()
 }
 
 func (t *fakeTracker) Snapshot() (inventory.Machine, []tmux.Session) { return t.machine, t.sessions }
-func (t *fakeTracker) Refresh(context.Context) error                 { t.refreshes++; return nil }
+func (t *fakeTracker) Refresh(context.Context) error {
+	t.refreshes++
+	if t.onRefresh != nil {
+		t.onRefresh()
+	}
+	return nil
+}
 
 func okHost(sessions ...string) *fakeTracker {
 	t := &fakeTracker{machine: inventory.Machine{
@@ -62,6 +69,38 @@ func okHost(sessions ...string) *fakeTracker {
 
 func newSvc(f *fakeExec, t *fakeTracker) *Service {
 	return New(f, map[string]Tracker{"host": t}, nil)
+}
+
+type lifecycleRecorder struct{ calls []string }
+
+func (l *lifecycleRecorder) RenameSessionLink(_ context.Context, machine, oldName, newName string) error {
+	l.calls = append(l.calls, "rename "+machine+" "+oldName+" "+newName)
+	return nil
+}
+func (l *lifecycleRecorder) EndSessionLink(_ context.Context, machine, name string) error {
+	l.calls = append(l.calls, "end "+machine+" "+name)
+	return nil
+}
+
+func TestLifecycleHooksRunBeforeInventoryRefresh(t *testing.T) {
+	tracker := okHost("old", "new")
+	hooks := &lifecycleRecorder{}
+	tracker.onRefresh = func() {
+		if len(hooks.calls) == 0 {
+			t.Fatal("inventory refreshed before linked session metadata")
+		}
+	}
+	svc := New(&fakeExec{}, map[string]Tracker{"host": tracker}, nil, hooks)
+	if err := svc.Rename(context.Background(), "host", "old", "renamed"); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.Kill(context.Background(), "host", "new"); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"rename host old renamed", "end host new"}
+	if !slices.Equal(hooks.calls, want) {
+		t.Fatalf("lifecycle hooks = %v; want %v", hooks.calls, want)
+	}
 }
 
 func remote(code int, stderr string) error {

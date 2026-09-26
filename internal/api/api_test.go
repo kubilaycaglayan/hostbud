@@ -123,12 +123,13 @@ func (f *fakeAuth) Authenticate(_ context.Context, token string) (store.User, er
 }
 
 type env struct {
-	h   http.Handler
-	svc *fakeService
-	bus *events.Bus
-	m   *fakeMachine
-	ui  *fakeUIState
-	fs  *fakeFileBrowser
+	h        http.Handler
+	svc      *fakeService
+	bus      *events.Bus
+	m        *fakeMachine
+	ui       *fakeUIState
+	fs       *fakeFileBrowser
+	projects *fakeProjects
 }
 
 type fakeFileBrowser struct {
@@ -156,10 +157,11 @@ func (f *fakeFileBrowser) Mkdir(_ context.Context, p, name string) (string, erro
 func newEnv(t *testing.T) *env {
 	t.Helper()
 	e := &env{svc: &fakeService{}, bus: events.NewBus(), m: host("a"), ui: &fakeUIState{}, fs: &fakeFileBrowser{}}
+	e.projects = &fakeProjects{}
 	e.h = New(Config{
 		Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Dist: fstest.MapFS{},
 		Origins: AllowedOrigins("hostbud.example.com", 9055), Bus: e.bus,
-		Machines: []Snapshotter{e.m}, Sessions: e.svc, Auth: &fakeAuth{}, UIState: e.ui, FileSystem: e.fs,
+		Machines: []Snapshotter{e.m}, Sessions: e.svc, Auth: &fakeAuth{}, UIState: e.ui, FileSystem: e.fs, Projects: e.projects,
 	})
 	return e
 }

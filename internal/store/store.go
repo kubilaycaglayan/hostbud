@@ -76,6 +76,7 @@ type Repository interface {
 	UpsertSessionLink(ctx context.Context, machineID, sessionName, projectID string) error
 	RenameSessionLink(ctx context.Context, machineID, oldName, newName string) error
 	DeleteSessionLink(ctx context.Context, machineID, sessionName string) error
+	PruneSessionLinks(ctx context.Context, machineID string, activeNames []string) error
 	RecentCommands(ctx context.Context, projectID string) ([]RecentCommand, error)
 	RememberRecentCommand(ctx context.Context, projectID, command string) error
 	// Backup writes a consistent copy of the database to dest (must not exist).

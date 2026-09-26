@@ -13,6 +13,8 @@ const (
 	MachineStatus Type = "machine.status"
 	// SessionsChanged carries a SessionsChanged payload.
 	SessionsChanged Type = "sessions.changed"
+	// ProjectsChanged carries a projects.Changed payload.
+	ProjectsChanged Type = "projects.changed"
 )
 
 // Event is one published event. Payload's type is determined by Type.

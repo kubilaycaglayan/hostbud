@@ -20,6 +20,7 @@ import (
 	"hostbud/internal/events"
 	"hostbud/internal/fsbrowse"
 	"hostbud/internal/inventory"
+	"hostbud/internal/projects"
 	"hostbud/internal/session"
 	"hostbud/internal/sshx"
 	"hostbud/internal/store"
@@ -94,6 +95,10 @@ func run() error {
 
 	// Track the host's tmux sessions; every change goes out on the bus.
 	bus := events.NewBus()
+	projectService := projects.New(st, bus, log)
+	projectDone := make(chan struct{})
+	go func() { projectService.Run(ctx); close(projectDone) }()
+	defer func() { <-projectDone }()
 	inv := inventory.New(ssh, bus, inventory.Options{
 		MachineID: store.HostMachineID, Label: cfg.HostLabel, Interval: cfg.PollInterval,
 		Store: capabilityStore{st}, Log: log,
@@ -102,7 +107,8 @@ func run() error {
 	go func() { inv.Run(ctx); close(invDone) }()
 	defer func() { <-invDone }()
 
-	sessions := session.New(ssh, map[string]session.Tracker{store.HostMachineID: inv}, log)
+	sessions := session.New(ssh, map[string]session.Tracker{store.HostMachineID: inv}, log, projectService)
+	projectService.SetSessionCreator(sessions)
 
 	authKey, err := loadOrCreateKey(filepath.Join(cfg.DataDir, "auth-key"))
 	if err != nil {
@@ -133,6 +139,7 @@ func run() error {
 			Bus:            bus,
 			Machines:       []api.Snapshotter{inv},
 			Sessions:       sessions,
+			Projects:       projectService,
 			FileSystem:     filesystem,
 			Terminal:       &term.Handler{SSH: ssh, Log: log, Shutdown: ctx.Done()},
 			UIState:        st,
