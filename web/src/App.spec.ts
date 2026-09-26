@@ -65,6 +65,9 @@ describe('App shell', () => {
     await flushPromises()
     expect(wrapper.get('header').text()).toContain('hostbud')
     expect(wrapper.get('header').text()).toContain('person@example.com')
+    expect(wrapper.get('aside').get('h2').text()).toBe('Projects & sessions')
+    expect(wrapper.get('aside').text()).toContain('New session')
+    expect(wrapper.get('aside').text()).toContain('Browse files')
     expect(wrapper.get('main').text()).toContain('Select a session')
     // Signed in ⇒ live updates start (no polling).
     expect(IdleSocket.instances.map((x) => x.url)).toEqual(['ws://localhost:3000/ws/events'])

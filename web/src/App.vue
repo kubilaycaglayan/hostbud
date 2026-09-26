@@ -177,22 +177,25 @@ onUnmounted(() => {
         class="w-full shrink-0 flex-col border-r border-border bg-surface p-3 md:flex md:w-64"
         :class="app.terminalShown ? 'hidden' : 'flex'"
       >
-        <div class="flex items-center justify-between gap-2">
+        <h2 class="mb-2 px-1 text-sm font-semibold">
+          Projects &amp; sessions
+        </h2>
+        <div class="grid grid-cols-2 gap-2">
           <button
             type="button"
-            class="rounded border border-border px-2 py-1"
+            class="min-h-10 min-w-0 whitespace-nowrap rounded border border-border px-2 text-xs"
             @click="newSession"
           >
             New session
           </button>
+          <button
+            type="button"
+            class="min-h-10 min-w-0 whitespace-nowrap rounded border border-border px-2 text-xs"
+            @click="browsing = !browsing"
+          >
+            {{ browsing ? 'Sessions' : 'Browse files' }}
+          </button>
         </div>
-        <button
-          type="button"
-          class="mt-2 min-h-11 rounded border border-border px-3"
-          @click="browsing = !browsing"
-        >
-          {{ browsing ? 'Sessions' : 'Browse files' }}
-        </button>
         <p
           v-if="live.state === 'reconnecting' || live.state === 'connecting'"
           role="status"

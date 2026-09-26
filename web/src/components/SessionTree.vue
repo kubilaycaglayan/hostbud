@@ -27,14 +27,6 @@ const projectRows = computed({
   set: (groups: (ProjectGroup & { id: string })[]) => tree.reorderProjects(groups.map((group) => group.project.id)),
 })
 
-function moveProject(id: string, direction: -1 | 1) {
-  const ids = tree.groups.groups.map((group) => group.project.id)
-  const index = ids.indexOf(id)
-  const target = index + direction
-  if (index < 0 || target < 0 || target >= ids.length) return
-  ids.splice(target, 0, ...ids.splice(index, 1))
-  tree.reorderProjects(ids)
-}
 async function saveAsProject(session: Session) {
   busySession.value = session.name
   error.value = null
@@ -79,27 +71,11 @@ async function saveAsProject(session: Session) {
           <button
             type="button"
             class="project-drag-handle min-h-11 min-w-8 cursor-grab rounded text-muted"
-            :aria-label="`Reorder project ${group.project.name}`"
-            title="Reorder"
+            :aria-label="`Drag to reorder project ${group.project.name}`"
+            title="Drag to reorder projects"
           >
             ⠿
           </button>
-          <span class="flex">
-            <button
-              type="button"
-              class="min-h-11 min-w-8 text-xs text-muted"
-              :aria-label="`Move project ${group.project.name} up`"
-              :disabled="tree.groups.groups[0]?.project.id === group.project.id"
-              @click="moveProject(group.project.id, -1)"
-            >▲</button>
-            <button
-              type="button"
-              class="min-h-11 min-w-8 text-xs text-muted"
-              :aria-label="`Move project ${group.project.name} down`"
-              :disabled="tree.groups.groups.at(-1)?.project.id === group.project.id"
-              @click="moveProject(group.project.id, 1)"
-            >▼</button>
-          </span>
           <span
             role="heading"
             aria-level="3"
@@ -137,34 +113,15 @@ async function saveAsProject(session: Session) {
         :sessions="tree.groups.other"
         :selected="props.selected"
         sortable
+        can-save-as-project
         list-label="Other sessions"
         @select="emit('select', $event)"
         @split="(name, dir) => emit('split', name, dir)"
         @rename="emit('rename', $event)"
         @kill="emit('kill', $event)"
         @reorder="tree.reorderSessions('__other__', $event)"
+        @save-as-project="saveAsProject"
       />
-      <ul
-        aria-label="Unmatched session actions"
-        class="mt-1 flex flex-col gap-1"
-      >
-        <li
-          v-for="session in tree.groups.other"
-          :key="session.name"
-          class="flex items-center justify-between gap-2 px-2"
-        >
-          <span class="min-w-0 truncate text-sm text-muted">{{ session.name }}</span>
-          <button
-            type="button"
-            :aria-label="`Save ${session.name} as project`"
-            class="min-h-11 rounded px-2 text-sm text-accent"
-            :disabled="busySession === session.name"
-            @click="saveAsProject(session)"
-          >
-            Save as project
-          </button>
-        </li>
-      </ul>
     </section>
   </nav>
 </template>

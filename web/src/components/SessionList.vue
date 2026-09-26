@@ -10,6 +10,7 @@ const props = defineProps<{
   selected?: string
   sortable?: boolean
   listLabel?: string
+  canSaveAsProject?: boolean
 }>()
 const emit = defineEmits<{
   select: [name: string]
@@ -18,6 +19,7 @@ const emit = defineEmits<{
   rename: [name: string]
   kill: [name: string]
   reorder: [names: string[]]
+  saveAsProject: [session: Session]
 }>()
 
 const item = 'cursor-pointer rounded px-2 py-1 outline-none data-highlighted:bg-bg'
@@ -25,14 +27,6 @@ const sortableSessions = computed({
   get: () => props.sessions,
   set: (items: Session[]) => emit('reorder', items.map((s) => s.name)),
 })
-function moveSession(name: string, direction: -1 | 1) {
-  const names = props.sessions.map((s) => s.name)
-  const index = names.indexOf(name)
-  const target = index + direction
-  if (index < 0 || target < 0 || target >= names.length) return
-  names.splice(target, 0, ...names.splice(index, 1))
-  emit('reorder', names)
-}
 </script>
 
 <template>
@@ -58,37 +52,18 @@ function moveSession(name: string, direction: -1 | 1) {
     <li
       v-for="s in sortableSessions"
       :key="s.name"
-      class="flex items-center gap-2 rounded px-2 py-1"
+      class="flex items-center gap-1 rounded px-1 py-0.5"
       :class="s.name === props.selected ? 'bg-bg' : ''"
     >
       <button
         v-if="props.sortable"
         type="button"
-        class="session-drag-handle min-h-11 min-w-8 cursor-grab rounded text-muted"
-        :aria-label="`Reorder ${s.name}`"
-        title="Reorder"
+        class="session-drag-handle min-h-8 min-w-6 cursor-grab rounded text-muted"
+        :aria-label="`Drag to reorder session ${s.name}`"
+        title="Drag to reorder sessions"
       >
         ⠿
       </button>
-      <span
-        v-if="props.sortable"
-        class="flex"
-      >
-        <button
-          type="button"
-          class="min-h-11 min-w-8 text-xs text-muted"
-          :aria-label="`Move session ${s.name} up`"
-          :disabled="props.sessions[0]?.name === s.name"
-          @click="moveSession(s.name, -1)"
-        >▲</button>
-        <button
-          type="button"
-          class="min-h-11 min-w-8 text-xs text-muted"
-          :aria-label="`Move session ${s.name} down`"
-          :disabled="props.sessions.at(-1)?.name === s.name"
-          @click="moveSession(s.name, 1)"
-        >▼</button>
-      </span>
       <span
         role="img"
         :aria-label="s.attached > 0 ? 'attached' : 'detached'"
@@ -106,12 +81,12 @@ function moveSession(name: string, direction: -1 | 1) {
       >
         {{ s.name }}
       </button>
-      <span class="flex shrink-0 items-center gap-1">
+      <span class="flex shrink-0 items-center gap-0.5">
         <button
           type="button"
           :aria-label="`Kill ${s.name}`"
           title="Kill"
-          class="min-h-11 min-w-10 rounded px-1 text-muted hover:text-danger"
+          class="min-h-8 min-w-7 rounded px-1 text-muted hover:text-danger"
           @click="emit('kill', s.name)"
         >
           ✕
@@ -120,7 +95,7 @@ function moveSession(name: string, direction: -1 | 1) {
           <DropdownMenuTrigger
             :aria-label="`More actions for ${s.name}`"
             title="More"
-            class="min-h-11 min-w-10 rounded px-1 text-muted hover:text-fg"
+            class="min-h-8 min-w-7 rounded px-1 text-muted hover:text-fg"
           >
             ⋯
           </DropdownMenuTrigger>
@@ -142,6 +117,13 @@ function moveSession(name: string, direction: -1 | 1) {
               >
                 Open in split down
               </DropdownMenuItem>
+              <DropdownMenuItem
+                v-if="props.canSaveAsProject"
+                :class="item"
+                @select="emit('saveAsProject', s)"
+              >
+                Save as project
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenuPortal>
         </DropdownMenuRoot>
@@ -149,7 +131,7 @@ function moveSession(name: string, direction: -1 | 1) {
           type="button"
           :aria-label="`Rename ${s.name}`"
           title="Rename"
-          class="min-h-11 min-w-10 rounded px-1 text-muted hover:text-fg"
+          class="min-h-8 min-w-7 rounded px-1 text-muted hover:text-fg"
           @click="emit('rename', s.name)"
         >
           ✎

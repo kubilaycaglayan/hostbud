@@ -25,7 +25,7 @@ for (const profile of ['desktop', 'phone'] as const) {
       await expect(page.getByRole('button', { name: 'child/' })).toBeVisible()
     })
 
-    test('Create folder and open as project, then create a session here', async ({ page, target, request }) => {
+    test('(T4) Create folder, open as project and create a session here', async ({ page, target, request }) => {
       const name = uniqueName('e2e-project-browser')
       const dir = `/home/dev/${name}`
       await target.run(`mkdir -p ${shq(dir)}`)
@@ -33,6 +33,9 @@ for (const profile of ['desktop', 'phone'] as const) {
       await page.getByRole('button', { name: 'Browse files' }).click()
       await page.getByLabel('Current path').fill(dir)
       await page.getByRole('button', { name: 'Go' }).click()
+      await page.getByLabel('New folder name').fill('../escape')
+      await page.getByRole('button', { name: 'Create folder' }).click()
+      await expect(page.getByRole('alert')).toContainText('Use a single folder name')
       await page.getByLabel('New folder name').fill('created')
       await page.getByRole('button', { name: 'Create folder' }).click()
       await expect(page.getByRole('button', { name: 'created/' })).toBeVisible()

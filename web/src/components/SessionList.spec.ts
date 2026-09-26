@@ -24,17 +24,19 @@ describe('SessionList', () => {
     expect(items.map((item) => item.text()).join(' ')).not.toMatch(/\b\d+ windows?\b/)
   })
 
-  it('reorders sessions with the touch-friendly move control', async () => {
+  it('uses a drag handle for reorder and keeps the session row free of move arrows', async () => {
     const w = mount(SessionList, { props: { sessions: [s('a'), s('b')], sortable: true } })
-    await w.get('button[aria-label="Move session b up"]').trigger('click')
-    expect(w.emitted('reorder')).toEqual([[['b', 'a']]])
+    expect(w.find('button[aria-label="Move session b up"]').exists()).toBe(false)
+    expect(w.find('button[aria-label="Move session b down"]').exists()).toBe(false)
+    expect(w.get('button[aria-label="Drag to reorder session b"]').attributes('title')).toBe('Drag to reorder sessions')
+    expect(w.get('li').classes()).toContain('py-0.5')
   })
 
   it('keeps the session action group immediately after the title in kill/menu/rename order', () => {
     const w = mount(SessionList, { props: { sessions: [s('a')] } })
     const row = w.get('li')
     expect(row.get('[data-session-row]').attributes('aria-label')).toBe('a')
-    expect(row.get('span.flex.shrink-0.items-center.gap-1').findAll('button').map((button) => button.attributes('aria-label'))).toEqual([
+    expect(row.findAll('button').slice(-3).map((button) => button.attributes('aria-label'))).toEqual([
       'Kill a', 'More actions for a', 'Rename a',
     ])
   })

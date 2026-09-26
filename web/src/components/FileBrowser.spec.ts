@@ -4,12 +4,14 @@ import { createPinia, setActivePinia } from 'pinia'
 import FileBrowser from './FileBrowser.vue'
 
 const fetchMock = vi.fn()
+const createdFolders = new Set<string>()
 vi.stubGlobal('fetch', fetchMock)
 
 describe('FileBrowser', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     fetchMock.mockReset()
+    createdFolders.clear()
     fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
       const parsed = new URL(String(url), 'http://localhost')
       let body: unknown = {}
@@ -24,9 +26,17 @@ describe('FileBrowser', () => {
         { name: 'work', path: '/home/dev/work', kind: 'directory' },
         { name: 'notes', path: '/home/dev/notes', kind: 'directory' },
         { name: 'broken-link', path: '/home/dev/broken-link', kind: 'symlink', symlinkState: 'unresolved' },
+        ...[...createdFolders]
+          .filter((created) => created.startsWith(`${parsed.searchParams.get('path')}/`))
+          .map((created) => ({ name: created.split('/').at(-1), path: created, kind: 'directory' })),
         ...(parsed.searchParams.get('hidden') === 'true' ? [{ name: '.hidden', path: '/home/dev/.hidden', kind: 'file' }] : []),
       ] }
-      else if (parsed.pathname.endsWith('/fs/mkdir')) body = { path: '/home/dev/new-folder' }
+      else if (parsed.pathname.endsWith('/fs/mkdir')) {
+        const requestBody = JSON.parse(String(init?.body)) as { path: string; name: string }
+        const child = `${requestBody.path}/${requestBody.name}`
+        createdFolders.add(child)
+        body = { path: child }
+      }
       else if (parsed.pathname === '/api/projects' && init?.method === 'POST') body = { id: 'p1', machineId: 'host', path: '/home/dev/work', name: 'work' }
       else if (parsed.pathname === '/api/projects' && init?.method === 'GET') body = { projects: [] }
       else if (parsed.pathname === '/api/projects/p1/recent-commands') body = { commands: ['make test'] }
@@ -60,6 +70,7 @@ describe('FileBrowser', () => {
     await wrapper.get('#folder-name').element.closest('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
     await flushPromises()
     expect(fetchMock).toHaveBeenCalledWith('/api/machines/host/fs/mkdir', expect.objectContaining({ method: 'POST' }))
+    expect(wrapper.findAll('button').some((button) => button.text() === 'new-folder/')).toBe(true)
     await wrapper.findAll('button').find((button) => button.text().includes('Open as project'))?.trigger('click')
     await flushPromises()
     await wrapper.findAll('button').find((button) => button.text().includes('New session here'))?.trigger('click')

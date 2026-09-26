@@ -22,7 +22,7 @@ Each criterion names **U** (unit), **I** (integration against `test/sshd`, Postg
   - U: T4 autocomplete filtering, keyboard state and path input/error states.
   - I: T1 SFTP stat/list error mapping for missing path and non-directory path.
   - E: T4 *Path autocomplete and invalid paths* (desktop and iPhone 13 Pro).
-- [ ] The user can create a child directory. Empty names, `.`/`..`, separators, NUL and names that escape the selected directory are rejected; a successful creation refreshes the listing and selects or reveals the new directory.
+- [x] The user can create a child directory. Empty names, `.`/`..`, separators, NUL and names that escape the selected directory are rejected; a successful creation refreshes the listing and selects or reveals the new directory.
   - U: T1 mkdir name validation and containment; T4 form behavior.
   - I: T1 against `test/sshd`: mkdir succeeds, the new path is visible, and rejected names do not create anything.
   - E: T4 *Create folder* (desktop and iPhone 13 Pro).
