@@ -12,7 +12,7 @@ All such values come from environment variables. **If you need a config value th
 
 ## Scope (v1)
 - **Single target: the host machine** hostbud runs on, reached over SSH from the container. Multi-machine support is deferred (ROADMAP *Later*), but keep `machine_id` in the schema, API and `sshx` so it can return without a rewrite.
-- **Access paths:** (1) SSH port forward to `127.0.0.1:${HOSTBUD_LOCAL_PORT}` (plain HTTP) and (2) `https://${HOSTBUD_DOMAIN}` on the Tailscale IP. No app login: the host has a single user and the tailnet is trusted.
+- **Access paths:** (1) SSH port forward to `127.0.0.1:${HOSTBUD_LOCAL_PORT}` (plain HTTP) and (2) `https://${HOSTBUD_DOMAIN}` on the Tailscale IP. Reachability alone isn't enough: the web app requires an account (whitelisted email + password, login throttling; ARCHITECTURE §8).
 - **v2 is design-only.** Don't implement it; just keep the v1 obligations in ARCHITECTURE §10.
 - No CI and no git remote for now; the repo will be published to GitHub later.
 
@@ -32,10 +32,10 @@ All such values come from environment variables. **If you need a config value th
   - When you plan tasks or a milestone, or change what a task builds, write or update those coverage lines. Never add a criterion without them.
 
 ## Stack (don't substitute without updating docs/ARCHITECTURE.md)
-- Backend: Go (latest stable), `log/slog`, `creack/pty`, `pkg/sftp`, `kevinburke/ssh_config` (display only; later, multi-machine), `modernc.org/sqlite`, embedded migrations, a WebSocket library (`coder/websocket` preferred).
+- Backend: Go (latest stable), `log/slog`, `creack/pty`, `pkg/sftp`, `kevinburke/ssh_config` (display only; later, multi-machine), PostgreSQL via `jackc/pgx` (embedded, append-only migrations), a WebSocket library (`coder/websocket` preferred).
 - **Use the system `ssh` binary** with the generated config (`-F /data/ssh/config`). Do not use a Go SSH client library for connections.
 - Frontend: Vue 3 + Vite + TypeScript, Pinia, Tailwind, Reka UI, `@xterm/xterm` + addons, `splitpanes`, `vue-draggable-plus`. No runtime CDN assets.
-- Deploy: Docker Compose (hostbud + Caddy with `caddy-dns/cloudflare`), linux/amd64.
+- Deploy: Docker Compose (hostbud + `hostbud-postgres` + Caddy with `caddy-dns/cloudflare`), linux/amd64.
 
 ## Security checklist (must stay true)
 - [ ] Caddy publishes ports only on `${TAILSCALE_IP}` (TLS) and `127.0.0.1:${HOSTBUD_LOCAL_PORT}` (plain HTTP, port-forward access), never `0.0.0.0`; hostbud publishes no ports.
