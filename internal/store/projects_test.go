@@ -250,10 +250,13 @@ func TestUpgradeFromM3PreservesExistingRows(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, statement := range []string{
-		`INSERT INTO machines (id, source, ssh_alias, label, active, home, created_at, updated_at) VALUES ('host', 'host', 'hostbud-host', 'Host machine', TRUE, '/home/dev', now(), now())`,
+		`INSERT INTO machines (id, source, ssh_alias, label, active, home, os, tmux_version, tmux_missing, created_at, updated_at) VALUES ('host', 'host', 'hostbud-host', 'Host machine', TRUE, '/home/dev', 'Linux', 'tmux 3.4', FALSE, now(), now())`,
 		`INSERT INTO ui_state (key, value_json, updated_at) VALUES ('layout', '{"open":true}', now())`,
-		`INSERT INTO users (id, email, email_normalized, password_hash) VALUES ('user-a', 'person@example.com', 'person@example.com', 'hash')`,
+		`INSERT INTO ui_state (key, value_json, updated_at) VALUES ('user:user-a:layout', '{"version":1,"tabs":[]}', now())`,
+		`INSERT INTO users (id, email, email_normalized, password_hash) VALUES ('user-a', 'person@example.com', 'person@example.com', 'test-hash')`,
 		`INSERT INTO email_allowlist (email_normalized) VALUES ('person@example.com')`,
+		`INSERT INTO auth_sessions (id_hash, user_id, expires_at, user_agent) VALUES ('test-session-hash', 'user-a', now() + interval '1 day', 'test-agent')`,
+		`INSERT INTO login_rate_limits (scope_key, failures, last_failure_at) VALUES ('test-rate-limit-key', 2, now())`,
 	} {
 		if _, err := db.ExecContext(ctx, statement); err != nil {
 			t.Fatal(err)
@@ -262,22 +265,25 @@ func TestUpgradeFromM3PreservesExistingRows(t *testing.T) {
 	if err := migrate(ctx, db); err != nil {
 		t.Fatal(err)
 	}
-	var machines, layouts, users, allowlist int
+	var machines, layouts, userLayouts, users, allowlist, authSessions, rateLimits int
 	for _, check := range []struct {
 		query string
 		dest  *int
 	}{
-		{`SELECT count(*) FROM machines WHERE id='host' AND home='/home/dev'`, &machines},
+		{`SELECT count(*) FROM machines WHERE id='host' AND source='host' AND ssh_alias='hostbud-host' AND label='Host machine' AND active AND home='/home/dev' AND os='Linux' AND tmux_version='tmux 3.4' AND NOT tmux_missing`, &machines},
 		{`SELECT count(*) FROM ui_state WHERE key='layout' AND value_json='{"open":true}'`, &layouts},
+		{`SELECT count(*) FROM ui_state WHERE key='user:user-a:layout' AND value_json='{"version":1,"tabs":[]}'`, &userLayouts},
 		{`SELECT count(*) FROM users WHERE id='user-a'`, &users},
 		{`SELECT count(*) FROM email_allowlist WHERE email_normalized='person@example.com'`, &allowlist},
+		{`SELECT count(*) FROM auth_sessions WHERE id_hash='test-session-hash' AND user_id='user-a' AND user_agent='test-agent'`, &authSessions},
+		{`SELECT count(*) FROM login_rate_limits WHERE scope_key='test-rate-limit-key' AND failures=2`, &rateLimits},
 	} {
 		if err := db.QueryRowContext(ctx, check.query).Scan(check.dest); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if machines != 1 || layouts != 1 || users != 1 || allowlist != 1 {
-		t.Fatalf("pre-existing M1–M3 rows changed: machines=%d layouts=%d users=%d allowlist=%d", machines, layouts, users, allowlist)
+	if machines != 1 || layouts != 1 || userLayouts != 1 || users != 1 || allowlist != 1 || authSessions != 1 || rateLimits != 1 {
+		t.Fatalf("pre-existing M1–M3 rows changed: machines=%d layouts=%d userLayouts=%d users=%d allowlist=%d authSessions=%d rateLimits=%d", machines, layouts, userLayouts, users, allowlist, authSessions, rateLimits)
 	}
 	var version int64
 	if err := db.QueryRowContext(ctx, `SELECT max(version_id) FROM goose_db_version WHERE is_applied`).Scan(&version); err != nil || version != 4 {

@@ -110,7 +110,7 @@ Each criterion names **U** (unit), **I** (integration against `test/sshd`, Postg
   - U: T1 cancellation, timeout and error mapping; architecture check confirms `fsbrowse` does not invoke a second command runner.
   - I: T1 timeout/disconnect against `test/sshd`; verify the SFTP client is closed and the app remains responsive.
   - E: T1 *SFTP unavailable recovery* (desktop): stop target sshd, observe an actionable error, restore it and browse successfully.
-- [ ] PostgreSQL schema changes are append-only and preserve existing users, authentication state, UI layouts and machine records. `machine_id` remains part of project and session association keys even though v1 has only the host machine.
+- [x] PostgreSQL schema changes are append-only and preserve existing users, authentication state, UI layouts and machine records. `machine_id` remains part of project and session association keys even though v1 has only the host machine.
   - U: T2 migration ordering and repository key tests.
   - I: T2 migrate a database populated with M1–M3 records; verify those records and the seeded host machine remain unchanged and repositories scope by `machine_id`.
   - E: n/a — schema preservation and machine scoping are verified directly in the PostgreSQL integration layer; e2e would not observe the database constraint more accurately.
