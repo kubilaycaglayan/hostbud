@@ -71,4 +71,20 @@ describe('check-dist PWA validation', () => {
       assert.match(readFileSync(join(process.cwd(), 'src/components', name), 'utf8'), /safe-area-inset-bottom/)
     }
   })
+  it('checks a service worker precache against the exact built shell', () => {
+    const dir = fixture()
+    mkdirSync(join(dir, 'assets'))
+    writeFileSync(join(dir, 'assets/app-hash.js'), 'app')
+    const precache = ['/', '/assets/app-hash.js', '/manifest.webmanifest', '/favicon.svg',
+      '/icons/apple-touch-icon-180.png', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/icon-maskable-512.png']
+    const worker = () => `// hostbud-precache: ${JSON.stringify(precache)}\n// hostbud-cache: hostbud-shell-abc123\nself.addEventListener('install',()=>{});`
+    writeFileSync(join(dir, 'sw.js'), worker())
+    assert.equal(checkDist(dir), true)
+    writeFileSync(join(dir, 'sw.js'), worker().replace('/assets/app-hash.js', '/api/nope'))
+    assert.throws(() => checkDist(dir), /precache list does not match/)
+    writeFileSync(join(dir, 'sw.js'), worker() + '\nself.skipWaiting()')
+    assert.throws(() => checkDist(dir), /must wait for the next launch/)
+    writeFileSync(join(dir, 'sw.js'), worker() + '\nself.skipWaiting()')
+    assert.throws(() => checkDist(dir), /must wait for the next launch/)
+  })
 })

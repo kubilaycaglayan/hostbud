@@ -7,6 +7,10 @@ async function call(action: string): Promise<void> {
 export const ctl = {
   /** docker restart hostbud-e2e-app */
   restartApp: () => call('/restart-app'),
+  /** Stops hostbud-e2e-app, leaving Caddy and the offline app shell available. */
+  appStop: () => call('/app/stop'),
+  /** Starts hostbud-e2e-app and waits for /api/health through Caddy. */
+  appStart: () => call('/app/start'),
   /** Stops sshd on the target, dropping every open connection. */
   stopSshd: () => call('/sshd/stop'),
   startSshd: () => call('/sshd/start'),

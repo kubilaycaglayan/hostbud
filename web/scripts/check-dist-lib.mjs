@@ -33,6 +33,18 @@ export function checkDist(dist) {
   for (const href of [...html.matchAll(/(?:href|src)=["']([^"']+)["']/g)].map((match) => match[1])) {
     if (/^[a-z][a-z\d+.-]*:/i.test(href) || href.startsWith('//')) fail(`off-origin HTML URL: ${href}`)
   }
+  if (exists('sw.js')) {
+    const sw = readFileSync(file('sw.js'), 'utf8')
+    const marker = sw.match(/^\/\/ hostbud-precache: (.+)$/m)
+    if (!marker) fail('service worker has no injected precache list')
+    const precache = JSON.parse(marker[1])
+    const assets = productionFiles(dist).filter((name) => name.startsWith('assets/')).map((name) => `/${name}`)
+    const expected = ['/', ...assets, '/manifest.webmanifest', '/favicon.svg', ...readdirSync(file('icons')).map((name) => `/icons/${name}`)].sort()
+    if (JSON.stringify([...precache].sort()) !== JSON.stringify(expected)) fail('service worker precache list does not match shell files')
+    if (precache.some((url) => !url.startsWith('/') || url.startsWith('/api') || url.startsWith('/ws'))) fail('invalid service worker precache URL')
+    if (/skipWaiting\s*\(|clients\.claim\s*\(/.test(sw)) fail('service worker must wait for the next launch')
+    if (!/^\/\/ hostbud-cache: hostbud-shell-[a-f\d]+$/m.test(sw)) fail('service worker cache version is missing')
+  }
   return true
 }
 

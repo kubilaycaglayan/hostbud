@@ -108,11 +108,11 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
   - U: T7 `spaHandler` types and cache headers (Go); `check-dist` validates the manifest, icon files and their pixel sizes, and rejects off-origin URLs (node).
   - I: n/a (static files served by the Go handler; no target, database or deploy-config change).
   - E: T7 *Manifest and icons* (desktop-chromium) · T7 *Theme and status-bar meta* (both phone projects).
-- [ ] A service worker at `/sw.js` (served `no-cache`, scope `/`) registers only in a secure context (the HTTPS domain or `localhost`) in production builds. It controls the page from the next load, and a blocked or failed registration is silent.
+- [x] A service worker at `/sw.js` (served `no-cache`, scope `/`) registers only in a secure context (the HTTPS domain or `localhost`) in production builds. It controls the page from the next load, and a blocked or failed registration is silent.
   - U: T8 `pwa.ts` registration conditions and rejection handling (Vitest); `/sw.js` headers (Go).
   - I: n/a (browser-side; the server only serves a static file).
   - E: T8 *Service worker registers and controls after reload* (desktop-chromium; service workers are only reliable in Chromium under Playwright).
-- [ ] The worker precaches exactly the hashed app shell (`/`, `assets/*`, manifest, icons, favicon) and serves it cache-first. `/api/*` and `/ws/*` always go to the network and are never stored; nothing is cached at runtime.
+- [x] The worker precaches exactly the hashed app shell (`/`, `assets/*`, manifest, icons, favicon) and serves it cache-first. `/api/*` and `/ws/*` always go to the network and are never stored; nothing is cached at runtime.
   - U: T8 `routing.ts` classification table; fake-`caches` install/fetch tests show no runtime `put` (Vitest); `check-dist` says the precache list equals the shell files and contains no `/api` or `/ws` (node).
   - I: n/a (browser cache).
   - E: T8 *API never served from the cache* (desktop-chromium; `fromServiceWorker()` is false for every `/api` response, and the cache has no `/api` or `/ws` entries).
@@ -120,7 +120,7 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
   - U: T6 `auth.check` outcome mapping, `UnreachableView` messages/backoff/`online`/visibility retries, sign-in network error (Vitest).
   - I: n/a (client-side decision; server 401/health behavior is covered by M1's integration tests).
   - E: T6 *Unreachable at start-up* (desktop and `iphone-13-pro`) · T6 *Offline sign-in error* (desktop) · T8 *Offline start shows the unreachable state* (desktop-chromium, `hostbud-e2e-app` stopped through `hostbud-e2e-ctl`). **Manual (T9):** launch the installed app in airplane mode.
-- [ ] A new version takes over on the next launch: the worker doesn't call `skipWaiting()` or `clients.claim()`, and activation deletes only stale `hostbud-shell-*` caches.
+- [x] A new version takes over on the next launch: the worker doesn't call `skipWaiting()` or `clients.claim()`, and activation deletes only stale `hostbud-shell-*` caches.
   - U: T8 fake-`self` activate/install tests; `check-dist` rejects `skipWaiting` in `sw.js` (Vitest/node).
   - I: n/a (browser-side lifecycle).
   - E: T8 *Only hostbud caches are managed* (desktop-chromium). Taking over on the next launch needs two different builds in one run, which the e2e stack doesn't do. **Manual (T9):** after a `make deploy` with a change, the installed app shows the new version on its second launch.
@@ -135,7 +135,7 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 
 ## Security and compatibility
 
-- [ ] The new static files (`manifest.webmanifest`, `sw.js`, icons, favicon) are public like the rest of the SPA and hold no data. Every `/api/*` and `/ws/*` route keeps its authentication and Origin behavior, and the worker can't bypass it (it never answers those requests).
+- [x] The new static files (`manifest.webmanifest`, `sw.js`, icons, favicon) are public like the rest of the SPA and hold no data. Every `/api/*` and `/ws/*` route keeps its authentication and Origin behavior, and the worker can't bypass it (it never answers those requests).
   - U: T7/T8 `spaHandler` serves the new files without a session; unknown `/icons/*` and root `*.js` → 404 (Go); T8 routing leaves `/api` and `/ws` to the network (Vitest).
   - I: n/a (no server-side auth change; M1 integration covers the auth middleware).
   - E: T8 *API never served from the cache* · T1 *Copy-mode API* (auth and Origin).
@@ -170,10 +170,10 @@ Profiles: `desktop-chromium`, `iphone-13-pro` (`http://localhost:9055`) and `iph
 - [ ] **(T6) Offline sign-in error:** a network-aborted login shows the connection message; the next correct login succeeds without throttling (desktop).
 - [x] **(T7) Manifest and icons:** manifest linked, served as `application/manifest+json`, with the required fields; every icon and the apple-touch-icon load as PNGs of their declared size through Caddy; no off-origin request (desktop-chromium).
 - [x] **(T7) Theme and status-bar meta:** `theme-color`, `apple-mobile-web-app-capable` and `viewport-fit=cover` present (both phone projects).
-- [ ] **(T8) Service worker registers and controls after reload:** no controller on first load; after `ready` and a reload the page is controlled with scope `/` (desktop-chromium).
-- [ ] **(T8) Offline start shows the unreachable state:** with the worker in control, stop `hostbud-e2e-app`, reload → the shell comes from the worker and shows **Can't reach hostbud** without session names; start the app, Try again → signed in with live sessions (desktop-chromium).
-- [ ] **(T8) API never served from the cache:** no `/api` response has `fromServiceWorker()`, and the cache holds no `/api` or `/ws` URL (desktop-chromium).
-- [ ] **(T8) Only hostbud caches are managed:** a cache with a different name survives the worker's activation (desktop-chromium).
+- [x] **(T8) Service worker registers and controls after reload:** no controller on first load; after `ready` and a reload the page is controlled with scope `/` (desktop-chromium).
+- [x] **(T8) Offline start shows the unreachable state:** with the worker in control, stop `hostbud-e2e-app`, reload → the shell comes from the worker and shows **Can't reach hostbud** without session names; start the app, Try again → signed in with live sessions (desktop-chromium).
+- [x] **(T8) API never served from the cache:** no `/api` response has `fromServiceWorker()`, and the cache holds no `/api` or `/ws` URL (desktop-chromium).
+- [x] **(T8) Only hostbud caches are managed:** a cache with a different name survives the worker's activation (desktop-chromium).
 
 ## Manual checks (owner, T9)
 

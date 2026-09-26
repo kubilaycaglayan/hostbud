@@ -19,12 +19,13 @@ func serve(t *testing.T, h http.Handler, method, target string) *httptest.Respon
 
 func builtDist() fstest.MapFS {
 	return fstest.MapFS{
-		".gitkeep":          {},
-		"index.html":        {Data: []byte("<!doctype html><title>hostbud</title>")},
-		"assets/app-abc.js": {Data: []byte("console.log(1)")},
-		"favicon.svg":       {Data: []byte("<svg/>")},
+		".gitkeep":             {},
+		"index.html":           {Data: []byte("<!doctype html><title>hostbud</title>")},
+		"assets/app-abc.js":    {Data: []byte("console.log(1)")},
+		"favicon.svg":          {Data: []byte("<svg/>")},
 		"manifest.webmanifest": {Data: []byte(`{"name":"hostbud"}`)},
-		"icons/icon-192.png": {Data: []byte("png")},
+		"icons/icon-192.png":   {Data: []byte("png")},
+		"sw.js":                {Data: []byte("// service worker")},
 	}
 }
 
@@ -44,6 +45,7 @@ func TestSPA(t *testing.T) {
 		{"favicon is not cached", "/favicon.svg", 200, "<svg/>", "no-cache"},
 		{"manifest is not cached", "/manifest.webmanifest", 200, `{"name":"hostbud"}`, "no-cache"},
 		{"icon is not cached", "/icons/icon-192.png", 200, "png", "no-cache"},
+		{"service worker is not cached", "/sw.js", 200, "service worker", "no-cache"},
 		{"missing asset is 404", "/assets/missing.js", 404, "", ""},
 		{"unknown icon is 404", "/icons/missing.png", 404, "", ""},
 		{"unknown root script is 404", "/missing.js", 404, "", ""},
@@ -72,6 +74,32 @@ func TestSPAManifestContentType(t *testing.T) {
 	rec := serve(t, h, http.MethodGet, "/manifest.webmanifest")
 	if got := rec.Header().Get("Content-Type"); got != "application/manifest+json" {
 		t.Fatalf("Content-Type = %q, want application/manifest+json", got)
+	}
+}
+
+func TestSPASwContentType(t *testing.T) {
+	h := New(Config{Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Dist: builtDist()})
+	rec := serve(t, h, http.MethodGet, "/sw.js")
+	if got := rec.Header().Get("Content-Type"); got != "text/javascript" {
+		t.Fatalf("Content-Type = %q, want text/javascript", got)
+	}
+}
+
+func TestSPAStaticContentTypes(t *testing.T) {
+	h := New(Config{Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Dist: builtDist()})
+	tests := map[string]string{
+		"/manifest.webmanifest": "application/manifest+json",
+		"/icons/icon-192.png":   "image/png",
+		"/favicon.svg":          "image/svg+xml",
+		"/assets/app-abc.js":    "text/javascript",
+	}
+	for target, want := range tests {
+		t.Run(target, func(t *testing.T) {
+			rec := serve(t, h, http.MethodGet, target)
+			if got := rec.Header().Get("Content-Type"); !strings.HasPrefix(got, want) {
+				t.Fatalf("Content-Type = %q, want prefix %q", got, want)
+			}
+		})
 	}
 }
 

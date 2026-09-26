@@ -17,7 +17,7 @@ Update this table in the same commit that finishes a task.
 | T5 Scroll mode | Done |
 | T6 Unreachable state | Done |
 | T7 Web app manifest, icons and safe areas | Done |
-| T8 Service worker | Not started |
+| T8 Service worker | Done |
 | T9 Docs, audit and release | Not started |
 | T10 Safe Docker cleanup | Not started |
 
@@ -36,7 +36,7 @@ Update this table in the same commit that finishes a task.
 |---|---|---|---|
 | CP1 | T1 + T2 + T3 (copy-mode API, compact layout, touch targets) | `make lint test` | Pass |
 | CP2 | T4 + T5 (key bar, scroll mode) | `make lint test` | Pass |
-| CP3 | T6 + T7 + T8 (unreachable state, manifest, service worker) | `make lint test`, plus `make build` so `check-dist` sees the real PWA output | Not run |
+| CP3 | T6 + T7 + T8 (unreachable state, manifest, service worker) | `make lint test`, plus `make build` so `check-dist` sees the real PWA output | Pass |
 | CP4 | T9 (audit) | `make lint test`, `make gitleaks`, e2e `tsc` | Not run |
 
 **What e2e can and can't reach.**
@@ -192,6 +192,8 @@ Make hostbud installable and full-screen (ARCHITECTURE §11 *Installable app (PW
 **Done:** a valid manifest with icons is served, iOS metadata and safe-area padding are in place, and the scenarios compile.
 
 ## T8 — Service worker
+
+**Status:** Done.
 
 A minimal, hand-written worker that caches only the app shell, so an installed hostbud starts without a connection into its own unreachable state (T6) and updates on the next launch.
 
