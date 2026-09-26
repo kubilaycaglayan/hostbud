@@ -20,8 +20,10 @@ Update this table in the same commit that finishes a task.
 | T8 Keyboard shortcuts | Not started |
 | T9 Command palette | Not started |
 | T10 Taken session names get a number | Not started |
-| T11 Docs, audit and release | Not started |
-| T12 Safe Docker cleanup | Not started |
+| T11 Remove a project | Not started |
+| T12 Add the current directory as a project | Not started |
+| T13 Docs, audit and release | Not started |
+| T14 Safe Docker cleanup | Not started |
 
 ## Rules for this milestone
 
@@ -44,7 +46,7 @@ Update this table in the same commit that finishes a task.
 | CP2 | T3 + T4 (windows in the tree, inline rename) | `make lint test` | Not run |
 | CP3 | T5 + T6 (hide/unhide, pins) | `make lint test` | Not run |
 | CP4 | T7 + T8 + T9 (theme, shortcuts, palette) | `make lint test`, plus `make build` so `check-dist` sees the real theme boot script | Not run |
-| CP5 | T10 + T11 (taken names, audit) | `make lint test`, `make gitleaks`, e2e `tsc` | Not run |
+| CP5 | T10 + T11 + T12 + T13 (taken names, remove project, add current directory, audit) | `make lint test`, `make gitleaks`, e2e `tsc` | Not run |
 
 **What e2e can and can't reach.**
 - Every scenario signs up its own account (`newAccount()`), because all M6 state is per account and must not leak between scenarios. The fixture that resets the saved layout is extended to leave `tree` and `theme` alone only for scenarios that seed them on purpose.
@@ -52,7 +54,7 @@ Update this table in the same commit that finishes a task.
 - **Restart** is the existing `ctl.restartApp()` (`docker restart hostbud-e2e-app`), followed by a reload once `/api/health` answers and the host banner is gone. No new ctl action is needed.
 - **Ground truth for tmux** stays on the target: `list-windows -t '=<name>' -F …`, `display -p -t '=<name>' '#{window_index} #{pane_index}'`, `capture-pane -p`, and `list-clients -F '#{client_pid}'` (to prove a terminal did **not** re-attach when a row was collapsed, hidden, renamed or re-themed).
 - **Theme:** `page.emulateMedia({ colorScheme })` drives `prefers-color-scheme`. T7 adds an e2e hook `window.__hostbud.termTheme(session?)` returning the terminal's current `{background, foreground}`. The first-paint check uses `page.addInitScript` to record `getComputedStyle(document.documentElement).backgroundColor` at the first `requestAnimationFrame`.
-- **⌘ shortcuts:** Playwright on Linux can press `Meta+K`, but the app picks ⌘ vs Ctrl by platform (`navigator.platform`/`userAgentData`). Desktop scenarios use the Ctrl+Shift chords that work everywhere; the ⌘ variants are unit-tested with a faked platform and checked manually on a Mac (T11).
+- **⌘ shortcuts:** Playwright on Linux can press `Meta+K`, but the app picks ⌘ vs Ctrl by platform (`navigator.platform`/`userAgentData`). Desktop scenarios use the Ctrl+Shift chords that work everywhere; the ⌘ variants are unit-tested with a faked platform and checked manually on a Mac (T13).
 - Drag uses Playwright's `dragTo` as M4's scenarios do; keyboard reordering (Alt+↑/↓) is the more reliable e2e path and is used where the point is persistence rather than the drag itself.
 
 ---
@@ -263,26 +265,55 @@ Creating a session with a name that's already taken no longer fails: the new ses
 
 **Done:** creating with a taken name always succeeds with a visible, numbered name from every entry point; rename keeps its duplicate error; the updated M1 tests and the new scenarios compile.
 
-## T11 — Docs, audit and release
+## T11 — Remove a project
+
+Hide (T5) only hides a project for one account. This task deletes one: the project row goes for **every** account (projects are shared, not per account), with its session links and recent start commands. Files on disk and tmux sessions are never touched.
+
+- **Server:** `DELETE /api/projects/:id` → 204, through `projects.Service.Delete` using the existing `store.DeleteProject`. The schema's `ON DELETE CASCADE` removes the project's `session_links` and `recent_commands`, so **no migration**. Unknown id → 404; signed out → 401; foreign Origin → 403. It publishes `projects.changed` with action `deleted`, and then re-places the machine's sessions, so the sessions that were in the project move right away (not at the next poll) to the project with the next-longest matching path, or to Other sessions.
+- **UI:** **Remove project…** in the project row's ⋯ menu, the M5 long-press menu, and the palette (*Remove project <name>*); Delete on a focused project row opens the same dialog. The confirmation says what happens: "Remove project <name>? Its N sessions keep running and move to Other sessions (or <project>). Files in <~path> aren't touched. This removes it for every account." Cancel changes nothing. On success the tree drops the header, and the sessions appear in their new group, appended (no re-sort). Open tabs and splits stay attached. Project-keyed tree state (order, pinned, hidden, collapsed) is pruned by the existing rule after `projects.load`. If a New session here dialog or picker is open for that project, it closes with a toast.
+- The file browser's add/open icon for that path turns back into *Add as project*. Adding the same path again later creates a fresh project (new id, no recent commands).
+- ARCHITECTURE §5.3 (placement after a delete), §9 (the route) and §11 (the menu item and dialog); README's projects section: Hide vs Remove.
+
+**Tests:** U (Go): service delete publishes `deleted` and re-places; 404 for an unknown id; handler 401/403/404/204 (Go). U (Vitest): the confirmation dialog's text (session count, target group, path), Cancel sends nothing, success drops the project and moves its sessions without re-attaching, an open New session here dialog for it closes, the menu item in the ⋯ menu, long-press menu and palette, Delete on a focused project row. I (Go, PostgreSQL + test sshd): deleting a project removes its links and recent commands but not other projects' rows; a linked session is re-placed under a parent project or Other sessions and still exists in tmux.
+
+**E2E:** add in `projects.tree.spec.ts` (desktop) and `tree.custom.phone.spec.ts` (`iphone-13-pro`, via long-press): **(T11) Remove a project** (a project with a running session open in a tab; Remove → Cancel leaves it; Remove → confirm: the header is gone, the session is under Other sessions, the tab keeps its tmux client PID, the directory still exists on the target; reload and restart → still removed; add the same folder again from the browser → a fresh project with no recent commands). API-level in `projects.api.spec.ts`: **(T11) Delete project API** (signed out → 401, foreign Origin → 403, unknown id → 404, delete → 204 and a second delete → 404; `GET /api/projects` no longer lists it). Type-check only.
+
+**Done:** a project can be removed from the tree after a confirmation, for every account; its sessions keep running and are re-placed at once; nothing on disk or in tmux changes; the scenarios compile.
+
+## T12 — Add the current directory as a project
+
+The file browser has add/open icons only on child-folder rows, so the folder you're in (your home folder, for example) can't be added without going to its parent.
+
+- **UI:** a button in the browser's path bar for the directory being shown: **Add this directory as project** (FolderPlus) or, when it's already a project, **Open project** (FolderOpen), with matching accessible names and tooltips. It goes through the same `openProject` logic as the row icons: an existing project is selected instead of duplicated, the name defaults to the last path component (`/` stays `/`), and *New session here* then works for it. It updates when you navigate, and it's disabled while the listing is loading or failed.
+- No server change: it uses `POST /api/projects` as it is.
+- README's browsing section; ARCHITECTURE §7's browser UI line.
+
+**Tests:** U (Vitest): the button shows Add or Open depending on whether the shown path is a project, and changes after navigating; clicking it creates the project with the shown path, or selects the existing one without a second POST; disabled while loading and on error; the touch-target class. I: n/a (frontend only; `POST /api/projects` has its integration tests from M4).
+
+**E2E:** add in `projects.browser.spec.ts` (desktop and `iphone-13-pro`): **(T12) Add the current directory as project** (open the browser at home, click *Add this directory as project* → the home project appears in the tree with a `~` path, and the button now reads *Open project*; navigate into a folder and add it the same way; *New session here* starts a session in that folder, placed under it; clicking the button again doesn't create a duplicate). Type-check only.
+
+**Done:** the directory being browsed can be added or opened as a project from the path bar, on desktop and phone, and the scenarios compile.
+
+## T13 — Docs, audit and release
 
 - README: *Customizing the tree* (drag and Alt+↑/↓ order, collapse, windows and panes, inline rename, hide and Show hidden, pins; all per account; renaming in a real terminal looks like a new session), *Command palette*, *Keyboard shortcuts* (the global chords and the `?` dialog; Ctrl+K stays the shell's inside the terminal), *Theme* (Dark / Light / System, per account, the per-browser mirror on the sign-in screen).
 - ARCHITECTURE: reconcile §5.1 (window/pane listing and select), §8 (the `ui_state` comment for `tree` v2 and `theme`; `projects.pinned`, `projects.sort_order` and `machines.hidden` reserved and unused by the UI), §9 (the two routes, the `theme` key, the no-event notes), §11 (tree v2, tree roles and keys, windows, rename, hide, pins, theme and boot script, shortcuts registry, palette) and §13.1 (`termTheme()` hook, `waitForSave`, per-scenario accounts) with what was built. ROADMAP only if scope moved.
 - **Audit:** every criterion in [M6-acceptance.md](M6-acceptance.md) has its U/I/E line with the right task, and every E item exists in the named spec file, is tagged, and type-checks. No new file in `internal/store/migrations/`. `.env.example` unchanged (or has any new variable with a placeholder). The security checklist items touched in M6: auth and Origin on the two new routes and on `PUT /api/ui-state/theme`; no session/window names, commands or paths in info logs; no external assets (the boot script is inline, and fonts stay bundled); destructive actions (kill) still confirm from every new entry point (tree Delete key, palette).
-- **Extend M5's phone checks:** add the M6 controls (session/window chevrons, window and pane rows, the Pinned icon, Show hidden, inline rename input, the palette button and input, the theme radio items) to M5's *Touch targets* and *Usable without zoom* scenarios as **(T11) Touch targets and zoom for M6 controls** (both phone projects), and confirm the long-press menu has Rename, Hide/Unhide and Pin/Unpin.
+- **Extend M5's phone checks:** add the M6 controls (session/window chevrons, window and pane rows, the Pinned icon, Show hidden, inline rename input, the palette button and input, the theme radio items) to M5's *Touch targets* and *Usable without zoom* scenarios as **(T13) Touch targets and zoom for M6 controls** (both phone projects), and confirm the long-press menu has Rename, Hide/Unhide and Pin/Unpin.
 - CP5: `make lint test`, `make gitleaks`, e2e `tsc`. Don't run e2e.
 - *(host)* `make deploy`; `/api/health` is ok; through the loopback port, `GET /api/ui-state/theme` without a session answers 401 (the route is deployed and protected), and the windows route of a throwaway session answers 401 too. Don't use the owner's credentials or script a sign-in: the signed-in checks (theme 404 then 200 after a pick, expanding a session shows its windows) are owner manual checks, already covered by T7/T3's integration tests and e2e scenarios. Never kill, detach, rename or re-select windows in the owner's existing sessions: use only a throwaway session created for the check, and kill it only through the UI's confirmation dialog.
-- *(host)* Owner's manual checks on a desktop browser (a Mac if available) and the iPhone, listed in [M6-acceptance.md](M6-acceptance.md#manual-checks-owner-t11); record the result of each there. If the owner hasn't done them yet, list them as open in the summary rather than ticking them, and don't wait for them: they don't block T11, T12 or M7.
+- *(host)* Owner's manual checks on a desktop browser (a Mac if available) and the iPhone, listed in [M6-acceptance.md](M6-acceptance.md#manual-checks-owner-t13); record the result of each there. If the owner hasn't done them yet, list them as open in the summary rather than ticking them, and don't wait for them: they don't block T13, T14 or M7.
 - Summary to the owner: what changed, env vars (expected: none), manual steps (none on the host beyond `make deploy`; the theme and tree state start at their defaults for each account).
 
 **Tests:** none new beyond regressions found by the audit, plus the extended phone touch-target scenario above.
 
-**E2E:** add **(T11) Touch targets and zoom for M6 controls** (both phone projects) as above; audit that all T1–T10 scenarios are present, tagged and type-checked; none run (M7).
+**E2E:** add **(T13) Touch targets and zoom for M6 controls** (both phone projects) as above; audit that all T1–T12 scenarios are present, tagged and type-checked; none run (M7).
 
 **Done:** docs match behavior, the deploy serves M6, the checklist is complete except the M7 e2e run and any open owner checks (backlog, not blockers), and the summary has been delivered.
 
-## T12 — Safe Docker cleanup
+## T14 — Safe Docker cleanup
 
-Free the disk the milestone's builds used, **without touching the running deployment, its data, other projects, or work another agent may be doing at the same time.** This is the last step of the milestone, after T11's deploy and checks.
+Free the disk the milestone's builds used, **without touching the running deployment, its data, other projects, or work another agent may be doing at the same time.** This is the last step of the milestone, after T13's deploy and checks.
 
 1. **Check that nothing is in use.** If any of these hold, skip the cleaning (steps 3–5), record "cleanup skipped: <reason>" in Progress and the summary, and treat the task as done. Cleanup can run again later:
    - a `make` test/lint/build or e2e run is in progress from this or another session (`pgrep -af 'scripts/tool.sh|docker exec hostbud-tools|test/e2e/run.sh|docker compose .*hostbud'`);

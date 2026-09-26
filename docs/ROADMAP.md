@@ -109,10 +109,12 @@ Tasks: [roadmap/M6-tasks.md](roadmap/M6-tasks.md) · Checklist: [roadmap/M6-acce
 - Collapse state persisted; lazily loaded windows/panes under sessions.
 - Visual tree hierarchy: projects (and Other sessions) render as parent headers with icon, name and `~`-shortened path; child rows are indented with a guide line.
 - Command palette (Ctrl/⌘-K); keyboard shortcuts, including next/previous tab with Ctrl+Shift+] / Ctrl+Shift+[ (on macOS too, since ⌘⇧]/[ belong to the browser), and Ctrl+Shift+D to switch between the two most recently selected tabs (Ctrl on macOS too, never ⌘).
+- Remove a project (for every account, after a confirmation): its sessions keep running and move to the next matching project or Other sessions; nothing on disk or in tmux changes. Hide stays the per-account alternative.
+- File browser: add (or open) the directory being shown as a project from the path bar, not only its child folders.
 - Creating a session with a taken name gets the next free number (`work` → `work-1`) instead of an error, from every entry point, and the user is told the name; renaming to a taken name still errors.
 - Theme setting: **Dark / Light / System**. System follows the OS `prefers-color-scheme` and switches live when the OS changes. The setting applies to the whole UI and the xterm terminal palette, is persisted in `ui_state` (default: System), and is applied before first paint (no flash of the wrong theme).
 
-**E2E:** drag to reorder, rename, hide/unhide, pin, collapse — then reload **and** restart `hostbud-e2e-app` → everything is as the user left it; windows/panes load when a session is expanded; project headers are visually distinct and sessions indented beneath them; the palette jumps to a session; theme: picking Dark or Light applies at once and survives reload and restart; with System, switching Playwright's emulated `colorScheme` flips the UI and terminal without a reload.
+**E2E:** drag to reorder, rename, hide/unhide, pin, collapse — then reload **and** restart `hostbud-e2e-app` → everything is as the user left it; windows/panes load when a session is expanded; project headers are visually distinct and sessions indented beneath them; remove a project (its session keeps running, now under Other sessions) and add the browsed directory as a project; the palette jumps to a session; theme: picking Dark or Light applies at once and survives reload and restart; with System, switching Playwright's emulated `colorScheme` flips the UI and terminal without a reload.
 
 **Accept:** every tree customization survives reload and container restart; the Dark / Light / System theme setting works for the UI and terminal, persists, and in System mode follows the OS live.
 
