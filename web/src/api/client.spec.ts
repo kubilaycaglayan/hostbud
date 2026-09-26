@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, request, sessionsApi } from './client'
+import { ApiError, getUIState, putUIState, request, sessionsApi } from './client'
 import { stubFetch } from '@/test-utils'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -45,5 +45,26 @@ describe('sessionsApi', () => {
       { method: 'PATCH', path: '/api/machines/host/sessions/a', body: { name: 'b' } },
       { method: 'DELETE', path: '/api/machines/host/sessions/b', body: undefined },
     ])
+  })
+})
+
+describe('UI state', () => {
+  it('GET returns the stored value, or null before anything was saved', async () => {
+    const calls = stubFetch(() => ({ status: 200, body: { version: 1, tabs: [] } }))
+    expect(await getUIState('layout')).toEqual({ version: 1, tabs: [] })
+    expect(calls).toEqual([{ method: 'GET', path: '/api/ui-state/layout', body: undefined }])
+    stubFetch(() => ({ status: 404, body: { error: 'nothing saved yet' } }))
+    expect(await getUIState('layout')).toBeNull()
+  })
+
+  it('other GET errors are thrown', async () => {
+    stubFetch(() => ({ status: 401, body: { error: 'sign in first' } }))
+    await expect(getUIState('layout')).rejects.toMatchObject({ status: 401 })
+  })
+
+  it('PUT sends the value as JSON', async () => {
+    const calls = stubFetch(() => ({ status: 204 }))
+    await putUIState('layout', { version: 1 })
+    expect(calls).toEqual([{ method: 'PUT', path: '/api/ui-state/layout', body: { version: 1 } }])
   })
 })

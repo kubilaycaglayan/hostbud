@@ -152,6 +152,52 @@ func TestUIState(t *testing.T) {
 	}
 }
 
+func TestUIStateForUser(t *testing.T) {
+	ctx := context.Background()
+	s := openTemp(t, t.TempDir())
+	defer func() { _ = s.Close() }()
+	clock := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	s.now = func() time.Time { return clock }
+
+	if err := s.PutUIStateForUser(ctx, "user-a", "layout", json.RawMessage(`{"a":1}`)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.PutUIStateForUser(ctx, "user-b", "layout", json.RawMessage(`{"b":2}`)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.UIStateForUser(ctx, "user-c", "layout"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("an account without state: %v", err)
+	}
+	for user, want := range map[string]string{"user-a": `{"a":1}`, "user-b": `{"b":2}`} {
+		if v, err := s.UIStateForUser(ctx, user, "layout"); err != nil || string(v) != want {
+			t.Fatalf("%s: %s, %v", user, v, err)
+		}
+	}
+	// Namespaced in the shared table: no bare "layout" row.
+	if _, err := s.UIState(ctx, "layout"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("un-namespaced key: %v", err)
+	}
+
+	updatedAt := func() string {
+		var v string
+		if err := s.db.QueryRowContext(ctx, `SELECT updated_at FROM ui_state WHERE key = 'user:user-a:layout'`).Scan(&v); err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	before := updatedAt()
+	clock = clock.Add(time.Hour)
+	if err := s.PutUIStateForUser(ctx, "user-a", "layout", json.RawMessage(`{"a":3}`)); err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := s.UIStateForUser(ctx, "user-a", "layout"); string(v) != `{"a":3}` {
+		t.Fatalf("overwrite: %s", v)
+	}
+	if after := updatedAt(); after == before {
+		t.Fatalf("updated_at unchanged by an overwrite (%s)", after)
+	}
+}
+
 func TestSaveCapabilities(t *testing.T) {
 	ctx := context.Background()
 	s := openTemp(t, t.TempDir())

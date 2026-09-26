@@ -63,6 +63,10 @@ type Repository interface {
 	// UIState returns the stored JSON for key, or ErrNotFound.
 	UIState(ctx context.Context, key string) (json.RawMessage, error)
 	PutUIState(ctx context.Context, key string, value json.RawMessage) error
+	// UIStateForUser and PutUIStateForUser keep one account's UI state
+	// (layout, …) apart from every other account's.
+	UIStateForUser(ctx context.Context, userID, key string) (json.RawMessage, error)
+	PutUIStateForUser(ctx context.Context, userID, key string, value json.RawMessage) error
 	// Backup writes a consistent copy of the database to dest (must not exist).
 	Backup(ctx context.Context, dest string) error
 	Close() error
@@ -288,6 +292,19 @@ func (s *Store) PutUIState(ctx context.Context, key string, value json.RawMessag
 		ON CONFLICT (key) DO UPDATE SET value_json = excluded.value_json, updated_at = excluded.updated_at`,
 		key, string(value), formatTime(s.now()))
 	return err
+}
+
+// userUIKey namespaces an account's UI state key in ui_state.
+func userUIKey(userID, key string) string { return "user:" + userID + ":" + key }
+
+// UIStateForUser returns the account's stored JSON for key, or ErrNotFound.
+func (s *Store) UIStateForUser(ctx context.Context, userID, key string) (json.RawMessage, error) {
+	return s.UIState(ctx, userUIKey(userID, key))
+}
+
+// PutUIStateForUser stores a JSON value under the account's key.
+func (s *Store) PutUIStateForUser(ctx context.Context, userID, key string, value json.RawMessage) error {
+	return s.PutUIState(ctx, userUIKey(userID, key), value)
 }
 
 // Backup writes a consistent PostgreSQL custom-format dump to dest. The

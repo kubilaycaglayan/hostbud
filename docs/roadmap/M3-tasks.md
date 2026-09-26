@@ -14,14 +14,24 @@ Update this table in the same commit that finishes a task.
 | T3 Auto-reconnect | ✅ done (owner check in T9) |
 | T4 Links | ✅ done |
 | T5 Search | ✅ done |
-| T6 UI state API | next |
-| T7 Tabs | |
+| T6 UI state API | ✅ done (tests run at CP1) |
+| T7 Tabs | next |
 | T8 Split view | |
 | T9 Docs, audit and release | |
 
+**Test checkpoints (T6–T9, owner's trial of batched test runs).** From T6 on, each task still writes all the U/I/E tests it owes in the same commit as the behavior, but the suites run at checkpoints instead of per commit. Each commit gets only the fast checks: the Go packages it touches build and vet, and `vue-tsc` type-checks the frontend (and the e2e suite when it changes). `make gitleaks` still runs on every commit (pre-commit hook).
+
+| Checkpoint | After | Runs | Status |
+|---|---|---|---|
+| CP1 | T6 + T7 (UI state API and tabs) | `make lint test`, `make e2e` (all projects) | |
+| CP2 | T8 (split view) | `make lint test`, `make e2e` (all projects) | |
+| CP3 | T9 (audit) | `make lint test`, `make e2e` twice in a row from a clean checkout | |
+
+A failure found at a checkpoint is fixed (with a regression test where it's a bug) before the next task starts, and the checkpoint is re-run until green.
+
 The owner asked for T1 and T2 first (after M2). The per-terminal features (T2–T5) come before the multi-terminal layout (T6–T8), so each is built and tested on the single terminal view before the view is multiplied.
 
-Same rules as M1/M2: work top to bottom. Each task ends with a green `make lint test` **and `make e2e`**, a clean `make gitleaks`, and its own conventional commit(s). Every task has a **Tests:** line (unit and integration tests it owes) and an **E2E:** line (scenarios it adds, tagged with the task in [M3-acceptance.md](M3-acceptance.md#e2e-make-e2e-simulated-user)), all landing in the same commit as the behavior. Tasks marked *(host)* need the real host to verify. When a task moves the design, it updates ARCHITECTURE in the same commit.
+Same rules as M1/M2: work top to bottom. Each task ends with a green `make lint test` **and `make e2e`** (from T6 on: at its checkpoint, above), a clean `make gitleaks`, and its own conventional commit(s). Every task has a **Tests:** line (unit and integration tests it owes) and an **E2E:** line (scenarios it adds, tagged with the task in [M3-acceptance.md](M3-acceptance.md#e2e-make-e2e-simulated-user)), all landing in the same commit as the behavior. Tasks marked *(host)* need the real host to verify. When a task moves the design, it updates ARCHITECTURE in the same commit.
 
 **What e2e can and can't reach.**
 - Clipboard: Playwright grants `clipboard-read`/`clipboard-write` only in Chromium, so clipboard scenarios run in `desktop-chromium`. The phone and a real macOS keyboard stay manual checks.

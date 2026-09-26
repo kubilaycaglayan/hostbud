@@ -131,6 +131,7 @@ func run() error {
 			Machines:       []api.Snapshotter{inv},
 			Sessions:       sessions,
 			Terminal:       &term.Handler{SSH: ssh, Log: log, Shutdown: ctx.Done()},
+			UIState:        st,
 			Auth:           accounts,
 			TrustedProxies: proxies,
 		}),

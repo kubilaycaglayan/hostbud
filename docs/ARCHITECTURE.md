@@ -211,6 +211,7 @@ A session belongs to the project whose `path` is the **longest prefix** of the s
 - Migrations: embedded SQL files (`internal/store/migrations/`) run at startup with `pressly/goose`; append-only. Queries via `sqlc` or a hand-written repository interface — **no SQL outside the store package**.
 - IDs: ULIDs (text). Timestamps: UTC.
 - The owner can inspect and maintain the database with `docker compose exec hostbud-postgres psql -U <HOSTBUD_DB_USER> -d <HOSTBUD_DB_NAME>` using values in the local `.env`, or from the host through the loopback-only `HOSTBUD_DB_LOCAL_PORT` mapping. This is an operator access path, not an application API.
+- UI state is per account: `store.UIStateForUser`/`PutUIStateForUser` namespace the key as `user:<user-id>:<key>` in `ui_state` (no migration), so accounts never see each other's layout.
 - PostgreSQL is initialized as a fresh application database for M1. The provisional SQLite database is not imported because the pre-M1 deployment is unused; if an old SQLite file remains in the app data volume, it is left untouched. PostgreSQL schema migrations are append-only.
 
 **v1 schema (sketch)** — `machines` is seeded with the single built-in `host` row.
@@ -224,7 +225,7 @@ projects(id, machine_id FK, path, name, sort_order, pinned BOOL,
          last_used_at, created_at, UNIQUE(machine_id, path))
 session_links(machine_id, session_name, project_id, created_at, PRIMARY KEY(machine_id, session_name))
 recent_commands(id, project_id, command, last_used_at)    -- start commands like `claude`, `codex`
-ui_state(key PK, value_json, updated_at)                    -- tree collapse state, tab/split layout, theme
+ui_state(key PK, value_json, updated_at)                    -- per account: key = user:<user-id>:<key> (layout; M6: tree, theme)
 users(id, email, email_normalized UNIQUE, password_hash, created_at, updated_at,
       last_login_at, disabled BOOL)
 email_allowlist(email_normalized PK, enabled BOOL, note, created_at, updated_at)
@@ -276,7 +277,7 @@ GET    /api/machines/:id/fs?path=         list dir
 POST   /api/machines/:id/fs/mkdir
 GET    /api/machines/:id/fs/home
 GET|POST|PATCH|DELETE /api/projects[/:id]
-GET|PUT /api/ui-state/:key
+GET|PUT /api/ui-state/:key            the account's JSON (GET 404 before the first PUT; PUT 204)
 GET    /api/health
 
 # later (multi-machine)
@@ -288,6 +289,8 @@ POST   /api/machines/refresh              re-scan ~/.ssh/config
 GET    /api/machines/:id/hostkey          keyscan fingerprints
 POST   /api/machines/:id/hostkey/trust
 ```
+`/api/ui-state/:key` accepts only allowlisted keys (`layout`; M6 adds `tree` and `theme`; others 404). A PUT body must be valid JSON (400) of at most 64 KiB (413). The server stores it without interpreting it and publishes no event (it's a per-account preference); the client validates what it reads back.
+
 WebSockets: `/ws/events` (server → client state events), `/ws/term` (interactive). `/ws/events` also sends `{"type":"heartbeat"}` every 15 s (WebSocket pings are invisible to page scripts); the browser treats 40 s of silence as a hung connection and reconnects, and the next snapshot resyncs the list.
 
 **Security middleware (all routes):**

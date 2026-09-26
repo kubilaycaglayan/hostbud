@@ -31,6 +31,7 @@ type Config struct {
 	Machines []Snapshotter // v1: the host only
 	Sessions SessionService
 	Terminal http.Handler // /ws/term (term.Handler)
+	UIState  UIStateStore // /api/ui-state/{key}
 	// Auth guards every /api and /ws route but health, register and login.
 	// Nil fails closed (those routes answer 401).
 	Auth           Authenticator
@@ -71,6 +72,10 @@ func New(cfg Config) http.Handler {
 	mux.HandleFunc("GET /ws/events", s.eventsSocket)
 	if cfg.Terminal != nil {
 		mux.Handle("GET /ws/term", cfg.Terminal)
+	}
+	if cfg.UIState != nil {
+		mux.HandleFunc("GET /api/ui-state/{key}", s.getUIState)
+		mux.HandleFunc("PUT /api/ui-state/{key}", s.putUIState)
 	}
 	mux.Handle("GET /", spaHandler(cfg.Dist))
 	return checkOrigin(cfg.Origins, requireAuth(cfg.Auth, mux))

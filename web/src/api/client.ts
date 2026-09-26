@@ -15,7 +15,7 @@ export class ApiError extends Error {
   }
 }
 
-type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE'
+type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
 export async function request<T>(method: Method, path: string, body?: unknown): Promise<T> {
   const res = await fetch(path, {
@@ -74,4 +74,23 @@ export const sessionsApi = {
   /** Kills a session: callers must have the user's confirmation. */
   kill: (machine: string, name: string) =>
     request<void>('DELETE', `${sessionsPath(machine)}/${encodeURIComponent(name)}`),
+}
+
+/** UI state keys the server accepts (internal/api/uistate.go). */
+export type UIStateKey = 'layout'
+
+/** The account's saved UI state, or null if nothing is saved yet. The value
+ * is whatever was stored: callers validate it. */
+export async function getUIState<T = unknown>(key: UIStateKey): Promise<T | null> {
+  try {
+    return await request<T>('GET', `/api/ui-state/${key}`)
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return null
+    throw e
+  }
+}
+
+/** Saves the account's UI state (JSON, ≤ 64 KiB). */
+export function putUIState(key: UIStateKey, value: unknown): Promise<void> {
+  return request<void>('PUT', `/api/ui-state/${key}`, value)
 }
