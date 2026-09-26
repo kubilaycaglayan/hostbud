@@ -19,6 +19,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib" // registers the "pgx" driver
 	"github.com/pressly/goose/v3"
+	"github.com/pressly/goose/v3/lock"
 )
 
 //go:embed migrations/*.sql
@@ -151,7 +152,13 @@ func migrate(ctx context.Context, db *sql.DB) error {
 	if err != nil {
 		return err
 	}
-	p, err := goose.NewProvider(goose.DialectPostgres, db, fsys)
+	// A PostgreSQL advisory lock serializes migrations when several app
+	// instances start against the same database.
+	locker, err := lock.NewPostgresSessionLocker()
+	if err != nil {
+		return err
+	}
+	p, err := goose.NewProvider(goose.DialectPostgres, db, fsys, goose.WithSessionLocker(locker))
 	if err != nil {
 		return fmt.Errorf("migrations: %w", err)
 	}

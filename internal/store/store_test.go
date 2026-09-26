@@ -10,12 +10,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 )
 
-func openTemp(t *testing.T, dir string) *Store {
-	t.Helper()
+// testConfig points at an isolated schema (named after dir) in the test DB.
+func testConfig(dir string) Config {
 	host := os.Getenv("HOSTBUD_TEST_DB_HOST")
 	if host == "" {
 		host = "hostbud-test-postgres"
@@ -25,10 +26,15 @@ func openTemp(t *testing.T, dir string) *Store {
 		password = "hostbud-test-password" //nolint:gosec // throwaway test database (scripts/test-sshd.sh), not a credential
 	}
 	schema := fmt.Sprintf("test_%x", sha256.Sum256([]byte(dir)))[:20]
-	s, err := Open(context.Background(), Config{
+	return Config{
 		Host: host, Port: 5432, Name: "hostbud_test", User: "hostbud_test",
 		Password: password, SSLMode: "disable", Schema: schema,
-	})
+	}
+}
+
+func openTemp(t *testing.T, dir string) *Store {
+	t.Helper()
+	s, err := Open(context.Background(), testConfig(dir))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -205,5 +211,40 @@ func TestBackup(t *testing.T) {
 	}
 	if out, err := exec.CommandContext(ctx, "pg_restore", "--list", dest).CombinedOutput(); err != nil {
 		t.Fatalf("restore smoke test: %v: %s", err, out)
+	}
+}
+
+func TestConcurrentOpenMigratesOnce(t *testing.T) {
+	cfg := testConfig(t.TempDir())
+	// Create the (empty) schema first: concurrent CREATE SCHEMA can race in
+	// PostgreSQL itself; the migrations are what this test is about.
+	plain := cfg
+	plain.Schema = ""
+	db, err := sql.Open("pgx", plain.dsn())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(context.Background(), `CREATE SCHEMA `+cfg.Schema); err != nil {
+		t.Fatal(err)
+	}
+	_ = db.Close()
+
+	var wg sync.WaitGroup
+	errs := make(chan error, 4)
+	for range 4 {
+		wg.Go(func() {
+			s, err := Open(context.Background(), cfg)
+			if err == nil {
+				err = s.Close()
+			}
+			errs <- err
+		})
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("concurrent Open: %v", err)
+		}
 	}
 }
