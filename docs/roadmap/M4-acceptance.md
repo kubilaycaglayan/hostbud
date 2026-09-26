@@ -26,7 +26,7 @@ Each criterion names **U** (unit), **I** (integration against `test/sshd`, Postg
   - U: T1 mkdir name validation and containment; T4 form behavior.
   - I: T1 against `test/sshd`: mkdir succeeds, the new path is visible, and rejected names do not create anything.
   - E: T4 *Create folder* (desktop and iPhone 13 Pro).
-- [ ] The browser supports listing, stat and mkdir only. There are no delete or remote rename controls or endpoints in M4.
+- [x] The browser supports listing, stat and mkdir only. There are no delete or remote rename controls or endpoints in M4.
   - U: T1 route/method table and service surface excludes destructive filesystem operations.
   - I: T1 unsupported methods return the standard not-found/method response and leave target contents unchanged.
   - E: T1 *No destructive file actions* (API-level through Caddy; assert no delete/rename action is exposed).
