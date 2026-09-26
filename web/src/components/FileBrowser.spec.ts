@@ -73,7 +73,7 @@ describe('FileBrowser', () => {
     await flushPromises()
     expect(fetchMock).toHaveBeenCalledWith('/api/machines/host/fs/mkdir', expect.objectContaining({ method: 'POST' }))
     expect(wrapper.findAll('button').some((button) => button.text() === 'new-folder/')).toBe(true)
-    await wrapper.findAll('button').find((button) => button.text().includes('Open as project'))?.trigger('click')
+    await wrapper.get('button[aria-label="Add new-folder as project"]').trigger('click')
     await flushPromises()
     await wrapper.findAll('button').find((button) => button.text().includes('New session here'))?.trigger('click')
     await flushPromises()
@@ -108,7 +108,7 @@ describe('FileBrowser', () => {
     projectsList = [{ id: 'existing', machineId: 'host', path: '/home/dev/work', name: 'Saved work', sortOrder: 0, pinned: false, createdAt: '', updatedAt: '' }]
     const wrapper = mount(FileBrowser, { props: { machine: 'host' } })
     await flushPromises()
-    await wrapper.findAll('button').find((button) => button.text() === 'Open project')!.trigger('click')
+    await wrapper.get('button[aria-label="Open project work"]').trigger('click')
     await flushPromises()
     expect(wrapper.text()).toContain('Project: Saved work')
     expect(fetchMock.mock.calls.some(([url, init]) => String(url) === '/api/projects' && init?.method === 'POST')).toBe(false)

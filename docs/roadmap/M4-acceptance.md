@@ -30,7 +30,7 @@ Each criterion names **U** (unit), **I** (integration against `test/sshd`, Postg
   - U: T1 route/method table and service surface excludes destructive filesystem operations.
   - I: T1 unsupported methods return the standard not-found/method response and leave target contents unchanged.
   - E: T1 *No destructive file actions* (API-level through Caddy; assert no delete/rename action is exposed).
-- [ ] Browse files opens in a modal dialog from an icon-only FolderPlus button outside the left gutter; the browser is not squeezed into the project/session sidebar. Directory project actions use related FolderPlus/FolderOpen icons with accessible names and tooltips.
+- [x] Browse files opens in a modal dialog from an icon-only FolderPlus button outside the left gutter; the browser is not squeezed into the project/session sidebar. Directory project actions use related FolderPlus/FolderOpen icons with accessible names and tooltips.
   - U: T4 Vitest covers dialog open/close, icon button accessible names and existing/new project action state.
   - I: n/a — dialog and icon presentation are frontend-only; T1 integration covers the filesystem API behavior.
   - E: T4 *File browser dialog and icon actions* (desktop and iPhone 13 Pro): open/close the dialog from the header control and use the icon-only directory project action.
@@ -122,7 +122,7 @@ Projects remain `desktop-chromium` and `iphone-13-pro` against the throwaway tar
 - [x] **(T1) Browse home and navigate:** authenticated API returns the target home and navigates nested paths containing spaces, quotes, Unicode and shell metacharacters through Caddy. T4 adds the desktop and phone UI navigation.
 - [x] **(T1) Hidden entries and symlinks:** API hidden toggle and directory-first ordering work; symlinks remain unresolved in listings and explicit stat reports resolved, broken or looping state (desktop API).
 - [x] **(T1) No destructive file actions:** API attempts cannot mutate or remove target entries; there is no delete or remote rename route.
-- [ ] **(T4) File browser dialog and icon actions:** open/close the modal from the FolderPlus header button outside the left gutter; project actions use icon buttons with accessible labels (desktop and iPhone 13 Pro).
+- [x] **(T4) File browser dialog and icon actions:** open/close the modal from the FolderPlus header button outside the left gutter; project actions use icon buttons with accessible labels (desktop and iPhone 13 Pro).
 - [x] **(T1) Filesystem API access control:** auth and Origin enforcement through Caddy; unauthorized requests do not initiate SFTP.
 - [x] **(T3) Project API access control and events:** auth and Origin enforcement through Caddy; successful create is returned by the API and published to the event stream.
 - [x] **(T1) SFTP unavailable recovery:** failure is actionable and browsing works after target recovery.

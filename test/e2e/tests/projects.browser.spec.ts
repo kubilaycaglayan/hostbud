@@ -9,6 +9,28 @@ for (const profile of ['desktop', 'phone'] as const) {
   test.describe(`project browser ${profile}`, () => {
     test.use(profile === 'phone' ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } : {})
 
+    test('(T4) File browser dialog and icon actions', async ({ page, target }) => {
+      const name = uniqueName('e2e-browser-dialog')
+      const dir = `/home/dev/${name}`
+      await target.run(`mkdir -p ${shq(dir)}`)
+      await page.goto('/')
+      await expect(page.getByRole('complementary', { name: 'Sessions' })).toBeVisible()
+      await page.getByRole('button', { name: 'Browse files' }).click()
+      const dialog = page.getByRole('dialog', { name: 'Browse files' })
+      await expect(dialog).toBeVisible()
+      await expect(page.getByRole('complementary', { name: 'Sessions' })).toContainText('Projects & sessions')
+      await dialog.getByLabel('Current path').fill('/home/dev')
+      await dialog.getByRole('button', { name: 'Go' }).click()
+      const row = dialog.getByRole('list', { name: 'Directory entries' }).getByRole('listitem').filter({ hasText: name })
+      const action = row.getByRole('button', { name: `Add ${name} as project` })
+      await expect(action).toHaveAttribute('title', `Add ${name} as project`)
+      await expect(action.locator('svg')).toBeVisible()
+      await action.click()
+      await expect(dialog.getByText(`Project: ${name}`)).toBeVisible()
+      await dialog.getByRole('button', { name: 'Close file browser' }).click()
+      await expect(dialog).toBeHidden()
+    })
+
     test('(T4) Path autocomplete and invalid paths', async ({ page, target }) => {
       const name = uniqueName('e2e-browser')
       const dir = `/home/dev/${name}`
@@ -43,10 +65,10 @@ for (const profile of ['desktop', 'phone'] as const) {
       await page.getByLabel('New folder name').fill('created')
       await page.getByRole('button', { name: 'Create folder' }).click()
       await expect(page.getByRole('button', { name: 'created/' })).toBeVisible()
-      await page.getByRole('button', { name: 'Open as project' }).click()
+      await page.getByRole('button', { name: 'Add created as project' }).click()
       await expect(page.getByText(`Project: created`)).toBeVisible()
       const projectDirectory = page.getByRole('list', { name: 'Directory entries' }).getByRole('listitem').filter({ hasText: 'created' })
-      await projectDirectory.getByRole('button', { name: 'Open project' }).click()
+      await projectDirectory.getByRole('button', { name: 'Open project created' }).click()
       const persisted = await request.get('/api/projects?machine=host')
       const persistedData = await persisted.json()
       expect(persistedData.projects.filter((project: { path: string }) => project.path === `${dir}/created`)).toHaveLength(1)
@@ -98,14 +120,14 @@ test('(T4) Project persists and updates live', async ({ page, request, target, u
   await second.getByLabel('Current path').fill('/home/dev')
   await second.getByRole('button', { name: 'Go' }).click()
   const row = second.getByRole('list', { name: 'Directory entries' }).getByRole('listitem').filter({ hasText: name })
-  await row.getByRole('button', { name: 'Open as project' }).click()
+  await row.getByRole('button', { name: `Add ${name} as project` }).click()
   await expect(second.getByText(`Project: ${name}`)).toBeVisible()
   await expect.poll(async () => {
     const response = await request.get('/api/projects?machine=host')
     const data = await response.json()
     return response.status() === 200 && data.projects.some((project: { path: string }) => project.path === path)
   }).toBe(true)
-  await expect(page.getByRole('list', { name: 'Directory entries' }).getByRole('listitem').filter({ hasText: name }).getByRole('button', { name: 'Open project' })).toBeVisible()
+  await expect(page.getByRole('list', { name: 'Directory entries' }).getByRole('listitem').filter({ hasText: name }).getByRole('button', { name: `Open project ${name}` })).toBeVisible()
   await second.close()
 
   await page.getByRole('button', { name: 'Sign out' }).click()

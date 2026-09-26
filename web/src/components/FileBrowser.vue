@@ -6,6 +6,7 @@ import FormError from './FormError.vue'
 import { describeError } from '@/stores/toasts'
 import { useProjectsStore } from '@/stores/projects'
 import { useTreeStore } from '@/stores/tree'
+import { FolderOpen, FolderPlus } from 'lucide-vue-next'
 
 const props = defineProps<{ machine: string; startProjectId?: string }>()
 const emit = defineEmits<{ created: [name: string] }>()
@@ -260,10 +261,21 @@ async function createSession() {
           v-if="entry.kind === 'directory'"
           type="button"
           :disabled="busy"
-          class="min-h-11 rounded border border-border px-3"
+          class="inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border"
+          :aria-label="projects.some((p) => p.path === entry.path) ? `Open project ${entry.name}` : `Add ${entry.name} as project`"
+          :title="projects.some((p) => p.path === entry.path) ? `Open project ${entry.name}` : `Add ${entry.name} as project`"
           @click="openProject(entry)"
         >
-          {{ projects.some((p) => p.path === entry.path) ? 'Open project' : 'Open as project' }}
+          <FolderOpen
+            v-if="projects.some((p) => p.path === entry.path)"
+            :size="18"
+            aria-hidden="true"
+          />
+          <FolderPlus
+            v-else
+            :size="18"
+            aria-hidden="true"
+          />
         </button>
       </li>
       <li

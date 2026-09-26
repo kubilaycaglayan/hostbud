@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue'
 import AuthView from '@/components/AuthView.vue'
 import CreateSessionDialog from '@/components/CreateSessionDialog.vue'
-import FileBrowser from '@/components/FileBrowser.vue'
+import FileBrowserDialog from '@/components/FileBrowserDialog.vue'
 import SessionTree from '@/components/SessionTree.vue'
 import KillSessionDialog from '@/components/KillSessionDialog.vue'
 import RenameSessionDialog from '@/components/RenameSessionDialog.vue'
@@ -20,6 +20,7 @@ import { useLiveStore } from '@/stores/live'
 import { useMachinesStore } from '@/stores/machines'
 import { useTreeStore } from '@/stores/tree'
 import { useProjectsStore } from '@/stores/projects'
+import { FolderPlus } from 'lucide-vue-next'
 
 const app = useAppStore()
 const auth = useAuthStore()
@@ -84,6 +85,7 @@ function showTree() {
   app.showList()
 }
 function onCreated(name: string) {
+  browsing.value = false
   const t = splitTarget.value
   splitTarget.value = null
   if (t && layout.split(t.pane, t.dir, MACHINE, name)) app.showTerminal()
@@ -158,6 +160,18 @@ onUnmounted(() => {
       >
         {{ narrow ? '☰' : 'Projects' }}
       </button>
+      <button
+        type="button"
+        aria-label="Browse files"
+        title="Browse files"
+        class="inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border"
+        @click="browsing = true"
+      >
+        <FolderPlus
+          :size="18"
+          aria-hidden="true"
+        />
+      </button>
       <div class="ml-auto flex min-w-0 items-center gap-2 text-sm text-muted">
         <span class="max-w-40 truncate">{{ auth.email }}</span>
         <button
@@ -180,20 +194,13 @@ onUnmounted(() => {
         <h2 class="mb-2 px-1 text-sm font-semibold">
           Projects &amp; sessions
         </h2>
-        <div class="grid grid-cols-2 gap-2">
+        <div>
           <button
             type="button"
             class="min-h-10 min-w-0 whitespace-nowrap rounded border border-border px-2 text-xs"
             @click="newSession"
           >
             New session
-          </button>
-          <button
-            type="button"
-            class="min-h-10 min-w-0 whitespace-nowrap rounded border border-border px-2 text-xs"
-            @click="browsing = !browsing"
-          >
-            {{ browsing ? 'Sessions' : 'Browse files' }}
           </button>
         </div>
         <p
@@ -203,17 +210,7 @@ onUnmounted(() => {
         >
           {{ live.state === 'connecting' ? 'Connecting…' : 'Reconnecting…' }}
         </p>
-        <FileBrowser
-          v-if="browsing"
-          :machine="MACHINE"
-          :start-project-id="requestedProjectId"
-          class="min-h-0 flex-1 overflow-y-auto"
-          @created="onCreated"
-        />
-        <div
-          v-else
-          class="mt-3 min-h-0 flex-1 overflow-y-auto"
-        >
+        <div class="mt-3 min-h-0 flex-1 overflow-y-auto">
           <SessionTree
             :selected="selectedSession"
             @select="openSession"
@@ -265,6 +262,12 @@ onUnmounted(() => {
     <CreateSessionDialog
       v-model:open="creating"
       :machine="MACHINE"
+      @created="onCreated"
+    />
+    <FileBrowserDialog
+      v-model:open="browsing"
+      :machine="MACHINE"
+      :start-project-id="requestedProjectId"
       @created="onCreated"
     />
     <RenameSessionDialog

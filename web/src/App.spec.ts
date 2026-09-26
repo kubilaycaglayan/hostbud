@@ -67,7 +67,8 @@ describe('App shell', () => {
     expect(wrapper.get('header').text()).toContain('person@example.com')
     expect(wrapper.get('aside').get('h2').text()).toBe('Projects & sessions')
     expect(wrapper.get('aside').text()).toContain('New session')
-    expect(wrapper.get('aside').text()).toContain('Browse files')
+    expect(wrapper.find('header button[aria-label="Browse files"]').exists()).toBe(true)
+    expect(wrapper.get('aside').text()).not.toContain('Browse files')
     expect(wrapper.get('main').text()).toContain('Select a session')
     // Signed in ⇒ live updates start (no polling).
     expect(IdleSocket.instances.map((x) => x.url)).toEqual(['ws://localhost:3000/ws/events'])
@@ -81,6 +82,20 @@ describe('App shell', () => {
     useAppStore().toggleSidebar()
     await wrapper.vm.$nextTick()
     expect(wrapper.find('aside').exists()).toBe(false)
+  })
+
+  it('opens the file browser in a dialog outside the project sidebar', async () => {
+    signedIn()
+    const wrapper = mount(App, { attachTo: document.body })
+    await flushPromises()
+    await wrapper.get('header button[aria-label="Browse files"]').trigger('click')
+    await flushPromises()
+    const dialog = document.body.querySelector('[role="dialog"]')
+    expect(dialog).not.toBeNull()
+    expect(dialog?.textContent).toContain('Browse files')
+    expect(wrapper.get('aside').text()).toContain('Projects & sessions')
+    expect(wrapper.get('aside').text()).not.toContain('Current path')
+    wrapper.unmount()
   })
 
   it('signs out back to the sign-in screen', async () => {
