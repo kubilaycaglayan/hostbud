@@ -136,6 +136,20 @@ Tasks: [roadmap/M7-tasks.md](roadmap/M7-tasks.md) · Checklist: [roadmap/M7-acce
 
 **Accept:** security checklist in AGENTS.md fully satisfied; fresh-host install from README works end to end; `make e2e` green twice in a row.
 
+### M8 — Interface density and input behavior
+Tasks: [roadmap/M8-tasks.md](roadmap/M8-tasks.md) · Checklist: [roadmap/M8-acceptance.md](roadmap/M8-acceptance.md)
+
+- Compact the New session, Browse files, and left-bar collapse/expand controls by reducing excess inner padding while preserving clear focus and usable targets.
+- Move New session and Browse files into the top app bar immediately after the host name.
+- Tighten project and session rows in the left tree: bring drag/reorder and project expand controls closer together, reduce row padding and margins, remove session chevrons where sessions have no expandable children, and prioritize session names.
+- Make the Browse files dialog compact: reduce its outer dimensions and inner whitespace, and bring file/folder items closer together without making the individual items hard to use.
+- Disable browser autocomplete/autofill on application inputs, except for the existing login-screen password behavior, which stays as it is.
+- Let users drag open tabs to set a custom order. Keep the existing tab design unchanged: tabs themselves are draggable, with no added drag handle or other visual redesign. Newly opened tabs continue to append after the current last tab unless the user reorders them.
+
+**E2E:** tree controls and row affordances remain operable and correctly named after relocation/density changes; Browse files opens in its compact layout and navigation/item actions still work; non-login inputs declare browser autocomplete off while login password behavior remains unchanged; open tabs can be dragged into a custom order, which survives reload and restart without changing tab styling. Add scenarios task by task in M8; follow the normal E2E run policy after M7's scheduled full run has completed.
+
+**Accept:** the controls and tree present a denser layout with session names easy to scan; the file browser dialog uses the viewport efficiently with compact item spacing; all controls remain keyboard accessible and usable on desktop and phone; browser autocomplete is disabled everywhere except the unchanged login password behavior; users can drag tabs to reorder them and the custom order persists while the current visual design remains unchanged.
+
 ---
 
 ## Later (not scheduled)

@@ -1,0 +1,39 @@
+# M8 — Interface density and input behavior: acceptance
+
+Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integration is n/a only where the behavior is strictly frontend presentation or browser markup.
+
+## Header controls
+
+- [ ] New session and Browse files follow the host name in the top app bar. Their visual inner padding is reduced by at least 50% from the current design; left-bar collapse/expand control also has compact inner padding. Names, tooltips, focus treatment, action wiring and phone hit targets remain usable.
+  - U: T1 placement/order, dialog actions, accessible names, compact styling and hit-area classes (Vitest).
+  - I: n/a: frontend presentation and local dialog actions; no server contract changes.
+  - E: T1 *Header actions and compact controls* (desktop and phone).
+
+## Project and session tree
+
+- [ ] Project drag/reorder and expand/collapse affordances sit close together; project/session row padding and margins are compact. Session names are the leading, prominent content. No session chevron is rendered where the session row has no expandable children; actual expandable content remains discoverable and operable. Reorder, collapse, keyboard access, focus and phone usability continue to work.
+  - U: T2 row structure, affordance visibility, name-first layout, action wiring and compact styling (Vitest).
+  - I: n/a: presentation-only; tree data and APIs are unchanged.
+  - E: T2 *Compact tree* (desktop and phone), including actual reorder/collapse/open behavior.
+
+## File browser and browser autocomplete
+
+- [ ] Browse files dialog is compact in outer size and inner padding, stays within the viewport, and file/folder rows are closer together while labels and actions remain usable. Existing navigation, folder creation, project and session actions continue to work.
+  - U: T3 dialog/item density classes, bounds-related responsive classes and action wiring (Vitest).
+  - I: n/a: layout is frontend-only; existing M4 file-browser API integration coverage remains applicable.
+  - E: T3 *Compact file browser* (desktop and phone), screenshot/bounds plus navigation and item actions.
+- [ ] Browser autocomplete/autofill is disabled on all application inputs except the login-screen password input, whose current autocomplete behavior and markup remain unchanged.
+  - U: T3 rendered form attribute audit, with explicit login-password exception regression (Vitest).
+  - I: n/a: browser form markup; no server behavior changes.
+  - E: T3 *No browser autocomplete outside login password* (desktop): inspect all application form controls and preserve login password behavior.
+
+## Open tab ordering
+
+- [ ] Users can drag tabs directly to choose their order. Keep the existing tab appearance unchanged and add no drag handle. New tabs append to the end. The chosen order is saved in the existing per-account layout and survives reload and app restart; reordering does not activate another tab, remount terminals or detach tmux clients. The compact phone tab switcher reflects the same order.
+  - U: T4 layout-store reorder/restore/append behavior and active/pane invariants (Vitest); drag/drop interaction updates order without changing the active tab or mounting terminals (component test).
+  - I: n/a: this uses the existing `ui_state/layout` persistence route with no server changes; M3 covers its authenticated persistence integration.
+  - E: T4 *Custom tab order* (desktop and phone), including persistence after reload and restart and unchanged appearance.
+
+## Manual checks (owner)
+
+No owner-only check is required. Desktop and phone screenshots and interaction checks are performed during T1–T3 implementation.
