@@ -50,6 +50,15 @@ of Pass 1; Pass 2 must be documented per scenario before another full run.
 - **Main finding:** 225 failures share one cause: `ui.createAccount()` signs out through the UI, which revokes the shared global-setup session, so later tests start signed out. Open.
 - **Next:** fix that shared cause, triage the remaining rows, then run pass 04.
 
+## Pass 4 — after the pass 03 fix batch (incomplete)
+
+- **Commit under test:** `9a5189b` plus uncommitted in-progress M8 working-tree changes.
+- **Result:** 244 passed, 79 failed, 43 skipped, 0 flaky, 24 did not run (390 total). The run was terminated (SIGTERM) after test 366, so there is no Playwright summary and the logs-clean check didn't run.
+- **Duration:** approximately 35 minutes wall-clock.
+- **Detailed report:** [2026-09-27-v1-m7-pass-04.md](../e2e-triage/2026-09-27-v1-m7-pass-04.md).
+- **Main findings:** pass 03 cause A (signed-out cascade) is fixed. Suspected shared causes: B, tree/tab order not applied after reorder, reload or restart (9); C, inline rename editor not opened or focused (5); D, two terminals mounted (4); E, terminal input not focused (7); plus 20 tree-scenario timeouts that may follow from B or C. All open.
+- **Next:** batch-fix B–E and the unclassified rows, then run pass 05 with no other agent using the `hostbud-e2e` stack.
+
 ## Remaining verification
 
 - `make lint test` has not passed: Go lint passed, but `scripts/test-readonly-image.sh`
