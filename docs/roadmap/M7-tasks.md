@@ -14,7 +14,7 @@ Update this table in the same commit that finishes a task.
 | T2 Exec timeouts and ControlMaster recovery | Done |
 | T3 SFTP bounds | Done |
 | T4 WebSocket limits and stalled clients | Done |
-| T5 HTTP, request and database limits | Not started |
+| T5 HTTP, request and database limits | Done |
 | T6 Security headers and CSP | Not started |
 | T7 Container and deploy hardening | Not started |
 | T8 Tailscale identity allowlist | Not started |
@@ -44,7 +44,7 @@ Update this table in the same commit that finishes a task.
 | Checkpoint | After | Runs | Status |
 |---|---|---|---|
 | CP1 | T1 + T2 + T3 (config, exec and SFTP bounds) | `make lint test` | Passed |
-| CP2 | T4 + T5 (WebSocket, HTTP and database limits) | `make lint test` | Not run |
+| CP2 | T4 + T5 (WebSocket, HTTP and database limits) | `make lint test` | Passed |
 | CP3 | T6 + T7 (headers/CSP, container hardening) | `make lint test`, plus `make build` (the CSP hash is read from the built `index.html`) and `scripts/compose-config.sh` | Not run |
 | CP4 | T8 + T9 (Tailscale allowlist, backup/restore) | `make lint test` | Not run |
 | CP5 | T10 + T11 + T12 (integration completion, install, audit) | `make lint test` **three times in a row** (flake check for the integration suite), `make gitleaks`, e2e `tsc` | Not run |

@@ -1,0 +1,134 @@
+package api
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"reflect"
+	"sort"
+	"strings"
+	"testing"
+	"testing/fstest"
+
+	"hostbud/internal/events"
+)
+
+type routeInfo struct {
+	Method        string `json:"method"`
+	Path          string `json:"path"`
+	StateChanging bool   `json:"stateChanging"`
+	AuthRequired  bool   `json:"authRequired"`
+	WebSocket     bool   `json:"websocket"`
+	JSONBody      bool   `json:"jsonBody"`
+}
+
+type routeOnlyTerminal struct{}
+
+func (routeOnlyTerminal) ServeHTTP(http.ResponseWriter, *http.Request) {}
+func (routeOnlyTerminal) AtCapacity(string) bool                       { return false }
+
+func TestRouteInventoryMatchesRouter(t *testing.T) {
+	data, err := os.ReadFile("testdata/routes.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var routes []routeInfo
+	if err := json.Unmarshal(data, &routes); err != nil {
+		t.Fatal(err)
+	}
+	cfg := Config{Dist: fstest.MapFS{}, Bus: events.NewBus(), Auth: &fakeAuth{}, Sessions: &fakeService{},
+		Projects: &fakeProjects{}, FileSystem: &fakeFileBrowser{}, Terminal: routeOnlyTerminal{}, UIState: &fakeUIState{}}
+	s := &server{cfg: cfg}
+	mountRoutes(s, http.NewServeMux())
+	want := make([]string, 0, len(routes))
+	for _, route := range routes {
+		want = append(want, route.Method+" "+route.Path)
+	}
+	got := append([]string(nil), s.routePatterns...)
+	sort.Strings(want)
+	sort.Strings(got)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("router and route inventory differ\nrouter: %s\nfile:   %s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+	for _, route := range routes {
+		if route.WebSocket != strings.HasPrefix(route.Path, "/ws/") {
+			t.Errorf("%s websocket flag mismatch", route.Method+" "+route.Path)
+		}
+		protected := strings.HasPrefix(route.Path, "/api/") || strings.HasPrefix(route.Path, "/ws/")
+		wantAuth := protected && !publicRoutes[route.Method+" "+route.Path]
+		if route.AuthRequired != wantAuth {
+			t.Errorf("%s auth flag mismatch", route.Method+" "+route.Path)
+		}
+		wantChanging := isStateChanging(route.Method) && route.Path != "/api/machines/{machine}/sessions/{name}/windows"
+		if route.StateChanging != wantChanging {
+			t.Errorf("%s state-changing flag mismatch", route.Method+" "+route.Path)
+		}
+	}
+	jsonBodies := map[string]bool{
+		"POST /api/auth/register": true, "POST /api/auth/login": true,
+		"POST /api/machines/{machine}/sessions/{name}/copy-mode": true,
+		"POST /api/machines/{machine}/sessions/{name}/select":    true,
+		"POST /api/machines/{machine}/sessions":                  true,
+		"PATCH /api/machines/{machine}/sessions/{name}":          true,
+		"PUT /api/ui-state/{key}":                                true,
+		"POST /api/machines/{machine}/fs/mkdir":                  true,
+		"POST /api/projects":                                     true, "PATCH /api/projects/{id}": true,
+		"POST /api/projects/{id}/sessions": true,
+	}
+	for _, route := range routes {
+		key := route.Method + " " + route.Path
+		if route.JSONBody != jsonBodies[key] {
+			t.Errorf("%s JSON body flag mismatch", key)
+		}
+	}
+}
+
+func TestEveryJSONRouteGetsBodyAndContentTypeLimits(t *testing.T) {
+	data, err := os.ReadFile("testdata/routes.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var routes []routeInfo
+	if err := json.Unmarshal(data, &routes); err != nil {
+		t.Fatal(err)
+	}
+	e := newEnv(t)
+	for _, route := range routes {
+		if !route.StateChanging || !route.JSONBody {
+			continue
+		}
+		path := strings.NewReplacer("{machine}", "host", "{name}", "route-check", "{id}", "missing", "{key}", "layout").Replace(route.Path)
+		for _, tc := range []struct {
+			contentType string
+			size        int
+			status      int
+		}{
+			{"application/json", 65 << 10, http.StatusRequestEntityTooLarge},
+			{"text/plain", 2, http.StatusUnsupportedMediaType},
+		} {
+			body := strings.Repeat("x", tc.size)
+			req := httptest.NewRequestWithContext(t.Context(), route.Method, path, strings.NewReader(body))
+			req.Header.Set("Content-Type", tc.contentType)
+			req.Header.Set("Origin", origin)
+			req.AddCookie(&http.Cookie{Name: SessionCookie, Value: testToken})
+			w := httptest.NewRecorder()
+			e.h.ServeHTTP(w, req)
+			if w.Code != tc.status {
+				t.Errorf("%s (%s): status=%d body=%s", route.Method+" "+path, tc.contentType, w.Code, w.Body)
+			}
+		}
+		if route.Path == "/api/ui-state/{key}" {
+			continue
+		} // raw JSON state is intentionally not field-decoded
+		req := httptest.NewRequestWithContext(t.Context(), route.Method, path, strings.NewReader(`{"unknownField":true}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Origin", origin)
+		req.AddCookie(&http.Cookie{Name: SessionCookie, Value: testToken})
+		w := httptest.NewRecorder()
+		e.h.ServeHTTP(w, req)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("%s unknown field: status=%d body=%s", route.Method+" "+path, w.Code, w.Body)
+		}
+	}
+}

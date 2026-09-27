@@ -133,6 +133,7 @@ func run() error {
 			Log: log, Dist: web.Dist(),
 			ExecTimeout:    cfg.ExecTimeout,
 			SFTPTimeout:    cfg.SFTPTimeout,
+			DBPing:         st.Ping,
 			Origins:        api.AllowedOrigins(cfg.Domain, cfg.LocalPort),
 			Bus:            bus,
 			Machines:       []api.Snapshotter{inv},
@@ -145,6 +146,7 @@ func run() error {
 			TrustedProxies: proxies,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
+		MaxHeaderBytes:    32 << 10,
 		IdleTimeout:       2 * time.Minute,
 	}
 

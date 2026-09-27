@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -60,6 +61,115 @@ func TestOpenMigratesAndSeedsHost(t *testing.T) {
 	var schema string
 	if err := s.db.QueryRowContext(ctx, `SELECT current_schema()`).Scan(&schema); err != nil || schema == "public" {
 		t.Fatalf("current_schema = %q, %v; want isolated test schema", schema, err)
+	}
+}
+
+func TestDatabaseLimitsAndPool(t *testing.T) {
+	conf := testConfig(t.TempDir())
+	parsed, err := url.Parse(conf.dsn())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, want := range map[string]string{
+		"connect_timeout": "5", "statement_timeout": "5000", "lock_timeout": "3000", "idle_in_transaction_session_timeout": "30000",
+	} {
+		if got := parsed.Query().Get(key); got != want {
+			t.Errorf("DSN %s=%q, want %q", key, got, want)
+		}
+	}
+	s := openTemp(t, t.TempDir())
+	defer func() { _ = s.Close() }()
+	if got := s.db.Stats().MaxOpenConnections; got != 20 {
+		t.Fatalf("MaxOpenConnections=%d, want 20", got)
+	}
+	ctx := context.Background()
+	var statement, lock, idle string
+	for _, item := range []struct {
+		name string
+		dest *string
+	}{{"statement_timeout", &statement}, {"lock_timeout", &lock}, {"idle_in_transaction_session_timeout", &idle}} {
+		if err := s.db.QueryRowContext(ctx, "SHOW "+item.name).Scan(item.dest); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if statement != "5s" || lock != "3s" || idle != "30s" {
+		t.Fatalf("session timeouts: statement=%s lock=%s idle=%s", statement, lock, idle)
+	}
+	conns := make([]*sql.Conn, 0, 6)
+	for i := 0; i < 6; i++ {
+		conn, err := s.db.Conn(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		conns = append(conns, conn)
+	}
+	for _, conn := range conns {
+		_ = conn.Close()
+	}
+	if got := s.db.Stats().Idle; got > 5 {
+		t.Fatalf("idle pool connections=%d, want at most 5", got)
+	}
+}
+
+func TestPostgresStatementAndLockTimeouts(t *testing.T) {
+	s := openTemp(t, t.TempDir())
+	defer func() { _ = s.Close() }()
+	ctx := context.Background()
+	start := time.Now()
+	if _, err := s.db.ExecContext(ctx, `SELECT pg_sleep(6)`); err == nil {
+		t.Fatal("pg_sleep passed statement_timeout")
+	}
+	if d := time.Since(start); d < 4*time.Second || d > 7*time.Second {
+		t.Fatalf("statement timeout after %v, want about 5s", d)
+	}
+	key := "lock-timeout-integration"
+	if _, err := s.db.ExecContext(ctx, `INSERT INTO login_rate_limits(scope_key) VALUES ($1) ON CONFLICT DO NOTHING`, key); err != nil {
+		t.Fatal(err)
+	}
+	one, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = one.Rollback() }()
+	var locked string
+	if err := one.QueryRowContext(ctx, `SELECT scope_key FROM login_rate_limits WHERE scope_key=$1 FOR UPDATE`, key).Scan(&locked); err != nil {
+		t.Fatal(err)
+	}
+	two, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = two.Rollback() }()
+	start = time.Now()
+	_, err = two.ExecContext(ctx, `UPDATE login_rate_limits SET failures=failures+1 WHERE scope_key=$1`, key)
+	if err == nil {
+		t.Fatal("contended update passed lock_timeout")
+	}
+	if d := time.Since(start); d < 2*time.Second || d > 5*time.Second {
+		t.Fatalf("lock timeout after %v, want about 3s", d)
+	}
+}
+
+func TestIsUnavailable(t *testing.T) {
+	if !IsUnavailable(context.DeadlineExceeded) {
+		t.Fatal("context deadline was not unavailable")
+	}
+	if IsUnavailable(ErrNotFound) {
+		t.Fatal("not found classified as unavailable")
+	}
+}
+
+func TestOpenStartupHonorsEarlierCallerDeadline(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	conf := Config{Host: "127.0.0.1", Port: 1, Name: "hostbud_test", User: "hostbud_test", Password: "placeholder", SSLMode: "disable"}
+	start := time.Now()
+	_, err := Open(ctx, conf)
+	if err == nil {
+		t.Fatal("Open succeeded without PostgreSQL")
+	}
+	if time.Since(start) > time.Second {
+		t.Fatalf("Open waited %v past caller deadline", time.Since(start))
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 
 	"hostbud/internal/inventory"
@@ -87,7 +88,17 @@ func decode(w http.ResponseWriter, r *http.Request, v any) bool {
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(v); err != nil {
+		var tooBig *http.MaxBytesError
+		if errors.As(err, &tooBig) {
+			writeError(w, http.StatusRequestEntityTooLarge, "request body is limited to 64 KiB", "Send a smaller JSON request.")
+			return false
+		}
 		writeError(w, http.StatusBadRequest, "invalid JSON body", "Send a JSON object with the documented fields.")
+		return false
+	}
+	var extra any
+	if err := dec.Decode(&extra); err != io.EOF {
+		writeError(w, http.StatusBadRequest, "invalid JSON body", "Send one JSON value.")
 		return false
 	}
 	return true

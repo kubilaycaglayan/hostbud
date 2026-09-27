@@ -217,6 +217,7 @@ A session belongs to its `session_links` project when a link exists on the same 
 
 - PostgreSQL via a pinned official image, with the application connecting over the private Compose network. Database name, user, host, port and password come from `HOSTBUD_DB_*` environment variables. The password is never committed, logged or placed in an image.
 - Migrations: embedded SQL files (`internal/store/migrations/`) run at startup with `pressly/goose`; append-only. Queries via `sqlc` or a hand-written repository interface — **no SQL outside the store package**.
+- Startup waits up to 90 s for PostgreSQL and returns an actionable error if it stays unavailable. The pool allows 20 open and 5 idle connections, with 30 min max lifetime and 5 min max idle time. Every connection sets `statement_timeout=5s`, `lock_timeout=3s`, `idle_in_transaction_session_timeout=30s`, and `connect_timeout=5s`. Store methods use the caller's context.
 - IDs: ULIDs (text). Timestamps: UTC.
 - The owner can inspect and maintain the database with `docker compose exec hostbud-postgres psql -U <HOSTBUD_DB_USER> -d <HOSTBUD_DB_NAME>` using values in the local `.env`, or from the host through the loopback-only `HOSTBUD_DB_LOCAL_PORT` mapping. This is an operator access path, not an application API.
 - UI state is per account: `store.UIStateForUser`/`PutUIStateForUser` namespace the key as `user:<user-id>:<key>` in `ui_state` (no migration), so accounts never see each other's layout, tree customizations or theme. The `theme` value is `{version: 1, mode: "dark" | "light" | "system"}`; clients treat any unsupported version or mode as System.
@@ -287,6 +288,7 @@ POST   /api/auth/login                {email, password} — whitelist required
 POST   /api/auth/logout               revoke current session
 GET    /api/auth/me                   current account, or 401
 GET    /api/runtime/limits            authenticated runtime limits used by the browser client
+GET    /api/runtime/terminal-slots    authenticated terminal-capacity check used after a refused WebSocket upgrade
 GET    /api/machines                      list (with status) — v1: just the host
 GET    /api/machines/:id/sessions
 POST   /api/machines/:id/sessions         {name, path, startCommand?}
@@ -330,6 +332,8 @@ WebSockets: `/ws/events` (server → client state events), `/ws/term` (interacti
 - Origin allowlist: `https://${HOSTBUD_DOMAIN}` and `http://localhost:${HOSTBUD_LOCAL_PORT}`. Reject WebSocket upgrades and state-changing requests whose `Origin` is not in it. (`localhost` is a secure context, so clipboard APIs work over plain HTTP.)
 - Optional Tailscale identity allowlist (off by default; the tailnet is trusted): if `HOSTBUD_ALLOWED_TS_USERS` is set and the tailscaled socket is mounted, resolve the client IP (from Caddy's `X-Forwarded-For`, trusted only from the Caddy container) via Tailscale LocalAPI `whois` and reject unknown users.
 - CSRF: JSON-only API + SameSite cookies + Origin check on state-changing requests.
+- Every state-changing request with a body must use `Content-Type: application/json`; JSON bodies are limited to 64 KiB and typed decoders reject unknown fields. UI state accepts valid raw JSON up to 64 KiB. Headers are limited to 32 KiB; REST handlers have a 30 s deadline. `/api/*` responses use `Cache-Control: no-store`.
+- `GET /api/health` is public and pings PostgreSQL with a 1 s deadline. It returns `200 {"status":"ok"}` or `503 {"status":"degraded","db":"unreachable"}`. Database timeouts and outages on authenticated routes return `503 {"error":"The database isn't answering","hint":"Check `docker compose ps hostbud-postgres`; hostbud recovers when it's back."}`; a failed session lookup never turns into a 401.
 - Never log command strings containing user paths at info level.
 - Never log passwords, session cookies, password hashes, database passwords, full email addresses or whitelist contents.
 
@@ -503,11 +507,11 @@ Every bound is recorded here with its enforcement point and the result when it i
 | Terminal WebSocket liveness | Server ping every 25 s, 10 s pong timeout; browser drops after 25 s without a frame; browser ping every 10 s | `term.Handler`, `web/src/api/term.ts` | Unanswered peer ends attach; silent browser connection is replaced | Reconnecting strip and automatic reattach | No |
 | Terminal attachments | Client layout allows 16 panes; server cap per account and globally | `term.Handler` reservation before upgrade | HTTP 429 before ssh start; reservation released on process exit | Limit notice with a manual Retry | Yes: `HOSTBUD_MAX_TERMINALS_PER_USER` default 32 (1–256), `HOSTBUD_MAX_TERMINALS` default 128 (1–1024) |
 | Events WebSocket | 16 per account; 64-event subscriber buffer; heartbeat 15 s; ping 25 s; write timeout 10 s; browser silence 40 s | `events.Bus`, `api.eventsSocket`, `web/src/api/live.ts` | 429 over account cap; read-only socket closes data senders with 1003; slow subscriber closes with 1013 | Live state reconnects and receives a fresh snapshot | No |
-| HTTP server | Header read 10 s; idle connection 2 min; shutdown 10 s | `cmd/hostbud` | Slow headers are closed; idle connections expire; shutdown is bounded | Browser request fails or reconnects | No |
-| JSON request bodies | 64 KiB for session and UI-state handlers; other state-changing handlers do not yet share the decoder (T5) | API handlers | Oversized request gets 413; T5 makes content type, field and header handling uniform | Form/API error | No |
+| HTTP server | Header read 10 s; max headers 32 KiB; idle connection 2 min; shutdown 10 s | `cmd/hostbud` | Slow headers are closed; oversized headers get 431; idle connections expire; shutdown is bounded | Browser request fails or reconnects | No |
+| JSON request bodies | 64 KiB; state-changing bodies require `application/json`; typed decoders reject unknown fields | API middleware and `decode` | Oversized request gets 413; wrong content type 415; unknown field 400 | Form/API error | No |
 | UI state | 64 KiB per saved value | `api.putUIState` | Oversized value gets 413 | Previous saved value remains | No |
-| REST request duration | No common handler deadline (T5) | API middleware gap | T5 adds 30 s request deadline | Actionable 503/504 instead of a hang | No |
-| Database pool/query | No explicit pool or query bounds (T5) | `store` | T5 sets pool limits and PostgreSQL timeouts | T5 maps outage/timeout to 503 and health to degraded | No |
+| REST request duration | 30 s per `/api/*` request | API request middleware | Cancels handler context and bounds the response write | Request returns instead of hanging | No |
+| Database pool/query | 20 open / 5 idle; 30 min lifetime / 5 min idle; statement 5 s, lock 3 s, idle transaction 30 s, connect 5 s; startup 90 s | `store` | PostgreSQL enforces query/connection timeouts; startup fails actionably if DB does not return | Outage/timeouts are 503; health reports degraded | No |
 | Authentication | Session TTL 720 h; failures: 5 login, 10 registration, 20 per IP; blocks 30 s ×2 up to 1 h; failure window 1 h | `config`, `auth`, PostgreSQL rate-limit store | Rejects with 429 and `Retry-After` | Sign-in throttle message | Yes: existing `HOSTBUD_*` auth settings |
 | Browser layout | 16 terminals globally; 4 panes per tab; layout save debounce 500 ms; reconnect 0.5/1/2/4/8 s then 10 s cap; events backoff up to 10 s | `web/src/lib/layout.ts`, `web/src/stores/layout.ts`, `web/src/api/*` | Client rejects invalid/over-limit layout or retries network | Layout limit notice and reconnect indicator | No |
 

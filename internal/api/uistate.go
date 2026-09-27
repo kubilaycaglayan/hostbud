@@ -50,6 +50,10 @@ func (s *server) getUIState(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "nothing saved yet", "")
 	case err != nil:
 		s.cfg.Log.Warn("can't read UI state", "key", key, "err", err)
+		if store.IsUnavailable(err) {
+			writeDatabaseUnavailable(w)
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "can't read the saved UI state", "")
 	default:
 		w.Header().Set("Content-Type", "application/json")
@@ -81,6 +85,10 @@ func (s *server) putUIState(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := s.cfg.UIState.PutUIStateForUser(r.Context(), user, key, body); err != nil {
 		s.cfg.Log.Warn("can't save UI state", "key", key, "err", err)
+		if store.IsUnavailable(err) {
+			writeDatabaseUnavailable(w)
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "can't save the UI state", "")
 		return
 	}

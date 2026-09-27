@@ -60,6 +60,10 @@ func requireAuth(a Authenticator, next http.Handler) http.Handler {
 		}
 		u, err := a.Authenticate(r.Context(), token)
 		if err != nil {
+			if store.IsUnavailable(err) {
+				writeDatabaseUnavailable(w)
+				return
+			}
 			writeError(w, http.StatusUnauthorized, auth.ErrUnauthenticated.Error(), "Your session ended; sign in again.")
 			return
 		}
@@ -149,6 +153,10 @@ func (s *server) setSessionCookie(w http.ResponseWriter, r *http.Request, token 
 }
 
 func (s *server) authError(w http.ResponseWriter, err error) {
+	if store.IsUnavailable(err) {
+		writeDatabaseUnavailable(w)
+		return
+	}
 	var rl *auth.RateLimitedError
 	if errors.As(err, &rl) {
 		w.Header().Set("Retry-After", strconv.Itoa(auth.RetryAfterSeconds(rl.RetryAfter)))

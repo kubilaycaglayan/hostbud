@@ -188,6 +188,10 @@ func (s *server) projectError(w http.ResponseWriter, err error) {
 	case strings.Contains(err.Error(), "project path must"), strings.Contains(err.Error(), "project name must"), strings.Contains(err.Error(), "session name must"):
 		writeError(w, http.StatusBadRequest, "invalid project", "Use an absolute target path and valid project metadata.")
 	default:
+		if store.IsUnavailable(err) {
+			writeDatabaseUnavailable(w)
+			return
+		}
 		s.cfg.Log.Error("project request failed", "err", err)
 		writeError(w, http.StatusInternalServerError, "internal error", "")
 	}

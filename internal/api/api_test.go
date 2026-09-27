@@ -262,6 +262,92 @@ func TestHealth(t *testing.T) {
 	}
 }
 
+func TestHealthReportsDatabaseAndNoStore(t *testing.T) {
+	ready := false
+	h := New(Config{Dist: fstest.MapFS{}, DBPing: func(context.Context) error {
+		if !ready {
+			return context.DeadlineExceeded
+		}
+		return nil
+	}})
+	for _, tc := range []struct {
+		ready  bool
+		status int
+		body   string
+	}{
+		{false, http.StatusServiceUnavailable, `{"db":"unreachable","status":"degraded"}`},
+		{true, http.StatusOK, `{"status":"ok"}`},
+	} {
+		ready = tc.ready
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/health", nil)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		if w.Code != tc.status || strings.TrimSpace(w.Body.String()) != tc.body || w.Header().Get("Cache-Control") != "no-store" {
+			t.Fatalf("health ready=%v: status=%d body=%s cache=%q", ready, w.Code, w.Body, w.Header().Get("Cache-Control"))
+		}
+	}
+}
+
+func TestRequestLimitsJSONBodyAndDeadline(t *testing.T) {
+	e := newEnv(t)
+	large := `{"name":"` + strings.Repeat("x", 65<<10) + `"}`
+	for _, tc := range []struct {
+		name, body, contentType string
+		status                  int
+	}{
+		{"too large", large, "application/json", http.StatusRequestEntityTooLarge},
+		{"unknown field", `{"unknown":true}`, "application/json", http.StatusBadRequest},
+		{"wrong media type", `{}`, "text/plain", http.StatusUnsupportedMediaType},
+	} {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/machines/host/sessions", strings.NewReader(tc.body))
+		req.Header.Set("Content-Type", tc.contentType)
+		req.Header.Set("Origin", origin)
+		req.AddCookie(&http.Cookie{Name: SessionCookie, Value: testToken})
+		w := httptest.NewRecorder()
+		e.h.ServeHTTP(w, req)
+		if w.Code != tc.status {
+			t.Errorf("%s: status=%d body=%s", tc.name, w.Code, w.Body)
+		}
+	}
+	finished := make(chan struct{})
+	h := requestLimits(Config{RequestTimeout: 20 * time.Millisecond}, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done()
+		close(finished)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	start := time.Now()
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/slow", nil))
+	select {
+	case <-finished:
+	case <-time.After(time.Second):
+		t.Fatal("handler context did not expire")
+	}
+	if time.Since(start) > time.Second {
+		t.Fatal("request deadline exceeded test bound")
+	}
+}
+
+func TestHTTPServerRejectsHeadersOver32KiB(t *testing.T) {
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }))
+	srv.Config.MaxHeaderBytes = 32 << 10
+	srv.Start()
+	defer srv.Close()
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("X-Hostbud-Large", strings.Repeat("x", 40<<10))
+	resp, err := srv.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusRequestHeaderFieldsTooLarge {
+		t.Fatalf("header status=%d", resp.StatusCode)
+	}
+}
+
 func TestRuntimeLimitsIsAuthenticatedAndReportsExecDeadline(t *testing.T) {
 	e := newEnv(t)
 	if rec := e.do(t, http.MethodGet, "/api/runtime/limits", "", nil); rec.Code != http.StatusOK || strings.TrimSpace(rec.Body.String()) != `{"execTimeoutMs":10000,"sftpTimeoutMs":10000}` {

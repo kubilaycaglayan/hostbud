@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"slices"
 	"testing"
@@ -159,7 +158,7 @@ func TestProjectAPIAuthOriginAndErrors(t *testing.T) {
 	}{
 		{store.ErrNotFound, http.StatusNotFound},
 		{projects.ErrInvalidInput, http.StatusBadRequest},
-		{errors.New("database unavailable"), http.StatusInternalServerError},
+		{context.DeadlineExceeded, http.StatusServiceUnavailable},
 	} {
 		f.err = tc.err
 		if rec := e.do(t, http.MethodGet, "/api/projects", "", nil); rec.Code != tc.status {

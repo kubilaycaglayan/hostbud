@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net"
 	"net/url"
 	"os"
 	"os/exec"
@@ -17,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib" // registers the "pgx" driver
 	"github.com/pressly/goose/v3"
 	"github.com/pressly/goose/v3/lock"
@@ -98,6 +100,10 @@ type Config struct {
 
 func (c Config) dsn() string {
 	q := url.Values{"sslmode": {c.SSLMode}}
+	q.Set("connect_timeout", "5")
+	q.Set("statement_timeout", "5000")
+	q.Set("lock_timeout", "3000")
+	q.Set("idle_in_transaction_session_timeout", "30000")
 	if c.Schema != "" {
 		q.Set("search_path", c.Schema)
 	}
@@ -128,11 +134,13 @@ func Open(ctx context.Context, conf Config) (*Store, error) {
 	if conf.Host == "" || conf.Port < 1 || conf.Name == "" || conf.User == "" {
 		return nil, errors.New("database configuration is incomplete")
 	}
+	ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
+	defer cancel()
 	db, err := sql.Open("pgx", conf.dsn())
 	if err != nil {
 		return nil, fmt.Errorf("open PostgreSQL: %w", err)
 	}
-	if err := db.PingContext(ctx); err != nil {
+	if err := pingUntilAvailable(ctx, db); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("connect to PostgreSQL: %w", err)
 	}
@@ -151,16 +159,56 @@ func Open(ctx context.Context, conf Config) (*Store, error) {
 		if err != nil {
 			return nil, fmt.Errorf("open PostgreSQL schema: %w", err)
 		}
-		if err := db.PingContext(ctx); err != nil {
+		if err := pingUntilAvailable(ctx, db); err != nil {
 			_ = db.Close()
 			return nil, fmt.Errorf("connect to PostgreSQL schema: %w", err)
 		}
 	}
+	configurePool(db)
 	if err := migrate(ctx, db); err != nil {
 		_ = db.Close()
 		return nil, err
 	}
 	return &Store{db: db, now: func() time.Time { return time.Now().UTC() }, dbconf: conf}, nil
+}
+
+func pingUntilAvailable(ctx context.Context, db *sql.DB) error {
+	var last error
+	for {
+		if err := db.PingContext(ctx); err == nil {
+			return nil
+		} else {
+			last = err
+		}
+		timer := time.NewTimer(time.Second)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return fmt.Errorf("PostgreSQL did not become available within 90 seconds: %w (check `docker compose ps hostbud-postgres`)", last)
+		case <-timer.C:
+		}
+	}
+}
+
+func configurePool(db *sql.DB) {
+	db.SetMaxOpenConns(20)
+	db.SetMaxIdleConns(5)
+	db.SetConnMaxLifetime(30 * time.Minute)
+	db.SetConnMaxIdleTime(5 * time.Minute)
+}
+
+// IsUnavailable reports database errors that should be returned as a
+// recoverable service outage rather than an authentication or server error.
+func IsUnavailable(err error) bool {
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, sql.ErrConnDone) {
+		return true
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && (strings.HasPrefix(pgErr.Code, "08") || pgErr.Code == "57014" || pgErr.Code == "57P01" || pgErr.Code == "57P03") {
+		return true
+	}
+	var netErr net.Error
+	return errors.As(err, &netErr)
 }
 
 func migrate(ctx context.Context, db *sql.DB) error {
@@ -186,6 +234,9 @@ func migrate(ctx context.Context, db *sql.DB) error {
 
 // Close closes the database.
 func (s *Store) Close() error { return s.db.Close() }
+
+// Ping checks database reachability using the caller's deadline.
+func (s *Store) Ping(ctx context.Context) error { return s.db.PingContext(ctx) }
 
 const machineCols = `id, source, ssh_alias, label, active, sort_order, hidden,
 	os, home, tmux_version, tmux_missing, last_seen_at, created_at, updated_at`

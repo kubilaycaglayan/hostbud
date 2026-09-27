@@ -96,17 +96,17 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 
 ## HTTP, request and database limits
 
-- [ ] Every state-changing JSON route decodes through the one helper: bodies over 64 KiB → 413, unknown fields → 400, a body without `Content-Type: application/json` → 415. Headers over 32 KiB → 431. REST handlers run under a 30 s deadline. `/api/*` responses carry `Cache-Control: no-store`.
-  - U: T5 route-table test driven by the router (413/400/415 on every state-changing route), 431, the deadline middleware with a fake clock, the no-store header (Go).
+- [x] Every state-changing JSON route decodes through the one helper: bodies over 64 KiB → 413, unknown fields → 400, a body without `Content-Type: application/json` → 415. Headers over 32 KiB → 431. REST handlers run under a 30 s deadline. `/api/*` responses carry `Cache-Control: no-store`.
+  - U: T5 route-table test driven by the router (413/400/415 on every state-changing route), 431, the deadline middleware cancels a slow test handler, the no-store header (Go).
   - I: n/a: request handling needs no host. T5's `routes.json` (checked against the router) is shared with e2e.
   - E: T5 *Request limits through Caddy*.
-- [ ] The database pool and queries are bounded: 20 open / 5 idle connections, 30 min lifetime, 5 min idle time; `statement_timeout` 5 s, `lock_timeout` 3 s, `idle_in_transaction_session_timeout` 30 s, `connect_timeout` 5 s; startup waits at most 90 s for the database, then exits with an actionable error.
+- [x] The database pool and queries are bounded: 20 open / 5 idle connections, 30 min lifetime, 5 min idle time; `statement_timeout` 5 s, `lock_timeout` 3 s, `idle_in_transaction_session_timeout` 30 s, `connect_timeout` 5 s; startup waits at most 90 s for the database, then exits with an actionable error.
   - U: T5 DSN/runtime params and pool settings built from config; the startup bound with a fake clock (Go).
   - I: T5 `pg_sleep(6)` hits the statement timeout; a contended rate-limit row hits the lock timeout; `db.Stats()` shows the pool bounds (Go, PostgreSQL).
   - E: n/a: a database outage can't be staged in the e2e stack without restarting shared services mid-suite; unit and integration tests cover it.
-- [ ] A database timeout or outage answers 503 with `{error, hint}`. Session checks that fail on the database answer 503, never 401, and the browser keeps the user signed in on a 503. `/api/health` pings the database (1 s): 200 `{"status":"ok"}` or 503 `{"status":"degraded","db":"unreachable"}`, and stays public.
+- [x] A database timeout or outage answers 503 with `{error, hint}`. Session checks that fail on the database answer 503, never 401, and the browser keeps the user signed in on a 503. `/api/health` pings the database (1 s): 200 `{"status":"ok"}` or 503 `{"status":"degraded","db":"unreachable"}`, and stays public.
   - U: T5 503 mapping; auth middleware 503-not-401; health both ways (Go); the client keeps the session on 503 (Vitest).
-  - I: T5 health is 503 while the test database is paused and 200 after it resumes (Go, PostgreSQL).
+  - I: T5 health is 503 when the test store pool is closed and 200 after a fresh pool reconnects (Go, PostgreSQL).
   - E: T5 *Request limits through Caddy* checks the healthy `/api/health`.
 
 ## Security headers and CSP

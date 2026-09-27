@@ -1,6 +1,8 @@
 package api
 
 import (
+	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
@@ -13,6 +15,7 @@ import (
 
 	"hostbud/internal/auth"
 	"hostbud/internal/events"
+	"hostbud/internal/store"
 )
 
 func authEnv(t *testing.T, a Authenticator) *env {
@@ -65,6 +68,27 @@ func TestProtectedRoutesNeedSession(t *testing.T) {
 	}
 }
 
+type authOutage struct{ fakeAuth }
+
+func (authOutage) Authenticate(context.Context, string) (store.User, error) {
+	return store.User{}, context.DeadlineExceeded
+}
+
+func TestDatabaseOutageDuringAuthenticationIs503(t *testing.T) {
+	e := authEnv(t, &authOutage{})
+	rec := e.do(t, http.MethodGet, "/api/machines", "", map[string]string{"Cookie": SessionCookie + "=" + testToken})
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body)
+	}
+	var body errorBody
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Error != "The database isn't answering" || body.Hint == "" {
+		t.Fatalf("error body: %+v", body)
+	}
+}
+
 func TestSessionReachesProtectedRoutes(t *testing.T) {
 	e := authEnv(t, &fakeAuth{})
 	if rec := e.do(t, "GET", "/api/machines", "", nil); rec.Code != 200 {
@@ -110,6 +134,7 @@ func TestLoginSetsHardenedCookie(t *testing.T) {
 	req := httptest.NewRequestWithContext(t.Context(), "POST", "/api/auth/login",
 		strings.NewReader(`{"email":"person@example.com","password":"good-password"}`))
 	req.RemoteAddr = "172.20.0.3:4000"
+	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Forwarded-Proto", "https")
 	req.Header.Set("Origin", origin)
 	rec = httptest.NewRecorder()
@@ -121,6 +146,7 @@ func TestLoginSetsHardenedCookie(t *testing.T) {
 	req = httptest.NewRequestWithContext(t.Context(), "POST", "/api/auth/login",
 		strings.NewReader(`{"email":"person@example.com","password":"good-password"}`))
 	req.RemoteAddr = "203.0.113.4:4000"
+	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Forwarded-Proto", "https")
 	req.Header.Set("Origin", origin)
 	rec = httptest.NewRecorder()
@@ -193,6 +219,7 @@ func TestClientIPUsesTrustedProxyHeader(t *testing.T) {
 	req := httptest.NewRequestWithContext(t.Context(), "POST", "/api/auth/register",
 		strings.NewReader(`{"email":"a@example.com","password":"long enough pw"}`))
 	req.RemoteAddr = "172.20.0.3:4000"
+	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Forwarded-For", "198.51.100.23")
 	req.Header.Set("Origin", origin)
 	e.h.ServeHTTP(httptest.NewRecorder(), req)

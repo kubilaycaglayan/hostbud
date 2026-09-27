@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { expect, test } from '../helpers/fixtures.ts'
 import { ctl } from '../helpers/ctl.ts'
 import { MACHINE, mutate, ORIGIN, upgradeSocket } from '../helpers/api.ts'
@@ -93,4 +94,42 @@ test('(T4) stalled terminal client is dropped while the tmux session survives', 
     stalled?.destroy()
     recovered?.destroy()
   }
+})
+
+test('(T5) request limits and no-store headers pass through Caddy', async ({ request }) => {
+  const routes = JSON.parse(readFileSync('routes.json', 'utf8')) as {
+    method: string; path: string; stateChanging: boolean; authRequired: boolean; websocket: boolean; jsonBody: boolean
+  }[]
+  const body = JSON.stringify({ value: 'x'.repeat(65 << 10) })
+  const jsonRoutes = routes.filter((route) => route.stateChanging && route.jsonBody)
+  for (const route of jsonRoutes) {
+    const path = route.path.replace('{machine}', MACHINE).replace('{name}', 'request-limit').replace('{id}', 'missing').replace('{key}', 'layout')
+    for (const [contentType, expected] of [['application/json', 413], ['text/plain', 415]] as const) {
+      const response = await request.fetch(path, {
+        method: route.method,
+        data: body,
+        headers: { Origin: ORIGIN, 'Content-Type': contentType },
+      })
+      expect(response.status(), `${route.method} ${path} ${contentType}`).toBe(expected)
+    }
+  }
+  for (const route of jsonRoutes.filter((item) => !item.path.startsWith('/api/ui-state/'))) {
+    const path = route.path.replace('{machine}', MACHINE).replace('{name}', 'request-limit').replace('{id}', 'missing').replace('{key}', 'layout')
+    const response = await request.fetch(path, {
+      method: route.method,
+      data: JSON.stringify({ unexpectedField: true }),
+      headers: { Origin: ORIGIN, 'Content-Type': 'application/json' },
+    })
+    expect(response.status(), `${route.method} ${path} unknown field`).toBe(400)
+  }
+  for (const path of ['/api/health', '/api/does-not-exist']) {
+    const response = await request.get(path)
+    expect(response.headers()['cache-control']).toBe('no-store')
+  }
+  const health = await request.get('/api/health')
+  expect(health.status()).toBe(200)
+  expect(await health.json()).toEqual({ status: 'ok' })
+  const wideHeader = await request.get('/api/health', { headers: { 'X-Hostbud-Large': 'x'.repeat(40 << 10) } })
+  expect(wideHeader.status()).toBeGreaterThanOrEqual(400)
+  expect(wideHeader.status()).toBeLessThan(500)
 })
