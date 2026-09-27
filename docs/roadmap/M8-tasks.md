@@ -9,6 +9,7 @@ Scope and acceptance: [../ROADMAP.md](../ROADMAP.md#m8--interface-density-and-in
 - Work top to bottom. Before each task, read its U/I/E coverage in [M8-acceptance.md](M8-acceptance.md) and write those tests/scenarios with the behavior.
 - Add or update E2E scenarios in the same task as each UI behavior change. Follow the E2E run policy active after M7; do not run the suite early if the M7 full-run checkpoint has not happened yet.
 - During visual implementation, run the app and inspect desktop and phone screenshots of the affected screens before and after. Use those screenshots to tune spacing and verify that names are more prominent, controls are compact, and the file dialog uses the viewport efficiently. This inspection is part of implementation, not an owner check.
+- For the caret-placement issue, first reproduce it in the affected input, identify whether it is a single-line or multiline control, and verify the clicked caret position against the displayed text before and after the fix.
 - Keep accessible names, visible focus, keyboard operation and touch usability. Do not shrink hit areas below the app's phone target requirements; use compact visual padding while retaining a usable target.
 - Preserve the existing login screen's password autocomplete behavior exactly. Disable browser autocomplete/autofill on every other application input.
 - Conventional commits, small and focused. No backend, schema, migration or environment changes are expected.
@@ -54,9 +55,19 @@ Scope and acceptance: [../ROADMAP.md](../ROADMAP.md#m8--interface-density-and-in
 
 **E2E:** Add T4 *Custom tab order* (desktop and phone): open at least three sessions, drag a tab to a new position, verify the order and active terminal remain correct, reload and restart the app to verify the order persists; confirm no drag handle was added and tab styling remains unchanged.
 
+## T5 — Reliable Option-click caret placement
+
+- Fix the reported behavior where Option-clicking editable text causes the caret to jump to unrelated lines or positions. The caret must land at the character/line under the pointer in both single-line and multiline inputs.
+- Preserve ordinary click, selection, typing, keyboard navigation, and the login password field's existing autocomplete behavior.
+- Reproduce and inspect the actual affected input in the running app. Add regression coverage for positions near the beginning, middle and end of text and across multiple lines; do not claim this task done based only on a synthetic unit test.
+
+**Tests:** U: T5 frontend test covers mapping the pointer location to the expected caret position across line boundaries and confirms ordinary click/selection remain unchanged (Vitest); I: n/a (browser-side input behavior, no server state); E: T5 *Option-click caret placement* (desktop): in representative single-line and multiline app text inputs, click at known characters/lines and assert `selectionStart`/caret line and column match the click, then type and verify insertion at that location.
+
+**E2E:** Add T5 *Option-click caret placement* (desktop): exercise single-line and multiline inputs at several known positions with the platform's Option/Alt-click gesture, assert the caret location and inserted text, and verify ordinary click remains correct.
+
 ## Done
 
 - [ ] M8 acceptance criteria and their U/I/E coverage are complete.
 - [ ] `make lint test` and `make gitleaks` are green; E2E scenarios pass under the post-M7 run policy.
-- [ ] Desktop and phone screenshots were inspected during implementation; README/ARCHITECTURE updated only if user-facing behavior or design changes warrant it.
+- [ ] Desktop and phone screenshots were inspected during implementation; README/ARCHITECTURE updated only if user-facing behavior or design changes warrant it. T5's affected inputs were reproduced and checked in the running app.
 - [ ] Summary lists changes, any environment variables (expected none), host steps (expected none), and any open owner items.

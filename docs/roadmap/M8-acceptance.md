@@ -34,6 +34,13 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
   - I: n/a: this uses the existing `ui_state/layout` persistence route with no server changes; M3 covers its authenticated persistence integration.
   - E: T4 *Custom tab order* (desktop and phone), including persistence after reload and restart and unchanged appearance.
 
+## Text input caret placement
+
+- [ ] Option-click in editable text inputs places the caret at the clicked character and line in single-line and multiline inputs, without jumps to unrelated positions. Ordinary click, selection, typing, keyboard navigation and existing login password autocomplete behavior remain intact.
+  - U: T5 pointer-to-caret regression coverage across positions/line boundaries and ordinary-click behavior (Vitest).
+  - I: n/a: caret positioning is browser-side input behavior and makes no server request.
+  - E: T5 *Option-click caret placement* (desktop), asserts caret coordinates and text insertion at the clicked location in representative single-line and multiline app inputs.
+
 ## Manual checks (owner)
 
 No owner-only check is required. Desktop and phone screenshots and interaction checks are performed during T1–T3 implementation.
