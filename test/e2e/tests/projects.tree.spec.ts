@@ -32,9 +32,13 @@ async function openProjectSession(page: import('@playwright/test').Page, name: s
   return dialog
 }
 
-async function returnToTree(page: import('@playwright/test').Page, profile: 'desktop' | 'phone') {
+/** Opens the tree drawer when a terminal covers the tree (compact screens,
+ * whatever the profile's viewport). */
+async function returnToTree(page: import('@playwright/test').Page) {
   const trigger = page.locator('header button[aria-controls="sessions-sidebar"]')
-  if (profile === 'phone' && (await trigger.getAttribute('aria-expanded')) !== 'true') await trigger.click()
+  const tree = page.getByRole('navigation', { name: 'Project and session tree' })
+  if (!(await tree.isVisible()) && (await trigger.getAttribute('aria-expanded')) !== 'true') await trigger.click()
+  await expect(tree).toBeVisible()
 }
 
 test('(T5) Longest-prefix project mapping', async ({ page, target, request }) => {
@@ -74,17 +78,19 @@ test('(T5) Linked session rename and cleanup', async ({ page, target, request, u
   await page.getByRole('button', { name: `New session in ${projectName}` }).click()
   await expect(page.getByRole('dialog', { name: 'New session here' })).toBeVisible()
   await expect(page.getByRole('dialog', { name: 'Browse files' })).toHaveCount(0)
-  await page.getByLabel('Name').fill(sessionName)
-  await page.getByLabel('Start command').fill('sleep 6')
-  await page.getByRole('button', { name: 'Create session' }).click()
+  const create = page.getByRole('dialog', { name: 'New session here' })
+  await create.getByLabel('Name', { exact: true }).fill(sessionName)
+  await create.getByLabel('Start command').fill('sleep 6')
+  await create.getByRole('button', { name: 'Create session' }).click()
   await expect.poll(async () => {
     const data = await (await request.get(`/api/machines/${MACHINE}/sessions`)).json()
     return data.sessions.find((session: { name: string }) => session.name === sessionName)?.path
   }).toBe(root)
   await ui.showList()
   await ui.sessionAction(sessionName, 'Rename')
-  await page.getByRole('dialog', { name: 'Rename session' }).getByLabel('New name').fill(`${sessionName}-renamed`)
-  await page.getByRole('dialog', { name: 'Rename session' }).getByRole('button', { name: 'Rename' }).click()
+  const editor = page.getByRole('textbox', { name: `Rename ${sessionName}` })
+  await editor.fill(`${sessionName}-renamed`)
+  await editor.press('Enter')
   await expect(page.getByRole('group', { name: `Sessions in ${projectName}` }).getByRole('button', { name: `${sessionName}-renamed`, exact: true })).toBeVisible()
   await expect.poll(async () => {
     const data = await (await request.get(`/api/machines/${MACHINE}/sessions`)).json()
@@ -181,7 +187,7 @@ for (const profile of ['desktop', 'phone'] as const) {
       await expect(page.getByRole('button', { name: `Save ${name} as project` })).toHaveCount(0)
       await row.getByRole('button', { name, exact: true }).click()
       await expect(page.getByRole('region', { name: `Terminal: ${name}` })).toBeVisible()
-      if (profile === 'phone') await returnToTree(page, profile)
+      await returnToTree(page)
       await row.getByRole('button', { name: `More actions for ${name}` }).click()
       await page.getByRole('menuitem', { name: 'Save as project' }).click()
       await expect(page.getByRole('group', { name: `Sessions in ${path.split('/').at(-1)}` }).getByRole('button', { name, exact: true })).toBeVisible()
@@ -259,23 +265,27 @@ for (const profile of ['desktop', 'phone'] as const) {
       const session = page.locator('[data-session-row]').filter({ hasText: name })
       await expect(session).toBeVisible()
       const row = page.getByRole('treeitem', { name, exact: true })
-      const actionsFollowTitle = await row.evaluate((element) => {
+      // M8 T2: the name leads; status and expand sit before the ⋯ group.
+      const actionsFollowTitle = await row.evaluate((element, more) => {
         const title = element.querySelector('[data-session-row]')
-        const actions = title?.nextElementSibling
-        return actions?.tagName === 'SPAN' && actions.querySelectorAll('button').length === 1
-      })
+        const trigger = element.querySelector(`[aria-label="${more}"]`)
+        const actions = trigger?.closest('span')
+        return Boolean(title && actions && actions.parentElement === title.parentElement &&
+          title.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING && actions.querySelectorAll('button').length === 1)
+      }, `More actions for ${name}`)
       expect(actionsFollowTitle).toBe(true)
       const labels = await row.locator('button').evaluateAll((buttons) => buttons.map((button) => button.getAttribute('aria-label')).filter(Boolean))
-      expect(labels?.slice(-1)).toEqual([`More actions for ${name}`])
+      expect(labels).toContain(`More actions for ${name}`)
       expect(labels).not.toContain(`Kill ${name}`)
       expect(labels).not.toContain(`Rename ${name}`)
       await row.getByRole('button', { name: `More actions for ${name}` }).click()
       await expect(page.getByRole('menuitem', { name: 'Open in split right' })).toBeVisible()
       await expect(page.getByRole('menuitem', { name: 'Kill…' })).toBeVisible()
       await page.getByRole('menuitem', { name: 'Rename', exact: true }).click()
-      const dialog = page.getByRole('dialog', { name: 'Rename session' })
-      await dialog.getByLabel('New name').fill(`${name}-renamed`)
-      await dialog.getByRole('button', { name: 'Rename' }).click()
+      // Rename is inline (M5 T4).
+      const editor = page.getByRole('textbox', { name: `Rename ${name}` })
+      await editor.fill(`${name}-renamed`)
+      await editor.press('Enter')
       await expect(page.locator(`[data-session-row][aria-label="${name}-renamed"]`)).toBeVisible()
       await ui.sessionAction(`${name}-renamed`, 'Kill…')
       await expect(page.getByRole('alertdialog', { name: `Kill session ${name}-renamed?` })).toBeVisible()
@@ -334,7 +344,7 @@ for (const profile of ['desktop', 'phone'] as const) {
         return data.sessions.some((session: { name: string; path: string }) => session.name === firstSession && session.path === path)
       }).toBe(true)
       await expect.poll(() => target.display(firstSession, '#{pane_current_command}')).toBe('sleep')
-      await returnToTree(page, profile)
+      await returnToTree(page)
       dialog = await openProjectSession(page, projectName)
       const suggestion = dialog.getByRole('button', { name: 'Use recent command sleep 30' })
       await expect(suggestion).toBeVisible()
