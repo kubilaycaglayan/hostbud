@@ -174,6 +174,16 @@ describe('TermSession', () => {
   }
   const last = <T>(a: T[]) => a[a.length - 1]
 
+  it('sends a resize made while attaching once the attach opens', () => {
+    const { s, sockets } = session()
+    s.resize(45, 28) // the URL (built earlier) carried another size
+    expect(sockets[0].sent).toEqual([])
+    sockets[0].open()
+    expect(sockets[0].sent).toEqual(['{"type":"resize","cols":45,"rows":28}'])
+    s.resize(88, 10)
+    expect(sockets[0].sent).toHaveLength(2)
+  })
+
   it('re-attaches after a drop with backoff, at the current size; the backoff resets once stable', async () => {
     const { sockets, states, resize } = session()
     sockets[0].open()

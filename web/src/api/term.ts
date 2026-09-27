@@ -190,6 +190,8 @@ export function backoff(n: number, random: () => number = Math.random): number {
  */
 export class TermSession {
   private conn: TermConnection | null = null
+  /** A resize made before the attach opened; sent once it does. */
+  private pendingSize: { cols: number; rows: number } | null = null
   private timer: unknown = null
   private stable: unknown = null
   private attempt = 0
@@ -231,6 +233,10 @@ export class TermSession {
         onState: (s, code) => {
           if (this.conn !== conn || this.closed) return
           if (s === 'open') {
+            // The URL carried the size when it was built; a resize since
+            // then was dropped (not open yet) and would leave tmux stale.
+            if (this.pendingSize) conn.resize(this.pendingSize.cols, this.pendingSize.rows)
+            this.pendingSize = null
             this.set('open')
             this.stable = this.timers.setTimeout(() => {
               this.stable = null
@@ -289,7 +295,8 @@ export class TermSession {
   }
 
   resize(cols: number, rows: number) {
-    this.conn?.resize(cols, rows)
+    if (this.state === 'open') this.conn?.resize(cols, rows)
+    else this.pendingSize = { cols, rows }
   }
 
   /** Ends the attach and stops retrying. */
