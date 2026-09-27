@@ -146,6 +146,71 @@ func TestIntegrationCreateWithStartCommand(t *testing.T) {
 	}
 }
 
+// waitOutput polls capture-pane until the pane shows want.
+func waitOutput(t *testing.T, c *sshx.Client, name, want string) string {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		out, err := c.Exec(context.Background(), sshx.HostMachineID, "tmux", "capture-pane", "-p", "-J", "-t", "="+name+":")
+		if err == nil && strings.Contains(string(out), want) {
+			return string(out)
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("pane of %q never showed %q; last output %q, err %v", name, want, out, err)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+// The start command runs with the PATH of the user's login shell (here
+// ~/.local/bin from ~/.profile), not the bare PATH of a non-interactive SSH
+// command, which is what a tmux server started by hostbud inherits.
+func TestIntegrationStartCommandUsesLoginShellPath(t *testing.T) {
+	svc, c := setup(t)
+	testenv.Sh(t, c, `mkdir -p ~/.local/bin && printf '#!/bin/sh\necho "HOSTBUD_TOOL_OK[$*]"\nexec sleep 300\n' > ~/.local/bin/hostbud-t0-tool && chmod 755 ~/.local/bin/hostbud-t0-tool`)
+	t.Cleanup(func() { testenv.Sh(t, c, "rm -f ~/.local/bin/hostbud-t0-tool; rmdir ~/.local/bin 2>/dev/null; true") })
+	name, err := svc.Create(context.Background(), session.Spec{
+		Machine: sshx.HostMachineID, Name: "sess-login-path", Path: "~/sess-it/proj.one",
+		StartCommand: `hostbud-t0-tool --flag 'a b' "$HOME" ~/x`,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitOutput(t, c, name, "HOSTBUD_TOOL_OK[--flag a b /home/dev /home/dev/x]")
+	if p := display(t, c, name, "#{pane_current_path}"); p != "/home/dev/sess-it/proj.one" {
+		t.Fatalf("pane path = %q", p)
+	}
+}
+
+// A command that ends at once doesn't take the session with it: the session
+// stays open on a login shell, with the command's output visible.
+func TestIntegrationStartCommandThatEndsKeepsSession(t *testing.T) {
+	svc, c := setup(t)
+	name, err := svc.Create(context.Background(), session.Spec{
+		Machine: sshx.HostMachineID, Name: "sess-ends", Path: "~/sess-it",
+		StartCommand: `echo "HOSTBUD_START_OK $HOSTBUD_T0"`, Env: map[string]string{"HOSTBUD_T0": "x y"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitOutput(t, c, name, "HOSTBUD_START_OK x y")
+	time.Sleep(500 * time.Millisecond)
+	if _, err := c.Exec(context.Background(), sshx.HostMachineID, "tmux", "has-session", "-t", "="+name); err != nil {
+		t.Fatalf("session %q is gone after its command ended: %v", name, err)
+	}
+	// A missing command is reported in the pane, and the session stays too.
+	missing, err := svc.Create(context.Background(), session.Spec{
+		Machine: sshx.HostMachineID, Name: "sess-missing", Path: "~/sess-it", StartCommand: "hostbud-no-such-tool",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitOutput(t, c, missing, "hostbud-no-such-tool")
+	if _, err := c.Exec(context.Background(), sshx.HostMachineID, "tmux", "has-session", "-t", "="+missing); err != nil {
+		t.Fatalf("session %q is gone after a missing command: %v", missing, err)
+	}
+}
+
 func TestIntegrationCopyModeActions(t *testing.T) {
 	svc, c := setup(t)
 	ctx := context.Background()
