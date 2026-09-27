@@ -17,6 +17,7 @@ const h = vi.hoisted(() => {
     buffer: { active: Record<string, unknown> } = { active: { length: 0, getLine: () => undefined } }
     selection = ''
     scrollLines = vi.fn()
+    select = vi.fn()
     modes = { mouseTrackingMode: 'none', applicationCursorKeysMode: false }
     element?: HTMLElement
     writeParsed: (() => void)[] = []
@@ -182,6 +183,29 @@ describe('TerminalView', () => {
     await w.vm.$nextTick()
     expect(terminal.options.theme).toMatchObject({ background: '#ffffff', foreground: '#1f2328' })
     expect(FakeWS.all).toHaveLength(clients)
+  })
+
+  it('keeps a long-lived terminal attached and legible across System theme changes (M8 T7)', async () => {
+    const w = await mountTerm()
+    const terminal = h.terms[0]
+    const ws = FakeWS.all[0]
+    ws.onopen?.({} as Event)
+    ws.onmessage?.({ data: new TextEncoder().encode('\x1b[48;2;44;46;50m Ask the prompt \x1b[0m').buffer } as MessageEvent)
+    const written = [...terminal.written]
+    expect(terminal.options.minimumContrastRatio).toBe(4.5)
+    const theme = useThemeStore()
+    for (const [mode, background] of [['dark', '#0f1115'], ['light', '#ffffff'], ['dark', '#0f1115']] as const) {
+      theme.mode = mode
+      await w.vm.$nextTick()
+      expect(terminal.options.theme).toMatchObject({ background })
+      // The same xterm and connection: nothing reset, re-attached or resent.
+      expect(h.terms).toHaveLength(1)
+      expect(FakeWS.all).toHaveLength(1)
+      expect(ws.closed).toBe(false)
+      expect(terminal.written).toEqual(written)
+      expect(terminal.options.minimumContrastRatio).toBe(4.5)
+    }
+    w.unmount()
   })
 
   it('shows a terminal cap toast and offers a manual Retry now', async () => {
@@ -364,6 +388,28 @@ describe('TerminalView', () => {
     expect(h.terms[0].scrollLines).toHaveBeenLastCalledWith(5)
     expect(fetch).not.toHaveBeenCalled()
     w.unmount()
+  })
+
+  it('selects the word under a long touch press so the mobile Copy action can use it', async () => {
+    vi.useFakeTimers()
+    const w = await mountTerm()
+    const t = h.terms[0]
+    const screen = document.createElement('div')
+    screen.className = 'xterm-screen'
+    screen.getBoundingClientRect = () => ({ left: 0, top: 0, right: 1000, bottom: 300, width: 1000, height: 300, x: 0, y: 0, toJSON: () => ({}) })
+    w.get('[data-testid="terminal"]').element.appendChild(screen)
+    const active = t.buffer.active as { viewportY: number; getLine: () => { translateToString: () => string } }
+    active.viewportY = 0
+    active.getLine = () => ({ translateToString: () => 'echo copy-marker' })
+
+    const down = new Event('pointerdown', { bubbles: true, cancelable: true })
+    Object.defineProperties(down, { pointerType: { value: 'touch' }, clientX: { value: 62 }, clientY: { value: 5 } })
+    w.get('[data-testid="terminal"]').element.dispatchEvent(down)
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(500)
+    expect(t.select).toHaveBeenCalledWith(5, 0, 11)
+    w.unmount()
+    vi.useRealTimers()
   })
 
   it('an unfocused pane of the active tab: focused once its pane is', async () => {
