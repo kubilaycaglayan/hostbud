@@ -41,6 +41,15 @@ of Pass 1; Pass 2 must be documented per scenario before another full run.
 - **Detailed report:** [2026-09-27-v1-m7-pass-02.md](../e2e-triage/2026-09-27-v1-m7-pass-02.md).
 - **Next:** triage and batch-fix every failure and eliminate runtime skips before another full run.
 
+## Pass 3 — after the pass 02 fix batch
+
+- **Commit under test:** `974c1c7` (main after merging `codex/m7-t13`).
+- **Result:** 46 passed, 287 failed, 49 skipped, 0 flaky, 2 did not run (384 total).
+- **Duration:** approximately 38 minutes; Playwright reported 37.9 minutes.
+- **Detailed report:** [2026-09-27-v1-m7-pass-03.md](../e2e-triage/2026-09-27-v1-m7-pass-03.md).
+- **Main finding:** 225 failures share one cause: `ui.createAccount()` signs out through the UI, which revokes the shared global-setup session, so later tests start signed out. Open.
+- **Next:** fix that shared cause, triage the remaining rows, then run pass 04.
+
 ## Remaining verification
 
 - `make lint test` has not passed: Go lint passed, but `scripts/test-readonly-image.sh`
