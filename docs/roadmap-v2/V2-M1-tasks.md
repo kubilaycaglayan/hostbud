@@ -18,7 +18,7 @@ Update this table in the same commit that finishes a task.
 | T5 Adapter interface and the Claude Code adapter | Done |
 | T6 Codex adapter | Done (its integration test runs the T7 stub `codex`, committed with T7) |
 | T7 Stub clients on the throwaway target | Done (stubs in `test/sshd/stubs`; drift test in `internal/agents`) |
-| T8 Queue service and REST API | Not started |
+| T8 Queue service and REST API | Done (e2e written and type-checked) |
 | T9 Dispatcher and state machines | Not started |
 | T10 Queue panel (desktop) | Not started |
 | T11 Queue panel on the phone | Not started |
@@ -63,7 +63,7 @@ The v2 ROADMAP *Rules* and AGENTS.md apply in full. That covers: e2e runs only o
 |---|---|---|---|
 | CP1 | T0 | `make lint test` | Green (2026-09-27, after aligning two stale session race tests) |
 | CP2 | T2–T4 | `make lint test`, `scripts/compose-config.sh` | Green (2026-09-27, after fixing five lint findings) |
-| CP3 | T5–T7 | `make lint test`, e2e `tsc` | Not run |
+| CP3 | T5–T7 | `make lint test`, e2e `tsc` | Green (2026-09-27, after fixing ten lint findings) |
 | CP4 | T8–T9 | `make lint test` **three times in a row** (timers and concurrent signals), e2e `tsc` | Not run |
 | CP5 | T10–T12 | `make lint test`, `vue-tsc`, e2e `tsc`, `make gitleaks`, docs check | Not run |
 | CP6 | T13 | `make lint test`, e2e `tsc`, `make gitleaks`, `make deploy` (no `make e2e`: on demand only) | Not run |

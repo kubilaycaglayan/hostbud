@@ -21,6 +21,7 @@ test('(T12) Origin allowlist covers every state-changing route and WebSocket', a
   const state = async (path: string) => {
     if (path.includes('/sessions')) return await request.get('/api/machines/host/sessions')
     if (path.startsWith('/api/projects')) return await request.get('/api/projects')
+    if (path.startsWith('/api/queue')) return await request.get('/api/queues')
     if (path.startsWith('/api/ui-state/')) return await request.get(path)
     if (path.startsWith('/api/auth/')) return await request.get('/api/auth/me')
     return null

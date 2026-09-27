@@ -15,6 +15,10 @@ const (
 	SessionsChanged Type = "sessions.changed"
 	// ProjectsChanged carries a projects.Changed payload.
 	ProjectsChanged Type = "projects.changed"
+	// QueueChanged carries a queue.Changed payload (v2).
+	QueueChanged Type = "queue.changed"
+	// RunChanged carries a queue.RunChanged payload (v2).
+	RunChanged Type = "run.changed"
 )
 
 // Event is one published event. Payload's type is determined by Type.

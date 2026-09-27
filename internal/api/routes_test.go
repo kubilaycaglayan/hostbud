@@ -39,7 +39,7 @@ func TestRouteInventoryMatchesRouter(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg := Config{Dist: fstest.MapFS{}, Bus: events.NewBus(), Auth: &fakeAuth{}, Sessions: &fakeService{},
-		Projects: &fakeProjects{}, FileSystem: &fakeFileBrowser{}, Terminal: routeOnlyTerminal{}, UIState: &fakeUIState{}, Hooks: &fakeHooks{}}
+		Projects: &fakeProjects{}, FileSystem: &fakeFileBrowser{}, Terminal: routeOnlyTerminal{}, UIState: &fakeUIState{}, Hooks: &fakeHooks{}, Queues: &fakeQueues{}}
 	s := &server{cfg: cfg}
 	mountRoutes(s, http.NewServeMux())
 	want := make([]string, 0, len(routes))
@@ -85,6 +85,8 @@ func TestRouteInventoryMatchesRouter(t *testing.T) {
 		"POST /api/machines/{machine}/fs/mkdir":                  true,
 		"POST /api/projects":                                     true, "PATCH /api/projects/{id}": true,
 		"POST /api/projects/{id}/sessions": true,
+		"POST /api/queues":                 true, "PATCH /api/queues/{id}": true, "POST /api/queues/{id}/items": true,
+		"PUT /api/queues/{id}/order": true, "PATCH /api/queue-items/{id}": true,
 	}
 	for _, route := range routes {
 		key := route.Method + " " + route.Path

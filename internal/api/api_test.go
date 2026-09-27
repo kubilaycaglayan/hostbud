@@ -297,6 +297,7 @@ func newEnv(t *testing.T) *env {
 		Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Dist: fstest.MapFS{},
 		Origins: AllowedOrigins("hostbud.example.com", 9055), Bus: e.bus,
 		Machines: []Snapshotter{e.m}, Sessions: e.svc, Auth: &fakeAuth{}, UIState: e.ui, FileSystem: e.fs, Projects: e.projects,
+		Queues: &fakeQueues{}, Hooks: &fakeHooks{},
 	})
 	return e
 }

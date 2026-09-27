@@ -63,6 +63,8 @@ type Config struct {
 	TSLogin               func(context.Context, string) (string, error)
 	// Hooks receives v2 run hooks (POST /api/hooks/{run}/{event}).
 	Hooks HookReceiver
+	// Queues is the v2 queue service (/api/queues, /api/queue-items).
+	Queues QueueService
 }
 
 // HookReceiver checks and records one run hook (queue.Hooks). It returns a
@@ -224,6 +226,9 @@ func mountRoutes(s *server, mux *http.ServeMux) {
 	}
 	if cfg.Hooks != nil {
 		addFunc(hookRoute, s.runHook)
+	}
+	if cfg.Queues != nil {
+		mountQueueRoutes(s, addFunc)
 	}
 	add("GET /", spaHandler(cfg.Dist))
 }

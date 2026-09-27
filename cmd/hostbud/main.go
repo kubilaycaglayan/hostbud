@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"hostbud/internal/agents"
 	"hostbud/internal/api"
 	"hostbud/internal/auth"
 	"hostbud/internal/config"
@@ -151,13 +152,21 @@ func run() error {
 		return fmt.Errorf("configure Content-Security-Policy: %w", err)
 	}
 
-	// v2 run hooks: recorded and handed to the dispatcher (V2-M1 T9).
+	// v2 agent queue: adapters, the queue service and the run hooks
+	// (docs/roadmap-v2/ARCHITECTURE.md).
+	hostHome := func(string) string { m, _ := inv.Snapshot(); return m.Home }
+	adapters := agents.NewRegistry(
+		agents.NewClaude(ssh, func(string) agents.Files { return filesystem }, hostHome),
+		agents.NewCodex(ssh, cfg.ExecTimeout),
+	)
+	queues := queue.NewService(st, adapters, bus)
 	hooks := queue.NewHooks(st, nil, log)
 	srv := &http.Server{
 		Addr: cfg.Listen,
 		Handler: api.New(api.Config{
-			Hooks: hooks,
-			Log:   log, Dist: web.Dist(),
+			Hooks:  hooks,
+			Queues: queues,
+			Log:    log, Dist: web.Dist(),
 			ExecTimeout:           cfg.ExecTimeout,
 			SFTPTimeout:           cfg.SFTPTimeout,
 			UploadTimeout:         cfg.UploadTimeout,
