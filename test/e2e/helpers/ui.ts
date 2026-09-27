@@ -49,7 +49,7 @@ export class UI {
   }
 
   async openAccountMenu(): Promise<void> {
-    const account = this.page.getByRole('button', { name: 'Account' })
+    const account = this.page.getByRole('button', { name: 'Account', exact: true })
     if (await account.isVisible()) {
       const isOpen = await account.evaluate((el) => el.parentElement instanceof HTMLDetailsElement && el.parentElement.open)
       if (!isOpen) await account.click()
@@ -202,8 +202,7 @@ export class UI {
   /** Opens the create dialog, fills the given fields and submits. */
   async createSession(fields: { directory?: string; name?: string; startCommand?: string }): Promise<void> {
     const p = this.page
-    await this.showList()
-    await p.getByRole('button', { name: 'New session' }).click()
+    await this.headerAction('New session')
     const dialog = p.getByRole('dialog', { name: 'New session' })
     if (fields.directory !== undefined) await dialog.getByLabel('Directory').fill(fields.directory)
     if (fields.name !== undefined) await dialog.getByLabel('Name').fill(fields.name)

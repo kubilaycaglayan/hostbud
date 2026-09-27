@@ -56,7 +56,7 @@ test.describe('refusals', () => {
     target,
   }) => {
     await ui.open()
-    await page.getByRole('button', { name: 'New session' }).click()
+    await ui.headerAction('New session')
     const dialog = page.getByRole('dialog', { name: 'New session' })
     for (const bad of ['a.b', 'a:b', 'a b']) {
       await dialog.getByLabel('Name').fill(bad)

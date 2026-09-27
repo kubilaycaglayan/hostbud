@@ -58,6 +58,7 @@ const browsing = ref(false)
 const sessionProject = ref<Project | null>(null) // the project a New session here dialog is for
 const killing = ref(false)
 const drawerOpen = ref(false)
+const accountOpen = ref(false)
 const swipeStart = ref<{ x: number; y: number } | null>(null)
 const target = ref('') // the session the kill confirmation is about
 const removingProject = ref<Project | null>(null)
@@ -537,8 +538,9 @@ onUnmounted(() => {
         <Search :size="18" aria-hidden="true" />
       </IconButton>
       <div class="ml-auto min-w-0 text-sm text-muted">
-        <details class="relative">
-          <summary aria-label="Account" class="flex min-h-11 cursor-pointer list-none items-center rounded border border-border px-3">Account</summary>
+        <details class="relative" @toggle="accountOpen = ($event.target as HTMLDetailsElement).open">
+          <!-- WebKit and the accessibility tree don't expose <summary> as a button everywhere. -->
+          <summary role="button" aria-label="Account" :aria-expanded="accountOpen" class="flex min-h-11 cursor-pointer list-none items-center rounded border border-border px-3">Account</summary>
           <div class="absolute right-0 top-full z-30 mt-1 w-56 rounded border border-border bg-surface p-2 shadow-lg">
             <p class="truncate px-2 py-2" data-testid="account-email">{{ auth.email }}</p>
             <fieldset class="px-2 py-1" aria-label="Theme">

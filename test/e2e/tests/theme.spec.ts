@@ -39,7 +39,7 @@ test('(T7) Pick Dark and Light updates UI and mounted terminal', async ({ page, 
   expect((await target.tmux('list-clients', '-t', `=${session}`, '-F', '#{client_pid}')).trim()).toBe(clientPids)
   await chooseTheme(page, 'Light')
   await testInfo.attach('theme-light-tree.png', { body: await page.screenshot(), contentType: 'image/png' })
-  await page.getByRole('button', { name: 'New session' }).click()
+  await ui.headerAction('New session')
   await testInfo.attach('theme-light-dialog.png', { body: await page.screenshot(), contentType: 'image/png' })
   await page.keyboard.press('Escape')
   await ui.openTerminal(session)

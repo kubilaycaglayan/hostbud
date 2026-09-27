@@ -57,7 +57,7 @@ for (const project of ['desktop-chromium', 'iphone-13-pro']) {
     test.skip(info.project.name !== project)
     await ui.open()
     await ui.showList()
-    await page.getByRole('button', { name: 'New session' }).click()
+    await ui.headerAction('New session')
     const dialog = page.getByRole('dialog', { name: 'New session' })
     await dialog.getByLabel('Name').fill('kept-session-name')
     await page.route('**/api/machines/host/sessions', route =>
@@ -74,7 +74,7 @@ for (const project of ['desktop-chromium', 'iphone-13-pro']) {
     const name = uniqueName('e2e-stall')
     await ui.open()
     await ui.showList()
-    await page.getByRole('button', { name: 'New session' }).click()
+    await ui.headerAction('New session')
     const dialog = page.getByRole('dialog', { name: 'New session' })
     await dialog.getByLabel('Name').fill(name)
     await ctl.stallTmux()

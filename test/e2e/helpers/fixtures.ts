@@ -1,4 +1,4 @@
-import { test as base, expect } from '@playwright/test'
+import { test as base, expect, type Page } from '@playwright/test'
 import { Target } from './target.ts'
 import { UI } from './ui.ts'
 
@@ -11,11 +11,41 @@ interface Fixtures {
 }
 
 export const EMPTY_LAYOUT = { version: 1, tabs: [], activeTab: null }
+export const EMPTY_TREE = {
+  version: 2,
+  projects: [],
+  sessions: {},
+  pinned: [],
+  hidden: { projects: [], sessions: [] },
+  collapsed: [],
+  expanded: [],
+  showHidden: false,
+}
+const SYSTEM_THEME = { version: 1, mode: 'system' }
+
+// The browser tests share one account: projects, tabs, tree customizations
+// and the theme left by an earlier test would change what the next one sees.
+// Signed out (the auth scenarios) the first request answers 401: nothing to reset.
+async function resetAccountState(page: Page, baseURL: string | undefined): Promise<void> {
+  const headers = { Origin: new URL(baseURL!).origin }
+  const response = await page.request.get('/api/projects?machine=host')
+  if (response.status() === 401) return
+  if (!response.ok()) throw new Error(`reset e2e projects: ${response.status()} ${await response.text()}`)
+  const { projects } = await response.json() as { projects: { id: string }[] | null }
+  for (const project of projects ?? []) {
+    const deleted = await page.request.delete(`/api/projects/${encodeURIComponent(project.id)}`, { headers })
+    if (!deleted.ok()) throw new Error(`reset e2e project ${project.id}: ${deleted.status()} ${await deleted.text()}`)
+  }
+  for (const [key, data] of [['layout', EMPTY_LAYOUT], ['tree', EMPTY_TREE], ['theme', SYSTEM_THEME]] as const) {
+    const saved = await page.request.put(`/api/ui-state/${key}`, { data, headers })
+    if (!saved.ok()) throw new Error(`reset e2e ${key}: ${saved.status()} ${await saved.text()}`)
+  }
+}
 
 // A new account has no saved layout yet: the app's first GET answers 404
 // (M3 T6), which is the API's normal answer, not a problem.
 const NEW_ACCOUNT_UI_STATE =
-  /^HTTP 404: GET https?:\/\/[^/]+\/api\/ui-state\/(layout|tree)$|^console error: Failed to load resource: the server responded with a status of 404 .*@ https?:\/\/[^/]+\/api\/ui-state\/(layout|tree)$/
+  /^HTTP 404: GET https?:\/\/[^/]+\/api\/ui-state\/(layout|tree|theme)$|^console error: Failed to load resource: the server responded with a status of 404 .*@ https?:\/\/[^/]+\/api\/ui-state\/(layout|tree|theme)$/
 
 export const test = base.extend<Fixtures>({
   allowedBrowserErrors: [undefined, { option: true }],
@@ -27,8 +57,8 @@ export const test = base.extend<Fixtures>({
   },
 
   // Fails the test on console errors, uncaught exceptions, failed requests
-  // and HTTP error responses the page ran into. Every test starts with no
-  // open tabs (the saved layout is per account, and the account is shared).
+  // and HTTP error responses the page ran into. Every test starts with the
+  // shared account's default state (resetAccountState).
   page: async ({ page, allowedBrowserErrors, baseURL }, use) => {
     const problems: string[] = []
     const report = (line: string) => {
@@ -60,11 +90,7 @@ export const test = base.extend<Fixtures>({
     page.on('response', (r) => {
       if (r.status() >= 400) report(`HTTP ${r.status()}: ${r.request().method()} ${r.url()}`)
     })
-    // Signed out (the auth scenarios) this answers 401: nothing to reset.
-    await page.request.put('/api/ui-state/layout', {
-      data: EMPTY_LAYOUT,
-      headers: { Origin: new URL(baseURL!).origin },
-    })
+    await resetAccountState(page, baseURL)
     await use(page)
     expect(problems, 'browser console errors or failed requests').toEqual([])
   },
