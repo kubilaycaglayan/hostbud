@@ -247,8 +247,7 @@ func VersionAtLeast(have, want string) bool {
 // it against min; name is the product name for messages.
 func checkVersion(ctx context.Context, host Host, machine, client, name, min, update string) (string, error) {
 	out, err := host.Exec(ctx, machine, LoginShell(client, "--version")...)
-	var se *sshx.Error
-	if errors.As(err, &se) && se.Kind == sshx.KindRemote && se.ExitCode == 127 {
+	if sshx.ExitCode(err) == 127 {
 		return "", fmt.Errorf("%s not found on the host — install %s first", client, name)
 	}
 	if err != nil {

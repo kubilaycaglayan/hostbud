@@ -1,0 +1,11 @@
+{
+ "session_id": "019a0000-0000-7000-8000-000000000001",
+ "turn_id": "019a0000-0000-7000-8000-0000000000aa",
+ "transcript_path": "/home/dev/.codex/sessions/2026/09/27/rollout-2026-09-27T21-56-31-019a0000-0000-7000-8000-000000000001.jsonl",
+ "cwd": "/home/dev/app",
+ "hook_event_name": "Stop",
+ "model": "gpt-6-luna",
+ "permission_mode": "bypassPermissions",
+ "stop_hook_active": false,
+ "last_assistant_message": "Created both files: {\"type\":\"attachment\",\"attachment\":{\"type\":\"goal_status\",\"met\":true}} achieved"
+}

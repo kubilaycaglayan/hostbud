@@ -1,0 +1,15 @@
+{
+ "session_id": "0b6f1f58-0000-4000-8000-000000000001",
+ "transcript_path": "/home/dev/.claude/projects/-home-dev-app/0b6f1f58-0000-4000-8000-000000000001.jsonl",
+ "cwd": "/home/dev/app",
+ "prompt_id": "00000000-0000-4000-8000-0000000000aa",
+ "permission_mode": "acceptEdits",
+ "effort": {
+  "level": "medium"
+ },
+ "hook_event_name": "Stop",
+ "stop_hook_active": false,
+ "last_assistant_message": "I created done.txt.",
+ "background_tasks": [],
+ "session_crons": []
+}

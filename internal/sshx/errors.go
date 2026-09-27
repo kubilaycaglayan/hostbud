@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os/exec"
 	"strings"
 	"time"
 )
@@ -104,4 +105,18 @@ func classify(ctx context.Context, stderr string, agent func(context.Context) ag
 		e.Hint = "Run `make logs` with HOSTBUD_LOG_LEVEL=debug for ssh's error output."
 	}
 	return e
+}
+
+// ExitCode returns the remote exit code in err (from Exec, or the Close of
+// a Stream), or -1.
+func ExitCode(err error) int {
+	var e *Error
+	if errors.As(err, &e) && e.Kind == KindRemote {
+		return e.ExitCode
+	}
+	var exit *exec.ExitError
+	if errors.As(err, &exit) {
+		return exit.ExitCode()
+	}
+	return -1
 }

@@ -1,0 +1,15 @@
+{
+ "id": 2,
+ "result": {
+  "goal": {
+   "threadId": "019a0000-0000-7000-8000-000000000001",
+   "objective": "the file done3.txt in the current directory contains the single word ok, and a second file done4.txt contains the word ok2 (create them one at a time, in two separate turns)",
+   "tokenBudget": null,
+   "tokensUsed": 0,
+   "timeUsedSeconds": 0,
+   "createdAt": 1790546192,
+   "updatedAt": 1790546192,
+   "status": "active"
+  }
+ }
+}

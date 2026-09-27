@@ -1,0 +1,9 @@
+{
+ "id": 1,
+ "result": {
+  "userAgent": "codex-tui/0.157.1 (Linux; x86_64) tmux-256color (hostbud; v2)",
+  "codexHome": "/home/dev/.codex",
+  "platformFamily": "unix",
+  "platformOs": "linux"
+ }
+}

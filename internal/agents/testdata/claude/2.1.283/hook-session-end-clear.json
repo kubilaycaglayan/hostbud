@@ -1,0 +1,7 @@
+{
+ "session_id": "0b6f1f58-0000-4000-8000-000000000001",
+ "transcript_path": "/home/dev/.claude/projects/-home-dev-app/0b6f1f58-0000-4000-8000-000000000001.jsonl",
+ "cwd": "/home/dev/app",
+ "hook_event_name": "SessionEnd",
+ "reason": "clear"
+}

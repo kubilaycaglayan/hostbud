@@ -128,6 +128,40 @@ func (c *Client) OpenSFTP(ctx context.Context, machine string) (io.ReadWriteClos
 	return p, nil
 }
 
+// Stream runs args (each shell-quoted) on machine with its stdin and stdout
+// as a two-way stream, for a remote program that speaks a protocol (V2-M1:
+// Codex's app-server proxy). Cancelling ctx or closing the stream ends it;
+// the caller bounds it with a deadline.
+func (c *Client) Stream(ctx context.Context, machine string, args ...string) (io.ReadWriteCloser, error) {
+	argv, err := c.Args(machine, nil, args...)
+	if err != nil {
+		return nil, err
+	}
+	childCtx, cancel := context.WithCancel(ctx)
+	cmd := commandContext(childCtx, c.cfg.SSHBinary, argv...)
+	cmd.WaitDelay = time.Second
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("open ssh stdin: %w", err)
+	}
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("open ssh stdout: %w", err)
+	}
+	if err := cmd.Start(); err != nil {
+		cancel()
+		return nil, fmt.Errorf("start ssh: %w", err)
+	}
+	p := &subsystemPipe{stdin: stdin, stdout: stdout, cancel: cancel, done: make(chan struct{})}
+	go func() {
+		p.waitErr = cmd.Wait()
+		close(p.done)
+	}()
+	return p, nil
+}
+
 type subsystemPipe struct {
 	stdin     io.WriteCloser
 	stdout    io.ReadCloser
