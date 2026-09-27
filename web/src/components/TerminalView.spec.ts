@@ -335,7 +335,7 @@ describe('TerminalView', () => {
     w.unmount()
   })
 
-  it('enters scrollback and applies a vertical touch swipe directly', async () => {
+  it('scrolls the browser terminal buffer on touch without entering empty tmux copy mode', async () => {
     const fetch = vi.fn()
     vi.stubGlobal('fetch', fetch)
     const w = await mountTerm()
@@ -354,6 +354,15 @@ describe('TerminalView', () => {
     terminal.element.dispatchEvent(up)
     expect(h.terms[0].scrollLines).toHaveBeenCalledTimes(1)
     expect(w.find('[data-testid="scroll-bar"]').exists()).toBe(false)
+
+    const downAgain = new Event('pointerdown', { bubbles: true, cancelable: true })
+    Object.defineProperties(downAgain, { pointerType: { value: 'touch' }, clientX: { value: 80 }, clientY: { value: 100 } })
+    terminal.element.dispatchEvent(downAgain)
+    const reverse = new Event('pointermove', { bubbles: true, cancelable: true })
+    Object.defineProperties(reverse, { pointerType: { value: 'touch' }, clientX: { value: 80 }, clientY: { value: 180 } })
+    terminal.element.dispatchEvent(reverse)
+    expect(h.terms[0].scrollLines).toHaveBeenLastCalledWith(5)
+    expect(fetch).not.toHaveBeenCalled()
     w.unmount()
   })
 
@@ -454,6 +463,24 @@ describe('TerminalView', () => {
     expect(t.keyHandler(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))).toBe(true)
     expect(t.keyHandler(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))).toBe(true)
     expect(t.keyHandler(new KeyboardEvent('keydown', { key: 'b', altKey: true }))).toBe(true)
+  })
+
+  it('animates wheel notches in the scrollback without changing their step or direction (M8 T6)', async () => {
+    const w = await mountTerm()
+    const options = h.terms[0].options
+    expect(options.smoothScrollDuration).toBe(100)
+    // Rows per notch and direction stay xterm's defaults.
+    expect(options.scrollSensitivity).toBeUndefined()
+    expect(options.fastScrollSensitivity).toBeUndefined()
+    // hostbud doesn't intercept the wheel itself: no scroll requests of its
+    // own to duplicate or skip (copy-mode scrolling is tmux's, via the mouse).
+    const fetchSpy = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy)
+    w.get('[data-testid="terminal"]').element.dispatchEvent(new WheelEvent('wheel', { deltaY: -100, bubbles: true, cancelable: true }))
+    await flushPromises()
+    expect(fetchSpy).not.toHaveBeenCalled()
+    expect(FakeWS.all[0].sent).toEqual([])
+    w.unmount()
   })
 
   it('Option+click forces selection on macOS; OSC 52 is loaded', async () => {

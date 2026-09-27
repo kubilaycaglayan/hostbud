@@ -18,7 +18,7 @@ import ScrollBar from '@/components/ScrollBar.vue'
 import { copySelection, installOsc52 } from '@/lib/clipboard'
 import { registerPane, unregisterPane } from '@/lib/e2eHooks'
 import { hyperlinkHandler, openLink, type LinkHover } from '@/lib/links'
-import { keepScrollback } from '@/lib/scrollback'
+import { keepScrollback, WHEEL_SMOOTH_SCROLL_MS } from '@/lib/scrollback'
 import { cellAt, moveCaret, settleAfterWrites } from '@/lib/altClick'
 import { darkTerminalTheme, lightTerminalTheme } from '@/lib/theme'
 import type { SplitDir, Tab } from '@/lib/layout'
@@ -91,10 +91,7 @@ const { inMode, scrollPosition, historySize, busy } = copyMode
 let touchScrollStart: {
   x: number
   y: number
-  totalLines: number
   sentLines: number
-  entering: boolean
-  cancelled: boolean
 } | null = null
 
 function enterScrollMode() {
@@ -111,41 +108,23 @@ function startScrollGesture(event: PointerEvent) {
   touchScrollStart = {
     x: event.clientX,
     y: event.clientY,
-    totalLines: 0,
     sentLines: 0,
-    entering: false,
-    cancelled: false,
   }
 }
 
 function updateScrollGesture(event: PointerEvent) {
   const gesture = touchScrollStart
-  if (!gesture || gesture.cancelled || event.pointerType !== 'touch') return
+  if (!gesture || event.pointerType !== 'touch') return
   const screen = term.value?.element?.querySelector('.xterm-screen')?.getBoundingClientRect()
   const cellHeight = screen && term.value ? screen.height / term.value.rows : 16
   const movement = swipeDelta(gesture, { x: event.clientX, y: event.clientY }, cellHeight)
   if (!movement) return
-  gesture.totalLines = movement.lines * (movement.direction === 'up' ? 1 : -1)
-  sendTouchScroll(gesture)
-}
-
-function sendTouchScroll(gesture: NonNullable<typeof touchScrollStart>) {
-  if (copyMode.inMode.value) {
-    applyTouchScroll(gesture)
-  } else if (!gesture.entering) {
-    gesture.entering = true
-    void copyMode.action('enter').then((entered) => {
-      gesture.entering = false
-      if (entered && !gesture.cancelled) applyTouchScroll(gesture)
-    })
-  }
-}
-
-function applyTouchScroll(gesture: NonNullable<typeof touchScrollStart>) {
-  const delta = gesture.totalLines - gesture.sentLines
-  if (!delta || gesture.cancelled) return
-  gesture.sentLines = gesture.totalLines
-  copyMode.swipe(delta > 0 ? 'up' : 'down', Math.abs(delta))
+  const totalLines = movement.lines * (movement.direction === 'up' ? 1 : -1)
+  const delta = totalLines - gesture.sentLines
+  if (!delta) return
+  gesture.sentLines = totalLines
+  if (copyMode.inMode.value) copyMode.swipe(delta > 0 ? 'up' : 'down', Math.abs(delta))
+  else term.value?.scrollLines(-delta)
 }
 
 function finishScrollGesture(event: PointerEvent) {
@@ -154,7 +133,6 @@ function finishScrollGesture(event: PointerEvent) {
 }
 
 function cancelScrollGesture() {
-  if (touchScrollStart) touchScrollStart.cancelled = true
   touchScrollStart = null
 }
 
@@ -300,6 +278,7 @@ onMounted(async () => {
     // OSC 8 hyperlinks: http(s) only; hovering shows the real target.
     linkHandler: hyperlinkHandler((h) => (linkHover.value = h)),
     scrollback: 5000,
+    smoothScrollDuration: WHEEL_SMOOTH_SCROLL_MS,
     theme: theme.resolved === 'dark' ? darkTerminalTheme : lightTerminalTheme,
   })
   fit = new FitAddon()
