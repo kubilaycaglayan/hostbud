@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, it } from 'node:test'
@@ -14,4 +14,5 @@ it('creates the embed directory when Docker build context omitted its tracked pl
   const dist = join(root, 'web', 'dist')
 
   assert.doesNotThrow(() => keepDistPlaceholder(dist))
+  assert.equal(existsSync(join(dist, '.gitkeep')), true)
 })

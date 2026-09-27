@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 import { fileURLToPath, URL } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue'
+import { keepDistPlaceholder } from './scripts/keep-dist.mjs'
 import { build as viteBuild, defineConfig, type Plugin } from 'vite'
 
 // Vite empties dist on every build; put the tracked .gitkeep back so the
@@ -12,7 +13,7 @@ const keepDist: Plugin = {
   name: 'hostbud-keep-dist',
   apply: 'build',
   closeBundle() {
-    writeFileSync(fileURLToPath(new URL('./dist/.gitkeep', import.meta.url)), '')
+    keepDistPlaceholder(fileURLToPath(new URL('./dist', import.meta.url)))
   },
 }
 
