@@ -115,6 +115,16 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 
 **E2E:** Add T7 *Long-lived terminal contrast* (desktop): run a deterministic prompt-like ANSI TUI on the throwaway target, leave the terminal mounted while switching System light/dark, assert palette and contrast tokens change without reconnecting, and capture both states. Never use the real host's tmux. Record the real Codex “Ask Codex to do anything” surface as a manual owner check if Codex itself is unavailable in the e2e target.
 
+## T8 — Native touch scrolling, selection and dictation
+
+- Let xterm's `.xterm-viewport` handle vertical touch scrolls with `touch-action: pan-y` and contained overscroll; prevent the document from becoming a competing scroll container. Touch up/down follows the finger and leaves tmux copy mode unchanged. Explicit Scroll history continues to use tmux.
+- Make long-press word selection use the active buffer's absolute row and xterm cell columns, including when the viewport is scrolled into local history. Keep the Copy action tied to xterm's selection-change event.
+- Prevent voice dictation/IME input corruption on xterm 6.0: after composition finalization sends its phrase, clear the hidden input on the next task so replacement-style dictation cannot replay or truncate stale text. Preserve the input when screen-reader mode is enabled.
+
+**Tests:** U: Vitest verifies native-touch classes/no custom local scroll, buffer-row selection beyond row zero, and hidden textarea clearing after composition end. I: n/a (xterm touch, selection and input DOM are browser-side). E: T8 *Touch scroll stays inside the xterm viewport* · T8 *Touch long press selects terminal text for copying* · T8 *Dictation commits clean terminal input across successive phrases* (phone).
+
+**E2E:** Write the three T8 phone scenarios above against the throwaway target. Dictation uses browser composition events to reproduce consecutive committed phrases; the owner checks actual iPhone dictation and copy. Don't run `make e2e` before M7 T13, and never use the real host's tmux.
+
 ## Done
 
 - [ ] M8 acceptance criteria and their U/I/E coverage are complete.

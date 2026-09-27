@@ -23,7 +23,7 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 - [x] The terminal's context menu offers Copy, Paste and Select all; Shift+right-click (Option on macOS) opens it even when the program captures the mouse.
   - U: T2 `TerminalMenu` (Vitest). I: n/a (browser only). E: T2 *Copy selection* (menu Copy) · T2 *Bracketed paste* (menu Paste).
 - [ ] On touch screens, a long press selects the word under the finger and exposes a Copy action.
-  - U: T2 `TerminalView` touch long-press selects the xterm word and reveals Copy (Vitest). I: n/a (selection and clipboard are browser-side). E: T2 *Touch long press selects terminal text for copying* (phone projects). **Manual (owner):** verify selection and clipboard copy in the iPhone 13 Pro PWA.
+  - U: T2/T8 `TerminalView` touch long-press selects the visible xterm word by buffer row and reveals Copy (Vitest). I: n/a (selection and clipboard are browser-side). E: T8 *Touch long press selects terminal text for copying* (phone projects). **Manual (owner):** verify selection and clipboard copy in the iPhone 13 Pro PWA.
 - [ ] Shift+drag (Option+drag on macOS) selects text even when the program or tmux `mouse on` captures the mouse.
   - U: T2 terminal options include `macOptionClickForcesSelection` (Vitest). I: n/a (xterm selection is client-side). E: T2 *Forced selection*. **Manual (T9):** Option+drag on a Mac.
 - [ ] Ctrl+Shift+V / Cmd+Shift+V / Cmd+V paste as bracketed paste when the program enables it: a multi-line paste into bash doesn't run line by line.

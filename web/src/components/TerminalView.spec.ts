@@ -369,7 +369,7 @@ describe('TerminalView', () => {
     w.unmount()
   })
 
-  it('scrolls the browser terminal buffer on touch without entering empty tmux copy mode', async () => {
+  it('lets the xterm viewport handle local touch scrolling without entering copy mode', async () => {
     const fetch = vi.fn()
     vi.stubGlobal('fetch', fetch)
     const w = await mountTerm()
@@ -377,16 +377,17 @@ describe('TerminalView', () => {
     const down = new Event('pointerdown', { bubbles: true, cancelable: true })
     Object.defineProperties(down, { pointerType: { value: 'touch' }, clientX: { value: 80 }, clientY: { value: 180 } })
     terminal.element.dispatchEvent(down)
-    expect(terminal.classes()).toContain('touch-none')
+    expect(terminal.classes()).toContain('touch-pan-y')
+    expect(terminal.classes()).not.toContain('touch-none')
     const move = new Event('pointermove', { bubbles: true, cancelable: true })
     Object.defineProperties(move, { pointerType: { value: 'touch' }, clientX: { value: 80 }, clientY: { value: 100 } })
     terminal.element.dispatchEvent(move)
-    expect(h.terms[0].scrollLines).toHaveBeenCalledWith(-5)
+    expect(h.terms[0].scrollLines).not.toHaveBeenCalled()
     expect(fetch).not.toHaveBeenCalled()
     const up = new Event('pointerup', { bubbles: true, cancelable: true })
     Object.defineProperties(up, { pointerType: { value: 'touch' }, clientX: { value: 80 }, clientY: { value: 100 } })
     terminal.element.dispatchEvent(up)
-    expect(h.terms[0].scrollLines).toHaveBeenCalledTimes(1)
+    expect(h.terms[0].scrollLines).not.toHaveBeenCalled()
     expect(w.find('[data-testid="scroll-bar"]').exists()).toBe(false)
 
     const downAgain = new Event('pointerdown', { bubbles: true, cancelable: true })
@@ -395,7 +396,7 @@ describe('TerminalView', () => {
     const reverse = new Event('pointermove', { bubbles: true, cancelable: true })
     Object.defineProperties(reverse, { pointerType: { value: 'touch' }, clientX: { value: 80 }, clientY: { value: 180 } })
     terminal.element.dispatchEvent(reverse)
-    expect(h.terms[0].scrollLines).toHaveBeenLastCalledWith(5)
+    expect(h.terms[0].scrollLines).not.toHaveBeenCalled()
     expect(fetch).not.toHaveBeenCalled()
     w.unmount()
   })
@@ -408,16 +409,19 @@ describe('TerminalView', () => {
     screen.className = 'xterm-screen'
     screen.getBoundingClientRect = () => ({ left: 0, top: 0, right: 1000, bottom: 300, width: 1000, height: 300, x: 0, y: 0, toJSON: () => ({}) })
     w.get('[data-testid="terminal"]').element.appendChild(screen)
-    const active = t.buffer.active as { viewportY: number; getLine: () => { translateToString: () => string } }
-    active.viewportY = 0
-    active.getLine = () => ({ translateToString: () => 'echo copy-marker' })
+    const active = t.buffer.active as { viewportY: number; getLine: (row: number) => { translateToString: () => string } }
+    active.viewportY = 17
+    active.getLine = (row) => {
+      expect(row).toBe(18)
+      return { translateToString: () => 'echo copy-marker' }
+    }
 
     const down = new Event('pointerdown', { bubbles: true, cancelable: true })
     Object.defineProperties(down, { pointerType: { value: 'touch' }, clientX: { value: 62 }, clientY: { value: 5 } })
     w.get('[data-testid="terminal"]').element.dispatchEvent(down)
     await flushPromises()
     await vi.advanceTimersByTimeAsync(500)
-    expect(t.select).toHaveBeenCalledWith(5, 0, 11)
+    expect(t.select).toHaveBeenCalledWith(5, 18, 11)
     expect(w.find('button[aria-label="Copy selected text"]').exists()).toBe(true)
     w.unmount()
     vi.useRealTimers()
@@ -484,6 +488,17 @@ describe('TerminalView', () => {
     expect(input.getAttribute('autocapitalize')).toBe('off')
     expect(input.getAttribute('autocomplete')).toBe('off')
     expect(input.getAttribute('spellcheck')).toBe('false')
+  })
+
+  it('clears committed composition text so voice dictation cannot replace stale input', async () => {
+    vi.useFakeTimers()
+    await mountTerm()
+    const input = h.terms[0].textarea!
+    input.value = 'echo dictated phrase'
+    input.dispatchEvent(new Event('compositionend', { bubbles: true }))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(input.value).toBe('')
+    vi.useRealTimers()
   })
 
   it('Show keyboard focuses the terminal (touch screens only)', async () => {
