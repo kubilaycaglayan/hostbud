@@ -390,6 +390,22 @@ func TestEmptySessionListIsArray(t *testing.T) {
 	}
 }
 
+func TestEmptySessionListWithProjectPlacementIsArray(t *testing.T) {
+	e := newEnv(t)
+	e.m.sessions = nil
+	s := &server{
+		cfg:      Config{Projects: placementResolverFake{}, Log: slog.New(slog.DiscardHandler)},
+		machines: map[string]Snapshotter{"host": e.m},
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/machines/host/sessions", nil)
+	req.SetPathValue("machine", "host")
+	rec := httptest.NewRecorder()
+	s.listSessions(rec, req)
+	if got := strings.TrimSpace(rec.Body.String()); got != `{"sessions":[]}` {
+		t.Fatalf("body %s", got)
+	}
+}
+
 func TestFilesystemAPI(t *testing.T) {
 	e := newEnv(t)
 	if rec := e.do(t, http.MethodGet, "/api/machines/host/fs/home", "", nil); rec.Code != http.StatusOK ||
