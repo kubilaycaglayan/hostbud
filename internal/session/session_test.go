@@ -251,6 +251,44 @@ func TestCopyModeDoesNotLogSessionName(t *testing.T) {
 	}
 }
 
+func TestSessionLifecycleLogsNamesOnlyAtDebug(t *testing.T) {
+	for _, level := range []struct {
+		name  string
+		level slog.Level
+		want  bool
+	}{{"info", slog.LevelInfo, false}, {"debug", slog.LevelDebug, true}} {
+		t.Run(level.name, func(t *testing.T) {
+			var logs bytes.Buffer
+			log := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: level.level}))
+			tracker := okHost("before-canary")
+			svc := New(&fakeExec{}, map[string]Tracker{"host": tracker}, log)
+			if _, err := svc.Create(context.Background(), Spec{Machine: "host", Name: "created-canary", Path: "/home/dev/canary-path"}); err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.Rename(context.Background(), "host", "before-canary", "renamed-canary"); err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.Kill(context.Background(), "host", "renamed-canary"); err != nil {
+				t.Fatal(err)
+			}
+			text := logs.String()
+			for _, event := range []string{"session created", "session renamed", "session killed"} {
+				if !strings.Contains(text, event) {
+					t.Errorf("missing %q event at level %s: %s", event, level.name, text)
+				}
+			}
+			for _, name := range []string{"created-canary", "before-canary", "renamed-canary"} {
+				if strings.Contains(text, name) != level.want {
+					t.Errorf("name %q present=%t at level %s: %s", name, strings.Contains(text, name), level.name, text)
+				}
+			}
+			if strings.Contains(text, "canary-path") {
+				t.Errorf("path reached logs at level %s: %s", level.name, text)
+			}
+		})
+	}
+}
+
 func TestCreateNameFromPathWithSuffixOnClash(t *testing.T) {
 	cases := []struct {
 		path, want string
@@ -331,7 +369,7 @@ func TestCreateTypedTakenNamesAreNumbered(t *testing.T) {
 	}
 }
 
-func TestCreateTypedNameRetriesAfterTmuxRace(t *testing.T) {
+func TestCreateTypedNameReturnsConflictAfterTmuxRace(t *testing.T) {
 	var created []string
 	f := &fakeExec{handler: func(args []string) error {
 		if args[0] != "tmux" {
@@ -339,18 +377,15 @@ func TestCreateTypedNameRetriesAfterTmuxRace(t *testing.T) {
 		}
 		name := args[4]
 		created = append(created, name)
-		if len(created) < 3 {
-			return remote(1, "duplicate session: "+name)
-		}
-		return nil
+		return remote(1, "duplicate session: "+name)
 	}}
 	name, err := newSvc(f, okHost()).Create(context.Background(), Spec{Machine: "host", Name: "work-1", Path: "~"})
-	if err != nil || name != "work-1-2" || !slices.Equal(created, []string{"work-1", "work-1-1", "work-1-2"}) {
+	if name != "" || code(err) != CodeDuplicate || !slices.Equal(created, []string{"work-1"}) {
 		t.Fatalf("Create() = %q, %v; attempts %q", name, err, created)
 	}
 }
 
-func TestCreateTypedNameRaceStopsAfterTwentyRetries(t *testing.T) {
+func TestCreateTypedNameRaceReturnsConflictImmediately(t *testing.T) {
 	tries := 0
 	f := &fakeExec{handler: func(args []string) error {
 		if args[0] == "tmux" {
@@ -360,8 +395,8 @@ func TestCreateTypedNameRaceStopsAfterTwentyRetries(t *testing.T) {
 		return nil
 	}}
 	_, err := newSvc(f, okHost()).Create(context.Background(), Spec{Machine: "host", Name: "work", Path: "~"})
-	if code(err) != CodeDuplicate || tries != 21 {
-		t.Fatalf("Create() error %v after %d attempts; want duplicate after 21 attempts", err, tries)
+	if code(err) != CodeDuplicate || tries != 1 {
+		t.Fatalf("Create() error %v after %d attempts; want duplicate after one attempt", err, tries)
 	}
 }
 

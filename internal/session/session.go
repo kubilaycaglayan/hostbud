@@ -185,6 +185,10 @@ func (s *Service) Create(ctx context.Context, spec Spec) (string, error) {
 			break
 		}
 		if isDuplicate(err) {
+			if spec.Name != "" {
+				return "", errorf(CodeDuplicate, "Pick another name, or open the existing session.",
+					"a session named %q already exists", name)
+			}
 			if attempt < 20 {
 				reserved = append(reserved, tmux.Session{Name: name})
 				name = uniqueName(baseName, reserved)
@@ -196,7 +200,8 @@ func (s *Service) Create(ctx context.Context, spec Spec) (string, error) {
 		return "", s.remoteError(err)
 	}
 
-	s.log.Info("session created", "machine", spec.Machine, "session", name)
+	s.log.Info("session created", "machine", spec.Machine)
+	s.log.Debug("session created details", "machine", spec.Machine, "session", name)
 	s.refresh(ctx, t)
 	return name, nil
 }
@@ -225,7 +230,8 @@ func (s *Service) Rename(ctx context.Context, machine, from, to string) error {
 			s.log.Warn("session renamed but project link update failed", "machine", machine, "err", err)
 		}
 	}
-	s.log.Info("session renamed", "machine", machine, "from", from, "to", to)
+	s.log.Info("session renamed", "machine", machine)
+	s.log.Debug("session renamed details", "machine", machine, "from", from, "to", to)
 	s.refresh(ctx, t)
 	return nil
 }
@@ -251,7 +257,8 @@ func (s *Service) Kill(ctx context.Context, machine, name string) error {
 			s.log.Warn("session ended but project link cleanup failed", "machine", machine, "err", err)
 		}
 	}
-	s.log.Info("session killed", "machine", machine, "session", name)
+	s.log.Info("session killed", "machine", machine)
+	s.log.Debug("session killed details", "machine", machine, "session", name)
 	s.refresh(ctx, t)
 	return nil
 }
