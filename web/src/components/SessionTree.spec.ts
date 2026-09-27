@@ -170,7 +170,7 @@ describe('SessionTree', () => {
     wrapper.unmount()
   })
 
-  it('starts inline rename from F2, project pencil and the project menu, then restores tree focus on Escape', async () => {
+  it('starts inline rename from F2 and the project menu (no project pencil), then restores tree focus on Escape', async () => {
     const wrapper = mount(SessionTree, { attachTo: document.body })
     const session = wrapper.get('[data-tree-key="session:one"]')
     await session.trigger('keydown', { key: 'F2' })
@@ -179,9 +179,7 @@ describe('SessionTree', () => {
     await flushPromises()
     expect(document.activeElement).toBe(wrapper.get('[data-tree-key="session:one"]').element)
 
-    await wrapper.get('button[aria-label="Rename a"]').trigger('click')
-    expect(wrapper.find('input[aria-label="Rename a"]').exists()).toBe(true)
-    await wrapper.get('input[aria-label="Rename a"]').trigger('keydown.esc')
+    expect(wrapper.find('button[aria-label="Rename a"]').exists()).toBe(false)
     await wrapper.get('button[aria-label="More actions for a"]').trigger('keydown', { key: 'Enter' })
     await flushPromises()
     const rename = [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((node) => node.textContent?.trim() === 'Rename')
@@ -258,8 +256,11 @@ describe('SessionTree', () => {
       }
       return { ok: false, status: 404, headers: new Headers(), text: async () => '' }
     })
-    const wrapper = mount(SessionTree)
-    await wrapper.get('button[aria-label="Rename a"]').trigger('click')
+    const wrapper = mount(SessionTree, { attachTo: document.body })
+    await wrapper.get('button[aria-label="More actions for a"]').trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+    ;[...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((node) => node.textContent?.trim() === 'Rename')!.click()
+    await flushPromises()
     const input = wrapper.get('input[aria-label="Rename a"]')
     await input.setValue('  renamed project  ')
     await input.trigger('keydown.enter')

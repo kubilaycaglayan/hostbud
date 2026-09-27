@@ -90,7 +90,6 @@ function renameOnFinePointer() {
       <button v-if="props.pinned" type="button" class="touch-target inline-flex min-h-7 min-w-6 items-center justify-center rounded text-muted" :aria-label="'Unpin ' + props.group.project.name" title="Pinned" tabindex="-1" @click.stop="emit('togglePin', props.group.project.id)">
         <Pin :size="16" aria-hidden="true" />
       </button>
-      <button type="button" class="touch-target min-h-7 min-w-6 rounded px-1" :aria-label="'Rename ' + props.group.project.name" title="Rename" tabindex="-1" @click.stop="emit('startRename', 'project:' + props.group.project.id)">✎</button>
       <DropdownMenuRoot :open="props.menuOpen" @update:open="(open) => emit('menuOpen', open, props.group.project.id)">
         <DropdownMenuTrigger type="button" class="touch-target min-h-7 min-w-6 rounded px-1 text-muted" :aria-label="'More actions for ' + props.group.project.name" title="More" tabindex="-1" @click.stop>⋯</DropdownMenuTrigger>
         <DropdownMenuPortal>
