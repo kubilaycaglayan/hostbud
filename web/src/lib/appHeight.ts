@@ -12,7 +12,9 @@ export function trackAppHeight(win: Window = window): () => void {
   if (!vv) return () => {}
   const root = win.document.documentElement
   const update = () => {
-    root.style.setProperty('--app-height', `${vv.height}px`)
+    // In layout pixels: a zoom (e.g. left over from a rotation, or a pinch)
+    // shrinks vv.height but mustn't shrink the app; the keyboard still does.
+    root.style.setProperty('--app-height', `${vv.height * (vv.scale || 1)}px`)
     root.style.setProperty('--app-top', `${vv.offsetTop}px`)
   }
   update()
