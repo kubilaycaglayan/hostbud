@@ -132,3 +132,55 @@ func TestEveryJSONRouteGetsBodyAndContentTypeLimits(t *testing.T) {
 		}
 	}
 }
+
+func TestOriginPolicyCoversEveryChangingRouteAndWebSocket(t *testing.T) {
+	data, err := os.ReadFile("testdata/routes.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var routes []routeInfo
+	if err := json.Unmarshal(data, &routes); err != nil {
+		t.Fatal(err)
+	}
+	allowed := []string{"http://localhost:9055", "https://hostbud.example.com"}
+	for _, route := range routes {
+		if !route.StateChanging && !route.WebSocket {
+			continue
+		}
+		path := strings.NewReplacer("{machine}", "host", "{name}", "origin-check", "{id}", "missing", "{key}", "layout").Replace(route.Path)
+		for _, origin := range []string{"http://evil.example.com", ""} {
+			t.Run(route.Method+" "+path+" rejected origin="+origin, func(t *testing.T) {
+				called := false
+				next := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { called = true })
+				req := httptest.NewRequestWithContext(t.Context(), route.Method, path, nil)
+				req.Header.Set("Origin", origin)
+				if route.WebSocket {
+					req.Header.Set("Connection", "Upgrade")
+					req.Header.Set("Upgrade", "websocket")
+				}
+				rec := httptest.NewRecorder()
+				checkOrigin(allowed, next).ServeHTTP(rec, req)
+				if rec.Code != http.StatusForbidden || called {
+					t.Fatalf("status=%d downstream_called=%t; want 403 and no handler", rec.Code, called)
+				}
+			})
+		}
+		for _, origin := range allowed {
+			t.Run(route.Method+" "+path+" allowed origin="+origin, func(t *testing.T) {
+				called := false
+				next := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { called = true })
+				req := httptest.NewRequestWithContext(t.Context(), route.Method, path, nil)
+				req.Header.Set("Origin", origin)
+				if route.WebSocket {
+					req.Header.Set("Connection", "Upgrade")
+					req.Header.Set("Upgrade", "websocket")
+				}
+				rec := httptest.NewRecorder()
+				checkOrigin(allowed, next).ServeHTTP(rec, req)
+				if rec.Code == http.StatusForbidden || !called {
+					t.Fatalf("status=%d downstream_called=%t; allowed Origin did not reach handler", rec.Code, called)
+				}
+			})
+		}
+	}
+}
