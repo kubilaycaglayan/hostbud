@@ -1,5 +1,9 @@
 @import 'tailwindcss';
 
+.claude-mark {
+  color: #d97757;
+}
+
 @utility touch-target {
   @media (pointer: coarse) {
     min-width: 2.75rem;

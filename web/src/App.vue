@@ -208,6 +208,9 @@ function onCreated(name: string) {
   splitTarget.value = null
   if (t && layout.split(t.pane, t.dir, MACHINE, name)) app.showTerminal()
   else openSession(name)
+  // Creating a session is an explicit request to start working in it. Wait
+  // until its terminal is mounted before placing the cursor there.
+  void nextTick(focusActiveTerminal)
 }
 
 function openShortcuts() {
