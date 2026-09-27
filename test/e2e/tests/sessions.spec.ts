@@ -1,10 +1,19 @@
 import { expect, test } from '../helpers/fixtures.ts'
+import { newAccount } from '../helpers/auth.ts'
+import { owner } from '../helpers/db.ts'
 import { ctl } from '../helpers/ctl.ts'
 import { forbidInLogs, MACHINE, mutate, ORIGIN, POLL_INTERVAL_MS } from '../helpers/api.ts'
 import { uniqueName } from '../helpers/target.ts'
 
 // "Within one poll interval", plus slack for ssh, the event and rendering.
 const withinPoll = { timeout: POLL_INTERVAL_MS + 2_000 }
+
+async function createAccount(ui: import('../helpers/ui.ts').UI) {
+  const account = newAccount('e2e-session-taken')
+  forbidInLogs(account.email, account.password)
+  await owner.allow(account.email)
+  await ui.createAccount(account)
+}
 
 test.beforeEach(async ({ target }) => {
   await target.resetTmux()
@@ -28,6 +37,7 @@ test('real-terminal create and kill show up within one poll interval', async ({ 
 })
 
 test('(T10) Taken session names get a number from New session and New session here', async ({ page, ui, target, request }) => {
+  await createAccount(ui)
   const name = uniqueName('e2e-taken')
   const projectName = uniqueName('e2e-taken-project')
   const path = `/home/dev/${uniqueName('e2e-taken-path')}`

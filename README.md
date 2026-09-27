@@ -75,10 +75,26 @@ The domain works only inside your tailnet: its DNS record points at the host's T
 - Starting a session in a project offers that project's recent commands. Choose a suggestion or enter a command, then press **Create**; opening the picker or selecting a suggestion never runs it. Each project keeps its 20 newest distinct commands; using one again moves it to the front. There is no manual history-clear action.
 - A banner explains host problems (sshd unreachable, tmux missing) with the fix; hostbud recovers by itself once they're fixed.
 
+### Customizing the tree
+
+Drag projects and sessions, or focus a row and use Alt+↑/↓, to change their order. New rows append; hostbud does not sort by name or recent activity. Collapse a project or **Other sessions** with its chevron. Expand a session to see its tmux windows, then expand split windows to see panes; selecting a window or pane switches the attached terminal.
+
+Rename from the pencil, row menu, F2, or the command palette. Renaming a session from a real terminal looks like the old session ended and a new one appeared. **Hide** and **Show hidden** change only your account's tree. Pin projects to keep them in the **Pinned** section; drag or use Alt+↑/↓ to order projects within their section. Order, pins, hidden rows, collapsed groups and expanded windows are saved to your account and survive reloads and hostbud restarts.
+
+### Command palette
+
+Press ⌘K (Mac) or Ctrl+Shift+K to search sessions, loaded windows, projects and actions. Ctrl+K opens the palette outside a terminal; in a terminal, it stays with the shell. Results follow tree order when scores tie. Hidden sessions are marked. The palette can rename, hide or pin tree rows, change the theme, create sessions and run app actions; killing a session still asks for confirmation. Use the **Command palette** header button on touch screens.
+
+### Keyboard shortcuts
+
+Press ⌘/ (Mac), Ctrl+Shift+/ or `?` to open **Keyboard shortcuts**. ⌘⇧E / Ctrl+Shift+E moves focus between the tree and terminal. Ctrl+Shift+] / [ switches hostbud tabs; Ctrl+Shift+D toggles between the two most recently selected hostbud tabs. Tree-specific keys work only when a tree row has focus. Ctrl+K inside the terminal remains the shell's kill-to-end-of-line shortcut.
+
+### Theme
+
+Choose **Dark**, **Light** or **System** from the Account menu or command palette. The choice applies to the interface and open terminals and is saved to your account. Before sign-in, the browser uses its own last theme mirror to avoid a flash; a new account starts in System mode.
+
 ### Terminal
 - **Tabs:** click a session to open it in a tab (clicking it again brings its tab back); **New session** opens its session in a new tab. Tabs stay attached in the background, so switching is instant. Close a tab with ×, a middle click, or Delete on the focused tab: that only detaches the view, and the session keeps running. Renaming a session relabels its tabs; a session killed anywhere closes its tabs with a notice. Up to 16 terminals can be open at once, and each holds its own connection to the host.
-- **Keyboard shortcuts:** ⌘K (Mac) or Ctrl+Shift+K opens the command palette; ⌘/ or Ctrl+Shift+/ opens **Keyboard shortcuts**. Ctrl+Shift+] / [ switches tabs, Ctrl+Shift+D toggles between the two most recently selected tabs, and ⌘⇧E / Ctrl+Shift+E moves focus between the tree and terminal. The help dialog lists the tree shortcuts too.
-- **Command palette:** search sessions, loaded windows, projects and actions with ⌘K or Ctrl+Shift+K. Ctrl+K opens it outside a terminal; in a terminal, Ctrl+K stays with the shell. Search is fuzzy and keeps tree order for ties. Hidden sessions are marked, and choosing one focuses its terminal. The palette can also rename, hide or pin tree rows; change the theme; create sessions; and run other app actions. Killing a session still asks for confirmation. On touch screens and compact layouts, use the **Command palette** header button.
 - **Splits:** a pane's **Split right** / **Split down** (or a list row's ⋯ → **Open in split right/down**) opens a session, or a new one, beside it: up to 4 panes per tab, nested as you like. Click a pane to type into it; drag a divider to resize (the tmux windows follow). × in a pane's header closes just that pane.
 - Your tabs, splits, divider positions and focused pane are saved to your account and come back after a reload or a hostbud restart; tabs of sessions that ended meanwhile are dropped.
 - **Reconnect:** if the connection drops (Wi-Fi, sleep, a hostbud restart), the terminal re-attaches by itself ("Reconnecting…", with **Retry now**); keys typed meanwhile are dropped. After a detach (`prefix d`) or the program exiting, use **Reconnect**.

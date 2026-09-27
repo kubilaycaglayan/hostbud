@@ -16,6 +16,13 @@ async function createTargetSession(target: { run(command: string): Promise<unkno
   await target.run(`tmux new-session -d -s ${shq(name)} -c ${shq(path)}`)
 }
 
+async function createAccount(ui: import('../helpers/ui.ts').UI) {
+  const account = newAccount('e2e-project-tree')
+  forbidInLogs(account.email, account.password)
+  await owner.allow(account.email)
+  await ui.createAccount(account)
+}
+
 async function openProjectSession(page: import('@playwright/test').Page, name: string) {
   await page.getByRole('button', { name: `New session in ${name}` }).click()
   const dialog = page.getByRole('dialog', { name: 'New session here' })
@@ -92,6 +99,7 @@ for (const profile of ['desktop', 'phone'] as const) {
     test.use(profile === 'phone' ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } : {})
 
     test('(T11) Remove a project without stopping its sessions, then add the folder again', async ({ page, ui, target, request }) => {
+      await createAccount(ui)
       const root = `/home/dev/${uniqueName('e2e-remove-root')}`
       const folder = `${root}/app`
       const projectName = uniqueName('remove-project')

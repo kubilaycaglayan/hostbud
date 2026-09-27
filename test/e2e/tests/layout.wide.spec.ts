@@ -1,5 +1,15 @@
 import { expect, test } from '../helpers/fixtures.ts'
+import { newAccount } from '../helpers/auth.ts'
+import { owner } from '../helpers/db.ts'
+import { forbidInLogs } from '../helpers/api.ts'
 import { uniqueName } from '../helpers/target.ts'
+
+async function createAccount(ui: import('../helpers/ui.ts').UI) {
+  const account = newAccount('e2e-layout-wide')
+  forbidInLogs(account.email, account.password)
+  await owner.allow(account.email)
+  await ui.createAccount(account)
+}
 
 test('(T2) Wide layout unchanged', async ({ page, target, isMobile, ui }) => {
   test.skip(isMobile, 'wide layout runs on desktop Chromium')
@@ -18,6 +28,7 @@ test('(T2) Wide layout unchanged', async ({ page, target, isMobile, ui }) => {
 
 test('(T13) Left bar toggle and toolbar', async ({ page, target, ui, isMobile }) => {
   test.skip(isMobile, 'desktop layout only')
+  await createAccount(ui)
   const name = uniqueName('e2e-t13-toolbar')
   await target.resetTmux()
   await target.tmux('new-session', '-d', '-s', name, '-c', '/home/dev')

@@ -4,7 +4,7 @@ M6 is done when every box is ticked, except the *Manual checks (owner)* list, wh
 
 M6 lets each account shape its left-bar tree and adds keyboard-first polish. The tree becomes an accessible tree view with persistent collapse state, lazily loaded windows and panes under sessions, inline rename, hide/unhide and pinned projects. It adds a command palette, a keyboard shortcut set with a help dialog, and a Dark / Light / System theme setting for the UI and the terminal.
 
-It adds three server routes: listing a session's windows and panes, selecting a window or pane, and deleting a project (the one shared, not per-account, change: T11). It also allows one new `ui_state` key (`theme`). It adds no migration, no env var and no published port. Every customization is **per account** and lives in `ui_state` (`tree` and `theme`), like M4's order. The global `projects.pinned` and `machines.hidden` columns stay unused by the UI, as M4 did with `projects.sort_order`. M4's drag-to-sort and "new rows append, nothing auto-sorts" rule still hold. Authentication, the Origin allowlist, `sshx`, the single session service and event-driven UI rules still apply. M5's compact layout (drawer, sheets, key bar, touch targets) must keep working with every new control.
+It adds three server routes: listing a session's windows and panes, selecting a window or pane, and deleting a project (the one shared, not per-account, change: T11). It also allows one new `ui_state` key (`theme`). It adds no migration, no env var and no published port. Every customization is **per account** and lives in `ui_state` (`tree` and `theme`), like M4's order. The global `projects.pinned`, `projects.sort_order` and `machines.hidden` columns stay unused by the UI. M4's drag-to-sort and "new rows append, nothing auto-sorts" rule still hold. Authentication, the Origin allowlist, `sshx`, the single session service and event-driven UI rules still apply. M5's compact layout (drawer, sheets, key bar, touch targets) must keep working with every new control.
 
 Setup for the manual checks: `make deploy` on the host; a desktop browser on the port-forward path and the owner's iPhone on `https://${HOSTBUD_DOMAIN}`; a few projects and tmux sessions on the host, one with several windows and a split window.
 
@@ -28,11 +28,11 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
   - U: T2 debounce and flush (fake timers, `pagehide`); the size guard with 500 projects × 20 sessions of 64-byte names; the oversize path doesn't call `putUIState` (Vitest).
   - I: T2 a 64 KiB + 1 body still gets 413 (existing M1/M3 handler test extended to `tree`) (Go).
   - E: T2 *Tree state survives an app restart* reloads immediately after a change.
-- [ ] Customization is per account: pins, hidden rows, collapse state, order and theme saved by one account never show for another account on the same host.
+- [x] Customization is per account: pins, hidden rows, collapse state, order and theme saved by one account never show for another account on the same host.
   - U: T2 the store resets on sign-out (Vitest).
   - I: T2 two accounts' `tree` and T7 two accounts' `theme` values are isolated (Go, PostgreSQL; extends the M3/M4 per-user UI-state test).
   - E: T6 *Customizations are per account* (desktop; account B sees none of account A's pins, hidden rows, collapse state or order) · T7 *Theme persists* (a second account still starts in System after account A picked Light).
-- [ ] No automatic re-sorting is introduced: newly observed projects and sessions append to the end of their section, pinning keeps the manual order inside each section, unhiding puts a row back at its saved position, and renaming keeps the row's position.
+- [x] No automatic re-sorting is introduced: newly observed projects and sessions append to the end of their section, pinning keeps the manual order inside each section, unhiding puts a row back at its saved position, and renaming keeps the row's position.
   - U: T2 `projectTree` with pins/hidden keeps relative order; T4 rename re-keys in place; T5 unhide restores position; T6 pin/unpin keeps relative order (Vitest).
   - I: n/a (presentation state; persistence is covered above).
   - E: T6 *Every customization survives reload and restart* (desktop; checks the full order after each step).
@@ -51,7 +51,7 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
   - U: T2 `SessionTree` omits Other with zero sessions, renders it with one, keeps its collapse state across hide/show; the all-empty tree shows one empty-state line (Vitest).
   - I: n/a (frontend presentation only).
   - E: T2 *Empty Other sessions hidden* (desktop); M1 T15 *Empty list* still covers the all-empty tree.
-- [ ] Keyboard navigation in the tree: ↑/↓ move, → expands or moves to the first child, ← collapses or moves to the parent, Home/End, Enter opens a session (M3 rules: focus its tab or open one), Enter on a project or Other toggles it, and Alt+↑/↓ moves the focused project or session one place within its section (the keyboard equivalent of drag, saved like a drag).
+- [x] Keyboard navigation in the tree: ↑/↓ move, → expands or moves to the first child, ← collapses or moves to the parent, Home/End, Enter opens a session (M3 rules: focus its tab or open one), Enter on a project or Other toggles it, and Alt+↑/↓ moves the focused project or session one place within its section (the keyboard equivalent of drag, saved like a drag).
   - U: T2 key handler table on a fixture tree, including Alt+↑/↓ at section edges (no-op) and across a pinned boundary (no-op) (Vitest).
   - I: n/a (frontend only).
   - E: T2 *Keyboard tree navigation* (desktop; walk the tree, open a session with Enter, reorder with Alt+↓, reload, the order persists).
@@ -146,7 +146,7 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 
 ## Theme
 
-- [ ] A **Theme** setting with **Dark**, **Light** and **System** (default System) sits in the account menu (M4 header, M5 compact **Account** menu) as a radio group, and in the command palette. Choosing one applies at once, without a reload, to the whole UI (every surface, dialog, sheet, menu, toast, drag ghost, split divider, focus ring) and to every mounted terminal.
+- [x] A **Theme** setting with **Dark**, **Light** and **System** (default System) sits in the account menu (M4 header, M5 compact **Account** menu) as a radio group, and in the command palette. Choosing one applies at once, without a reload, to the whole UI (every surface, dialog, sheet, menu, toast, drag ghost, split divider, focus ring) and to every mounted terminal.
   - U: T7 `stores/theme`: resolve mode + OS preference → `dark`/`light`; `data-theme` on `<html>`; radio group state (Vitest).
   - I: n/a (frontend presentation; the stored value's round-trip is below).
   - E: T7 *Pick Dark and Light* (desktop and `iphone-13-pro`; `<html data-theme>`, the body background token and the terminal's theme background change at once).
@@ -255,18 +255,18 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 
 ## Phone and compact layout (M5 compatibility)
 
-- [ ] Every new control works in M5's compact layout: tree chevrons, window/pane rows, the Pinned icon, Show hidden, inline rename fields (16 px font, no zoom), the palette button, the theme radio group. Each meets the 44×44 px target on coarse pointers. The M5 long-press row menu gains Rename, Hide/Unhide and (projects) Pin/Unpin.
+- [x] Every new control works in M5's compact layout: tree chevrons, window/pane rows, the Pinned icon, Show hidden, inline rename fields (16 px font, no zoom), the palette button, the theme radio group. Each meets the 44×44 px target on coarse pointers. The M5 long-press row menu gains Rename, Hide/Unhide and (projects) Pin/Unpin.
   - U: T3–T9 the `touch-target` utility on each new control; inline rename input carries the 16 px class; long-press menu items (Vitest).
   - I: n/a (presentation only).
   - E: T14 extends M5's *Touch targets* and *Usable without zoom* scenarios to the new controls (both phone projects).
-- [ ] Opening a window row or a palette result in compact layout closes the drawer or palette and shows the terminal, without re-attaching other terminals (M5 rule).
+- [x] Opening a window row or a palette result in compact layout closes the drawer or palette and shows the terminal, without re-attaching other terminals (M5 rule).
   - U: T3/T9 drawer close on open (Vitest).
   - I: n/a (frontend only).
   - E: T3 *Open at a window and pane* and T9 *Palette on the phone* (both phone projects).
 
 ## Security and compatibility
 
-- [ ] M6 adds no migration, env var, published port or remote command path outside `internal/tmux` + `sshx`. The global `projects.pinned`, `projects.sort_order` and `machines.hidden` columns aren't written by M6 (ARCHITECTURE §8 notes them as reserved for a later shared/multi-machine use).
+- [x] M6 adds no migration, env var, published port or remote command path outside `internal/tmux` + `sshx`. The global `projects.pinned`, `projects.sort_order` and `machines.hidden` columns aren't written by M6 (ARCHITECTURE §8 notes them as reserved for a later shared/multi-machine use).
   - U: T1 the new builders live in `internal/tmux`, and `internal/archtest` still passes (no exec outside `sshx`, no SQL outside `store`) (Go).
   - I: the existing deploy-config check still passes unchanged (T14 CP5); no new file in `internal/store/migrations/` (T14 audit).
   - E: n/a: nothing new is reachable beyond the routes covered above.
@@ -318,7 +318,7 @@ Profiles: `desktop-chromium`, `iphone-13-pro` (`http://localhost:9055`) and `iph
 - [x] **(T11) Delete project API:** signed out → 401, foreign Origin → 403, unknown id → 404, delete → 204 then 404; the list no longer has it (API; authored and type-checked, browser run at M7).
 - [x] **(T12) Add the current directory as project:** at home, *Add this directory as project* → the home project appears with a `~` path and the button reads *Open project*; a subfolder is added the same way; *New session here* lands under it; a second click makes no duplicate (desktop and `iphone-13-pro`; authored and type-checked, browser run at M7).
 - [x] **(T13) Left bar toggle and toolbar:** no "Projects & sessions" or "Projects" text; *Hide sidebar* hides the left bar and becomes *Show sidebar*, which survives reload and brings it back; the *New session* icon creates a session; the *Add project* icon opens the file browser (desktop). On phones the toggle opens the drawer, its *Hide sidebar* closes it, and both icon buttons meet the touch-target size (both phone projects; authored and type-checked, browser run at M7).
-- [ ] **(T14) Touch targets and zoom for M6 controls:** M5's *Touch targets* and *Usable without zoom* checks extended to chevrons, window rows, Pinned, Show hidden, inline rename, the palette button and the theme menu (both phone projects).
+- [x] **(T14) Touch targets and zoom for M6 controls:** M5's *Touch targets* and *Usable without zoom* checks extended to session/window chevrons, window and pane rows, the Pinned icon, Show hidden, inline rename, the palette button and input, and the theme radio items; the long-press menu exposes Rename, Hide/Unhide and Pin/Unpin (both phone projects; authored and type-checked, browser run at M7).
 
 ## Manual checks (owner, T14)
 

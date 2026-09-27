@@ -5,11 +5,19 @@ import { ctl } from '../helpers/ctl.ts'
 import { shq, uniqueName } from '../helpers/target.ts'
 import { forbidInLogs, mutate } from '../helpers/api.ts'
 
+async function createAccount(ui: import('../helpers/ui.ts').UI) {
+  const account = newAccount('e2e-project-browser')
+  forbidInLogs(account.email, account.password)
+  await owner.allow(account.email)
+  await ui.createAccount(account)
+}
+
 for (const profile of ['desktop', 'phone'] as const) {
   test.describe(`project browser ${profile}`, () => {
     test.use(profile === 'phone' ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } : {})
 
     test('(T12) Add the current directory as a project', async ({ page, request, target, ui }) => {
+      await createAccount(ui)
       const folderName = uniqueName('e2e-current-directory')
       const folderPath = `/home/dev/${folderName}`
       const sessionName = uniqueName('e2e-current-session')

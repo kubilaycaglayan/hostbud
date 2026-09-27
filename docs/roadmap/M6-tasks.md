@@ -23,7 +23,7 @@ Update this table in the same commit that finishes a task.
 | T11 Remove a project | Done |
 | T12 Add the current directory as a project | Done |
 | T13 Left bar toggle and icon toolbar | Done |
-| T14 Docs, audit and release | Not started |
+| T14 Docs, audit and release | Done |
 | T15 Safe Docker cleanup | Not started |
 
 T2 completed with the v2 state migration, guarded persistence, pruning rules, accessible tree behavior and task-tagged scenarios. The pruning regression/fix are in `00f3c29` and `fae320e`; CP1 passed with `make lint test`. E2E scenarios were type-checked only, as required.
@@ -50,6 +50,8 @@ T12 completed with an accessible Add/Open action in the file browser path bar, r
 
 T13 completed with the accessible header sidebar toggle, reload-persistent desktop visibility, icon-only New session/Add project toolbar in the tree panel, and updated legacy selectors. Vitest passed (417 tests), frontend lint passed, and E2E lint/TypeScript checking passed; desktop and both phone-profile scenarios are authored and remain paused until M7. No new environment variable or route was added.
 
+T14 completed the README and Architecture audit, added (T14) phone touch-target/zoom coverage for M6 controls and long-press actions, and isolated the new T10–T13 UI scenarios with throwaway accounts. CP5 passed: `make lint test`, `make gitleaks` and E2E TypeScript checking are green. `make deploy` succeeded; `/api/health` returned `{"status":"ok"}`, and unauthenticated theme and windows routes returned 401 over the loopback path. No browser E2E run occurred. Owner-only desktop/iPhone checks remain open in the acceptance checklist.
+
 ## Rules for this milestone
 
 - Work top to bottom, one task at a time, and don't start a task until the previous one is done. Before starting M6, check that M5's acceptance checklist is complete, apart from open owner items (its *Manual checks (owner)* list): M6 adds controls to M5's drawer, sheets, long-press menu and account menu, and extends M5's touch-target scenarios. Don't build on an unfinished M5 layout.
@@ -71,7 +73,7 @@ T13 completed with the accessible header sidebar toggle, reload-persistent deskt
 | CP2 | T3 + T4 (windows in the tree, inline rename) | `make lint test` | Passed |
 | CP3 | T5 + T6 (hide/unhide, pins) | `make lint test` | Passed |
 | CP4 | T7 + T8 + T9 (theme, shortcuts, palette) | `make lint test`, plus `make build` so `check-dist` sees the real theme boot script | Passed |
-| CP5 | T10 + T11 + T12 + T13 + T14 (taken names, remove project, add current directory, left bar toolbar, audit) | `make lint test`, `make gitleaks`, e2e `tsc` | Not run |
+| CP5 | T10 + T11 + T12 + T13 + T14 (taken names, remove project, add current directory, left bar toolbar, audit) | `make lint test`, `make gitleaks`, e2e `tsc` | Passed |
 
 **What e2e can and can't reach.**
 - Every scenario signs up its own account (`newAccount()`), because all M6 state is per account and must not leak between scenarios. The fixture that resets the saved layout is extended to leave `tree` and `theme` alone only for scenarios that seed them on purpose.
