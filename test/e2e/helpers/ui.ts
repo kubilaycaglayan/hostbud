@@ -50,6 +50,8 @@ export class UI {
 
   async openAccountMenu(): Promise<void> {
     const account = this.page.getByRole('button', { name: 'Account', exact: true })
+    // Right after sign-in the header may still be rendering.
+    await account.waitFor({ state: 'visible', timeout: 5_000 }).catch(() => {})
     if (await account.isVisible()) {
       const isOpen = await account.evaluate((el) => el.parentElement instanceof HTMLDetailsElement && el.parentElement.open)
       if (!isOpen) await account.click()

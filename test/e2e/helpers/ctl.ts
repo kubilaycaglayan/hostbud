@@ -4,9 +4,15 @@ async function call(action: string): Promise<void> {
   if (!res.ok) throw new Error(`ctl ${action}: ${res.status} ${await res.text()}`)
 }
 
+/** How many app restarts this worker has asked for (see fixtures.ts). */
+export const appRestarts = { count: 0 }
+
 export const ctl = {
   /** docker restart hostbud-e2e-app */
-  restartApp: () => call('/restart-app'),
+  restartApp: () => {
+    appRestarts.count++
+    return call('/restart-app')
+  },
   /** Stops hostbud-e2e-app, leaving Caddy and the offline app shell available. */
   appStop: () => call('/app/stop'),
   /** Starts hostbud-e2e-app and waits for /api/health through Caddy. */

@@ -1,6 +1,7 @@
 import { test as base, expect, type Page } from '@playwright/test'
 import { Target } from './target.ts'
 import { UI } from './ui.ts'
+import { appRestarts } from './ctl.ts'
 
 interface Fixtures {
   target: Target
@@ -51,6 +52,11 @@ const NEW_ACCOUNT_UI_STATE =
 // the API's normal answer before sign-in.
 const SIGNED_OUT_ME =
   /^HTTP 401: GET https?:\/\/[^/]+\/api\/auth\/me$|^console error: Failed to load resource: the server responded with a status of 401 .*@ https?:\/\/[^/]+\/api\/auth\/me$/
+
+// While the app restarts (ctl.restartApp), an open page's reconnects fail
+// with 502s from Caddy. Ignored only in tests that restarted the app.
+const RESTART_NOISE =
+  /^HTTP 502: |status of 502 \(Bad Gateway\)|WebSocket connection to 'wss?:\/\/[^/]+\/ws\/events' failed/
 
 export const test = base.extend<Fixtures>({
   allowedBrowserErrors: [undefined, { option: true }],
@@ -103,8 +109,10 @@ export const test = base.extend<Fixtures>({
     // browser test starts without tmux sessions left by earlier tests.
     await target.resetTmux()
     await resetAccountState(page, baseURL)
+    const restartsBefore = appRestarts.count
     await use(page)
-    expect(problems, 'browser console errors or failed requests').toEqual([])
+    const restarted = appRestarts.count > restartsBefore
+    expect(problems.filter((line) => !(restarted && RESTART_NOISE.test(line))), 'browser console errors or failed requests').toEqual([])
   },
 
   ui: async ({ page }, use) => {
