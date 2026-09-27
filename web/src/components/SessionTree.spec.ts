@@ -6,6 +6,8 @@ import { useProjectsStore } from '@/stores/projects'
 import { useSessionsStore } from '@/stores/sessions'
 import { useMachinesStore } from '@/stores/machines'
 import { useTreeStore } from '@/stores/tree'
+import { useWindowsStore } from '@/stores/windows'
+import { ApiError, windowsApi } from '@/api/client'
 import SessionTree from './SessionTree.vue'
 
 const fetchMock = vi.fn()
@@ -34,7 +36,7 @@ afterEach(() => useTreeStore().reset())
 
 describe('SessionTree', () => {
   it('moves groups and session rows in the explicit order', async () => {
-    const wrapper = mount(SessionTree)
+    const wrapper = mount(SessionTree, { attachTo: document.body })
     expect(wrapper.find('button[aria-label="Move project b up"]').exists()).toBe(false)
     expect(wrapper.get('button[aria-label="Drag to reorder project b"]').attributes('title')).toBe('Drag to reorder projects')
     expect(wrapper.get('button[aria-label="Drag to reorder project b"]').classes()).toContain('touch-target')
@@ -108,6 +110,63 @@ describe('SessionTree', () => {
     await loose.trigger('keydown', { key: 'Delete' })
     expect(wrapper.emitted('kill')).toEqual([['loose']])
     wrapper.unmount()
+  })
+
+  it('renders lazy window and pane rows and emits their selection ids', async () => {
+    const tree = useTreeStore()
+    tree.order.expanded = ['host/one']
+    const windows = useWindowsStore()
+    windows.bySession['host/one'] = {
+      status: 'ok', truncated: true, windows: [
+        { id: '@1', index: 0, name: 'shell', active: true, panes: [{ id: '%1', index: 0, active: true, command: 'bash', width: 80, height: 24 }] },
+        { id: '@2', index: 1, name: 'editor', active: false, panes: [
+          { id: '%2', index: 0, active: true, command: 'vim', width: 40, height: 24 },
+          { id: '%3', index: 1, active: false, command: 'bash', width: 40, height: 24 },
+        ] },
+      ],
+    }
+    const wrapper = mount(SessionTree, { attachTo: document.body })
+    const session = wrapper.get('[data-tree-key="session:one"]')
+    expect(session.attributes('aria-expanded')).toBe('true')
+    const firstWindow = wrapper.get('[data-tree-key="window:host/one/@1"]')
+    const splitWindow = wrapper.get('[data-tree-key="window:host/one/@2"]')
+    expect(firstWindow.attributes('aria-level')).toBe('3')
+    expect(firstWindow.text()).toContain('1: shell')
+    expect(firstWindow.find('button').classes()).toContain('touch-target')
+    expect(splitWindow.attributes('aria-expanded')).toBe('false')
+    expect(splitWindow.find('button').classes()).toContain('touch-target')
+    expect(wrapper.findAll('[role="treeitem"][tabindex="0"]')).toHaveLength(1)
+    await splitWindow.trigger('keydown', { key: 'ArrowRight' })
+    await splitWindow.trigger('keydown', { key: 'ArrowDown' })
+    await flushPromises()
+    const pane = wrapper.get('[data-tree-key="pane:host/one/@2/%3"]')
+    expect(pane.attributes('aria-level')).toBe('4')
+    expect(pane.text()).toContain('Pane 2 — bash')
+    expect(pane.find('button').classes()).toContain('touch-target')
+    expect(document.activeElement).toBe(wrapper.get('[data-tree-key="pane:host/one/@2/%2"]').element)
+    expect(wrapper.findAll('[role="treeitem"][tabindex="0"]')).toHaveLength(1)
+    await pane.trigger('keydown', { key: 'Enter' })
+    expect(wrapper.emitted('selectWindow')).toEqual([['one', '@2', '%3']])
+    await firstWindow.find('button').trigger('click')
+    expect(wrapper.emitted('selectWindow')).toEqual([['one', '@2', '%3'], ['one', '@1', undefined]])
+    expect(wrapper.text()).toContain('More windows not shown')
+    wrapper.unmount()
+  })
+
+  it('shows loading and actionable error rows with retry', async () => {
+    const tree = useTreeStore()
+    tree.order.expanded = ['host/one']
+    const windows = useWindowsStore()
+    windows.bySession['host/one'] = { status: 'loading', windows: [], truncated: false }
+    const wrapper = mount(SessionTree)
+    expect(wrapper.get('[role="treeitem"][aria-disabled="true"]').text()).toContain('Loading windows…')
+    windows.bySession['host/one'] = { status: 'error', windows: [], truncated: false, error: new ApiError(404, 'tmux not found on the host', 'Install tmux.') }
+    await flushPromises()
+    expect(wrapper.get('[role="treeitem"][aria-disabled="true"]').text()).toContain('Tmux not found on the host. Install tmux.')
+    const list = vi.spyOn(windowsApi, 'list').mockResolvedValue({ windows: [], truncated: false })
+    await wrapper.findAll('button').find((button) => button.text() === 'Retry')!.trigger('click')
+    await flushPromises()
+    expect(list).toHaveBeenCalledWith('host', 'one')
   })
 
   it('lets keyboard users tab into row actions without stealing button keys', async () => {

@@ -23,6 +23,7 @@ import { useLayoutStore } from '@/stores/layout'
 import { useLiveStore } from '@/stores/live'
 import { useMachinesStore } from '@/stores/machines'
 import { useTreeStore } from '@/stores/tree'
+import { useWindowsStore } from '@/stores/windows'
 import { useProjectsStore } from '@/stores/projects'
 import { FolderPlus } from 'lucide-vue-next'
 
@@ -32,6 +33,7 @@ const layout = useLayoutStore()
 const live = useLiveStore()
 const machines = useMachinesStore()
 const tree = useTreeStore()
+const windows = useWindowsStore()
 const projects = useProjectsStore()
 
 // v1 has one machine: the host.
@@ -63,6 +65,12 @@ function onKilled(name: string) {
 function openSession(name: string) {
   drawerOpen.value = false
   if (layout.open(MACHINE, name)) app.showTerminal()
+}
+
+function openAtWindow(name: string, window: string, pane?: string) {
+  drawerOpen.value = false
+  if (!windows.openAt(MACHINE, name, window, pane)) return
+  app.showTerminal()
 }
 
 /** A list row's "Open in split": beside the active tab's focused pane. */
@@ -146,6 +154,7 @@ watch(
       projects.load(MACHINE).catch((error) => console.warn("hostbud: can't load projects", error)),
     ])
     tree.sync()
+    windows.restore()
     if (auth.status === 'authenticated') live.start()
   },
 )
@@ -228,10 +237,10 @@ onUnmounted(() => {
         aria-label="Sessions"
         class="flex w-64 shrink-0 flex-col border-r border-border bg-surface p-3"
       >
-        <TreePanel :selected="selectedSession" :connection-state="live.state" @select="openSession" @split="openInSplit" @rename="askRename" @kill="askKill" @session-in-project="newProjectSession" @create="newSession" @browse="browseFiles" />
+        <TreePanel :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @rename="askRename" @kill="askKill" @session-in-project="newProjectSession" @create="newSession" @browse="browseFiles" />
       </aside>
       <main v-if="compact && !hasTabs" class="min-h-0 min-w-0 flex-1 overflow-y-auto bg-surface p-3">
-        <TreePanel :selected="selectedSession" :connection-state="live.state" @select="openSession" @split="openInSplit" @rename="askRename" @kill="askKill" @session-in-project="newProjectSession" @create="newSession" @browse="browseFiles" />
+        <TreePanel :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @rename="askRename" @kill="askKill" @session-in-project="newProjectSession" @create="newSession" @browse="browseFiles" />
       </main>
       <main
         v-else
@@ -288,7 +297,7 @@ onUnmounted(() => {
             <DialogClose aria-label="Close project tree" class="min-h-11 min-w-11 rounded border border-border">×</DialogClose>
           </div>
           <DialogDescription class="sr-only">Choose a project or session.</DialogDescription>
-          <TreePanel :selected="selectedSession" :connection-state="live.state" @select="openSession" @split="openInSplit" @rename="askRename" @kill="askKill" @session-in-project="newProjectSession" @create="newSession" @browse="browseFiles" />
+          <TreePanel :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @rename="askRename" @kill="askKill" @session-in-project="newProjectSession" @create="newSession" @browse="browseFiles" />
         </DialogContent>
       </DialogPortal>
     </DialogRoot>

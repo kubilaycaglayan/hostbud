@@ -2,8 +2,13 @@
 import { DropdownMenuContent, DropdownMenuItem, DropdownMenuPortal, DropdownMenuRoot, DropdownMenuTrigger } from 'reka-ui'
 import { VueDraggable } from 'vue-draggable-plus'
 import { computed, onScopeDispose, ref } from 'vue'
+import { ChevronRight } from 'lucide-vue-next'
 import type { Session } from '@/api/types'
 import type { SplitDir } from '@/lib/layout'
+import { sessionKey, windowKey } from '@/lib/tree'
+import { useTreeStore } from '@/stores/tree'
+import { useWindowsStore } from '@/stores/windows'
+import { describeError } from '@/stores/toasts'
 
 const props = defineProps<{
   sessions: Session[]
@@ -24,10 +29,23 @@ const emit = defineEmits<{
   kill: [name: string]
   reorder: [names: string[]]
   saveAsProject: [session: Session]
+  selectWindow: [name: string, window: string, pane?: string]
 }>()
 
 const item = 'cursor-pointer rounded px-2 py-1 outline-none data-highlighted:bg-bg'
 const openMenuName = ref('')
+const tree = props.treeView ? useTreeStore() : undefined
+const windowsStore = props.treeView ? useWindowsStore() : undefined
+
+function windowsFor(name: string) { return windowsStore?.bySession[sessionKey('host', name)] }
+function isExpanded(key: string) { return tree?.order.expanded.includes(key) ?? false }
+function windowError(name: string) {
+  const error = describeError(windowsFor(name)?.error)
+  return [error.message, error.hint].filter(Boolean).join(' ')
+}
+function toggleSession(name: string) { windowsStore?.toggleSession('host', name) }
+function toggleWindow(name: string, id: string) { windowsStore?.toggleWindow('host', name, id) }
+function retryWindows(name: string) { windowsStore?.refresh('host', name) }
 const longPressTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 const pointerStart = ref<{ x: number; y: number; name: string } | null>(null)
 const longPressedName = ref('')
@@ -101,6 +119,7 @@ const sortableSessions = computed({
       :role="props.treeView ? 'treeitem' : 'listitem'"
       :aria-level="props.treeView ? (props.level ?? 1) : undefined"
       :aria-selected="props.treeView && s.name === props.selected ? 'true' : undefined"
+      :aria-expanded="props.treeView ? isExpanded(sessionKey('host', s.name)) : undefined"
       :aria-label="props.treeView ? s.name : undefined"
       :tabindex="props.treeView && props.focusedKey === ('session:' + s.name) ? 0 : props.treeView ? -1 : undefined"
       :data-tree-key="props.treeView ? 'session:' + s.name : undefined"
@@ -109,6 +128,18 @@ const sortableSessions = computed({
       class="flex items-center gap-1 rounded px-1 py-0.5"
       :class="s.name === props.selected ? 'bg-bg' : ''"
     >
+      <button
+        v-if="props.treeView"
+        type="button"
+        class="touch-target inline-flex min-h-11 min-w-8 items-center justify-center rounded text-muted"
+        :aria-label="(isExpanded(sessionKey('host', s.name)) ? 'Collapse ' : 'Expand ') + s.name"
+        :aria-expanded="isExpanded(sessionKey('host', s.name))"
+        :title="(isExpanded(sessionKey('host', s.name)) ? 'Collapse ' : 'Expand ') + s.name"
+        :tabindex="-1"
+        @click.stop="toggleSession(s.name)"
+      >
+        <ChevronRight :size="16" class="transition-transform" :class="isExpanded(sessionKey('host', s.name)) ? 'rotate-90' : ''" aria-hidden="true" />
+      </button>
       <button
         v-if="props.sortable"
         type="button"
@@ -201,6 +232,65 @@ const sortableSessions = computed({
           ✎
         </button>
       </span>
+      <ul v-if="props.treeView && isExpanded(sessionKey('host', s.name))" role="group" class="ml-3 border-l border-border py-1 pl-3">
+        <li v-if="windowsFor(s.name)?.status === 'loading' || windowsFor(s.name)?.status === 'idle'" role="treeitem" :aria-level="(props.level ?? 1) + 1" aria-disabled="true" tabindex="-1" class="min-h-11 px-2 py-3 text-sm text-muted">
+          <span class="animate-spin" aria-hidden="true">◌</span> Loading windows…
+        </li>
+        <li v-else-if="windowsFor(s.name)?.status === 'error'" role="treeitem" :aria-level="(props.level ?? 1) + 1" aria-disabled="true" tabindex="-1" class="flex min-h-11 items-center gap-2 px-2 text-sm text-danger">
+          <span class="min-w-0 flex-1">{{ windowError(s.name) }}</span>
+          <button type="button" class="touch-target min-h-11 rounded px-2 text-fg underline" @click="retryWindows(s.name)">Retry</button>
+        </li>
+        <template v-else>
+          <li
+            v-for="window in windowsFor(s.name)?.windows ?? []"
+            :key="window.id"
+            role="treeitem"
+            :aria-level="(props.level ?? 1) + 1"
+            :aria-expanded="window.panes.length > 1 ? isExpanded(windowKey('host', s.name, window.id)) : undefined"
+            :tabindex="props.focusedKey === ('window:' + windowKey('host', s.name, window.id)) ? 0 : -1"
+            :data-tree-key="'window:' + windowKey('host', s.name, window.id)"
+            data-tree-kind="window"
+            :data-tree-session="s.name"
+            :data-tree-window="window.id"
+            class="flex min-h-11 items-center gap-1 rounded px-1"
+          >
+            <button
+              v-if="window.panes.length > 1"
+              type="button"
+              class="touch-target inline-flex min-h-11 min-w-8 items-center justify-center rounded text-muted"
+              :aria-label="(isExpanded(windowKey('host', s.name, window.id)) ? 'Collapse ' : 'Expand ') + 'window ' + (window.index + 1)"
+              :aria-expanded="isExpanded(windowKey('host', s.name, window.id))"
+              tabindex="-1"
+              @click.stop="toggleWindow(s.name, window.id)"
+            >
+              <ChevronRight :size="16" class="transition-transform" :class="isExpanded(windowKey('host', s.name, window.id)) ? 'rotate-90' : ''" aria-hidden="true" />
+            </button>
+            <button type="button" tabindex="-1" class="touch-target min-h-11 min-w-0 flex-1 truncate px-2 text-left" @click="emit('selectWindow', s.name, window.id)">
+              {{ window.index + 1 }}: {{ window.name }} <span v-if="window.active" class="text-muted">(current)</span>
+            </button>
+            <ul v-if="window.panes.length > 1 && isExpanded(windowKey('host', s.name, window.id))" role="group" class="ml-3 border-l border-border py-1 pl-3">
+              <li
+                v-for="pane in window.panes"
+                :key="pane.id"
+                role="treeitem"
+                :aria-level="(props.level ?? 1) + 2"
+                :tabindex="props.focusedKey === ('pane:' + windowKey('host', s.name, window.id) + '/' + pane.id) ? 0 : -1"
+                :data-tree-key="'pane:' + windowKey('host', s.name, window.id) + '/' + pane.id"
+                data-tree-kind="pane"
+                :data-tree-session="s.name"
+                :data-tree-window="window.id"
+                :data-tree-pane="pane.id"
+                class="flex min-h-11 items-center rounded px-2"
+              >
+                <button type="button" tabindex="-1" class="touch-target min-h-11 min-w-0 flex-1 truncate text-left" @click="emit('selectWindow', s.name, window.id, pane.id)">
+                  Pane {{ pane.index + 1 }} — {{ pane.command }} <span v-if="pane.active" class="text-muted">(active)</span>
+                </button>
+              </li>
+            </ul>
+          </li>
+          <li v-if="windowsFor(s.name)?.truncated" role="treeitem" :aria-level="(props.level ?? 1) + 1" aria-disabled="true" tabindex="-1" class="min-h-11 px-2 py-3 text-sm text-muted">More windows not shown</li>
+        </template>
+      </ul>
     </li>
   </VueDraggable>
 </template>

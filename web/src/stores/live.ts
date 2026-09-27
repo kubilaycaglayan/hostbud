@@ -8,6 +8,7 @@ import { useMachinesStore } from './machines'
 import { useSessionsStore } from './sessions'
 import { useProjectsStore } from './projects'
 import { useTreeStore } from './tree'
+import { useWindowsStore } from './windows'
 
 /** Owns the /ws/events connection and feeds the machines/sessions stores. */
 export const useLiveStore = defineStore('live', () => {
@@ -27,6 +28,7 @@ export const useLiveStore = defineStore('live', () => {
         sessions.apply(e)
         projects.apply(e)
         useTreeStore().sync()
+        useWindowsStore().applyEvent(e)
         closeEndedSessions(e)
       },
       onState: (s) => (state.value = s),
@@ -56,6 +58,7 @@ export const useLiveStore = defineStore('live', () => {
     useSessionsStore().reset()
     useProjectsStore().reset()
     useTreeStore().reset()
+    useWindowsStore().reset()
   }
 
   return { state, start, stop, closeEndedSessions }

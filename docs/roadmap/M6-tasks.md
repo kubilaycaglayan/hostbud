@@ -12,7 +12,7 @@ Update this table in the same commit that finishes a task.
 |---|---|
 | T1 Windows and panes API | Done |
 | T2 Tree state v2 and accessible tree | Done |
-| T3 Windows and panes in the tree | Not started |
+| T3 Windows and panes in the tree | Done |
 | T4 Inline rename | Not started |
 | T5 Hide and unhide | Not started |
 | T6 Pinned projects | Not started |
@@ -27,6 +27,8 @@ Update this table in the same commit that finishes a task.
 | T15 Safe Docker cleanup | Not started |
 
 T2 completed with the v2 state migration, guarded persistence, pruning rules, accessible tree behavior and task-tagged scenarios. The pruning regression/fix are in `00f3c29` and `fae320e`; CP1 passed with `make lint test`. E2E scenarios were type-checked only, as required.
+
+T3 completed with lazy window/pane loading, event-driven refresh, window selection and persistent expansion. Frontend tests and lint passed; the desktop and phone E2E scenarios were type-checked only, as required. CP2 runs after T4.
 
 ## Rules for this milestone
 

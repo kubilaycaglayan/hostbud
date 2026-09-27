@@ -7,14 +7,17 @@ import { projectsApi } from '@/api/client'
 import { useMachinesStore } from '@/stores/machines'
 import { useProjectsStore } from '@/stores/projects'
 import { useTreeStore } from '@/stores/tree'
+import { useWindowsStore } from '@/stores/windows'
 import { describeError } from '@/stores/toasts'
 import type { SplitDir } from '@/lib/layout'
 import type { ProjectGroup } from '@/lib/tree'
+import { sessionKey, windowKey } from '@/lib/tree'
 import SessionList from './SessionList.vue'
 
 const props = defineProps<{ selected?: string }>()
 const emit = defineEmits<{
   select: [name: string]
+  selectWindow: [name: string, window: string, pane?: string]
   split: [name: string, dir: SplitDir]
   rename: [name: string]
   kill: [name: string]
@@ -23,6 +26,7 @@ const emit = defineEmits<{
 const tree = useTreeStore()
 const projects = useProjectsStore()
 const machines = useMachinesStore()
+const windows = useWindowsStore()
 const root = ref<HTMLElement>()
 const focusedKey = ref('')
 const busySession = ref('')
@@ -34,15 +38,29 @@ const projectRows = computed({
 const home = computed(() => machines.byId('host')?.home ?? '')
 const visibleKeys = computed(() => {
   const keys: string[] = []
+  const appendSessions = (rows: Session[]) => {
+    for (const session of rows) {
+      const sessionID = sessionKey('host', session.name)
+      keys.push('session:' + session.name)
+      if (!tree.order.expanded.includes(sessionID)) continue
+      for (const window of windows.bySession[sessionID]?.windows ?? []) {
+        const winKey = windowKey('host', session.name, window.id)
+        keys.push('window:' + winKey)
+        if (window.panes.length > 1 && tree.order.expanded.includes(winKey)) {
+          keys.push(...window.panes.map((pane) => 'pane:' + winKey + '/' + pane.id))
+        }
+      }
+    }
+  }
   for (const group of projectRows.value) {
     keys.push('project:' + group.project.id)
     if (!tree.order.collapsed.includes(group.project.id)) {
-      keys.push(...group.sessions.map((session) => 'session:' + session.name))
+      appendSessions(group.sessions)
     }
   }
   if (tree.groups.other.length) {
     keys.push('other')
-    if (!tree.order.collapsed.includes('__other__')) keys.push(...tree.groups.other.map((session) => 'session:' + session.name))
+    if (!tree.order.collapsed.includes('__other__')) appendSessions(tree.groups.other)
   }
   return keys
 })
@@ -50,7 +68,15 @@ const activeFocusKey = computed(() => visibleKeys.value.includes(focusedKey.valu
 
 watch(visibleKeys, (keys) => {
   if (focusedKey.value && !keys.includes(focusedKey.value)) {
-    const fallback = keys[0]
+    let fallback = ''
+    if (focusedKey.value.startsWith('pane:')) {
+      fallback = 'window:' + focusedKey.value.slice('pane:'.length).split('/').slice(0, 3).join('/')
+    }
+    if (focusedKey.value.startsWith('window:')) {
+      const [, name] = focusedKey.value.slice('window:'.length).split('/')
+      fallback = `session:${name}`
+    }
+    if (!keys.includes(fallback)) fallback = keys[0] ?? ''
     focusedKey.value = fallback ?? ''
     if (fallback) focusKey(fallback)
   }
@@ -87,6 +113,8 @@ function onTreeKeydown(event: KeyboardEvent) {
   if (event.target !== item && event.key !== 'Tab') return
   const key = item.dataset.treeKey ?? ''
   const kind = item.dataset.treeKind ?? ''
+  const name = item.dataset.treeSession ?? (kind === 'session' ? key.slice('session:'.length) : '')
+  const windowID = item.dataset.treeWindow ?? ''
   const items = visibleItems()
   const index = items.indexOf(item)
   const moveFocus = (to: number) => {
@@ -152,6 +180,10 @@ function onTreeKeydown(event: KeyboardEvent) {
     event.preventDefault()
     if ((kind === 'project' || kind === 'other') && item.getAttribute('aria-expanded') === 'false') {
       tree.setCollapsed(kind === 'other' ? '__other__' : key.slice('project:'.length), false)
+    } else if (kind === 'session' && item.getAttribute('aria-expanded') === 'false') {
+      windows.toggleSession('host', name)
+    } else if (kind === 'window' && item.getAttribute('aria-expanded') === 'false') {
+      windows.toggleWindow('host', name, windowID)
     } else if (item.getAttribute('aria-expanded') === 'true') moveFocus(index + 1)
     return
   }
@@ -159,6 +191,10 @@ function onTreeKeydown(event: KeyboardEvent) {
     event.preventDefault()
     if ((kind === 'project' || kind === 'other') && item.getAttribute('aria-expanded') === 'true') {
       tree.setCollapsed(kind === 'other' ? '__other__' : key.slice('project:'.length), true)
+    } else if (kind === 'session' && item.getAttribute('aria-expanded') === 'true') {
+      windows.toggleSession('host', name)
+    } else if (kind === 'window' && item.getAttribute('aria-expanded') === 'true') {
+      windows.toggleWindow('host', name, windowID)
     } else {
       const parent = item.closest('[role="group"]')?.parentElement?.closest<HTMLElement>('[role="treeitem"][data-tree-key]')
       if (parent?.dataset.treeKey) focusKey(parent.dataset.treeKey)
@@ -168,6 +204,8 @@ function onTreeKeydown(event: KeyboardEvent) {
   if (event.key === 'Enter') {
     event.preventDefault()
     if (kind === 'session') item.querySelector<HTMLButtonElement>('[data-session-row]')?.click()
+    else if (kind === 'window') emit('selectWindow', name, windowID)
+    else if (kind === 'pane') emit('selectWindow', name, windowID, item.dataset.treePane)
     else tree.toggleCollapsed(kind === 'other' ? '__other__' : key.slice('project:'.length))
     return
   }
@@ -276,6 +314,7 @@ async function saveAsProject(session: Session) {
             sortable
             :list-label="'Sessions in ' + group.project.name"
             @select="emit('select', $event)"
+            @select-window="(name, window, pane) => emit('selectWindow', name, window, pane)"
             @split="(name, dir) => emit('split', name, dir)"
             @rename="emit('rename', $event)"
             @kill="emit('kill', $event)"
@@ -322,6 +361,7 @@ async function saveAsProject(session: Session) {
           can-save-as-project
           list-label="Other sessions"
           @select="emit('select', $event)"
+          @select-window="(name, window, pane) => emit('selectWindow', name, window, pane)"
           @split="(name, dir) => emit('split', name, dir)"
           @rename="emit('rename', $event)"
           @kill="emit('kill', $event)"

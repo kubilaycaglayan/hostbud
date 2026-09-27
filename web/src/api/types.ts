@@ -26,6 +26,28 @@ export interface Session {
   activity: string
 }
 
+export interface TmuxPane {
+  id: string
+  index: number
+  active: boolean
+  command: string
+  width: number
+  height: number
+}
+
+export interface TmuxWindow {
+  id: string
+  index: number
+  name: string
+  active: boolean
+  panes: TmuxPane[]
+}
+
+export interface TmuxWindows {
+  windows: TmuxWindow[]
+  truncated: boolean
+}
+
 export interface Project {
   id: string
   machineId: string

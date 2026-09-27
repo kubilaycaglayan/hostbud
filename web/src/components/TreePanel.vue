@@ -7,6 +7,7 @@ import type { Project } from '@/api/types'
 defineProps<{ selected?: string; connectionState: string }>()
 const emit = defineEmits<{
   select: [name: string]
+  selectWindow: [name: string, window: string, pane?: string]
   split: [name: string, dir: SplitDir]
   rename: [name: string]
   kill: [name: string]
@@ -34,6 +35,7 @@ const emit = defineEmits<{
       <SessionTree
         :selected="selected"
         @select="emit('select', $event)"
+        @select-window="(name, window, pane) => emit('selectWindow', name, window, pane)"
         @split="(name, dir) => emit('split', name, dir)"
         @rename="emit('rename', $event)"
         @kill="emit('kill', $event)"

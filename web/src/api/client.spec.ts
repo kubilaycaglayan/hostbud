@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, copyModeApi, getUIState, projectsApi, putUIState, request, sessionsApi } from './client'
+import { ApiError, copyModeApi, getUIState, projectsApi, putUIState, request, sessionsApi, windowsApi } from './client'
 import { stubFetch } from '@/test-utils'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -57,6 +57,18 @@ describe('copyModeApi', () => {
       path: '/api/machines/host/sessions/a-name/copy-mode',
       body: { action: 'scroll-up', lines: 12 },
     }])
+  })
+})
+
+describe('windowsApi', () => {
+  it('uses the window listing and selection routes with encoded ids', async () => {
+    const calls = stubFetch(() => ({ status: 200, body: { windows: [], truncated: false } }))
+    await windowsApi.list('host', 'a session')
+    await windowsApi.select('host', 'a session', '@2', '%3')
+    expect(calls).toEqual([
+      { method: 'GET', path: '/api/machines/host/sessions/a%20session/windows', body: undefined },
+      { method: 'POST', path: '/api/machines/host/sessions/a%20session/select', body: { window: '@2', pane: '%3' } },
+    ])
   })
 })
 

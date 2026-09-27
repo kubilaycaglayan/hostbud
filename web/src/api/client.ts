@@ -1,7 +1,7 @@
 // Typed client for hostbud's JSON API. Errors carry the server's
 // {error, hint} shape (and Retry-After for 429s).
 
-import type { Machine, Project, Session } from './types'
+import type { Machine, Project, Session, TmuxWindows } from './types'
 
 export class ApiError extends Error {
   constructor(
@@ -75,6 +75,15 @@ export const sessionsApi = {
   /** Kills a session: callers must have the user's confirmation. */
   kill: (machine: string, name: string) =>
     request<void>('DELETE', `${sessionsPath(machine)}/${encodeURIComponent(name)}`),
+}
+
+export const windowsApi = {
+  list: (machine: string, name: string) => request<TmuxWindows>(
+    'GET', `${sessionsPath(machine)}/${encodeURIComponent(name)}/windows`, undefined, { signal: AbortSignal.timeout(10_000) },
+  ),
+  select: (machine: string, name: string, window: string, pane?: string) => request<TmuxWindows>(
+    'POST', `${sessionsPath(machine)}/${encodeURIComponent(name)}/select`, { window, ...(pane === undefined ? {} : { pane }) }, { signal: AbortSignal.timeout(10_000) },
+  ),
 }
 
 export type CopyModeAction = 'enter' | 'scroll-up' | 'scroll-down' | 'page-up' | 'page-down' | 'top' | 'bottom' | 'exit'
