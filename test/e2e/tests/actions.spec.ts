@@ -83,7 +83,7 @@ test.describe('refusals', () => {
   })
 })
 
-// Rename (T16)
+// Rename (T16; M8 tree behavior)
 test('rename: the new name is in tmux ls and in the list', async ({ page, ui, target }) => {
   const name = uniqueName('e2e-old')
   const renamed = uniqueName('e2e-new')
@@ -92,10 +92,10 @@ test('rename: the new name is in tmux ls and in the list', async ({ page, ui, ta
   await expect(ui.session(name)).toBeVisible(soon)
 
   await ui.sessionAction(name, 'Rename')
-  const dialog = page.getByRole('dialog', { name: 'Rename session' })
-  await expect(dialog.getByLabel('New name')).toHaveValue(name)
-  await dialog.getByLabel('New name').fill(renamed)
-  await dialog.getByRole('button', { name: 'Rename' }).click()
+  const input = ui.treeItem(name).getByRole('textbox', { name: `Rename ${name}` })
+  await expect(input).toHaveValue(name)
+  await input.fill(renamed)
+  await input.press('Enter')
 
   await expect(ui.session(renamed)).toBeVisible(soon)
   await expect(ui.session(name)).toHaveCount(0)
