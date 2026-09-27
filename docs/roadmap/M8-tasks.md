@@ -6,7 +6,7 @@ Scope and acceptance: [../ROADMAP.md](../ROADMAP.md#m8--interface-density-and-in
 
 ## Progress
 
-Update this table in the same commit that finishes a task. T2–T4 were done early, alongside M7, at the owner's request (2026-09-27); T1 and T5–T7 haven't started.
+Update this table in the same commit that finishes a task. T2–T4 were done early, alongside M7, at the owner's request (2026-09-27); T1 and T5–T7 followed the same day, also ahead of M7's full e2e run.
 
 | Task | Status |
 |---|---|
@@ -20,8 +20,15 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 
 **Progress note (T2–T4, 2026-09-27):** Vitest (447 tests), eslint, `vue-tsc` and the e2e `tsc` passed; deployed to the host from a clean checkout of `f664bb8` (a pre-deploy `pg_dump` is in `backups/`), and the stack came up healthy. Still open for these tasks:
 - **E2E runs:** the scenarios *(T2) Compact tree*, *(T3) Compact file browser*, *(T3) No browser autocomplete outside login password* and *(T4) Custom tab order* type-check but haven't run: e2e stays paused until M7 T13. The T2 commit also updated two M6 scenarios that expanded single-window sessions (*(T4) Inline rename a session*, *(T3) Window rows follow the real terminal*).
-- **Screenshot inspection:** not done yet. The only running app is production, and signing in there would need a new whitelisted account in the owner's database. The e2e scenarios save desktop and phone screenshots (`file-browser-*.png`, `tree-*.png`); inspect them at the first e2e run and tune spacing then.
+- **Screenshot inspection:** done 2026-09-27 (with T1) against a scratch build of the SPA served with mocked API responses in headless Chromium, desktop 1280×800 and iPhone 13 Pro, dark and light. The tree is name-first and compact, and the Browse files dialog fits the viewport with tight rows (44 px row actions on the phone, list scrolling inside the sheet). Cosmetic note for a later pass: on the phone the *Show hidden files* checkbox itself is 44 px square. The e2e scenarios still save screenshots for a look at the first real run.
 - **Decisions to review:** the login screen's email field is now `autocomplete="off"` (the literal policy: only the password is exempt), and a single-window session has no chevron until its windows are loaded (the inventory reports window counts, not pane counts).
+
+**Progress note (T1, T5–T7, 2026-09-27):** `make lint test` green (Go unit and integration against `test/sshd`, Vitest, shell checks, eslint, `vue-tsc`, e2e `tsc`, docs check); not deployed (M7 forbids `make deploy` before T14). Evidence per task:
+- **T1:** New session and Browse files sit right after the host name. Measured 28 px buttons on desktop, and a 44 px hit area around a 28 px visual box on the phone (was 44 px with about 12 px padding). The keyboard focus ring was checked in screenshots.
+- **T5:** the affected input is the terminal's line editor, not the app's `<input>`s (all single-line, native caret handling; there are no `<textarea>`s). The cause is in xterm 6's `altClickMovesCursor` (source read, and its arrow count reproduced in `altClick.spec.ts` against a bordered multiline prompt). A live Option-click check in a browser is part of the pending e2e run (*(T5) Option-click caret placement*: bash, soft-wrapped bash, and a deterministic multiline prompt on the throwaway target).
+- **T6:** tmux's copy-mode output was recorded in a throwaway target container and replayed into xterm 6 in headless Chromium, with the rendered rows captured every frame. Before: 8–10 torn frames out of about 20 (tmux `mouse on`), and 3-row jumps per wheel notch (`mouse off`). After: 0 torn frames with `-T sync`, and 1 row per frame with `smoothScrollDuration` 100 ms. End position and direction were identical in all cases.
+- **T7:** the colors are client-owned: Codex queries OSC 10/11 and paints its composer background for the theme it started in. With `minimumContrastRatio` 4.5 the before/after in xterm 6 went from `rgb(31,35,40)` to `rgb(150,151,155)` on the dark composer after switching to light. Real Codex through an OS switch stays an owner check.
+- **Still open:** every M8 e2e scenario runs first at M7 T13. Owner check: the real Codex prompt through a dark-to-light switch.
 
 ## Rules for this milestone
 
