@@ -36,7 +36,7 @@ export default defineConfig({
       name: 'iphone-13-pro',
       use: { ...devices['iPhone 13 Pro'] },
       // API-level scenarios (*.api.spec.ts) run in the desktop project only.
-      testIgnore: [/\.api\.spec\.ts$/, /domain\.spec\.ts$/, /pwa\.spec\.ts$/],
+      testIgnore: [/\.api\.spec\.ts$/, /domain\.spec\.ts$/, /pwa\.spec\.ts$/, /tailscale\.spec\.ts$/],
     },
     {
       // The domain path: HTTPS on the test domain (Caddy's internal CA, hence

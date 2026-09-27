@@ -2,7 +2,9 @@
 # and the loopback-port site. Compose publishes that site on 127.0.0.1 only
 # (SSH port-forward access, plain HTTP; localhost is a secure context).
 (hostbud) {
-	reverse_proxy hostbud:8080
+	reverse_proxy hostbud:8080 {
+		header_up X-Hostbud-Via local
+	}
 }
 
 http://:{$HOSTBUD_LOCAL_PORT} {

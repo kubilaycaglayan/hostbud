@@ -23,6 +23,9 @@ export const ctl = {
   /** Pauses the proxy for a bounded interval (auto-unpauses after ttl). */
   pauseCaddy: (ttl = 30) => call(`/caddy/pause?ttl=${ttl}`),
   unpauseCaddy: () => call('/caddy/unpause'),
+  /** Changes the fake tailscaled identity mapping used by the T8 scenarios. */
+  tsMap: (mapping: 'allowed' | 'stranger' | 'unknown' | 'error') => call(`/ts/map/${mapping}`),
+  restartTSApp: () => call('/ts/restart'),
   /** Disconnects hostbud-e2e-app from the e2e network (connections hang). */
   cutNetwork: () => call('/network/cut'),
   /** Reconnects it; a no-op when it is connected. */

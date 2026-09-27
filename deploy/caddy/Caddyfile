@@ -28,5 +28,7 @@ import hostbud.caddy
 		propagation_delay 20s
 		propagation_timeout -1
 	}
-	import hostbud
+	reverse_proxy hostbud:8080 {
+		header_up X-Hostbud-Via domain
+	}
 }

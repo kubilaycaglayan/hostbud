@@ -5,6 +5,7 @@ import { randomBytes } from 'node:crypto'
 export const STORAGE_STATE = 'results/.auth.json'
 // The same account signed in on the domain path (its cookie is host-only).
 export const DOMAIN_STORAGE_STATE = 'results/.auth-domain.json'
+export const TS_DOMAIN_STORAGE_STATE = 'results/.auth-ts-domain.json'
 
 /** A throwaway account (example.com addresses only). */
 export function newAccount(prefix = 'e2e') {

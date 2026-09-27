@@ -17,7 +17,7 @@ Update this table in the same commit that finishes a task.
 | T5 HTTP, request and database limits | Done |
 | T6 Security headers and CSP | Done |
 | T7 Container and deploy hardening | Done |
-| T8 Tailscale identity allowlist | Not started |
+| T8 Tailscale identity allowlist | Done |
 | T9 Backup and restore | Not started |
 | T10 Integration suite completion and log hygiene | Not started |
 | T11 Fresh-host install and `make doctor` | Not started |
@@ -50,10 +50,12 @@ Update this table in the same commit that finishes a task.
 | CP5 | T10 + T11 + T12 (integration completion, install, audit) | `make lint test` **three times in a row** (flake check for the integration suite), `make gitleaks`, e2e `tsc` | Not run |
 | CP6 | T13 (full e2e) | `make e2e` until green, then **twice in a row from a clean checkout**; `make lint test` after the last fix | Not run |
 
+**Progress note (CP3):** `make lint test`, `make build` and `scripts/compose-config.sh` passed. The hardened `hostbud-e2e-app` started healthy, `hostbud healthcheck` returned success, and the throwaway e2e stack and volumes were removed.
+
 **What e2e can and can't reach.**
 - **Stalls** use the `test/sshd` stall switches through new `hostbud-e2e-ctl` actions: `/stall/tmux/on|off` (T2) and `/stall/sftp/on|off` (T3). While a switch is on, every `tmux` or `sftp-server` process started on the target sleeps until the switch expires (60 s TTL), so hostbud's call hangs exactly as it would against a wedged host. The suite runs serially (`workers: 1`), so a target-wide switch can't disturb another scenario, as long as every scenario turns it off in `finally`.
 - **A stalled browser** (T4) is `hostbud-e2e-caddy` frozen with `docker pause` through ctl `/caddy/pause` (auto-unpause after 30 s) while the terminal floods output. The app's writes to Caddy back up, the terminal socket's output queue fills, and the app drops the client. After `/caddy/unpause`, the browser's socket is closed and M3's reconnect re-attaches. The API-level variant uses a raw WebSocket (Node's `ws` in the runner) whose socket is paused and never read.
-- **Tailscale identity** (T8) can't use a real tailnet. A fake LocalAPI (`hostbud-e2e-tsfake`, a unix socket in a shared volume) answers `whois` from a mapping that ctl sets (`/ts/map/allowed|stranger|unknown`), and a third app instance (`hostbud-e2e-app-ts`, same database) has `HOSTBUD_ALLOWED_TS_USERS=allowed@example.com`. Caddy serves it on `https://hostbud-ts.example.test` (domain path, checked) and `http://localhost:9057` (loopback path, exempt).
+- **Tailscale identity** (T8) can't use a real tailnet. A fake LocalAPI (`hostbud-e2e-tsfake`, a unix socket in a shared volume) answers `whois` from a mapping that ctl sets (`/ts/map/allowed|stranger|unknown|error`), and a third app instance (`hostbud-e2e-app-ts`, same database) has `HOSTBUD_ALLOWED_TS_USERS=allowed@example.com`. Caddy serves it on `https://hostbud-ts.example.test` (domain path, checked) and `http://localhost:9057` (loopback path, exempt).
 - **Host-key mismatch** (T10) uses ctl `/hostkey/rotate` (new target host key, sshd restarted) and `/hostkey/restore`.
 - **What stays out of e2e:** deploy config (container hardening, published ports) is checked by `internal/deploytest`, not e2e. Backup/restore are operator `make` targets with no UI or API. Real Tailscale, real TLS, real iOS and the fresh-host install are manual checks.
 - **A CSP violation guard** (T6) in `helpers/fixtures.ts` fails any UI scenario whose page reports a `securitypolicyviolation`, so T13's full run proves the CSP against every screen the suite visits.

@@ -10,4 +10,11 @@ env -i PATH="$PATH" HOME="$HOME" DOCKER_HOST="${DOCKER_HOST:-}" \
 	HOSTBUD_DOMAIN=hostbud.example.com TAILSCALE_IP=100.64.0.1 CLOUDFLARE_API_TOKEN=placeholder-cloudflare-token \
 	HOSTBUD_DB_NAME=hostbud HOSTBUD_DB_USER=hostbud HOSTBUD_DB_PASSWORD=placeholder-password \
 	docker compose --env-file /dev/null config --format json >"$root/.cache/compose-config.json"
-docker compose --env-file /dev/null -f test/e2e/compose.yml config --format json >"$root/.cache/e2e-compose-config.json"
+	docker compose --env-file /dev/null -f test/e2e/compose.yml config --format json >"$root/.cache/e2e-compose-config.json"
+env -i PATH="$PATH" HOME="$HOME" DOCKER_HOST="${DOCKER_HOST:-}" \
+	COMPOSE_FILE=docker-compose.yml:deploy/compose.tailscale.yml \
+	HOST_UID=1000 HOST_GID=1000 HOST_SSH_USER=dev HOST_SSH_AUTH_SOCK=/run/user/1000/openssh_agent \
+	HOSTBUD_DOMAIN=hostbud.example.com TAILSCALE_IP=100.64.0.1 CLOUDFLARE_API_TOKEN=placeholder-cloudflare-token \
+	HOSTBUD_DB_NAME=hostbud HOSTBUD_DB_USER=hostbud HOSTBUD_DB_PASSWORD=placeholder-password \
+	HOSTBUD_ALLOWED_TS_USERS=owner@example.com TAILSCALED_SOCKET=/run/tailscale/tailscaled.sock \
+	docker compose --env-file /dev/null config --format json >"$root/.cache/compose-ts-config.json"

@@ -145,19 +145,19 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 
 ## Tailscale identity allowlist
 
-- [ ] Off by default. When `HOSTBUD_ALLOWED_TS_USERS` is set, requests on the **domain** path must come from a listed tailnet login (case-insensitive; tagged nodes only if the tag is listed). The site comes from Caddy's `X-Hostbud-Via` header, trusted only from `HOSTBUD_TRUSTED_PROXIES`; a missing or unknown value counts as domain. The loopback path is exempt, and `/api/health` is exempt.
+- [x] Off by default. When `HOSTBUD_ALLOWED_TS_USERS` is set, requests on the **domain** path must come from a listed tailnet login (case-insensitive; tagged nodes only if the tag is listed). The site comes from Caddy's `X-Hostbud-Via` header, trusted only from `HOSTBUD_TRUSTED_PROXIES`; a missing or unknown value counts as domain. The loopback path is exempt, and `/api/health` is exempt.
   - U: T8 middleware (domain vs local, untrusted header ignored, missing → domain, health exempt, runs before auth/Origin/rate limit) and matching (case, tags, empty = off) (Go).
   - I: T8 `caddy adapt`: both sites set `X-Hostbud-Via` with `header_up` (overwriting a client value) (Go).
   - E: T8 *Tailscale allowlist on the domain path* · T8 *Loopback path is exempt*.
-- [ ] Identity comes from tailscaled's LocalAPI `whois` over the mounted socket (2 s timeout), using the client IP from the trusted `X-Forwarded-For`. Results are cached per IP (60 s allowed, 10 s rejected, ≤ 1024 entries).
+- [x] Identity comes from tailscaled's LocalAPI `whois` over the mounted socket (2 s timeout), using the client IP from the trusted `X-Forwarded-For`. Results are cached per IP (60 s allowed, 10 s rejected, ≤ 1024 entries).
   - U: T8 whois client against a fake unix-socket server (200/404/500/timeout, request shape, `Host` header); cache TTLs and LRU bound (Go).
   - I: n/a: no real tailscaled in the test environment; the fake socket server is the unit layer, and the e2e fake is the end-to-end one.
   - E: T8 *Tailscale allowlist on the domain path* (mapping flips take effect after the negative-cache TTL). **Manual (T14):** with the real tailscaled, the owner's device is allowed; setting the list to a login that isn't the owner's gets the 403 page; restoring it works.
-- [ ] It fails closed and explains itself. Enabled without a readable socket → startup error naming `TAILSCALED_SOCKET` and the override. A whois error or timeout → 403 "couldn't be verified". A login not in the list → 403 "isn't allowed" with the hint. The SPA gets a static 403 page, and WebSocket upgrades are refused before accept. Info logs carry a reason code, never the login or IP.
+- [x] It fails closed and explains itself. Enabled without a readable socket → startup error naming `TAILSCALED_SOCKET` and the override. A whois error or timeout → 403 "couldn't be verified". A login not in the list → 403 "isn't allowed" with the hint. The SPA gets a static 403 page, and WebSocket upgrades are refused before accept. Info logs carry a reason code, never the login or IP.
   - U: T8 startup error; 403 bodies and page; WS 403 before accept; log redaction (Go).
   - I: T8 `internal/deploytest` with the override: the socket bind is read-only and `create_host_path: false`; without it, no tailscale mount (Go).
   - E: T8 *Tailscale allowlist on the domain path* (`stranger`, `unknown` and `error` mappings).
-- [ ] Enabling it is documented: `deploy/compose.tailscale.yml`, the commented `COMPOSE_FILE=…` line in `.env.example`, README *Tailscale identity allowlist (optional)*, and the restart needed after changing the list.
+- [x] Enabling it is documented: `deploy/compose.tailscale.yml`, the commented `COMPOSE_FILE=…` line in `.env.example`, README *Tailscale identity allowlist (optional)*, and the restart needed after changing the list.
   - U: n/a: documentation.
   - I: T11 `check-docs.sh` (the override file and vars are referenced and exist).
   - E: n/a: documentation.

@@ -45,6 +45,8 @@ type Config struct {
 	LoginBlockFactor    float64       // HOSTBUD_LOGIN_BLOCK_MULTIPLIER
 	LoginFailureWindow  time.Duration // HOSTBUD_LOGIN_FAILURE_WINDOW
 	TrustedProxies      string        // HOSTBUD_TRUSTED_PROXIES (CIDRs, comma-separated)
+	AllowedTSUsers      string        // HOSTBUD_ALLOWED_TS_USERS (optional, comma-separated)
+	TailscaleSocket     string        // TAILSCALED_SOCKET (optional, required when allowlist is enabled)
 }
 
 // DefaultTrustedProxies are the private ranges Docker networks use: hostbud
@@ -75,7 +77,9 @@ func Load(getenv func(string) string) (Config, error) {
 		DBPassword:  getenv("HOSTBUD_DB_PASSWORD"),
 		DBSSLMode:   get("HOSTBUD_DB_SSLMODE", "disable"),
 
-		TrustedProxies: get("HOSTBUD_TRUSTED_PROXIES", DefaultTrustedProxies),
+		TrustedProxies:  get("HOSTBUD_TRUSTED_PROXIES", DefaultTrustedProxies),
+		AllowedTSUsers:  strings.TrimSpace(getenv("HOSTBUD_ALLOWED_TS_USERS")),
+		TailscaleSocket: strings.TrimSpace(getenv("TAILSCALED_SOCKET")),
 	}
 
 	duration := func(key, def string, minimum time.Duration) time.Duration {

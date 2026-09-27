@@ -12,6 +12,9 @@ export const FOREIGN_ORIGIN = 'http://evil.example.com'
 // e2e Caddy with a certificate from its internal CA.
 export const DOMAIN = 'hostbud.example.test'
 export const DOMAIN_URL = `https://${DOMAIN}`
+export const TS_DOMAIN = 'hostbud-ts.example.test'
+export const TS_DOMAIN_URL = `https://${TS_DOMAIN}`
+export const TS_LOOPBACK_URL = 'http://localhost:9057'
 export const MACHINE = 'host'
 // HOSTBUD_POLL_INTERVAL in compose.yml.
 export const POLL_INTERVAL_MS = 1_000

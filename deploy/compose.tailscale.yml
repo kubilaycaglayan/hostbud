@@ -1,0 +1,11 @@
+services:
+  hostbud:
+    environment:
+      HOSTBUD_ALLOWED_TS_USERS: ${HOSTBUD_ALLOWED_TS_USERS:?set HOSTBUD_ALLOWED_TS_USERS in .env}
+      TAILSCALED_SOCKET: /run/tailscale/tailscaled.sock
+    volumes:
+      - type: bind
+        source: ${TAILSCALED_SOCKET:?set TAILSCALED_SOCKET in .env}
+        target: /run/tailscale/tailscaled.sock
+        read_only: true
+        bind: { create_host_path: false }

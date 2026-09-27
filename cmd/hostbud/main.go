@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -25,6 +26,7 @@ import (
 	"hostbud/internal/sshx"
 	"hostbud/internal/store"
 	"hostbud/internal/term"
+	"hostbud/internal/tsauth"
 	"hostbud/web"
 )
 
@@ -64,6 +66,10 @@ func run() error {
 
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: cfg.LogLevel}))
 	slog.SetDefault(log)
+	tsLogin, err := makeTSLogin(cfg)
+	if err != nil {
+		return err
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -156,6 +162,8 @@ func run() error {
 			UIState:               st,
 			Auth:                  accounts,
 			TrustedProxies:        proxies,
+			AllowedTSUsers:        cfg.AllowedTSUsers,
+			TSLogin:               tsLogin,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
 		MaxHeaderBytes:    32 << 10,
@@ -189,6 +197,24 @@ func run() error {
 type runtimeDeps struct {
 	ssh        *sshx.Client
 	filesystem *fsbrowse.Service
+}
+
+func makeTSLogin(cfg config.Config) (func(context.Context, string) (string, error), error) {
+	if cfg.AllowedTSUsers == "" {
+		return nil, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	conn, err := (&net.Dialer{Timeout: 2 * time.Second}).DialContext(ctx, "unix", cfg.TailscaleSocket)
+	if err != nil {
+		return nil, fmt.Errorf("HOSTBUD_ALLOWED_TS_USERS requires a readable tailscaled socket at TAILSCALED_SOCKET and deploy/compose.tailscale.yml: %w", err)
+	}
+	_ = conn.Close()
+	client := tsauth.New(cfg.TailscaleSocket)
+	cache := tsauth.NewCache(client.Login)
+	return func(ctx context.Context, ip string) (string, error) {
+		return cache.LoginFor(ctx, ip, cfg.AllowedTSUsers)
+	}, nil
 }
 
 // buildDeps wires the configured remote-call bounds into the host clients.

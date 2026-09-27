@@ -75,6 +75,8 @@ Services in `docker-compose.yml` (Compose project `hostbud`; everything named wi
 
 All three production services rotate `json-file` logs at 10 MiB with five files. The app image's `hostbud healthcheck` command calls `http://127.0.0.1:8080/api/health` with a two-second bound and exits non-zero on connection failure, timeout, or a non-200 status.
 
+The optional `deploy/compose.tailscale.yml` override passes `HOSTBUD_ALLOWED_TS_USERS` and bind-mounts `${TAILSCALED_SOCKET}` read-only at `/run/tailscale/tailscaled.sock` (`create_host_path: false`). It is disabled by default for hosts without Tailscale. Enable it through `COMPOSE_FILE` in `.env`; if the allowlist is set but the socket is unavailable, startup fails.
+
 **DNS:** Cloudflare `A` record `${HOSTBUD_DOMAIN}` → host's Tailscale IP (100.x.y.z), **DNS only (grey cloud)**. Never proxied (orange) and never a Cloudflare Tunnel — both would expose the app publicly. The name resolves publicly but the address is only routable inside the tailnet.
 
 **hostbud container mounts / settings**
@@ -334,7 +336,7 @@ WebSockets: `/ws/events` (server → client state events), `/ws/term` (interacti
 - Public routes are limited to `GET /api/health`, `POST /api/auth/register` and `POST /api/auth/login`. All other routes require the server-side session cookie.
 - Authentication cookies are opaque, HttpOnly, SameSite and Secure under HTTPS. Never put credentials, session cookies or bearer tokens in URLs, logs, WebSocket query parameters or client storage.
 - Origin allowlist: `https://${HOSTBUD_DOMAIN}` and `http://localhost:${HOSTBUD_LOCAL_PORT}`. Reject WebSocket upgrades and state-changing requests whose `Origin` is not in it. (`localhost` is a secure context, so clipboard APIs work over plain HTTP.)
-- Optional Tailscale identity allowlist (off by default; the tailnet is trusted): if `HOSTBUD_ALLOWED_TS_USERS` is set and the tailscaled socket is mounted, resolve the client IP (from Caddy's `X-Forwarded-For`, trusted only from the Caddy container) via Tailscale LocalAPI `whois` and reject unknown users.
+- Optional Tailscale identity allowlist (off by default): Caddy overwrites `X-Hostbud-Via` with `domain` or `local`; hostbud trusts the marker only from a configured trusted proxy. Missing or unknown markers from trusted peers count as `domain`; loopback and `/api/health` are exempt. On the domain path, hostbud resolves the client IP from trusted `X-Forwarded-For` through tailscaled LocalAPI `whois` over a unix socket (2 s timeout). Login names match case-insensitively; tagged nodes require their `tag:…` value in the list. Allowed identities cache for 60 s and rejected identities for 10 s (LRU, at most 1024 IPs). Whois errors, timeouts and unlisted users fail closed with 403 before auth, Origin or rate limiting; the SPA gets a static error page and WebSocket upgrades are refused before acceptance. Info logs include only a reason code. Changing the list needs an app restart.
 - CSRF: JSON-only API + SameSite cookies + Origin check on state-changing requests.
 - Every state-changing request with a body must use `Content-Type: application/json`; JSON bodies are limited to 64 KiB and typed decoders reject unknown fields. UI state accepts valid raw JSON up to 64 KiB. Headers are limited to 32 KiB; REST handlers have a 30 s deadline. `/api/*` responses use `Cache-Control: no-store`.
 - `GET /api/health` is public and pings PostgreSQL with a 1 s deadline. It returns `200 {"status":"ok"}` or `503 {"status":"degraded","db":"unreachable"}`. Database timeouts and outages on authenticated routes return `503 {"error":"The database isn't answering","hint":"Check `docker compose ps hostbud-postgres`; hostbud recovers when it's back."}`; a failed session lookup never turns into a 401.
@@ -432,6 +434,8 @@ M7 also configures the exec and SFTP deadlines and terminal attachment caps:
 `HOSTBUD_EXEC_TIMEOUT` (10 s, 2 s–2 min), `HOSTBUD_SFTP_TIMEOUT` (10 s,
 2 s–2 min), `HOSTBUD_MAX_TERMINALS_PER_USER` (32, 1–256), and
 `HOSTBUD_MAX_TERMINALS` (128, 1–1024). See §15 for the full inventory.
+The optional domain identity gate uses `HOSTBUD_ALLOWED_TS_USERS` and
+`TAILSCALED_SOCKET` only when `deploy/compose.tailscale.yml` is enabled.
 
 ---
 
@@ -455,7 +459,8 @@ A separate Compose project `hostbud-e2e` (`test/e2e/`), started, run and torn do
 | `hostbud-e2e-postgres` | Disposable PostgreSQL with the same reduced capabilities, `no-new-privileges`, 128 MiB shared memory and log rotation as production. |
 | `hostbud-e2e-caddy` | The production Caddy image (`deploy/caddy/Dockerfile`) and proxy config (`deploy/caddy/hostbud.caddy`: loopback-port site), so traffic goes through the production proxy path. It uses the production Caddy capability and read-only filesystem settings, and waits for both app healthchecks. `test/e2e/Caddyfile` adds the domain path for the test domain `hostbud.example.test` (the app's `HOSTBUD_DOMAIN`) with `tls internal`, since e2e has no Cloudflare token or tailnet; the name resolves to Caddy through `extra_hosts`. The production site's DNS-01 issuer is checked by `make test` (`caddy adapt`). |
 | `hostbud-e2e-target-notmux`, `hostbud-e2e-app-notmux` | The tmux-less target and a second app instance for it (same database), served by Caddy on `:9056` through `test/e2e/Caddyfile`, which imports the production Caddyfile unchanged and adds only that site. The app uses the same production hardening and healthcheck. |
-| `hostbud-e2e-ctl` | Failure switches for the runner, which has no Docker access: a tiny HTTP service with the Docker socket that runs only fixed commands (restart or stop/start `hostbud-e2e-app`, stop/start sshd on the target, bounded tmux and SFTP stalls on the target, disconnect/reconnect `hostbud-e2e-app` from the `hostbud-e2e` network). App start polls `/api/health` through Caddy. |
+| `hostbud-e2e-tsfake`, `hostbud-e2e-app-ts` | A unix-socket LocalAPI fake with a ctl-controlled identity map, and a third hardened app sharing the e2e database. Caddy serves the domain path on `hostbud-ts.example.test` and loopback on `:9057`; the test allowlist contains only `allowed@example.com`. |
+| `hostbud-e2e-ctl` | Failure switches for the runner, which has no Docker access: a tiny HTTP service with the Docker socket that runs only fixed commands, including identity map changes and restarting the Tailscale test app. App starts poll `/api/health` through Caddy. |
 | `hostbud-e2e-runner` | Playwright. Uses `network_mode: service:hostbud-e2e-caddy`, so the browser opens `http://localhost:9055` exactly like the port-forward path (and the Origin check is exercised for real). Also has SSH access to the target to act as "a real terminal". |
 
 **Profiles:** Chromium desktop, and Playwright's `iPhone 13 Pro` device (WebKit, 390×844, touch), both on `http://localhost:9055`; plus `iphone-13-pro-domain`, the same device on `https://hostbud.example.test` (the phone and domain scenarios). WebKit on Linux is not real iOS Safari; iOS-specific behavior (on-screen keyboard, gestures) stays on the manual checklist.

@@ -56,6 +56,8 @@ type Config struct {
 	RequestTimeout        time.Duration
 	DBPing                func(context.Context) error
 	ContentSecurityPolicy string
+	AllowedTSUsers        string
+	TSLogin               func(context.Context, string) (string, error)
 }
 
 var inlineScriptRE = regexp.MustCompile(`(?is)<script\b([^>]*)>(.*?)</script\s*>`)
@@ -133,7 +135,7 @@ func New(cfg Config) http.Handler {
 
 	mux := http.NewServeMux()
 	mountRoutes(s, mux)
-	inner := checkOrigin(cfg.Origins, requestLimits(cfg, requireAuth(cfg.Auth, mux)))
+	inner := tailscaleIdentity(cfg, checkOrigin(cfg.Origins, requestLimits(cfg, requireAuth(cfg.Auth, mux))))
 	return securityHeaders(cfg.ContentSecurityPolicy, inner)
 }
 

@@ -108,6 +108,48 @@ func loadE2E(t *testing.T) composeConfig {
 	return c
 }
 
+func loadTailscale(t *testing.T) composeConfig {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(repoRoot(), ".cache", "compose-ts-config.json"))
+	if err != nil {
+		t.Fatalf("%v (run via `make test`, which renders the Tailscale override)", err)
+	}
+	var c composeConfig
+	if err := json.Unmarshal(data, &c); err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+
+func TestTailscaleOverrideMountIsOptionalAndReadOnly(t *testing.T) {
+	base, with := load(t), loadTailscale(t)
+	if got, ok := env(base.Services["hostbud"], "HOSTBUD_ALLOWED_TS_USERS"); ok && got != "" {
+		t.Fatal("default compose enables Tailscale allowlist")
+	}
+	if len(base.Services["hostbud"].Volumes) != len(with.Services["hostbud"].Volumes)-1 {
+		t.Fatalf("override mounts: base=%+v with=%+v", base.Services["hostbud"].Volumes, with.Services["hostbud"].Volumes)
+	}
+	if got, ok := env(with.Services["hostbud"], "HOSTBUD_ALLOWED_TS_USERS"); !ok || got != "owner@example.com" {
+		t.Fatal("override did not pass allowlist")
+	}
+	found := false
+	for _, v := range with.Services["hostbud"].Volumes {
+		if v.Target == "/run/tailscale/tailscaled.sock" {
+			found = v.Type == "bind" && v.ReadOnly && v.Source == "/run/tailscale/tailscaled.sock"
+		}
+	}
+	if !found {
+		t.Fatal("override socket bind is missing, writable, or has unexpected source")
+	}
+}
+
+func TestCaddyMarksDomainAndLoopbackProxyPaths(t *testing.T) {
+	raw, _ := adapted(t, "adapt.json")
+	if strings.Count(raw, "X-Hostbud-Via") != 2 || !strings.Contains(raw, `"X-Hostbud-Via":["domain"]`) || !strings.Contains(raw, `"X-Hostbud-Via":["local"]`) {
+		t.Fatalf("Caddy must overwrite X-Hostbud-Via for both sites, adapted config: %s", raw)
+	}
+}
+
 func TestContainerHardeningAndE2EParity(t *testing.T) {
 	production := load(t)
 	e2e := loadE2E(t)
@@ -118,7 +160,7 @@ func TestContainerHardeningAndE2EParity(t *testing.T) {
 	assertCaddyHardening(t, "hostbud-caddy", caddy)
 	assertPostgresHardening(t, "hostbud-postgres", postgres)
 
-	for _, name := range []string{"hostbud-e2e-app", "hostbud-e2e-app-notmux"} {
+	for _, name := range []string{"hostbud-e2e-app", "hostbud-e2e-app-notmux", "hostbud-e2e-app-ts"} {
 		actual := e2e.Services[name]
 		assertAppHardening(t, name, actual)
 		if app.ReadOnly != actual.ReadOnly || !slices.Equal(app.Tmpfs, actual.Tmpfs) ||

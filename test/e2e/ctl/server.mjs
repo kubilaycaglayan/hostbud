@@ -6,6 +6,7 @@
 import { execFile } from 'node:child_process'
 import { createServer } from 'node:http'
 import { URL } from 'node:url'
+import { writeFile } from 'node:fs/promises'
 
 const actions = {
   'POST /restart-app': ['docker', ['restart', '--time', '5', 'hostbud-e2e-app']],
@@ -21,16 +22,24 @@ const actions = {
   // phone's Wi-Fi drops. Restore keeps the alias the Caddyfile proxies to.
   'POST /network/cut': ['docker', ['network', 'disconnect', 'hostbud-e2e', 'hostbud-e2e-app']],
   'POST /network/restore': ['docker', ['network', 'connect', '--alias', 'hostbud', 'hostbud-e2e', 'hostbud-e2e-app']],
+  'POST /ts/restart': ['docker', ['restart', '--time', '5', 'hostbud-e2e-app-ts']],
 }
 
 const caddyPauseTimers = new Map()
 
-createServer((req, res) => {
+createServer(async (req, res) => {
   if (req.method === 'GET' && req.url === '/health') {
     res.writeHead(200).end('ok\n')
     return
   }
   const url = new URL(req.url ?? '/', 'http://hostbud-e2e-ctl')
+  if (req.method === 'POST' && url.pathname.startsWith('/ts/map/')) {
+    const mapping = url.pathname.slice('/ts/map/'.length)
+    if (!['allowed', 'stranger', 'unknown', 'error'].includes(mapping)) { res.writeHead(400).end('unknown mapping\n'); return }
+    try { await writeFile('/run/tailscale/map', `${mapping}\n`); res.writeHead(200).end('ok\n') }
+    catch (err) { res.writeHead(500).end(`${err.message}\n`) }
+    return
+  }
   if (req.method === 'POST' && url.pathname === '/caddy/pause') {
     const raw = url.searchParams.get('ttl') ?? '30'
     if (!/^\d+$/.test(raw)) { res.writeHead(400).end('ttl must be seconds from 1 to 60\n'); return }
@@ -72,11 +81,12 @@ createServer((req, res) => {
       res.writeHead(500).end(`${err.message}\n${stderr}`)
       return
     }
-    if (req.url === '/app/start') {
+    if (req.url === '/app/start' || req.url === '/ts/restart') {
+      const healthURL = req.url === '/ts/restart' ? 'http://hostbud-e2e-caddy:9057/api/health' : 'http://hostbud-e2e-caddy:9055/api/health'
       const deadline = Date.now() + 60_000
       while (Date.now() < deadline) {
         try {
-          const health = await fetch('http://hostbud-e2e-caddy:9055/api/health', { signal: AbortSignal.timeout(2_000) })
+          const health = await fetch(healthURL, { signal: AbortSignal.timeout(2_000) })
           if (health.ok) {
             res.writeHead(200).end(stdout)
             return
@@ -84,7 +94,7 @@ createServer((req, res) => {
         } catch { /* retry until the app is healthy through Caddy */ }
         await new Promise((resolve) => setTimeout(resolve, 500))
       }
-      res.writeHead(504).end('hostbud-e2e-app did not become healthy through Caddy\n')
+      res.writeHead(504).end('hostbud-e2e app did not become healthy through Caddy\n')
       return
     }
     res.writeHead(200).end(stdout)

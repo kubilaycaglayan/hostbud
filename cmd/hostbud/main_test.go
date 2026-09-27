@@ -1,6 +1,7 @@
 package main
 
 import (
+	"hostbud/internal/config"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -9,8 +10,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"hostbud/internal/config"
 )
 
 func TestBuildDepsWiresRemoteTimeouts(t *testing.T) {
@@ -31,6 +30,25 @@ func TestBuildDepsWiresRemoteTimeouts(t *testing.T) {
 	}
 	if got := deps.filesystem.OperationTimeout(); got != 23*time.Second {
 		t.Errorf("SFTP timeout = %s, want 23s", got)
+	}
+}
+
+func TestMakeTSLoginRequiresSocketOnlyWhenEnabled(t *testing.T) {
+	if login, err := makeTSLogin(config.Config{}); err != nil || login != nil {
+		t.Fatalf("disabled gate: login configured=%t err=%v", login != nil, err)
+	}
+	_, err := makeTSLogin(config.Config{AllowedTSUsers: "owner@example.com", TailscaleSocket: filepath.Join(t.TempDir(), "missing.sock")})
+	if err == nil || !strings.Contains(err.Error(), "TAILSCALED_SOCKET") || !strings.Contains(err.Error(), "deploy/compose.tailscale.yml") {
+		t.Fatalf("missing socket error=%v", err)
+	}
+	socket := filepath.Join(t.TempDir(), "tailscaled.sock")
+	listener, err := (&net.ListenConfig{}).Listen(t.Context(), "unix", socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = listener.Close() }()
+	if login, err := makeTSLogin(config.Config{AllowedTSUsers: "owner@example.com", TailscaleSocket: socket}); err != nil || login == nil {
+		t.Fatalf("enabled gate: login configured=%t err=%v", login != nil, err)
 	}
 }
 

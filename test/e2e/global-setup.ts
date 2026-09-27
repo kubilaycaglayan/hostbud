@@ -1,6 +1,6 @@
 import { request, type APIRequestContext } from '@playwright/test'
-import { DOMAIN_STORAGE_STATE, newAccount, STORAGE_STATE } from './helpers/auth.ts'
-import { DOMAIN_URL, forbidInLogs, ORIGIN } from './helpers/api.ts'
+import { DOMAIN_STORAGE_STATE, TS_DOMAIN_STORAGE_STATE, newAccount, STORAGE_STATE } from './helpers/auth.ts'
+import { DOMAIN_URL, TS_DOMAIN_URL, forbidInLogs, ORIGIN } from './helpers/api.ts'
 import { owner } from './helpers/db.ts'
 import { Target } from './helpers/target.ts'
 
@@ -38,8 +38,10 @@ export default async function globalSetup() {
     ignoreHTTPSErrors: true, // Caddy's internal CA
     extraHTTPHeaders: { Origin: DOMAIN_URL },
   })
+  const tsDomain = await request.newContext({ baseURL: TS_DOMAIN_URL, ignoreHTTPSErrors: true, extraHTTPHeaders: { Origin: TS_DOMAIN_URL } })
   await waitHealthy(api, 'the loopback site')
   await waitHealthy(domain, 'the domain')
+  await waitHealthy(tsDomain, 'the Tailscale domain')
   await new Target().run('true')
 
   await owner.clearRateLimits()
@@ -52,6 +54,8 @@ export default async function globalSetup() {
   if (reg.status() !== 201) throw new Error(`setup registration: ${reg.status()} ${await reg.text()}`)
   await signIn(api, account, STORAGE_STATE)
   await signIn(domain, account, DOMAIN_STORAGE_STATE)
+  await signIn(tsDomain, account, TS_DOMAIN_STORAGE_STATE)
   await api.dispose()
   await domain.dispose()
+  await tsDomain.dispose()
 }

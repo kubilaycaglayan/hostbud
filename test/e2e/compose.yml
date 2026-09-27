@@ -201,6 +201,73 @@ services:
       - data-notmux:/data
       - agent:/run/agent
       - hostpub:/run/host-keys:ro
+
+  hostbud-e2e-tsfake:
+    image: node:24.21.0-alpine
+    container_name: hostbud-e2e-tsfake
+    command: ["node", "/tsfake/server.mjs"]
+    volumes:
+      - ts:/run/tailscale
+      - ./tsfake:/tsfake:ro
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('node:fs').accessSync('/run/tailscale/tailscaled.sock')"]
+      interval: 1s
+      retries: 30
+
+  hostbud-e2e-app-ts:
+    image: hostbud-e2e-app:local
+    pull_policy: never
+    container_name: hostbud-e2e-app-ts
+    user: *app-uid
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 1024
+    healthcheck:
+      test: ["CMD", "hostbud", "healthcheck"]
+      interval: 10s
+      timeout: 2s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
+    depends_on:
+      hostbud-e2e-app: { condition: service_healthy }
+      hostbud-e2e-agent: { condition: service_healthy }
+      hostbud-e2e-postgres: { condition: service_healthy }
+      hostbud-e2e-tsfake: { condition: service_healthy }
+    environment:
+      HOSTBUD_LISTEN: ":8080"
+      HOSTBUD_DATA_DIR: /data
+      HOSTBUD_POLL_INTERVAL: 1s
+      HOSTBUD_LOG_LEVEL: info
+      HOSTBUD_LOCAL_PORT: "9057"
+      HOSTBUD_DOMAIN: hostbud-ts.example.test
+      HOSTBUD_HOST_ADDR: hostbud-e2e-target
+      HOSTBUD_HOST_LABEL: E2E target
+      HOSTBUD_DB_HOST: hostbud-e2e-postgres
+      HOSTBUD_DB_PORT: "5432"
+      HOSTBUD_DB_NAME: hostbud
+      HOSTBUD_DB_USER: hostbud
+      HOSTBUD_DB_PASSWORD: e2e-placeholder-password
+      HOSTBUD_DB_SSLMODE: disable
+      HOST_SSH_USER: dev
+      SSH_AUTH_SOCK: /run/agent/ssh-agent.sock
+      HOSTBUD_ALLOWED_TS_USERS: allowed@example.com
+      TAILSCALED_SOCKET: /run/tailscale/tailscaled.sock
+      HOSTBUD_LOGIN_MAX_FAILURES: "3"
+      HOSTBUD_REGISTER_MAX_FAILURES: "5"
+      HOSTBUD_IP_MAX_FAILURES: "6"
+      HOSTBUD_LOGIN_BLOCK_BASE: 1s
+      HOSTBUD_LOGIN_BLOCK_MAX: 8s
+      HOSTBUD_LOGIN_BLOCK_MULTIPLIER: "2"
+    volumes:
+      - data-ts:/data
+      - agent:/run/agent
+      - hostpub:/run/host-keys:ro
+      - ts:/run/tailscale:ro
   # The real Caddyfile (loopback-port site); the runner shares its network
   # namespace, so the browser opens http://localhost:9055 like a port forward.
   hostbud-e2e-caddy:
@@ -211,6 +278,7 @@ services:
     depends_on:
       hostbud-e2e-app: { condition: service_healthy }
       hostbud-e2e-app-notmux: { condition: service_healthy }
+      hostbud-e2e-app-ts: { condition: service_healthy }
     read_only: true
     tmpfs: [/tmp]
     cap_drop: [ALL]
@@ -225,6 +293,7 @@ services:
     # its network namespace (and so its /etc/hosts).
     extra_hosts:
       - hostbud.example.test:127.0.0.1
+      - hostbud-ts.example.test:127.0.0.1
     volumes:
       # The production proxy and loopback site, imported unchanged by the e2e
       # Caddyfile (which adds the test domain's HTTPS site and :9056).
@@ -239,6 +308,7 @@ services:
     container_name: hostbud-e2e-ctl
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - ts:/run/tailscale
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8090/health"]
       interval: 1s
@@ -283,3 +353,5 @@ volumes:
   data: { name: hostbud-e2e-data }
   data-notmux: { name: hostbud-e2e-data-notmux }
   pgdata: { name: hostbud-e2e-pgdata }
+  ts: { name: hostbud-e2e-ts }
+  data-ts: { name: hostbud-e2e-data-ts }

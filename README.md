@@ -65,6 +65,12 @@ The domain works only inside your tailnet: its DNS record points at the host's T
 - *The name doesn't resolve on tailnet devices, but public DNS answers:* check Tailscale's admin console → DNS for a Split DNS (custom nameserver) entry for the domain and delete it. Such an entry names a DNS server to ask, not an address, and nothing on the host answers DNS. The Cloudflare record is all hostbud needs.
 - *"request origin not allowed":* open hostbud exactly as `https://<HOSTBUD_DOMAIN>` or `http://localhost:<HOSTBUD_LOCAL_PORT>`.
 
+### Tailscale identity allowlist (optional)
+
+The tailnet already limits reachability. You can add a second gate for the domain site by setting `HOSTBUD_ALLOWED_TS_USERS` to a comma-separated list of Tailscale login names (or `tag:…` values for tagged nodes). Then uncomment `COMPOSE_FILE=docker-compose.yml:deploy/compose.tailscale.yml` in `.env` and set `TAILSCALED_SOCKET` to the host's tailscaled LocalAPI socket. Restart Compose after changing the list. With the override enabled, a missing or unreadable socket prevents startup; identity lookup failures return 403. The gate applies to the HTTPS domain path; SSH port-forward access through `localhost` remains exempt.
+
+To find a login, run `tailscale whois <device-ip>` on a tailnet device and use the login shown for that node. The allowlist is an additional account gate: users still need a hostbud account.
+
 ## Using hostbud
 - **Install on a phone:** open `https://${HOSTBUD_DOMAIN}` in Safari on the iPhone, choose **Share → Add to Home Screen**, then launch hostbud from its icon. The installed iOS app has a separate cookie store from Safari, so sign in once there. Android and desktop Chromium can install hostbud from the browser's install prompt.
 - **Browse files:** use **Add project** in the sidebar toolbar to open the file browser dialog. Navigate the host over SFTP, show or hide dotfiles, create a folder, save the current directory as a project, or start a session there. The path bar's FolderPlus adds the directory being shown; it changes to FolderOpen when that path is already a project. Directory rows also use folder-plus to add a project and folder-open for an existing project. The browser requires the host's SSH/SFTP access. It can list, inspect and create folders; it has no remote delete or rename action.

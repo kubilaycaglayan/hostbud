@@ -18,7 +18,22 @@ import hostbud.caddy
 hostbud.example.test {
 	header Strict-Transport-Security "max-age=31536000"
 	tls internal
-	import hostbud
+	reverse_proxy hostbud-e2e-app:8080 {
+		header_up X-Hostbud-Via domain
+	}
+}
+
+hostbud-ts.example.test {
+	tls internal
+	reverse_proxy hostbud-e2e-app-ts:8080 {
+		header_up X-Hostbud-Via domain
+	}
+}
+
+http://:9057 {
+	reverse_proxy hostbud-e2e-app-ts:8080 {
+		header_up X-Hostbud-Via local
+	}
 }
 
 http://:9056 {
