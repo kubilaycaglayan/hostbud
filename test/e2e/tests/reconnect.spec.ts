@@ -9,7 +9,7 @@ import type { UI } from '../helpers/ui.ts'
 // answers 502: expected here, and only here.
 test.use({
   allowedBrowserErrors:
-    /WebSocket connection to 'ws:\/\/localhost:9055\/ws\/(events|term\?[^']*)' failed|^HTTP 502: (GET http:\/\/localhost:9055\/api\/auth\/me|PUT http:\/\/localhost:9055\/api\/ui-state\/layout)|status of 502/,
+    /WebSocket connection to 'ws:\/\/localhost:9055\/ws\/(events|term\?[^']*)' failed|^HTTP 502: (GET http:\/\/localhost:9055\/api\/(auth\/me|machines)|PUT http:\/\/localhost:9055\/api\/ui-state\/layout)|status of 502/,
 })
 
 test.beforeEach(async ({ target }) => {
@@ -98,4 +98,28 @@ test('detach: the banner shows and nothing re-attaches until Reconnect', async (
   await ui.termStatus().getByRole('button', { name: 'Reconnect' }).click()
   await expect.poll(() => attached(target, name)).toBe('1')
   await expect(ui.termStatus()).toHaveCount(0)
+})
+
+// Slow browser recovery through the real proxy (M7 T4).
+test('(T4) stalled browser recovers and the event list resyncs', async ({ ui, target, isMobile }) => {
+  test.skip(isMobile, 'desktop scenario')
+  test.setTimeout(90_000)
+  const name = await openShell(ui, target, 'e2e-caddy-stall')
+  const oldClient = await target.display(name, '#{client_pid}')
+  try {
+    await ctl.pauseCaddy(30)
+    await target.tmux('send-keys', '-t', `=${name}:`, 'yes | head -c 50M', 'Enter')
+    await ui.page.waitForTimeout(20_000)
+  } finally {
+    await ctl.unpauseCaddy()
+  }
+  await expect(reconnecting(ui)).toBeVisible({ timeout: 30_000 })
+  await expect.poll(() => attached(target, name), { timeout: 30_000 }).toBe('1')
+  await expect.poll(() => target.display(name, '#{client_pid}')).not.toBe(oldClient)
+  await typeUntilSeen(ui, target, name, 'caddy-back', 30_000)
+  await expect.poll(() => clients(target, name), { timeout: 15_000 }).toBe(1)
+  const during = uniqueName('e2e-caddy-event')
+  await target.tmux('new-session', '-d', '-s', during)
+  await ui.showList()
+  await expect(ui.session(during)).toBeVisible({ timeout: 30_000 })
 })

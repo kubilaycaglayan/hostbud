@@ -139,7 +139,7 @@ func run() error {
 			Sessions:       sessions,
 			Projects:       projectService,
 			FileSystem:     filesystem,
-			Terminal:       &term.Handler{SSH: ssh, Log: log, Shutdown: ctx.Done(), MaxPerUser: cfg.MaxTerminalsPerUser, MaxTotal: cfg.MaxTerminals, AttachTimeout: cfg.ExecTimeout},
+			Terminal:       &term.Handler{SSH: ssh, Log: log, Shutdown: ctx.Done(), MaxPerUser: cfg.MaxTerminalsPerUser, MaxTotal: cfg.MaxTerminals, AttachTimeout: cfg.ExecTimeout, AccountID: api.AuthenticatedUserID},
 			UIState:        st,
 			Auth:           accounts,
 			TrustedProxies: proxies,

@@ -715,6 +715,82 @@ func TestEventsSocketSnapshotThenEvents(t *testing.T) {
 	}
 }
 
+func TestEventsSocketCapIsPerAccount(t *testing.T) {
+	e := newEnv(t)
+	srv := httptest.NewServer(e.h)
+	defer srv.Close()
+	url := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws/events"
+	header := http.Header{"Origin": {origin}, "Cookie": {SessionCookie + "=" + testToken}}
+	conns := make([]*websocket.Conn, 0, 16)
+	for i := 0; i < 16; i++ {
+		c, resp, err := websocket.Dial(t.Context(), url, &websocket.DialOptions{HTTPHeader: header})
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
+		if err != nil {
+			t.Fatalf("socket %d: %v", i, err)
+		}
+		conns = append(conns, c)
+	}
+	_, resp, err := websocket.Dial(t.Context(), url, &websocket.DialOptions{HTTPHeader: header})
+	if resp != nil && resp.Body != nil {
+		_ = resp.Body.Close()
+	}
+	if err == nil || resp == nil || resp.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("17th socket: resp=%v err=%v", resp, err)
+	}
+	_ = conns[0].CloseNow()
+	var c *websocket.Conn
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		c, resp, err = websocket.Dial(t.Context(), url, &websocket.DialOptions{HTTPHeader: header})
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
+		if err == nil {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if err != nil {
+		t.Fatalf("socket after close: %v", err)
+	}
+	_ = c.CloseNow()
+	for _, conn := range conns[1:] {
+		_ = conn.CloseNow()
+	}
+}
+
+func TestEventsSocketRejectsClientData(t *testing.T) {
+	e := newEnv(t)
+	srv := httptest.NewServer(e.h)
+	defer srv.Close()
+	url := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws/events"
+	c, resp, err := websocket.Dial(t.Context(), url, &websocket.DialOptions{HTTPHeader: http.Header{
+		"Origin": {origin}, "Cookie": {SessionCookie + "=" + testToken},
+	}})
+	if resp != nil && resp.Body != nil {
+		_ = resp.Body.Close()
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = c.CloseNow() }()
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	var initial map[string]any
+	if err := wsjson.Read(ctx, c, &initial); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Write(ctx, websocket.MessageText, []byte("not allowed")); err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = c.Read(ctx)
+	if websocket.CloseStatus(err) != websocket.StatusUnsupportedData {
+		t.Fatalf("data frame close=%v status=%d", err, websocket.CloseStatus(err))
+	}
+}
+
 func TestTerminalSocketIsOriginChecked(t *testing.T) {
 	reached := 0
 	h := New(Config{Dist: fstest.MapFS{}, Origins: AllowedOrigins("", 9055), Bus: events.NewBus(), Auth: &fakeAuth{},

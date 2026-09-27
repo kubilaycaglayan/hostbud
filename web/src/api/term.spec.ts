@@ -14,7 +14,7 @@ import {
 } from './term'
 
 beforeEach(() => vi.useFakeTimers())
-afterEach(() => vi.useRealTimers())
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() })
 
 class FakeSocket implements TermSocket {
   binaryType: BinaryType = 'blob'
@@ -225,6 +225,27 @@ describe('TermSession', () => {
     expect(last(states)).toEqual(['reconnecting', 1])
     await vi.advanceTimersByTimeAsync(500)
     expect(sockets).toHaveLength(2)
+  })
+
+  it('the 1013 slow-client close is retryable', async () => {
+    const { sockets, states } = session()
+    sockets[0].open()
+    sockets[0].onclose?.({ code: 1013, reason: 'client too slow; reconnect' } as CloseEvent)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(last(states)).toEqual(['reconnecting', 1])
+    await vi.advanceTimersByTimeAsync(500)
+    expect(sockets).toHaveLength(2)
+  })
+
+  it('does not auto-retry when the server reports the terminal cap', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 429 })))
+    const { sockets, states } = session()
+    sockets[0].onclose?.({} as CloseEvent)
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(last(states)[0]).toBe('limited')
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(sockets).toHaveLength(1)
   })
 
   it('retries at once when the browser comes back online or the page becomes visible', async () => {

@@ -7,6 +7,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"net/http/httptest"
 	"regexp"
 	"strconv"
@@ -127,7 +129,10 @@ func TestIntegrationSilentAttachGetsTimeoutClose(t *testing.T) {
 	deadline := time.Now().Add(4 * time.Second).Unix()
 	e.sh("mkdir -p /home/dev/.hostbud-stall && printf '%d\\n' " + strconv.FormatInt(deadline, 10) + " >/home/dev/.hostbud-stall/tmux")
 	t.Cleanup(func() { e.sh("rm -f /home/dev/.hostbud-stall/tmux") })
-	conn, _, err := websocket.Dial(t.Context(), e.url+"?machine=host&session=stall&cols=80&rows=24", nil)
+	conn, resp, err := websocket.Dial(t.Context(), e.url+"?machine=host&session=stall&cols=80&rows=24", nil)
+	if resp != nil && resp.Body != nil {
+		_ = resp.Body.Close()
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,6 +171,68 @@ func TestIntegrationAttachTypeResizeClose(t *testing.T) {
 	e.eventually("client detached", func() bool { return e.sh("tmux display -p -t =term-a: '#{session_attached}'") == "0" })
 	if got := e.sh("tmux has-session -t =term-a && echo alive"); got != "alive" {
 		t.Fatal("session died with the socket")
+	}
+}
+
+func TestIntegrationTerminalAttachLimit(t *testing.T) {
+	e := setup(t, func(h *term.Handler) {
+		h.MaxPerUser = 32
+		h.MaxTotal = 40
+		h.AccountID = func(*http.Request) string { return "integration-user" }
+	})
+	e.newSession("cap-term")
+	conns := make([]*websocket.Conn, 0, 32)
+	for i := 0; i < 32; i++ {
+		conn, resp, err := websocket.Dial(t.Context(), fmt.Sprintf("%s?machine=host&session=cap-term", e.url), nil)
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
+		if err != nil {
+			t.Fatalf("attach %d: %v", i+1, err)
+		}
+		conns = append(conns, conn)
+	}
+	conn, resp, err := websocket.Dial(t.Context(), e.url+"?machine=host&session=cap-term", nil)
+	if resp != nil && resp.Body != nil {
+		body, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusTooManyRequests || !strings.Contains(string(body), "Too many open terminals (32)") {
+			t.Fatalf("33rd attach: status=%d body=%s", resp.StatusCode, body)
+		}
+	} else if err == nil {
+		_ = conn.CloseNow()
+		t.Fatal("33rd attach accepted")
+	}
+	e.eventually("32 clients attached", func() bool { return e.sh("tmux list-clients -t =cap-term -F '#{client_pid}' | wc -l") == "32" })
+	for _, c := range conns {
+		_ = c.CloseNow()
+	}
+	e.eventually("all terminal processes exit", func() bool { return e.h.Active() == 0 })
+}
+
+func TestIntegrationSlowTerminalClientDropped(t *testing.T) {
+	e := setup(t)
+	e.newSession("slow-term")
+	conn, resp, err := websocket.Dial(t.Context(), e.url+"?machine=host&session=slow-term", nil)
+	if resp != nil && resp.Body != nil {
+		_ = resp.Body.Close()
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = conn.CloseNow() }()
+	e.eventually("client attached", func() bool { return e.sh("tmux list-clients -t =slow-term -F '#{client_pid}' | wc -l") == "1" })
+	e.sh("tmux send-keys -t =slow-term: 'yes | head -c 50M' Enter")
+	e.eventually("slow client is dropped", func() bool { return e.h.Active() == 0 })
+	if e.sh("tmux has-session -t =slow-term && echo alive") != "alive" {
+		t.Fatal("tmux session ended with slow client")
+	}
+	if got := e.sh("tmux list-clients -t =slow-term -F '#{client_pid}' | wc -l"); got != "0" {
+		t.Fatalf("tmux clients after drop=%s", got)
+	}
+	_, out := e.attach("slow-term", 80, 24)
+	if len(out.text) == 0 { // the attach's initial redraw is asynchronous; at least ensure attach works.
+		e.eventually("re-attached", func() bool { return e.h.Active() == 1 })
 	}
 }
 

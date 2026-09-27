@@ -132,6 +132,13 @@ function connect() {
       state.value = s
       attempt.value = info.attempt
       if (s === 'open' && takesInput()) t.focus()
+      if (s === 'limited') {
+        useToastsStore().push({
+          title: 'Too many open terminals',
+          message: 'Close some tabs or panes; each open terminal keeps an ssh process on the host.',
+          tone: 'error',
+        })
+      }
     },
     isListed: () => sessions.list(props.machine).some((x) => x.name === props.session),
     stillAuthorized: () => auth.stillAuthorized(),
@@ -473,17 +480,17 @@ defineExpose({ refit, reconnect, showKeyboard })
       @action="scrollAction"
     />
     <div
-      v-if="state === 'exited' || state === 'disconnected'"
+      v-if="state === 'exited' || state === 'disconnected' || state === 'limited'"
       role="status"
       class="absolute inset-x-0 bottom-0 z-10 flex items-center justify-between gap-3 border-t border-border bg-surface px-3 py-2"
     >
-      <span>{{ state === 'exited' ? 'Session detached or ended.' : 'Disconnected: the session is gone.' }}</span>
-      <button
+        <span>{{ state === 'limited' ? 'Too many open terminals. Close a tab or pane, then retry.' : state === 'exited' ? 'Session detached or ended.' : 'Disconnected: the session is gone.' }}</span>
+        <button
         type="button"
         class="touch-target rounded bg-accent px-3 py-1 font-bold text-bg"
-        @click="reconnect"
-      >
-        Reconnect
+          @click="reconnect"
+        >
+        {{ state === 'limited' ? 'Retry now' : 'Reconnect' }}
       </button>
     </div>
   </section>

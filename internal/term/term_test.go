@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -226,6 +227,86 @@ func TestBridgeIOResizePingAndExit(t *testing.T) {
 	}
 	if _, _, err := c.Read(ctx); websocket.CloseStatus(err) != websocket.StatusNormalClosure {
 		t.Fatalf("close after exit: %v", err)
+	}
+}
+
+func TestAttachCapRejectsBeforeStartAndReleasesOnExit(t *testing.T) {
+	var starts atomic.Int32
+	h := &Handler{SSH: fakeSSH{}, MaxPerUser: 1, MaxTotal: 2, AccountID: func(*http.Request) string { return "u1" }, Start: func(_ context.Context, _ []string, _, _ int) (Process, error) {
+		starts.Add(1)
+		return newFake(), nil
+	}}
+	srv := httptest.NewServer(h)
+	t.Cleanup(srv.Close)
+	url := "ws" + strings.TrimPrefix(srv.URL, "http") + "?machine=host&session=s1"
+	c := dial(t, url)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http"+strings.TrimPrefix(srv.URL, "http")+"?machine=host&session=s1", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusTooManyRequests || starts.Load() != 1 {
+		t.Fatalf("second attach status=%d starts=%d", resp.StatusCode, starts.Load())
+	}
+	_ = c.Close(websocket.StatusNormalClosure, "close")
+	eventually(t, "released terminal slot", func() bool { return h.Active() == 0 })
+	third := dial(t, url)
+	_ = third.Close(websocket.StatusNormalClosure, "close")
+	eventually(t, "third attach starts", func() bool { return starts.Load() == 2 })
+}
+
+func TestOversizeQueryRejected(t *testing.T) {
+	started := false
+	h := &Handler{SSH: fakeSSH{}, Start: func(context.Context, []string, int, int) (Process, error) { started = true; return newFake(), nil }}
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/ws/term?x="+strings.Repeat("a", 2049), nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusBadRequest || started {
+		t.Fatalf("status=%d started=%v", w.Code, started)
+	}
+}
+
+func TestOutputQueueUsesByteLimit(t *testing.T) {
+	var queued atomic.Int64
+	if !reserveOutput(&queued, maxQueuedOutput-1) {
+		t.Fatal("queue rejected bytes below cap")
+	}
+	if reserveOutput(&queued, 2) {
+		t.Fatal("queue accepted bytes over cap")
+	}
+	if got := queued.Load(); got != maxQueuedOutput-1 {
+		t.Fatalf("queued=%d after rejection", got)
+	}
+	queued.Store(maxQueuedOutput - readChunk)
+	if !reserveOutput(&queued, readChunk) || queued.Load() != maxQueuedOutput {
+		t.Fatal("queue rejected exact cap")
+	}
+}
+
+func TestConcurrentTerminalReservationsNeverOvershoot(t *testing.T) {
+	h := &Handler{MaxPerUser: 64, MaxTotal: 20}
+	var wg sync.WaitGroup
+	var acquired atomic.Int32
+	for i := 0; i < 64; i++ {
+		wg.Go(func() {
+			if h.reserve("u1") {
+				acquired.Add(1)
+			}
+		})
+	}
+	wg.Wait()
+	if got := acquired.Load(); got != 20 {
+		t.Fatalf("reserved %d slots, want 20", got)
+	}
+	for i := int32(0); i < acquired.Load(); i++ {
+		h.release("u1")
+	}
+	if h.Active() != 0 {
+		t.Fatalf("active after release = %d", h.Active())
 	}
 }
 

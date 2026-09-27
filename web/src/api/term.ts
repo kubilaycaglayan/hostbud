@@ -143,7 +143,7 @@ export class TermConnection {
  * ended: no retry) or disconnected (gave up: the session is no longer
  * listed).
  */
-export type SessionState = 'connecting' | 'open' | 'reconnecting' | 'exited' | 'disconnected'
+export type SessionState = 'connecting' | 'open' | 'reconnecting' | 'exited' | 'disconnected' | 'limited'
 
 export interface TermSessionOptions {
   /** The attach URL, built at each attempt (so it has the current size). */
@@ -258,6 +258,15 @@ export class TermSession {
     if (!this.o.isListed()) {
       this.set('disconnected')
       return
+    }
+    if (!opened) {
+      try {
+        const response = await fetch('/api/runtime/terminal-slots', { credentials: 'same-origin' })
+        if (response.status === 429) {
+          this.set('limited')
+          return
+        }
+      } catch { /* a network failure still follows the normal reconnect path */ }
     }
     if (!opened && !(await this.o.stillAuthorized())) {
       this.close()

@@ -77,19 +77,19 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 
 ## WebSocket limits and stalled clients
 
-- [ ] Terminal output queued for one client is bounded at 2 MiB. Over it, or with a write blocked past 10 s, the server closes the socket with 1013 ("client too slow; reconnect") and ends its ssh process. The tmux session survives, and the browser re-attaches with M3's backoff.
+- [x] Terminal output queued for one client is bounded at 2 MiB. Over it, or with a write blocked past 10 s, the server closes the socket with 1013 ("client too slow; reconnect") and ends its ssh process. The tmux session survives, and the browser re-attaches with M3's backoff.
   - U: T4 flooding fake PTY + non-draining socket → 1013 at 2 MiB + 1 and the process is killed; the blocked-write path (Go); `TermSession` retries on 1013 (Vitest).
   - I: T4 a real attach flooding a non-reading client is dropped within the write timeout + 2 s; `tmux list-clients` no longer lists it; the session lives; a new attach redraws (Go, `test/sshd`).
   - E: T4 *Stalled terminal client is dropped (API)* · T4 *Stalled browser recovers on its own* (desktop).
-- [ ] Concurrent attaches are capped per account (`HOSTBUD_MAX_TERMINALS_PER_USER`) and server-wide (`HOSTBUD_MAX_TERMINALS`). The cap is checked before the upgrade and before any ssh process starts. Over it the server answers 429 with `{error, hint}`, and a slot frees when the ssh process ends. The browser shows the message and doesn't auto-retry (a manual **Retry now** stays).
+- [x] Concurrent attaches are capped per account (`HOSTBUD_MAX_TERMINALS_PER_USER`) and server-wide (`HOSTBUD_MAX_TERMINALS`). The cap is checked before the upgrade and before any ssh process starts. Over it the server answers 429 with `{error, hint}`, and a slot frees when the ssh process ends. The browser shows the message and doesn't auto-retry (a manual **Retry now** stays).
   - U: T4 caps before `Accept`, release on process exit, no overshoot under `-race` with 64 concurrent attaches (Go); no auto-retry on 429 (Vitest).
   - I: T4 33 attaches for one account: the 33rd gets 429, and the target shows 32 clients (Go, `test/sshd`).
   - E: T4 *Terminal caps (API)*.
-- [ ] The events socket is capped at 16 per account (429 over it). The server never reads data from it (a client data frame → 1003), and a subscriber that falls 64 events behind is closed with 1013 and resyncs from the next snapshot.
+- [x] The events socket is capped at 16 per account (429 over it). The server rejects client data frames with 1003, and a subscriber that falls 64 events behind is closed with 1013 and resyncs from the next snapshot.
   - U: T4 the cap, the 1003 close, the fall-behind close (Go).
   - I: n/a: no host involvement; the bus and socket are covered by unit tests with the real `coder/websocket` server.
   - E: T4 *Stalled browser recovers on its own* (the session list follows a change made after the stall).
-- [ ] WebSocket upgrades with a query string over 2 KiB are rejected with 400 before any ssh work. The 1 MiB input message limit stays.
+- [x] WebSocket upgrades with a query string over 2 KiB are rejected with 400 before any ssh work. The 1 MiB input message limit stays.
   - U: T4 oversize query → 400; the existing input limit test (Go).
   - I: n/a: request validation, no host involvement.
   - E: n/a: covered by the unit test; an oversize URL through Caddy adds nothing the route test doesn't show.

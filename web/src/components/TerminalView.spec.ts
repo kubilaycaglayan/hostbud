@@ -176,6 +176,20 @@ describe('TerminalView', () => {
     expect(FakeWS.all).toHaveLength(clients)
   })
 
+  it('shows a terminal cap toast and offers a manual Retry now', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 429 })))
+    useSessionsStore().$patch({ byMachine: { host: [{ id: '$1', name: 'acc-a', path: '/home/dev', attached: 0, windows: 1, created: '', activity: '' }] } })
+    const w = await mountTerm()
+    FakeWS.all[0].onclose?.({} as CloseEvent)
+    await flushPromises()
+    expect(w.get('[role=status]').text()).toContain('Too many open terminals')
+    expect(useToastsStore().toasts[0]).toMatchObject({ title: 'Too many open terminals', tone: 'error' })
+    expect(FakeWS.all).toHaveLength(1)
+    await w.get('[role=status] button').trigger('click')
+    expect(FakeWS.all).toHaveLength(2)
+    w.unmount()
+  })
+
   it('shows the key bar on touch and applies modifiers to soft-keyboard input', async () => {
     vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })))
     const w = await mountTerm()

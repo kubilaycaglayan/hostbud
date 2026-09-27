@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/netip"
+	"sync"
 	"time"
 
 	"hostbud/internal/events"
@@ -59,7 +60,7 @@ func New(cfg Config) http.Handler {
 	if cfg.SFTPTimeout <= 0 {
 		cfg.SFTPTimeout = 10 * time.Second
 	}
-	s := &server{cfg: cfg, machines: map[string]Snapshotter{}}
+	s := &server{cfg: cfg, machines: map[string]Snapshotter{}, eventUsers: map[string]int{}}
 	for _, m := range cfg.Machines {
 		info, _ := m.Snapshot()
 		s.machines[info.ID] = m
@@ -90,6 +91,7 @@ func New(cfg Config) http.Handler {
 	mux.HandleFunc("GET /ws/events", s.eventsSocket)
 	if cfg.Terminal != nil {
 		mux.Handle("GET /ws/term", cfg.Terminal)
+		mux.HandleFunc("GET /api/runtime/terminal-slots", s.terminalSlots)
 	}
 	if cfg.UIState != nil {
 		mux.HandleFunc("GET /api/ui-state/{key}", s.getUIState)
@@ -115,9 +117,23 @@ func New(cfg Config) http.Handler {
 }
 
 type server struct {
-	cfg      Config
-	machines map[string]Snapshotter
-	order    []string
+	cfg        Config
+	machines   map[string]Snapshotter
+	order      []string
+	eventMu    sync.Mutex
+	eventUsers map[string]int
+}
+
+type terminalCapacity interface{ AtCapacity(string) bool }
+
+func (s *server) terminalSlots(w http.ResponseWriter, r *http.Request) {
+	account := AuthenticatedUserID(r)
+	capacity, ok := s.cfg.Terminal.(terminalCapacity)
+	if account == "" || !ok || !capacity.AtCapacity(account) {
+		writeJSON(w, http.StatusOK, map[string]bool{"available": true})
+		return
+	}
+	writeError(w, http.StatusTooManyRequests, "Too many open terminals (32)", "Close some tabs or panes; each open terminal keeps an ssh process on the host.")
 }
 
 func handleHealth(w http.ResponseWriter, _ *http.Request) {

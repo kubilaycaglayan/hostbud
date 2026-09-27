@@ -38,6 +38,27 @@ type snapshot struct {
 // event. A client that falls behind is disconnected and resyncs on
 // reconnect (the next snapshot).
 func (s *server) eventsSocket(w http.ResponseWriter, r *http.Request) {
+	account := AuthenticatedUserID(r)
+	if account == "" {
+		account = "anonymous"
+	}
+	s.eventMu.Lock()
+	if s.eventUsers[account] >= 16 {
+		s.eventMu.Unlock()
+		writeError(w, http.StatusTooManyRequests, "Too many open event sockets (16)", "Close another tab or device and try again.")
+		return
+	}
+	s.eventUsers[account]++
+	s.eventMu.Unlock()
+	defer func() {
+		s.eventMu.Lock()
+		if s.eventUsers[account] <= 1 {
+			delete(s.eventUsers, account)
+		} else {
+			s.eventUsers[account]--
+		}
+		s.eventMu.Unlock()
+	}()
 	// Origin was checked by checkOrigin; the library's own same-host check
 	// would reject the domain behind Caddy.
 	c, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
@@ -45,7 +66,14 @@ func (s *server) eventsSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer func() { _ = c.CloseNow() }()
-	ctx := c.CloseRead(r.Context()) // we never read; this handles close frames
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+	c.SetReadLimit(1 << 20)
+	input := make(chan error, 1)
+	go func() {
+		_, _, err := c.Read(ctx)
+		input <- err
+	}()
 
 	// Subscribe before the snapshot so nothing falls between them.
 	ch, unsubscribe := s.cfg.Bus.Subscribe(eventBuffer)
@@ -68,6 +96,11 @@ func (s *server) eventsSocket(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case <-ctx.Done():
+			return
+		case err := <-input:
+			if err == nil {
+				_ = c.Close(websocket.StatusUnsupportedData, "events socket is read-only")
+			}
 			return
 		case e, ok := <-ch:
 			if !ok {

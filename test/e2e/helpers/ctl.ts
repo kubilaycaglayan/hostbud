@@ -20,6 +20,9 @@ export const ctl = {
   /** Stalls SFTP startup for a bounded TTL. */
   stallSftp: (ttl = 60) => call(`/stall/sftp/on?ttl=${ttl}`),
   unstallSftp: () => call('/stall/sftp/off'),
+  /** Pauses the proxy for a bounded interval (auto-unpauses after ttl). */
+  pauseCaddy: (ttl = 30) => call(`/caddy/pause?ttl=${ttl}`),
+  unpauseCaddy: () => call('/caddy/unpause'),
   /** Disconnects hostbud-e2e-app from the e2e network (connections hang). */
   cutNetwork: () => call('/network/cut'),
   /** Reconnects it; a no-op when it is connected. */

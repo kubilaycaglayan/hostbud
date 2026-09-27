@@ -1,4 +1,4 @@
-/* global console, fetch, AbortSignal, setTimeout */
+/* global console, fetch, AbortSignal, setTimeout, clearTimeout */
 // hostbud-e2e-ctl: lets the Playwright runner (which has no Docker access)
 // trigger a fixed set of failure scenarios on the throwaway e2e stack.
 // Reachable only on the hostbud-e2e network. No arguments are accepted:
@@ -23,12 +23,37 @@ const actions = {
   'POST /network/restore': ['docker', ['network', 'connect', '--alias', 'hostbud', 'hostbud-e2e', 'hostbud-e2e-app']],
 }
 
+const caddyPauseTimers = new Map()
+
 createServer((req, res) => {
   if (req.method === 'GET' && req.url === '/health') {
     res.writeHead(200).end('ok\n')
     return
   }
   const url = new URL(req.url ?? '/', 'http://hostbud-e2e-ctl')
+  if (req.method === 'POST' && url.pathname === '/caddy/pause') {
+    const raw = url.searchParams.get('ttl') ?? '30'
+    if (!/^\d+$/.test(raw)) { res.writeHead(400).end('ttl must be seconds from 1 to 60\n'); return }
+    const ttl = Math.min(60, Math.max(1, Number(raw)))
+    if (caddyPauseTimers.has('timer')) clearTimeout(caddyPauseTimers.get('timer'))
+    execFile('docker', ['pause', 'hostbud-e2e-caddy'], { timeout: 10_000 }, (err, stdout, stderr) => {
+      if (err) { res.writeHead(500).end(`${err.message}\n${stderr}`); return }
+      caddyPauseTimers.set('timer', setTimeout(() => {
+        execFile('docker', ['unpause', 'hostbud-e2e-caddy'], { timeout: 10_000 }, () => caddyPauseTimers.delete('timer'))
+      }, ttl * 1000))
+      res.writeHead(200).end(stdout)
+    })
+    return
+  }
+  if (req.method === 'POST' && url.pathname === '/caddy/unpause') {
+    if (caddyPauseTimers.has('timer')) clearTimeout(caddyPauseTimers.get('timer'))
+    execFile('docker', ['unpause', 'hostbud-e2e-caddy'], { timeout: 10_000 }, (err, stdout, stderr) => {
+      caddyPauseTimers.delete('timer')
+      if (err) { res.writeHead(500).end(`${err.message}\n${stderr}`); return }
+      res.writeHead(200).end(stdout)
+    })
+    return
+  }
   const action = actions[`${req.method} ${url.pathname}`]
   if (!action) {
     res.writeHead(404).end('unknown action\n')

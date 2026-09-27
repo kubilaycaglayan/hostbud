@@ -11,3 +11,6 @@ AcceptEnv LANG LC_*
 # taking its stale tmux client with it.
 ClientAliveInterval 5
 ClientAliveCountMax 3
+# T4 verifies hostbud's own per-account attach cap (32) against one sshd.
+MaxSessions 128
+MaxStartups 100:30:200

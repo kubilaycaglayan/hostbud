@@ -34,6 +34,13 @@ var publicRoutes = map[string]bool{
 
 type userKey struct{}
 
+// AuthenticatedUserID returns the authenticated account ID attached by
+// requireAuth. It is used by the terminal handler for per-account limits.
+func AuthenticatedUserID(r *http.Request) string {
+	u, _ := r.Context().Value(userKey{}).(store.User)
+	return u.ID
+}
+
 // requireAuth refuses /api/* and /ws/* requests without a valid session.
 // It fails closed: with no Authenticator configured, nothing gets through.
 func requireAuth(a Authenticator, next http.Handler) http.Handler {

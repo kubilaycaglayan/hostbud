@@ -5,6 +5,7 @@ package term
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -25,9 +26,9 @@ const (
 	// gone (e.g. its network dropped without a close): the attach ends.
 	pingInterval = 25 * time.Second
 	pingTimeout  = 10 * time.Second
-	// outQueue bounds buffered output per client (× readChunk bytes); a
-	// client that can't keep up is dropped and reconnects (tmux redraws).
-	outQueue = 64
+	// maxQueuedOutput bounds buffered terminal bytes per client.
+	maxQueuedOutput = 2 << 20
+	outQueue        = 64
 )
 
 // SSH builds the ssh argv (sshx.Client).
@@ -44,6 +45,7 @@ type Handler struct {
 	Start Starter // default StartPTY
 	// MaxPerUser and MaxTotal configure attach caps (enforcement is added in M7 T4).
 	MaxPerUser, MaxTotal int
+	AccountID            func(*http.Request) string
 	// Shutdown, when closed, ends every open terminal with "going away"
 	// (a disconnect the client reconnects from), before ssh is torn down.
 	Shutdown <-chan struct{}
@@ -52,7 +54,9 @@ type Handler struct {
 	PingInterval, PingTimeout time.Duration
 	AttachTimeout             time.Duration
 
-	active atomic.Int64
+	active  atomic.Int64
+	limitMu sync.Mutex
+	users   map[string]int
 }
 
 // Active is the number of live attach processes.
@@ -77,6 +81,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log = slog.New(slog.DiscardHandler)
 	}
 	q := r.URL.Query()
+	if len(r.URL.RawQuery) > 2<<10 {
+		http.Error(w, "query string too long", http.StatusBadRequest)
+		return
+	}
 	cols, rows := atoiOr(q.Get("cols"), 80), atoiOr(q.Get("rows"), 24)
 	if err := validSize(cols, rows); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -87,6 +95,29 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid machine or session: "+err.Error(), http.StatusBadRequest)
 		return
 	}
+	account := "anonymous"
+	if h.AccountID != nil {
+		account = h.AccountID(r)
+	}
+	if !h.reserve(account) {
+		limit := h.MaxPerUser
+		if limit <= 0 {
+			limit = 32
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusTooManyRequests)
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"error": "Too many open terminals (" + strconv.Itoa(limit) + ")",
+			"hint":  "Close some tabs or panes; each open terminal keeps an ssh process on the host.",
+		})
+		return
+	}
+	released := true
+	defer func() {
+		if released {
+			h.release(account)
+		}
+	}()
 
 	// Origin was checked by the api middleware.
 	c, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
@@ -109,21 +140,68 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_ = c.Close(websocket.StatusInternalError, "can't start ssh")
 		return
 	}
-	h.active.Add(1)
-	defer h.active.Add(-1)
-	log.Info("terminal attached", "machine", q.Get("machine"), "session", q.Get("session"))
+	released = false
+	defer h.release(account)
+	log.Info("terminal attached")
 	attachTimeout := h.AttachTimeout
 	if attachTimeout <= 0 {
 		attachTimeout = 10 * time.Second
 	}
 	h.bridge(ctx, cancel, c, proc, log, attachTimeout)
-	log.Info("terminal detached", "machine", q.Get("machine"), "session", q.Get("session"))
+	log.Info("terminal detached")
+}
+
+func (h *Handler) reserve(account string) bool {
+	h.limitMu.Lock()
+	defer h.limitMu.Unlock()
+	if h.users == nil {
+		h.users = make(map[string]int)
+	}
+	perUser, total := h.MaxPerUser, h.MaxTotal
+	if perUser <= 0 {
+		perUser = 32
+	}
+	if total <= 0 {
+		total = 128
+	}
+	if h.users[account] >= perUser || int(h.active.Load()) >= total {
+		return false
+	}
+	h.users[account]++
+	h.active.Add(1) // reservations count before upgrade/start
+	return true
+}
+
+func (h *Handler) release(account string) {
+	h.limitMu.Lock()
+	defer h.limitMu.Unlock()
+	if h.users[account] <= 1 {
+		delete(h.users, account)
+	} else {
+		h.users[account]--
+	}
+	h.active.Add(-1)
+}
+
+// AtCapacity reports whether an account or the server has no attach slots.
+func (h *Handler) AtCapacity(account string) bool {
+	h.limitMu.Lock()
+	defer h.limitMu.Unlock()
+	perUser, total := h.MaxPerUser, h.MaxTotal
+	if perUser <= 0 {
+		perUser = 32
+	}
+	if total <= 0 {
+		total = 128
+	}
+	return h.users[account] >= perUser || int(h.active.Load()) >= total
 }
 
 // bridge pumps bytes both ways until the process exits or the socket
 // closes, then makes sure the process is gone.
 func (h *Handler) bridge(ctx context.Context, cancel context.CancelFunc, c *websocket.Conn, proc Process, log *slog.Logger, attachTimeout time.Duration) {
 	out := make(chan []byte, outQueue)
+	var queued atomic.Int64
 	var wg sync.WaitGroup
 	watchdog := time.NewTimer(attachTimeout)
 	defer watchdog.Stop()
@@ -137,12 +215,18 @@ func (h *Handler) bridge(ctx context.Context, cancel context.CancelFunc, c *webs
 			buf := make([]byte, readChunk)
 			n, err := proc.Read(buf)
 			if n > 0 {
+				if !reserveOutput(&queued, int64(n)) {
+					close(stalled)
+					cancel()
+					return
+				}
 				select {
 				case out <- buf[:n]:
 				default:
 					// The writer is stuck on a full socket: abort it now
 					// (cancelling ctx fails the blocked write) and drop.
 					close(stalled)
+					queued.Add(-int64(n))
 					cancel()
 					return
 				}
@@ -214,7 +298,12 @@ loop:
 				watchdog.Stop()
 				watchingFirstOutput = false
 			}
-			if write(ctx, c, websocket.MessageBinary, b) != nil {
+			err := write(ctx, c, websocket.MessageBinary, b)
+			queued.Add(-int64(len(b)))
+			if err != nil {
+				if ctx.Err() == nil {
+					_ = c.Close(websocket.StatusTryAgainLater, "client too slow; reconnect")
+				}
 				break loop
 			}
 		case <-ping.C:
@@ -244,6 +333,18 @@ loop:
 	_ = c.Close(websocket.StatusNormalClosure, "exited")
 	cancel()
 	wg.Wait()
+}
+
+func reserveOutput(queued *atomic.Int64, size int64) bool {
+	for {
+		current := queued.Load()
+		if size <= 0 || current+size > maxQueuedOutput {
+			return false
+		}
+		if queued.CompareAndSwap(current, current+size) {
+			return true
+		}
+	}
 }
 
 func write(ctx context.Context, c *websocket.Conn, typ websocket.MessageType, b []byte) error {

@@ -2,6 +2,7 @@ import { appendFileSync, mkdirSync } from 'node:fs'
 import { request as httpRequest } from 'node:http'
 import { request as httpsRequest } from 'node:https'
 import { randomBytes } from 'node:crypto'
+import type { Duplex } from 'node:stream'
 import type { APIRequestContext } from '@playwright/test'
 
 // The allowed Origin for the port-forward path (the page's own origin).
@@ -90,6 +91,35 @@ export function upgradeStatus(path: string, origin: string, cookie?: string, bas
     req.on('upgrade', (_res, socket) => {
       socket.destroy()
       resolve(101)
+    })
+    req.on('error', reject)
+    req.end()
+  })
+}
+
+/** Upgrades and leaves the raw socket open for API level terminal scenarios. */
+export function upgradeSocket(path: string, origin: string, cookie: string, base = ORIGIN): Promise<{ status: number; socket?: Duplex; body?: string }> {
+  const url = new URL(path, base)
+  const request = url.protocol === 'https:' ? httpsRequest : httpRequest
+  return new Promise((resolve, reject) => {
+    const req = request({
+      host: url.hostname,
+      port: url.port || (url.protocol === 'https:' ? 443 : 80),
+      path: url.pathname + url.search,
+      rejectUnauthorized: false,
+      headers: {
+        Connection: 'Upgrade', Upgrade: 'websocket', 'Sec-WebSocket-Version': '13',
+        'Sec-WebSocket-Key': randomBytes(16).toString('base64'), Origin: origin, Cookie: cookie,
+      },
+    })
+    req.on('response', (res) => {
+      const chunks: Buffer[] = []
+      res.on('data', (chunk: Buffer) => chunks.push(chunk))
+      res.on('end', () => resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString() }))
+    })
+    req.on('upgrade', (res, socket) => {
+      socket.pause()
+      resolve({ status: res.statusCode ?? 101, socket })
     })
     req.on('error', reject)
     req.end()
