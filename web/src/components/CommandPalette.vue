@@ -28,6 +28,17 @@ watch(() => props.open, (open) => {
   }
 })
 watch(() => props.placeholder, () => { query.value = '' })
+// Reka re-highlights only when the list goes from empty to not empty. When
+// the highlighted item is filtered out (a paste, say), Enter runs the first
+// match instead of doing nothing.
+function onEnter(event: KeyboardEvent) {
+  const list = (event.target as HTMLElement).closest('[role="dialog"]')
+  if (event.isComposing || list?.querySelector('[role="option"][data-highlighted]')) return
+  const first = groups.flatMap((group) => filteredByGroup.value[group])[0]
+  if (!first) return
+  event.preventDefault()
+  select(first.id)
+}
 
 function select(id?: string) {
   if (!id) return
@@ -67,6 +78,7 @@ function onCloseAutoFocus(event: Event) {
             autocomplete="off"
             class="h-14 w-full border-b border-border bg-surface px-4 text-base text-fg outline-none placeholder:text-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
             @update:model-value="query = String($event ?? '')"
+            @keydown.enter="onEnter"
           />
           <ComboboxContent class="max-h-[calc(75vh-3.5rem)] overflow-y-auto p-2 outline-none">
             <ComboboxEmpty class="p-4 text-sm text-muted">No matching sessions, projects or commands.</ComboboxEmpty>

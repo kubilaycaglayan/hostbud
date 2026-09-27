@@ -53,6 +53,21 @@ describe('CommandPalette', () => {
     expect(wrapper.emitted('select')).toEqual([['window:acc-a:@1']])
   })
 
+  it('runs the first match on Enter when nothing is highlighted', async () => {
+    wrapper = mount(CommandPalette, { props: { open: true, items }, attachTo: document.body })
+    await flushPromises()
+    const input = document.querySelector<HTMLInputElement>('input[aria-label="Command palette"]')!
+    input.value = 'new sess'
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    await flushPromises()
+    // A pasted query filtered out the highlighted item (jsdom keeps Reka's
+    // own highlight, so only the palette's first emit is checked).
+    document.body.querySelector('[role="option"][data-highlighted]')?.removeAttribute('data-highlighted')
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    await flushPromises()
+    expect(wrapper.emitted('select')?.[0]).toEqual(['action:new-session'])
+  })
+
   it('closes on Escape and emits the closed state', async () => {
     wrapper = mount(CommandPalette, { props: { open: true, items }, attachTo: document.body })
     await flushPromises()
