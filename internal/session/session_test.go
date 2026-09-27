@@ -385,7 +385,24 @@ func TestCreateTypedNameReturnsConflictAfterTmuxRace(t *testing.T) {
 	}
 }
 
-func TestCreateTypedNameRaceReturnsConflictImmediately(t *testing.T) {
+func TestCreateTypedNameRaceRetriesWithNumberedName(t *testing.T) {
+	tries := 0
+	f := &fakeExec{handler: func(args []string) error {
+		if args[0] == "tmux" {
+			tries++
+			if tries == 1 {
+				return remote(1, "duplicate session: "+args[4])
+			}
+		}
+		return nil
+	}}
+	name, err := newSvc(f, okHost()).Create(context.Background(), Spec{Machine: "host", Name: "work", Path: "~"})
+	if err != nil || name != "work-1" || tries != 2 {
+		t.Fatalf("Create() = %q, %v after %d attempts; want work-1 after retry", name, err, tries)
+	}
+}
+
+func TestCreateTypedNameRaceReturnsConflictAfterRetries(t *testing.T) {
 	tries := 0
 	f := &fakeExec{handler: func(args []string) error {
 		if args[0] == "tmux" {
@@ -395,8 +412,8 @@ func TestCreateTypedNameRaceReturnsConflictImmediately(t *testing.T) {
 		return nil
 	}}
 	_, err := newSvc(f, okHost()).Create(context.Background(), Spec{Machine: "host", Name: "work", Path: "~"})
-	if code(err) != CodeDuplicate || tries != 1 {
-		t.Fatalf("Create() error %v after %d attempts; want duplicate after one attempt", err, tries)
+	if code(err) != CodeDuplicate || tries != 21 {
+		t.Fatalf("Create() error %v after %d attempts; want duplicate after 21 attempts", err, tries)
 	}
 }
 
