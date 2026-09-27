@@ -34,6 +34,16 @@ async function openProjectSession(page: import('@playwright/test').Page, name: s
 
 /** Opens the tree drawer when a terminal covers the tree (compact screens,
  * whatever the profile's viewport). */
+/** Touch long-press. Holds a handle: the menu it opens hides the tree from
+ * role queries before pointerup. */
+async function longPress(page: import('@playwright/test').Page, target: import('@playwright/test').Locator) {
+  const element = await target.elementHandle()
+  if (!element) throw new Error('long-press target not found')
+  await element.dispatchEvent('pointerdown', { pointerType: 'touch', clientX: 14, clientY: 14 })
+  await page.waitForTimeout(550)
+  await element.dispatchEvent('pointerup', { pointerType: 'touch', clientX: 14, clientY: 14 })
+}
+
 async function returnToTree(page: import('@playwright/test').Page) {
   const trigger = page.locator('header button[aria-controls="sessions-sidebar"]')
   const tree = page.getByRole('navigation', { name: 'Project and session tree' })
@@ -124,10 +134,7 @@ for (const profile of ['desktop', 'phone'] as const) {
       await ui.showList()
       const row = ui.treeItem(projectName)
       if (profile === 'phone') {
-        const header = row.locator(':scope > div')
-        await header.dispatchEvent('pointerdown', { pointerType: 'touch', clientX: 14, clientY: 14 })
-        await page.waitForTimeout(550)
-        await header.dispatchEvent('pointerup', { pointerType: 'touch', clientX: 14, clientY: 14 })
+        await longPress(page, row.locator(':scope > div').first())
       } else {
         await row.getByRole('button', { name: `More actions for ${projectName}` }).click()
       }
@@ -143,10 +150,7 @@ for (const profile of ['desktop', 'phone'] as const) {
       expect((await target.run(`tmux list-clients -t ${shq('=' + sessionName)} -F '#{client_pid}'`)).trim()).toBe(clientPID)
 
       if (profile === 'phone') {
-        const header = ui.treeItem(projectName).locator(':scope > div')
-        await header.dispatchEvent('pointerdown', { pointerType: 'touch', clientX: 14, clientY: 14 })
-        await page.waitForTimeout(550)
-        await header.dispatchEvent('pointerup', { pointerType: 'touch', clientX: 14, clientY: 14 })
+        await longPress(page, ui.treeItem(projectName).locator(':scope > div').first())
       } else await ui.treeItem(projectName).getByRole('button', { name: `More actions for ${projectName}` }).click()
       await page.getByRole('menuitem', { name: 'Remove project…', exact: true }).click()
       await page.getByRole('alertdialog', { name: `Remove project ${projectName}?` }).getByRole('button', { name: 'Remove project' }).click()
@@ -156,9 +160,13 @@ for (const profile of ['desktop', 'phone'] as const) {
       expect(await target.run(`test -d ${shq(folder)} && echo exists`)).toContain('exists')
 
       await page.reload()
+      await ui.showList()
+      // Leave the app while it restarts: the open page's reconnects log 502s.
+      await page.goto('about:blank')
       await ctl.restartApp()
       await expect.poll(async () => (await request.get('/api/health')).status(), { timeout: 20_000 }).toBe(200)
-      await page.reload()
+      await page.goto('/')
+      await ui.showList()
       await expect(ui.treeItem(projectName)).toHaveCount(0)
 
       await ui.openFileBrowser()
@@ -231,8 +239,9 @@ for (const profile of ['desktop', 'phone'] as const) {
       await createTargetSession(target, one, first)
       await createTargetSession(target, two, first)
       await page.goto('/')
-      await page.getByRole('button', { name: `Drag to reorder project ${secondName}` }).dragTo(page.getByRole('button', { name: `Drag to reorder project ${firstName}` }))
-      await page.getByRole('button', { name: `Drag to reorder session ${two}` }).dragTo(page.getByRole('button', { name: `Drag to reorder session ${one}` }))
+      // Drop on the top edge of the target row, as tree.custom.spec.ts does.
+      await ui.treeItem(secondName).getByRole('button', { name: `Drag to reorder project ${secondName}` }).dragTo(ui.treeItem(firstName), { targetPosition: { x: 20, y: 1 } })
+      await ui.treeItem(two).getByRole('button', { name: `Drag to reorder session ${two}` }).dragTo(ui.treeItem(one), { targetPosition: { x: 20, y: 1 } })
       await target.run(`mkdir -p ${shq(`${root}/third`)}`)
       await addProject(request, `${root}/third`, thirdName)
       const addedSession = uniqueName('e2e-order-new')
@@ -374,12 +383,17 @@ test('(T6) Recent commands are project-scoped and require selection', async ({ p
   await addProject(request, secondPath, secondName)
   await page.goto('/')
   const first = await openProjectSession(page, firstName)
-  await first.getByLabel('Name').fill(uniqueName('recent-seed'))
+  const seed = uniqueName('recent-seed')
+  await first.getByLabel('Name').fill(seed)
   await first.getByLabel('Start command').fill('sleep 30')
   await first.getByRole('button', { name: 'Create session' }).click()
   await expect.poll(async () => (await (await request.get(`/api/projects?machine=${MACHINE}`)).json()).projects.length).toBeGreaterThanOrEqual(2)
   await ui.showList()
-  const before = (await (await request.get(`/api/machines/${MACHINE}/sessions`)).json()).sessions.length
+  // The target starts empty; wait until the list has settled on the seed
+  // session before counting.
+  const sessionNames = async () => (await (await request.get(`/api/machines/${MACHINE}/sessions`)).json()).sessions.map((s: { name: string }) => s.name)
+  await expect.poll(sessionNames).toEqual([seed])
+  const before = 1
   const second = await openProjectSession(page, secondName)
   await expect(second.getByRole('button', { name: /^Use recent command/ })).toHaveCount(0)
   expect((await (await request.get(`/api/machines/${MACHINE}/sessions`)).json()).sessions).toHaveLength(before)
