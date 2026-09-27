@@ -13,6 +13,7 @@ import { blurActiveFieldOnHide } from '@/lib/pageFocus'
 import TerminalMenu from '@/components/TerminalMenu.vue'
 import TerminalActions from '@/components/TerminalActions.vue'
 import TerminalTextDialog from '@/components/TerminalTextDialog.vue'
+import PhotoUploadDialog from '@/components/PhotoUploadDialog.vue'
 import TerminalSearch from '@/components/TerminalSearch.vue'
 import TabBar from '@/components/TabBar.vue'
 import KeyBar from '@/components/KeyBar.vue'
@@ -81,6 +82,7 @@ const snapshotOpen = ref(false)
 const terminalSnapshot = ref('')
 const snapshotLoading = ref(false)
 const snapshotError = ref('')
+const photoUploadOpen = ref(false)
 let snapshotRequest = 0
 const searchInitial = ref('')
 const searchBar = ref<InstanceType<typeof TerminalSearch>>()
@@ -97,6 +99,7 @@ const auth = useAuthStore()
 const theme = useThemeStore()
 const sessions = useSessionsStore()
 const splitTargets = computed(() => sessions.list(props.machine).map((x) => x.name))
+const uploadDirectory = computed(() => sessions.list(props.machine).find((x) => x.name === props.session)?.path ?? '')
 const copyMode = createCopyModeController(
   (action, lines) => copyModeApi.action(props.machine, props.session, action, lines),
   (error) => useToastsStore().error('Could not scroll terminal history', error),
@@ -321,12 +324,13 @@ watch(snapshotOpen, (open) => {
   if (!open) { snapshotRequest++; terminalSnapshot.value = '' }
 })
 
-function onToolbarAction(action: 'search' | 'copy' | 'keyboard' | 'dictation' | 'snapshot' | 'close') {
+function onToolbarAction(action: 'search' | 'copy' | 'keyboard' | 'dictation' | 'snapshot' | 'photos' | 'close') {
   if (action === 'search') openSearch()
   else if (action === 'copy') copySelectedText()
   else if (action === 'keyboard') showKeyboard()
   else if (action === 'dictation') dictationOpen.value = true
   else if (action === 'snapshot') openSnapshot()
+  else if (action === 'photos') photoUploadOpen.value = true
   else emit('close')
 }
 
@@ -594,6 +598,7 @@ defineExpose({ refit, reconnect, showKeyboard })
     </TerminalMenu>
     <TerminalTextDialog v-model:open="dictationOpen" mode="dictation" @send="sendDictation" />
     <TerminalTextDialog v-model:open="snapshotOpen" mode="snapshot" :snapshot="terminalSnapshot" :loading="snapshotLoading" :error="snapshotError" @retry="openSnapshot" />
+    <PhotoUploadDialog v-model:open="photoUploadOpen" :machine="props.machine" :directory="uploadDirectory" />
     <KeyBar
       v-if="!inMode"
       :term="term"

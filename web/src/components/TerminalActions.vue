@@ -2,7 +2,7 @@
 import { DropdownMenuContent, DropdownMenuItem, DropdownMenuPortal, DropdownMenuRoot, DropdownMenuTrigger } from 'reka-ui'
 const props = defineProps<{ hasSelection: boolean; canSplit: boolean; sessions: string[] }>()
 const emit = defineEmits<{
-  action: [name: 'search' | 'copy' | 'keyboard' | 'dictation' | 'snapshot' | 'close']
+  action: [name: 'search' | 'copy' | 'keyboard' | 'dictation' | 'snapshot' | 'photos' | 'close']
   split: [direction: 'row' | 'column', session: string | null]
 }>()
 const item = 'touch-target flex min-h-11 cursor-pointer items-center rounded px-3 py-1 outline-none data-disabled:text-muted data-highlighted:bg-bg'
@@ -18,6 +18,7 @@ const item = 'touch-target flex min-h-11 cursor-pointer items-center rounded px-
         <DropdownMenuItem :class="item" @select="emit('action', 'keyboard')">Show keyboard</DropdownMenuItem>
         <DropdownMenuItem :class="item" @select="emit('action', 'dictation')">Dictation</DropdownMenuItem>
         <DropdownMenuItem :class="item" @select="emit('action', 'snapshot')">View terminal text</DropdownMenuItem>
+        <DropdownMenuItem :class="item" @select="emit('action', 'photos')">Send photos to this repo</DropdownMenuItem>
         <template v-if="props.canSplit">
           <DropdownMenuItem v-for="session in props.sessions" :key="'right-' + session" :class="item" @select="emit('split', 'row', session)">Split right with {{ session }}</DropdownMenuItem>
           <DropdownMenuItem :class="item" @select="emit('split', 'row', null)">Split right with new session</DropdownMenuItem>

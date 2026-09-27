@@ -93,7 +93,7 @@ function renameOnFinePointer() {
       <DropdownMenuRoot :open="props.menuOpen" @update:open="(open) => emit('menuOpen', open, props.group.project.id)">
         <DropdownMenuTrigger type="button" class="touch-target min-h-7 min-w-6 rounded px-1 text-muted" :aria-label="'More actions for ' + props.group.project.name" title="More" tabindex="-1" @click.stop>⋯</DropdownMenuTrigger>
         <DropdownMenuPortal>
-          <DropdownMenuContent align="end" :side-offset="4" class="z-30 min-w-48 rounded border border-border bg-surface p-1 text-fg shadow-lg">
+          <DropdownMenuContent align="end" :side-offset="4" class="z-[60] min-w-48 rounded border border-border bg-surface p-1 text-fg shadow-lg">
             <DropdownMenuItem class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 outline-none data-highlighted:bg-bg" @select="emit('startRename', 'project:' + props.group.project.id)">Rename</DropdownMenuItem>
             <DropdownMenuItem class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 outline-none data-highlighted:bg-bg" @select="emit('hideProject', props.group.project.id)">{{ props.hidden ? 'Unhide' : 'Hide' }}</DropdownMenuItem>
             <DropdownMenuItem class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 outline-none data-highlighted:bg-bg" @select="emit('togglePin', props.group.project.id)">{{ props.pinned ? 'Unpin' : 'Pin' }}</DropdownMenuItem>

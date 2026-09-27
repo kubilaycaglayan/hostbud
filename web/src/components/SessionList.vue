@@ -219,7 +219,7 @@ const sortableSessions = computed({
             <DropdownMenuContent
               align="end"
               :side-offset="4"
-              class="z-30 min-w-48 rounded border border-border bg-surface p-1 text-fg shadow-lg"
+              class="z-[60] min-w-48 rounded border border-border bg-surface p-1 text-fg shadow-lg"
             >
               <DropdownMenuItem
                 v-if="props.treeView"
