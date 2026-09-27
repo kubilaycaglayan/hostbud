@@ -75,6 +75,31 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
   - E: T7 *Long-lived terminal contrast* (desktop), representative prompt-like TUI on the throwaway target across System dark/light changes, attached-session and palette assertions, with screenshots. Real Codex-specific rendering is recorded as an owner check if Codex is unavailable in the throwaway target.
   - Status (2026-09-27): diagnosed as client-owned (Codex queries OSC 10/11 and paints an explicit composer background computed for the start-up theme; default-colored text on it measured 1.16:1 after dark → light). hostbud enforces `minimumContrastRatio` 4.5; before/after verified in headless Chromium with xterm 6 (`rgb(31,35,40)` → `rgb(150,151,155)` on the dark composer). U written and passing (`web/src/lib/theme.spec.ts`, `TerminalView.spec.ts`); E `test/e2e/tests/theme.contrast.spec.ts` written and type-checked, run pending (paused until M7 T13). Real Codex remains the open owner check below. Not ticked until the e2e run passes.
 
+## Dictation, focus return and terminal text view
+
+- [ ] Dictation opens a native editable text box with Send and Cancel; Send delivers the finished text once through xterm paste, and Cancel sends nothing.
+  - U: T8 dialog Send/Cancel and exactly-once xterm paste coverage (Vitest).
+  - I: n/a: browser input handling only; no server state or integration contract changes.
+  - E: T8 *Dictation editor sends reviewed text once* (desktop Chromium), verified in the throwaway shell.
+  - Status (2026-09-27): U coverage is written and passing (`TerminalView.spec.ts`); E `test/e2e/tests/dictation.spec.ts` is written and type-checked, run pending M7 T13. The iPhone system dictation check remains open owner backlog.
+- [ ] Backgrounding blurs the active text field; returning and switching tabs or panes do not automatically focus the terminal or reopen the keyboard. An explicit Show keyboard action still focuses it.
+  - U: T8 hidden-page blur, tab/pane switching focus guard, and Show keyboard coverage (Vitest).
+  - I: n/a: browser visibility and focus behavior only.
+  - E: T8 *Returning from background does not automatically refocus the terminal* (desktop Chromium).
+  - Status (2026-09-27): U coverage is written and passing (`pageFocus.spec.ts`, `TerminalView.spec.ts`); E `test/e2e/tests/dictation.spec.ts` is written and type-checked, run pending M7 T13.
+- [ ] Per-terminal actions are consolidated in one three-dot menu, and View terminal text opens a frozen, full-screen, scrollable and selectable copyable snapshot of all history retained by the active tmux pane, including before browser attachment, with tmux colors and styles, wrapped long lines and native selection/copy/vertical scrolling, no visible title or text box frame, and a close button. Tab controls remain unchanged.
+  - U: T8 capture command validation, service errors, authenticated uncached API, ANSI styling and safe text rendering, native reader and toolbar actions (Go/Vitest).
+  - I: T8 `TestIntegrationOutputIncludesHistoryWithoutAttaching` captures styled historical output and joined rows without attaching or entering copy mode; `TestIntegrationOutputIncludesHistoryUnderFullScreenApp` captures shell history, the saved normal screen and the full-screen app's screen in order, with row padding trimmed (`test/sshd`).
+  - E: T8 *Terminal text snapshot scrolls, selects, and closes* and *Terminal text includes shell history under a full-screen app* (desktop Chromium).
+  - Status (2026-09-27): U coverage is written and passing (`terminalOutput.spec.ts`, `TerminalTextDialog.spec.ts`, `TerminalView.spec.ts`, Go capture/API tests); E `test/e2e/tests/dictation.spec.ts` is written and type-checked, run pending M7 T13.
+  - **Manual (owner, open):** verify two consecutive dictations with native iOS dictation in the iPhone 13 Pro PWA; Playwright cannot invoke iOS system dictation.
+
 ## Manual checks (owner)
 
 Manual check (owner): if Codex cannot run in the throwaway E2E target, verify the reported “Ask Codex to do anything” prompt surface through a dark-to-light OS theme change with the long-running session still attached. This remains open owner backlog and does not block M8.
+
+T8 output reader correction: switched from the browser screen snapshot to on-demand tmux history capture. No new environment variables or host configuration changes. E2E remains written/type-checked pending M7 T13. Manual (owner, open): confirm native selection and vertical scrolling in the installed iPhone PWA.
+
+T8 full-screen apps: while a pane is on the alternate screen (vim, Claude Code, Codex), the view shows tmux's shell history, the saved normal screen and the app's current screen. An app's own internal scrollback isn't held by tmux and can't be shown. tmux keeps `history-limit` lines (default 2000); hostbud doesn't change it.
+
+T8 verification: native reader checked at 390px in Chromium and WebKit (358px content width and scroll width; full text selection; 6,220px vertical history). Capture integration passed. Full Go suite encountered the existing `TestIntegrationSlowTerminalClientDropped` timeout on two runs; tracked separately from the reader fix.

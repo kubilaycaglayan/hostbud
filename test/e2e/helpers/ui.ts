@@ -131,6 +131,14 @@ export class UI {
     await this.waitForTerminal(name)
   }
 
+  /** Picks an item from a terminal's consolidated three-dot menu. */
+  async terminalAction(session: string, action: string, tap = false): Promise<void> {
+    const trigger = this.pane(session).getByRole('button', { name: 'Terminal actions' })
+    await (tap ? trigger.tap() : trigger.click())
+    const item = this.page.getByRole('menu').getByRole('menuitem', { name: action, exact: true })
+    await (tap ? item.tap() : item.click())
+  }
+
   /** Waits until the session's terminal is shown and is the focused pane. */
   async waitForTerminal(name: string): Promise<void> {
     await expect(this.page.getByRole('region', { name: `Terminal: ${name}` })).toBeVisible()
@@ -156,10 +164,9 @@ export class UI {
     return this.page.getByRole('region', { name: `Terminal: ${name}`, exact: true })
   }
 
-  /** Splits a pane (its header's Split right/down) and picks a session. */
+  /** Splits a pane through its terminal action menu. */
   async split(from: string, dir: 'right' | 'down', to: string): Promise<void> {
-    await this.pane(from).getByRole('button', { name: `Split ${dir}` }).click()
-    await this.page.getByRole('dialog', { name: `Split ${dir}` }).getByRole('button', { name: to, exact: true }).click()
+    await this.terminalAction(from, `Split ${dir} with ${to}`)
     await this.waitForTerminal(to)
   }
 

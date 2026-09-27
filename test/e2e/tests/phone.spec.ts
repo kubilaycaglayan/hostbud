@@ -63,7 +63,7 @@ test('(T3) phone attach and type: tap a session and the terminal, type with the 
 
   // Show keyboard focuses the terminal input again after it lost focus.
   await input(ui.page).blur()
-  await ui.page.getByRole('button', { name: 'Show keyboard' }).tap()
+  await ui.terminalAction(name, 'Show keyboard', true)
   await expect(input(ui.page)).toBeFocused()
 })
 

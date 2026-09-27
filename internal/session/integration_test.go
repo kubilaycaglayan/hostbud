@@ -191,6 +191,77 @@ func TestIntegrationCopyModeActions(t *testing.T) {
 	}
 }
 
+func TestIntegrationOutputIncludesHistoryWithoutAttaching(t *testing.T) {
+	svc, c := setup(t)
+	ctx := context.Background()
+	if _, err := svc.Create(ctx, session.Spec{Machine: sshx.HostMachineID, Name: "output-it", Path: "~/sess-it"}); err != nil {
+		t.Fatal(err)
+	}
+	command := "printf '\\033[31molder-marker\\033[0m\\n'; printf '\\303\\251\\n'; printf '%0200d\\n' 1; seq 1 300; printf 'history-complete\\n'"
+	if _, err := c.Exec(ctx, sshx.HostMachineID, "tmux", "send-keys", "-t", "=output-it:", command, "Enter"); err != nil {
+		t.Fatal(err)
+	}
+	var output string
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		var err error
+		output, err = svc.Output(ctx, sshx.HostMachineID, "output-it")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(output, "\nhistory-complete") {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("history did not finish")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if !strings.Contains(output, "\x1b[31molder-marker") || !strings.Contains(output, "é") || !strings.Contains(output, strings.Repeat("0", 199)+"1") {
+		t.Fatal("history/styles or joined wrapped line missing")
+	}
+	if display(t, c, "output-it", "#{session_attached}") != "0" || display(t, c, "output-it", "#{pane_in_mode}") != "0" {
+		t.Fatal("reading output changed terminal state")
+	}
+}
+
+func TestIntegrationOutputIncludesHistoryUnderFullScreenApp(t *testing.T) {
+	svc, c := setup(t)
+	ctx := context.Background()
+	if _, err := svc.Create(ctx, session.Spec{Machine: sshx.HostMachineID, Name: "output-alt-it", Path: "~/sess-it"}); err != nil {
+		t.Fatal(err)
+	}
+	// Scroll shell output into history, then switch to the alternate screen
+	// like a full-screen app (vim, Claude Code) and stay there.
+	command := "seq 1 200; printf 'shell-%s\\n' marker; printf '\\033[?1049h\\033[Happ-screen-%s\\n' marker; sleep 60"
+	if _, err := c.Exec(ctx, sshx.HostMachineID, "tmux", "send-keys", "-t", "=output-alt-it:", command, "Enter"); err != nil {
+		t.Fatal(err)
+	}
+	var output string
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		var err error
+		output, err = svc.Output(ctx, sshx.HostMachineID, "output-alt-it")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(output, "app-screen-marker") {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("full-screen output missing: %q", output)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	first, shell, app := strings.Index(output, "\n1\n"), strings.Index(output, "shell-marker"), strings.Index(output, "app-screen-marker")
+	if first < 0 || shell < first || app < shell {
+		t.Fatalf("history, saved screen and app screen not in order: %d %d %d", first, shell, app)
+	}
+	if strings.HasSuffix(strings.TrimRight(output, "\n"), " ") {
+		t.Fatal("row padding not trimmed")
+	}
+}
+
 func TestIntegrationWheelScrollsAppOrTmuxHistory(t *testing.T) {
 	svc, c := setup(t)
 	ctx := context.Background()

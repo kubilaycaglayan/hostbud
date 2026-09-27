@@ -178,6 +178,8 @@ A session belongs to its `session_links` project when a link exists on the same 
 
 ## 6. Interactive terminal (`term`)
 
+**Native output reader (M8 T8):** authenticated `GET /api/machines/:id/sessions/:name/output` reads the active pane with `tmux capture-pane -p -e -J -S - -t =<name>:` through the timeout-bounded `sshx` executor. It includes all history still retained by tmux, including output before browser attachment, and joins soft-wrapped terminal rows. It does not enter copy mode or mutate tmux. Responses use `Cache-Control: no-store`; output is never persisted or logged. The browser renders text with SGR color/style spans (Vue escaping, no HTML injection), native selection/copy and vertical scrolling. Long lines wrap at the view width. Opening starts at the latest output; closing discards the capture. History already discarded by tmux or kept only inside an application's own UI cannot be recovered by capture-pane.
+
 - Browser opens `WSS /ws/term?machine=<id>&session=<name>&cols=&rows=`.
 - Server spawns, inside a PTY (`creack/pty`):
   `ssh -F cfg -tt <alias> -- tmux attach-session -t '=<name>'` (with `TERM=xterm-256color`). When the inventory reports tmux 3.2 or newer it is `tmux -T sync attach-session …`: this client (only) declares the synchronized-output terminal feature, so tmux wraps each redraw in DEC mode 2026 marks and xterm shows it as one frame (M8 T6). No server option or user config changes.

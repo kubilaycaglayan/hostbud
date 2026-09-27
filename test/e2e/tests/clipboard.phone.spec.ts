@@ -22,6 +22,5 @@ test('(T2) Touch long press selects terminal text for copying', async ({ page, u
   })
   await page.waitForTimeout(500)
   await expect.poll(() => termSelection(page)).toBe(marker)
-  await expect(page.getByRole('button', { name: 'Copy selected text' })).toBeVisible()
-  await page.getByRole('button', { name: 'Copy selected text' }).tap()
+  await ui.terminalAction(session, 'Copy selected text', true)
 })

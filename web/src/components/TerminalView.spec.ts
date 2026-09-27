@@ -81,6 +81,7 @@ const h = vi.hoisted(() => {
     input(data: string) {
       this.onDataFn(data)
     }
+    paste = vi.fn((data: string) => this.onDataFn(data))
   }
   const h = {
     terms: [] as FakeTerminal[],
@@ -182,6 +183,13 @@ async function mountTerm(props: { active?: boolean; focused?: boolean } = {}) {
   return w
 }
 
+async function clickMenuItem(text: string) {
+  const item = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((el) => el.textContent?.trim() === text)
+  expect(item).toBeTruthy()
+  item!.click()
+  await flushPromises()
+}
+
 describe('TerminalView', () => {
   it('updates a mounted xterm palette without reconnecting', async () => {
     const w = await mountTerm()
@@ -233,7 +241,7 @@ describe('TerminalView', () => {
   })
 
   it('shows the key bar on touch and applies modifiers to soft-keyboard input', async () => {
-    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })))
+    vi.stubGlobal('matchMedia', vi.fn((query: string) => ({ media: query, matches: query === '(pointer: coarse)', addEventListener: vi.fn(), removeEventListener: vi.fn() })))
     const w = await mountTerm()
     expect(w.find('[data-testid="key-bar"]').exists()).toBe(true)
     FakeWS.all[0].onopen?.({} as Event)
@@ -245,7 +253,7 @@ describe('TerminalView', () => {
   })
 
   it('switches between the key bar and scroll bar, and exits before forwarding typed input', async () => {
-    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })))
+    vi.stubGlobal('matchMedia', vi.fn((query: string) => ({ media: query, matches: query === '(pointer: coarse)', addEventListener: vi.fn(), removeEventListener: vi.fn() })))
     const requests: { action: string; lines?: number }[] = []
     vi.stubGlobal('fetch', vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body)) as { action: string; lines?: number }
@@ -272,7 +280,7 @@ describe('TerminalView', () => {
   })
 
   it('returns to the key bar and shows the API hint when copy mode fails', async () => {
-    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })))
+    vi.stubGlobal('matchMedia', vi.fn((query: string) => ({ media: query, matches: query === '(pointer: coarse)', addEventListener: vi.fn(), removeEventListener: vi.fn() })))
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: 'tmux needs 2.4', hint: 'Upgrade tmux on the host.' }), { status: 409 })))
     const w = await mountTerm()
     FakeWS.all[0].onopen?.({} as Event)
@@ -285,8 +293,7 @@ describe('TerminalView', () => {
 
   it('marks terminal header controls as touch targets', async () => {
     const w = await mountTerm()
-    expect(w.get('button[aria-label="Search"]').classes()).toContain('touch-target')
-    expect(w.get('button[aria-label="Show keyboard"]').classes()).toContain('touch-target')
+    expect(w.get('button[aria-label="Terminal actions"]').classes()).toContain('touch-target')
   })
 
   it('attaches with the fitted size and bridges bytes both ways', async () => {
@@ -349,7 +356,7 @@ describe('TerminalView', () => {
     expect(w.get('[role=status] button').text()).toBe('Reconnect')
   })
 
-  it('in a background tab: not focused on attach, and no refit while hidden', async () => {
+  it('switching to an attached tab does not open the keyboard, and refits when shown', async () => {
     const w = await mountTerm({ active: false })
     const t = h.terms[0]
     const ws = FakeWS.all[0]
@@ -359,11 +366,11 @@ describe('TerminalView', () => {
     h.fitSize = { cols: 5, rows: 2 } // what a hidden box would fit
     resizeCallback()
     expect(ws.sent).toEqual([])
-    // Shown: it refits (its ResizeObserver fires) and takes the keyboard.
+    // Shown: it refits, but focus stays closed until an explicit action.
     h.fitSize = { cols: 120, rows: 35 }
     await w.setProps({ active: true })
     await flushPromises()
-    expect(t.focused).toBe(1)
+    expect(t.focused).toBe(0)
     resizeCallback()
     expect(ws.sent).toEqual(['{"type":"resize","cols":120,"rows":35}'])
     w.unmount()
@@ -394,18 +401,22 @@ describe('TerminalView', () => {
     await flushPromises()
     await vi.advanceTimersByTimeAsync(500)
     expect(t.select).toHaveBeenCalledWith(5, 18, 11)
-    expect(w.find('button[aria-label="Copy selected text"]').exists()).toBe(true)
+    expect(w.find('button[aria-label="Terminal actions"]').exists()).toBe(true)
     w.unmount()
     vi.useRealTimers()
   })
 
-  it('an unfocused pane of the active tab: focused once its pane is', async () => {
+  it('an unfocused pane stays unfocused when selected until Show keyboard', async () => {
     const w = await mountTerm({ focused: false })
     FakeWS.all[0].onopen?.({} as Event)
     await flushPromises()
     expect(h.terms[0].focused).toBe(0)
     await w.setProps({ focused: true })
     await flushPromises()
+    expect(h.terms[0].focused).toBe(0)
+    await w.get('button[aria-label="Terminal actions"]').trigger('click')
+    await flushPromises()
+    await clickMenuItem('Show keyboard')
     expect(h.terms[0].focused).toBe(1)
     w.unmount()
   })
@@ -417,22 +428,18 @@ describe('TerminalView', () => {
     w.unmount()
   })
 
-  it('Close pane emits close; split pickers only when the tab can take a pane', async () => {
+  it('split pickers only when the tab can take a pane', async () => {
     useSessionsStore().apply({ type: 'snapshot', machines: [], sessions: { host: [{ name: 'acc-a' } as Session, { name: 'acc-b' } as Session] } })
     const w = await mountTerm()
     expect(w.find('[aria-label="Split right"]').exists()).toBe(false)
-    await w.get('button[aria-label="Close pane"]').trigger('click')
-    expect(w.emitted('close')).toHaveLength(1)
     await w.setProps({ canSplit: true })
-    expect(w.findAll('button[aria-label^="Split "]').map((b) => b.attributes('aria-label'))).toEqual(['Split right', 'Split down'])
-    const pickers = w.findAllComponents({ name: 'SessionPicker' })
-    expect(pickers[0].props('sessions')).toEqual(['acc-a', 'acc-b'])
-    pickers[0].vm.$emit('pick', 'acc-b')
-    pickers[1].vm.$emit('new')
-    expect(w.emitted('split')).toEqual([
-      ['row', 'acc-b'],
-      ['column', null],
-    ])
+    await w.get('button[aria-label="Terminal actions"]').trigger('click')
+    await flushPromises()
+    await clickMenuItem('Split right with acc-b')
+    await w.get('button[aria-label="Terminal actions"]').trigger('click')
+    await flushPromises()
+    await clickMenuItem('Split down with new session')
+    expect(w.emitted('split')).toEqual([['row', 'acc-b'], ['column', null]])
     // Narrow screens split from the list's row menu instead.
     await w.setProps({ narrow: true })
     expect(w.find('[aria-label="Split right"]').exists()).toBe(false)
@@ -462,14 +469,69 @@ describe('TerminalView', () => {
     expect(input.getAttribute('spellcheck')).toBe('false')
   })
 
-  it('Show keyboard focuses the terminal (touch screens only)', async () => {
+  it('menu actions open dictation and send text through xterm paste once', async () => {
     const w = await mountTerm()
-    const button = w.get('button[aria-label="Show keyboard"]')
-    // Hidden unless the primary pointer is coarse (a touch screen).
-    expect(button.classes()).toEqual(expect.arrayContaining(['hidden', 'pointer-coarse:inline-block']))
-    const before = h.terms[0].focused
-    await button.trigger('click')
-    expect(h.terms[0].focused).toBe(before + 1)
+    await w.get('button[aria-label="Terminal actions"]').trigger('click')
+    await flushPromises()
+    await clickMenuItem('Dictation')
+    const cancel = [...document.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.trim() === 'Cancel')!
+    cancel.click()
+    await flushPromises()
+    expect(h.terms[0].paste).not.toHaveBeenCalled()
+    await w.get('button[aria-label="Terminal actions"]').trigger('click')
+    await flushPromises()
+    await clickMenuItem('Dictation')
+    const editor = document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Dictation text"]')!
+    editor.value = 'echo dictated'
+    editor.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: 'echo dictated' }))
+    await flushPromises()
+    ;[...document.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.trim() === 'Send')!.click()
+    await flushPromises()
+    expect(h.terms[0].paste).toHaveBeenCalledOnce()
+    expect(h.terms[0].paste).toHaveBeenCalledWith('echo dictated')
+    await flushPromises()
+    expect(document.querySelector('textarea[aria-label="Dictation text"]')).toBeNull()
+  })
+
+  it('menu opens a full-buffer text snapshot that stays unchanged', async () => {
+    const fetchOutput = vi.fn(async () => new Response(JSON.stringify({ output: 'older history\n\x1b[31mstyled output\x1b[0m' }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchOutput)
+    const w = await mountTerm()
+    const buffer = h.terms[0].buffer.active as { length: number; getLine: (i: number) => unknown }
+    buffer.length = 2
+    buffer.getLine = (i: number) => ({ isWrapped: i === 1, translateToString: () => i === 0 ? 'scrollback' : ' continues' })
+    await w.get('button[aria-label="Terminal actions"]').trigger('click')
+    await flushPromises()
+    await clickMenuItem('View terminal text')
+    const snapshot = document.querySelector<HTMLElement>('[role="region"][aria-label="Terminal text"]')!
+    expect(snapshot.textContent).toContain('older history\nstyled output')
+    expect(fetchOutput).toHaveBeenCalledWith('/api/machines/host/sessions/acc-a/output', expect.objectContaining({ method: 'GET' }))
+    expect(snapshot.closest('[role="dialog"]')?.querySelectorAll('button[aria-label="Close terminal view"]')).toHaveLength(1)
+    expect(snapshot.closest('[role="dialog"]')?.querySelector('textarea')).toBeNull()
+  })
+
+  it('backgrounding blurs the active terminal field and hidden tabs do not refocus', async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(document, 'visibilityState')
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+    const w = await mountTerm({ focused: false })
+    const t = h.terms[0]
+    await w.setProps({ focused: true })
+    await flushPromises()
+    expect(t.focused).toBe(0)
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' })
+    document.dispatchEvent(new Event('visibilitychange'))
+    const before = t.focused
+    await w.setProps({ focused: false })
+    await w.setProps({ focused: true })
+    await flushPromises()
+    expect(t.focused).toBe(before)
+    await w.get('button[aria-label="Terminal actions"]').trigger('click')
+    await flushPromises()
+    await clickMenuItem('Show keyboard')
+    expect(t.focused).toBe(before + 1)
+    w.unmount()
+    if (descriptor) Object.defineProperty(document, 'visibilityState', descriptor)
+    else Reflect.deleteProperty(document, 'visibilityState')
   })
 
   it('Mac editing keys: sent once on keydown, browser default prevented', async () => {
@@ -697,8 +759,9 @@ describe('TerminalView', () => {
 
   it('the 🔍 button opens search (the way in on phones)', async () => {
     const w = await mountTerm()
-    await w.get('button[aria-label=Search]').trigger('click')
+    await w.get('button[aria-label="Terminal actions"]').trigger('click')
     await flushPromises()
+    await clickMenuItem('Search')
     expect(w.find('[role=search]').exists()).toBe(true)
   })
 

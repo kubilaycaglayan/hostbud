@@ -171,6 +171,7 @@ func mountRoutes(s *server, mux *http.ServeMux) {
 		addFunc("GET /api/auth/me", s.me)
 	}
 	if cfg.Sessions != nil {
+		addFunc("GET /api/machines/{machine}/sessions/{name}/output", s.sessionOutput)
 		addFunc("POST /api/machines/{machine}/sessions/{name}/copy-mode", s.copyMode)
 		addFunc("GET /api/machines/{machine}/sessions/{name}/windows", s.listWindows)
 		addFunc("POST /api/machines/{machine}/sessions/{name}/windows", s.listWindows)

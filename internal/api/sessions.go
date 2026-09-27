@@ -15,12 +15,26 @@ import (
 
 // SessionService is the session service (session.Service).
 type SessionService interface {
+	Output(ctx context.Context, machine, name string) (string, error)
 	Create(ctx context.Context, spec session.Spec) (string, error)
 	Rename(ctx context.Context, machine, from, to string) error
 	Kill(ctx context.Context, machine, name string) error
 	CopyMode(ctx context.Context, machine, name string, action tmux.CopyAction, lines int) (session.CopyModeState, error)
 	ListWindows(ctx context.Context, machine, name string) (session.WindowsState, error)
 	SelectWindow(ctx context.Context, machine, name, windowID, paneID string) (session.WindowsState, error)
+}
+
+func (s *server) sessionOutput(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.machine(w, r); !ok {
+		return
+	}
+	out, err := s.cfg.Sessions.Output(r.Context(), r.PathValue("machine"), r.PathValue("name"))
+	if err != nil {
+		s.writeSessionError(w, err)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, http.StatusOK, map[string]string{"output": out})
 }
 
 func (s *server) listMachines(w http.ResponseWriter, _ *http.Request) {

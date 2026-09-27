@@ -118,6 +118,13 @@ func (f *fakeService) Kill(_ context.Context, m, name string) error {
 	return f.err
 }
 
+func (f *fakeService) Output(_ context.Context, _, name string) (string, error) {
+	if err := tmux.ValidateName(name); err != nil {
+		return "", &session.Error{Code: session.CodeInvalid, Message: "invalid session name"}
+	}
+	return "older output\n\x1b[31mred\x1b[0m", f.err
+}
+
 func (f *fakeService) CopyMode(_ context.Context, m, name string, action tmux.CopyAction, lines int) (session.CopyModeState, error) {
 	f.calls = append(f.calls, "copy "+m+" "+name+" "+string(action)+" "+strconv.Itoa(lines))
 	return session.CopyModeState{InMode: true, ScrollPosition: 4, HistorySize: 10}, f.err
@@ -554,6 +561,20 @@ func TestCopyModeAPIValidationAndAccess(t *testing.T) {
 	e.svc.err = &session.Error{Code: session.CodeTmuxVersion, Message: "needs tmux 2.4", Hint: "upgrade tmux"}
 	if got := e.do(t, http.MethodPost, "/api/machines/host/sessions/a/copy-mode", `{"action":"enter"}`, nil).Code; got != 409 {
 		t.Errorf("old tmux status = %d", got)
+	}
+}
+
+func TestSessionOutputAccess(t *testing.T) {
+	e := newEnv(t)
+	res := e.do(t, http.MethodGet, "/api/machines/host/sessions/a/output", "", nil)
+	if res.Code != 200 || !strings.Contains(res.Body.String(), "older output") || res.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("output response: %d %s", res.Code, res.Body)
+	}
+	if got := e.do(t, http.MethodGet, "/api/machines/host/sessions/a/output", "", map[string]string{"Cookie": ""}).Code; got != 401 {
+		t.Fatalf("anonymous access: %d", got)
+	}
+	if got := e.do(t, http.MethodGet, "/api/machines/host/sessions/bad.name/output", "", nil).Code; got != 400 {
+		t.Fatalf("invalid name: %d", got)
 	}
 }
 

@@ -48,6 +48,13 @@ describe('KeyBar', () => {
     expect(wrapper.find('[data-testid="key-bar"]').exists()).toBe(false)
   })
 
+  it('hides Scroll history when the standalone PWA uses the dedicated terminal text view', () => {
+    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })))
+    const term = { modes: { applicationCursorKeysMode: false }, input: vi.fn() } as unknown as Terminal
+    const wrapper = mount(KeyBar, { props: { term, focused: true, modifiers: createModifiers(), scrollEnabled: false }, attachTo: document.body })
+    expect(wrapper.find('[aria-label="Scroll history"]').exists()).toBe(false)
+  })
+
   it('sends on pointerdown without taking focus and keeps sticky modifier state', async () => {
     const { wrapper, input } = mountBar()
     const focused = document.createElement('textarea')

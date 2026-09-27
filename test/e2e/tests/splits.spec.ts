@@ -95,7 +95,7 @@ test.describe('desktop', () => {
   // Close pane (T8)
   test('close pane: the others take its space; closed sessions stay listed, detached', async ({ ui, target }) => {
     const [a, b, c] = await threePanes(ui, target)
-    await ui.pane(c).getByRole('button', { name: 'Close pane' }).click()
+    await ui.terminalAction(c, 'Close pane')
     await expect(ui.pane(c)).toHaveCount(0)
     await expect.poll(() => attached(target, c)).toBe('0')
     await expect(ui.session(c)).toBeVisible()
@@ -103,7 +103,7 @@ test.describe('desktop', () => {
     expect(ba.x + ba.width).toBeLessThanOrEqual(bb.x + 2) // side by side
     expect(Math.abs(ba.height - bb.height)).toBeLessThan(2)
 
-    await ui.pane(b).getByRole('button', { name: 'Close pane' }).click()
+    await ui.terminalAction(b, 'Close pane')
     await expect.poll(() => attached(target, b)).toBe('0')
     const main = (await ui.page.getByRole('tabpanel').boundingBox())!
     await expect.poll(async () => (await box(ui, a)).width).toBeGreaterThan(main.width - 4)

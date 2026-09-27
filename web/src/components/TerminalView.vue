@@ -6,11 +6,13 @@ import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
 import { TermSession, termURL, type SessionState } from '@/api/term'
-import { copyModeApi } from '@/api/client'
-import SessionPicker from '@/components/SessionPicker.vue'
+import { copyModeApi, terminalOutputApi } from '@/api/client'
+import { blurActiveFieldOnHide } from '@/lib/pageFocus'
 import TerminalMenu from '@/components/TerminalMenu.vue'
+import TerminalActions from '@/components/TerminalActions.vue'
+import TerminalTextDialog from '@/components/TerminalTextDialog.vue'
 import TerminalSearch from '@/components/TerminalSearch.vue'
 import TabBar from '@/components/TabBar.vue'
 import KeyBar from '@/components/KeyBar.vue'
@@ -74,6 +76,12 @@ const hasSelection = ref(false)
 const term = shallowRef<Terminal>()
 const search = shallowRef<SearchAddon>()
 const searchOpen = ref(false)
+const dictationOpen = ref(false)
+const snapshotOpen = ref(false)
+const terminalSnapshot = ref('')
+const snapshotLoading = ref(false)
+const snapshotError = ref('')
+let snapshotRequest = 0
 const searchInitial = ref('')
 const searchBar = ref<InstanceType<typeof TerminalSearch>>()
 const modifiers = reactive(createModifiers())
@@ -81,6 +89,7 @@ let fit: FitAddon | null = null
 let conn: TermSession | null = null
 let observer: ResizeObserver | null = null
 let selectionChange: { dispose: () => void } | null = null
+let disposeBackgroundBlur = () => {}
 let disposeTouchScroll = () => {}
 let touchSelectTimer: ReturnType<typeof setTimeout> | null = null
 let last = { cols: 0, rows: 0 }
@@ -229,7 +238,6 @@ function connect() {
     onState: (s, info) => {
       state.value = s
       attempt.value = info.attempt
-      if (s === 'open' && takesInput()) t.focus()
       if (s === 'limited') {
         useToastsStore().push({
           title: 'Too many open terminals',
@@ -291,6 +299,41 @@ function copySelectedText() {
   if (term.value) void copySelection(term.value)
 }
 
+async function openSnapshot() {
+  const request = ++snapshotRequest
+  terminalSnapshot.value = ''
+  snapshotError.value = ''
+  snapshotLoading.value = true
+  snapshotOpen.value = true
+  try {
+    const result = await terminalOutputApi.read(props.machine, props.session)
+    if (request === snapshotRequest) terminalSnapshot.value = result.output
+  } catch (error) {
+    if (request === snapshotRequest) snapshotError.value = error instanceof Error
+      ? `Could not load terminal history: ${error.message}. Try again.`
+      : 'Could not load terminal history. Check the host connection and try again.'
+  } finally {
+    if (request === snapshotRequest) snapshotLoading.value = false
+  }
+}
+
+watch(snapshotOpen, (open) => {
+  if (!open) { snapshotRequest++; terminalSnapshot.value = '' }
+})
+
+function onToolbarAction(action: 'search' | 'copy' | 'keyboard' | 'dictation' | 'snapshot' | 'close') {
+  if (action === 'search') openSearch()
+  else if (action === 'copy') copySelectedText()
+  else if (action === 'keyboard') showKeyboard()
+  else if (action === 'dictation') dictationOpen.value = true
+  else if (action === 'snapshot') openSnapshot()
+  else emit('close')
+}
+
+function sendDictation(text: string) {
+  term.value?.paste(text)
+}
+
 function closeSearch() {
   searchOpen.value = false
   term.value?.focus()
@@ -305,12 +348,11 @@ function reconnect() {
   connect()
 }
 
-// Showing a tab or focusing a pane moves the keyboard there.
-watch(takesInput, (v) => {
-  if (v) void nextTick(() => term.value?.focus())
-})
+// Tab and pane selection only changes which terminal receives keys. The
+// browser keyboard opens from an explicit terminal tap or Show keyboard.
 
 onMounted(async () => {
+  disposeBackgroundBlur = blurActiveFieldOnHide(document)
   await document.fonts?.ready
   const t = new Terminal({
     allowProposedApi: true, // unicode11
@@ -439,7 +481,9 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   clearTouchSelectTimer()
+  disposeBackgroundBlur()
   disposeTouchScroll()
+  snapshotRequest++
   selectionChange?.dispose()
   window.removeEventListener('mouseup', finishAltClick, true)
   caretMove++
@@ -492,57 +536,13 @@ defineExpose({ refit, reconnect, showKeyboard })
         Pane {{ props.paneIndex }} of {{ props.paneCount }}
       </button>
       <span class="ml-auto" />
-      <template v-if="props.canSplit && !props.narrow">
-        <SessionPicker
-          label="Split right"
-          icon="◫"
-          :sessions="splitTargets"
-          @pick="(n) => emit('split', 'row', n)"
-          @new="emit('split', 'row', null)"
-        />
-        <SessionPicker
-          label="Split down"
-          icon="⊟"
-          :sessions="splitTargets"
-          @pick="(n) => emit('split', 'column', n)"
-          @new="emit('split', 'column', null)"
-        />
-      </template>
-      <button
-        type="button"
-        aria-label="Search"
-        class="touch-target rounded border border-border px-2"
-        @click="openSearch"
-      >
-        🔍
-      </button>
-      <button
-        v-if="hasSelection"
-        type="button"
-        aria-label="Copy selected text"
-        class="touch-target rounded border border-border px-2"
-        @click="copySelectedText"
-      >
-        Copy
-      </button>
-      <!-- Touch screens: bring the on-screen keyboard back once dismissed. -->
-      <button
-        type="button"
-        aria-label="Show keyboard"
-        class="touch-target hidden rounded border border-border px-2 pointer-coarse:inline-block"
-        @click="showKeyboard"
-      >
-        ⌨
-      </button>
-      <button
-        type="button"
-        aria-label="Close pane"
-        title="Close pane (the session keeps running)"
-        class="touch-target rounded px-2 text-muted hover:text-fg"
-        @click="emit('close')"
-      >
-        ×
-      </button>
+      <TerminalActions
+        :has-selection="hasSelection"
+        :can-split="props.canSplit && !props.narrow"
+        :sessions="splitTargets"
+        @action="onToolbarAction"
+        @split="(direction, session) => emit('split', direction, session)"
+      />
     </div>
     <TerminalMenu :term="term">
       <!-- The menu's trigger; the ref sits inside it (as-child clones it). -->
@@ -592,6 +592,8 @@ defineExpose({ refit, reconnect, showKeyboard })
         </div>
       </div>
     </TerminalMenu>
+    <TerminalTextDialog v-model:open="dictationOpen" mode="dictation" @send="sendDictation" />
+    <TerminalTextDialog v-model:open="snapshotOpen" mode="snapshot" :snapshot="terminalSnapshot" :loading="snapshotLoading" :error="snapshotError" @retry="openSnapshot" />
     <KeyBar
       v-if="!inMode"
       :term="term"

@@ -126,6 +126,12 @@ export const windowsApi = {
   ),
 }
 
+export const terminalOutputApi = {
+  read: (machine: string, name: string) => request<{ output: string }>(
+    'GET', `${sessionsPath(machine)}/${encodeURIComponent(name)}/output`, undefined, { signal: execSignal() },
+  ),
+}
+
 export type CopyModeAction = 'enter' | 'scroll-up' | 'scroll-down' | 'wheel-up' | 'wheel-down' | 'page-up' | 'page-down' | 'top' | 'bottom' | 'exit'
 export interface CopyModeState {
   inMode: boolean

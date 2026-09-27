@@ -63,7 +63,7 @@ test('search options: match case and regex change the counts; an invalid regex s
   await ui.type(`echo "F"oo "f"oo "F"OO`, true)
   await printed(target, name, 'Foo foo FOO')
 
-  await ui.page.getByRole('button', { name: 'Search', exact: true }).click()
+  await ui.terminalAction(name, 'Search')
   const find = bar(ui).getByRole('textbox', { name: 'Find' })
   const matchCase = bar(ui).getByRole('checkbox', { name: 'Match case' })
   const regex = bar(ui).getByRole('checkbox', { name: 'Regex' })
@@ -91,7 +91,7 @@ test('search on the phone: the 🔍 button opens search and finds a marker', asy
   await ui.type(`echo mark-$((2*3))-${m}`, true)
   await printed(target, name, `mark-6-${m}`)
 
-  await ui.page.getByRole('button', { name: 'Search', exact: true }).click()
+  await ui.terminalAction(name, 'Search')
   await bar(ui).getByRole('textbox', { name: 'Find' }).fill(`mark-6-${m}`)
   await expect(results(ui)).toHaveText('1 of 1')
   await bar(ui).getByRole('button', { name: 'Close search' }).click()
