@@ -101,6 +101,14 @@ var ErrEnvUnsupported = errors.New("tmux on the host is older than 3.2 and can't
 
 var envKeyRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
+// ValidateEnvKey checks a session environment variable name for -e.
+func ValidateEnvKey(k string) error {
+	if !envKeyRE.MatchString(k) {
+		return fmt.Errorf("invalid environment variable name %q: use letters, digits and '_', not starting with a digit", k)
+	}
+	return nil
+}
+
 // NewSessionArgs returns the argv for new-session -d.
 func NewSessionArgs(s NewSession, v Version) ([]string, error) {
 	if err := ValidateName(s.Name); err != nil {
@@ -116,8 +124,8 @@ func NewSessionArgs(s NewSession, v Version) ([]string, error) {
 		}
 		keys := make([]string, 0, len(s.Env))
 		for k := range s.Env {
-			if !envKeyRE.MatchString(k) {
-				return nil, fmt.Errorf("invalid environment variable name %q", k)
+			if err := ValidateEnvKey(k); err != nil {
+				return nil, err
 			}
 			keys = append(keys, k)
 		}

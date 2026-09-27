@@ -73,9 +73,10 @@ func (s *server) withProjectPlacement(ctx context.Context, machine string, sessi
 }
 
 type createRequest struct {
-	Name         string `json:"name"`
-	Path         string `json:"path"`
-	StartCommand string `json:"startCommand"`
+	Name         string            `json:"name"`
+	Path         string            `json:"path"`
+	Env          map[string]string `json:"env"`
+	StartCommand string            `json:"startCommand"`
 }
 
 type renameRequest struct {
@@ -119,8 +120,14 @@ func (s *server) createSession(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	for key := range req.Env {
+		if err := tmux.ValidateEnvKey(key); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid environment variable name", err.Error())
+			return
+		}
+	}
 	name, err := s.cfg.Sessions.Create(r.Context(), session.Spec{
-		Machine: r.PathValue("machine"), Name: req.Name, Path: req.Path, StartCommand: req.StartCommand,
+		Machine: r.PathValue("machine"), Name: req.Name, Path: req.Path, Env: req.Env, StartCommand: req.StartCommand,
 	})
 	if err != nil {
 		s.writeSessionError(w, err)
