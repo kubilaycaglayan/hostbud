@@ -542,7 +542,7 @@ onUnmounted(() => {
             <fieldset class="px-2 py-1" aria-label="Theme">
               <legend class="py-1 text-xs text-muted">Theme</legend>
               <label v-for="choice in themeChoices" :key="choice.mode" class="flex min-h-11 items-center gap-2">
-                <input type="radio" name="theme" :value="choice.mode" :checked="theme.mode === choice.mode" @change="theme.setMode(choice.mode)">
+                <input type="radio" name="theme" autocomplete="off" :value="choice.mode" :checked="theme.mode === choice.mode" @change="theme.setMode(choice.mode)">
                 {{ choice.label }}
               </label>
             </fieldset>

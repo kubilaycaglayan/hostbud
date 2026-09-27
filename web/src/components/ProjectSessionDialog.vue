@@ -67,10 +67,12 @@ async function createSession() {
       </h2>
       <label class="mt-3 block">Name <input
         v-model="sessionName"
+        autocomplete="off"
         class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 text-base"
       ></label>
       <label class="mt-3 block">Start command <input
         v-model="command"
+        autocomplete="off"
         class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 text-base"
       ></label>
       <p

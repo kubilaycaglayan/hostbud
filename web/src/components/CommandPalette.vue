@@ -64,6 +64,7 @@ function onCloseAutoFocus(event: Event) {
             ref="input"
             :placeholder="props.placeholder ?? 'Type a session, project or command…'"
             aria-label="Command palette"
+            autocomplete="off"
             class="h-14 w-full border-b border-border bg-surface px-4 text-base text-fg outline-none placeholder:text-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
             @update:model-value="query = String($event ?? '')"
           />

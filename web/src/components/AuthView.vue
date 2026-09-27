@@ -103,7 +103,7 @@ function switchMode(m: string | number) {
                 v-model="email"
                 type="email"
                 name="email"
-                autocomplete="username"
+                autocomplete="off"
                 required
                 class="rounded border border-border bg-bg px-2 py-2 text-base"
               >

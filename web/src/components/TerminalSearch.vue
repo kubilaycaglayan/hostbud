@@ -150,6 +150,7 @@ defineExpose({ focus })
         <input
           v-model="caseSensitive"
           type="checkbox"
+          autocomplete="off"
         >
         Match case
       </label>
@@ -157,6 +158,7 @@ defineExpose({ focus })
         <input
           v-model="regex"
           type="checkbox"
+          autocomplete="off"
         >
         Regex
       </label>

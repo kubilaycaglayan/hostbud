@@ -116,24 +116,24 @@ function openCurrentProject() {
 <template>
   <section
     aria-label="File browser"
-    class="flex min-h-0 flex-col gap-3 p-3"
+    class="flex min-h-0 flex-col gap-2 p-2"
   >
     <div
       aria-label="Breadcrumbs"
-      class="flex flex-wrap gap-1 text-sm"
+      class="flex flex-wrap gap-0.5 text-sm"
     >
       <button
         v-for="crumb in crumbs"
         :key="crumb.path"
         type="button"
-        class="touch-target min-h-11 rounded px-2 text-accent"
+        class="touch-target min-h-7 rounded px-1.5 text-accent"
         @click="navigate(crumb.path)"
       >
         {{ crumb.name }}
       </button>
     </div>
     <form
-      class="relative flex gap-2"
+      class="relative flex gap-1.5"
       @submit.prevent="navigate(pathInput)"
     >
       <label
@@ -146,26 +146,27 @@ function openCurrentProject() {
         role="combobox"
         aria-autocomplete="list"
         :aria-expanded="suggestions.length > 0"
-        class="min-w-0 flex-1 rounded border border-border bg-bg px-3 py-2 text-base"
+        autocomplete="off"
+        class="min-w-0 flex-1 rounded border border-border bg-bg px-2 py-1 text-base"
         @keydown.down.prevent="suggestions[0] && (pathInput = suggestions[0].path)"
         @keydown.enter.prevent="suggestions.length ? (pathInput = suggestions[0].path, navigate(pathInput)) : navigate(pathInput)"
       >
       <button
-        class="touch-target min-h-11 rounded border border-border px-3"
+        class="touch-target min-h-8 rounded border border-border px-2"
         type="submit"
       >
         Go
       </button>
       <button
         type="button"
-        class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border"
+        class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded border border-border"
         :aria-label="currentProject ? 'Open project' : 'Add this directory as project'"
         :title="currentProject ? 'Open project' : 'Add this directory as project'"
         :disabled="!projectStore.loaded || loading || Boolean(error) || busy || !path"
         @click="openCurrentProject"
       >
-        <FolderOpen v-if="currentProject" :size="18" aria-hidden="true" />
-        <FolderPlus v-else :size="18" aria-hidden="true" />
+        <FolderOpen v-if="currentProject" :size="16" aria-hidden="true" />
+        <FolderPlus v-else :size="16" aria-hidden="true" />
       </button>
       <ul
         v-if="suggestions.length"
@@ -179,7 +180,7 @@ function openCurrentProject() {
           <button
             type="button"
             role="option"
-            class="touch-target min-h-11 w-full px-3 text-left"
+            class="touch-target min-h-8 w-full px-2 text-left"
             @click="pathInput = entry.path; navigate(entry.path)"
           >
             {{ entry.path }}
@@ -187,9 +188,10 @@ function openCurrentProject() {
         </li>
       </ul>
     </form>
-    <label class="flex min-h-11 items-center gap-2"><input
+    <label class="touch-target flex min-h-7 items-center gap-2 self-start text-sm"><input
       v-model="hidden"
       type="checkbox"
+      autocomplete="off"
     > Show hidden files</label>
     <p
       v-if="loading"
@@ -213,12 +215,12 @@ function openCurrentProject() {
       <li
         v-for="entry in entries"
         :key="entry.path"
-        class="flex flex-wrap items-center gap-2 border-b border-border py-2"
+        class="flex flex-wrap items-center gap-1.5 border-b border-border py-0.5"
       >
         <button
           v-if="entry.kind === 'directory'"
           type="button"
-          class="touch-target min-h-11 min-w-0 flex-1 truncate text-left"
+          class="touch-target min-h-8 min-w-0 flex-1 truncate text-left"
           @click="navigate(entry.path)"
         >
           {{ entry.name }}/
@@ -234,7 +236,7 @@ function openCurrentProject() {
           v-if="entry.kind === 'symlink' && entry.symlinkState === 'unresolved'"
           type="button"
           :aria-label="`Check link ${entry.name}`"
-          class="touch-target min-h-11 rounded border border-border px-3"
+          class="touch-target min-h-7 rounded border border-border px-2 text-sm"
           :disabled="resolvingLinks.has(entry.path)"
           @click="resolveLink(entry)"
         >
@@ -251,32 +253,32 @@ function openCurrentProject() {
           v-if="entry.kind === 'directory'"
           type="button"
           :disabled="busy"
-          class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border"
+          class="touch-target inline-flex min-h-7 min-w-7 items-center justify-center rounded border border-border"
           :aria-label="projects.some((p) => p.path === entry.path) ? `Open project ${entry.name}` : `Add ${entry.name} as project`"
           :title="projects.some((p) => p.path === entry.path) ? `Open project ${entry.name}` : `Add ${entry.name} as project`"
           @click="openProject(entry)"
         >
           <FolderOpen
             v-if="projects.some((p) => p.path === entry.path)"
-            :size="18"
+            :size="16"
             aria-hidden="true"
           />
           <FolderPlus
             v-else
-            :size="18"
+            :size="16"
             aria-hidden="true"
           />
         </button>
       </li>
       <li
         v-if="!entries.length && !loading && !error"
-        class="py-3 text-muted"
+        class="py-2 text-muted"
       >
         This directory is empty.
       </li>
     </ul>
     <form
-      class="flex gap-2"
+      class="flex gap-1.5"
       @submit.prevent="createFolder"
     >
       <label
@@ -285,13 +287,14 @@ function openCurrentProject() {
       >New folder name</label><input
         id="folder-name"
         v-model="folderName"
-        class="min-w-0 flex-1 rounded border border-border bg-bg px-3 py-2 text-base"
+        autocomplete="off"
+        class="min-w-0 flex-1 rounded border border-border bg-bg px-2 py-1 text-base"
         placeholder="New folder name"
       >
       <button
         type="submit"
         :disabled="busy"
-        class="touch-target min-h-11 rounded border border-border px-3"
+        class="touch-target min-h-8 rounded border border-border px-2"
       >
         Create folder
       </button>
@@ -305,12 +308,12 @@ function openCurrentProject() {
     </p>
     <div
       v-if="selectedProject"
-      class="flex items-center justify-between gap-2 rounded border border-border p-2"
+      class="flex items-center justify-between gap-2 rounded border border-border px-2 py-1"
     >
       <span class="min-w-0 truncate">Project: {{ selectedProject.name }}</span>
       <button
         type="button"
-        class="touch-target min-h-11 rounded bg-accent px-3 font-bold text-bg"
+        class="touch-target min-h-8 rounded bg-accent px-2 font-bold text-bg"
         @click="sessionProject = selectedProject"
       >
         New session here

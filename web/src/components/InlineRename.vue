@@ -51,6 +51,7 @@ function cancel() {
       :aria-label="`Rename ${name}`"
       :aria-describedby="error ? 'inline-rename-error' : undefined"
       :aria-invalid="error ? 'true' : undefined"
+      autocomplete="off"
       autocapitalize="off"
       autocorrect="off"
       spellcheck="false"
