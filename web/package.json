@@ -9,7 +9,7 @@
     "build": "vite build && node --test scripts/check-dist.test.mjs && node scripts/check-dist.mjs",
     "icons": "node scripts/icons.mjs",
     "typecheck": "vue-tsc --build",
-    "lint": "eslint . && vue-tsc --build",
+    "lint": "eslint . && node scripts/check-vue-colors.mjs && node --test scripts/check-vue-colors.test.mjs scripts/check-theme-contrast.test.mjs && vue-tsc --build",
     "test": "vitest run"
   },
   "dependencies": {

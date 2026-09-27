@@ -37,7 +37,7 @@ async function confirm() {
 <template>
   <AlertDialogRoot v-model:open="open">
     <AlertDialogPortal>
-      <AlertDialogOverlay class="fixed inset-0 z-40 bg-black/50" />
+      <AlertDialogOverlay class="fixed inset-0 z-40 bg-overlay" />
       <AlertDialogContent
         class="fixed z-40 border border-border bg-surface p-5 text-fg"
         :class="props.compact ? 'inset-x-0 bottom-0 max-h-[90dvh] w-full overflow-y-auto rounded-t-2xl pb-[max(1.25rem,env(safe-area-inset-bottom))]' : 'top-1/2 left-1/2 w-[min(24rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded'"

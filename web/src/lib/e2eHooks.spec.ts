@@ -7,6 +7,7 @@ const term = (text: string): TermHooks => ({
   termSelection: () => '',
   termViewport: () => '',
   termTextRect: () => null,
+  termTheme: () => ({ background: '#000000', foreground: '#ffffff' }),
 })
 
 afterEach(() => {
@@ -22,6 +23,7 @@ describe('e2e hooks', () => {
     expect(window.__hostbud?.termText()).toBe('one')
     expect(window.__hostbud?.termText('b')).toBe('two')
     expect(window.__hostbud?.termSize('a')).toEqual({ cols: 80, rows: 24 })
+    expect(window.__hostbud?.termTheme('a')).toEqual({ background: '#000000', foreground: '#ffffff' })
     focus = 'p2'
     expect(window.__hostbud?.termText()).toBe('two')
     expect(window.__hostbud?.panes()).toEqual([

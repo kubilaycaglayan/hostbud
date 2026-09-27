@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Session } from '@/api/types'
 import { useSessionsStore } from '@/stores/sessions'
 import { useToastsStore } from '@/stores/toasts'
+import { useThemeStore } from '@/stores/theme'
 
 // Fake xterm (hoisted: vi.mock factories run before the module body).
 const h = vi.hoisted(() => {
@@ -163,6 +164,18 @@ async function mountTerm(props: { active?: boolean; focused?: boolean } = {}) {
 }
 
 describe('TerminalView', () => {
+  it('updates a mounted xterm palette without reconnecting', async () => {
+    const w = await mountTerm()
+    const terminal = h.terms[0]
+    const ws = FakeWS.all[0]
+    ws.onopen?.({} as Event)
+    const clients = FakeWS.all.length
+    useThemeStore().mode = 'light'
+    await w.vm.$nextTick()
+    expect(terminal.options.theme).toMatchObject({ background: '#ffffff', foreground: '#1f2328' })
+    expect(FakeWS.all).toHaveLength(clients)
+  })
+
   it('shows the key bar on touch and applies modifiers to soft-keyboard input', async () => {
     vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })))
     const w = await mountTerm()

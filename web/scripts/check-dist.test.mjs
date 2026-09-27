@@ -22,7 +22,7 @@ function fixture() {
     writeFileSync(join(dir, 'icons', name), png(size))
   }
   writeFileSync(join(dir, 'favicon.svg'), '<svg/>')
-  writeFileSync(join(dir, 'index.html'), '<link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/favicon.svg"><link rel="apple-touch-icon" href="/icons/apple-touch-icon-180.png">')
+  writeFileSync(join(dir, 'index.html'), '<script>try{const m=localStorage.getItem(\'hostbud.theme\');document.documentElement.dataset.theme=m||\'dark\'}catch{document.documentElement.dataset.theme=\'dark\'}</script><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/favicon.svg"><link rel="apple-touch-icon" href="/icons/apple-touch-icon-180.png">')
   writeFileSync(join(dir, 'manifest.webmanifest'), JSON.stringify({ id: '/', start_url: '/', scope: '/', display: 'standalone', icons: [
     { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
     { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
@@ -46,8 +46,24 @@ describe('check-dist PWA validation', () => {
     assert.throws(() => checkDist(dir), /off-origin URL/)
   })
   it('rejects a missing manifest link', () => {
-    const dir = fixture(); writeFileSync(join(dir, 'index.html'), '<title>hostbud</title>')
+    const dir = fixture()
+    const html = readFileSync(join(dir, 'index.html'), 'utf8')
+    writeFileSync(join(dir, 'index.html'), html.replace(/<link rel="manifest"[^>]*>/, ''))
     assert.throws(() => checkDist(dir), /does not link the manifest/)
+  })
+  it('requires the small theme boot script before stylesheets', () => {
+    const dir = fixture()
+    const html = readFileSync(join(dir, 'index.html'), 'utf8')
+    writeFileSync(join(dir, 'index.html'), html.replace(/<script>[\s\S]*?<\/script>/, ''))
+    assert.throws(() => checkDist(dir), /theme boot script/)
+    writeFileSync(join(dir, 'index.html'), html.replace('</script>', '</script><link rel="stylesheet" href="/app.css">').replace(/<script>[\s\S]*?<\/script>/, '<script>document.documentElement.dataset.theme="dark";localStorage.getItem("hostbud.theme")</script>'))
+    const late = readFileSync(join(dir, 'index.html'), 'utf8').replace(/<script>[\s\S]*?<\/script>/, '').replace('<link rel="manifest"', '<link rel="stylesheet" href="/app.css"><script>document.documentElement.dataset.theme="dark";localStorage.getItem("hostbud.theme")</script><link rel="manifest"')
+    writeFileSync(join(dir, 'index.html'), late)
+    assert.throws(() => checkDist(dir), /before stylesheets/)
+    writeFileSync(join(dir, 'index.html'), html.replace(/<script>[\s\S]*?<\/script>/, `<script>${'x'.repeat(1024)}</script>`))
+    assert.throws(() => checkDist(dir), /exceeds 1 KiB/)
+    writeFileSync(join(dir, 'index.html'), html.replace('</script>', ';document.documentElement.style.colorScheme="dark"</script>'))
+    assert.throws(() => checkDist(dir), /set only data-theme/)
   })
   it('generates the expected PNG sizes from a fixture SVG', () => {
     const dir = mkdtempSync(join(tmpdir(), 'hostbud-icons-'))
@@ -67,7 +83,7 @@ describe('check-dist PWA validation', () => {
     assert.match(css, /#app\s*\{[^}]*safe-area-inset-top[^}]*safe-area-inset-right[^}]*safe-area-inset-bottom[^}]*safe-area-inset-left/s)
     assert.match(app, /safe-area-inset-top/)
     assert.match(app, /safe-area-inset-bottom/)
-    for (const name of ['CreateSessionDialog.vue', 'RenameSessionDialog.vue', 'KillSessionDialog.vue', 'FileBrowserDialog.vue']) {
+    for (const name of ['CreateSessionDialog.vue', 'KillSessionDialog.vue', 'FileBrowserDialog.vue']) {
       assert.match(readFileSync(join(process.cwd(), 'src/components', name), 'utf8'), /safe-area-inset-bottom/)
     }
   })

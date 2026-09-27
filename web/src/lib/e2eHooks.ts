@@ -19,6 +19,7 @@ export interface TermHooks {
   termViewport: () => string
   /** Where the last on-screen occurrence of `needle` is drawn (page px). */
   termTextRect: (needle: string) => { x: number; y: number; width: number; height: number } | null
+  termTheme: () => { background: string; foreground: string }
 }
 
 export interface PaneInfo {
@@ -35,6 +36,7 @@ export interface HostbudHooks {
   termSelection: (session?: string) => string
   termViewport: (session?: string) => string
   termTextRect: (needle: string, session?: string) => Rect | null
+  termTheme: (session?: string) => { background: string; foreground: string }
   /** The registered terminals (mounted panes), in layout order. */
   panes: () => PaneInfo[]
 }
@@ -64,6 +66,7 @@ const hooks: HostbudHooks = {
   termSelection: (s) => pick(s)?.termSelection() ?? '',
   termViewport: (s) => pick(s)?.termViewport() ?? '',
   termTextRect: (needle, s) => pick(s)?.termTextRect(needle) ?? null,
+  termTheme: (s) => pick(s)?.termTheme() ?? { background: '', foreground: '' },
   panes: () => [...registry.values()].map((e) => e.info()),
 }
 

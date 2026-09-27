@@ -171,8 +171,17 @@ func TestUIStateForUser(t *testing.T) {
 	if err := s.PutUIStateForUser(ctx, "user-b", "tree", json.RawMessage(`{"version":2,"projects":["project-b"],"sessions":{"__other__":["shell"]},"pinned":["project-b"],"hidden":{"projects":[],"sessions":[]},"collapsed":[],"expanded":[],"showHidden":false}`)); err != nil {
 		t.Fatal(err)
 	}
+	if err := s.PutUIStateForUser(ctx, "user-a", "theme", json.RawMessage(`{"version":1,"mode":"light"}`)); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := s.UIStateForUser(ctx, "user-c", "layout"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("an account without state: %v", err)
+	}
+	if v, err := s.UIStateForUser(ctx, "user-a", "theme"); err != nil || string(v) != `{"version":1,"mode":"light"}` {
+		t.Fatalf("theme round-trip: %s, %v", v, err)
+	}
+	if _, err := s.UIStateForUser(ctx, "user-b", "theme"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("theme leaked across accounts: %v", err)
 	}
 	for user, want := range map[string]string{"user-a": `{"a":1}`, "user-b": `{"b":2}`} {
 		if v, err := s.UIStateForUser(ctx, user, "layout"); err != nil || string(v) != want {

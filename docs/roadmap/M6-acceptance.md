@@ -150,27 +150,27 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
   - U: T7 `stores/theme`: resolve mode + OS preference → `dark`/`light`; `data-theme` on `<html>`; radio group state (Vitest).
   - I: n/a (frontend presentation; the stored value's round-trip is below).
   - E: T7 *Pick Dark and Light* (desktop and `iphone-13-pro`; `<html data-theme>`, the body background token and the terminal's theme background change at once).
-- [ ] The terminal follows the theme: each theme has its own xterm palette (background, foreground, cursor, selection, 16 ANSI colors) and search-highlight colors. Both palettes meet contrast checks: foreground on background ≥ 7:1, every ANSI color except black/white variants ≥ 3:1 against its background, selection keeps the text ≥ 4.5:1. A running full-screen program (vim, htop) repaints in the new palette without re-attaching.
+- [x] The terminal follows the theme: each theme has its own xterm palette (background, foreground, cursor, selection, 16 ANSI colors) and search-highlight colors. Both palettes meet contrast checks: foreground on background ≥ 7:1, every ANSI color except black/white variants ≥ 3:1 against its background, selection keeps the text ≥ 4.5:1. A running full-screen program (vim, htop) repaints in the new palette without re-attaching.
   - U: T7 `lib/theme.ts` WCAG contrast tests on both palettes; `TerminalView` sets `term.options.theme` on change; `TerminalSearch` decorations switch (Vitest).
   - I: n/a (frontend only).
   - E: T7 *Pick Dark and Light* (`window.__hostbud.termTheme()` reports the new background; the tmux client PID is unchanged).
-- [ ] The choice is saved per account in `PUT /api/ui-state/theme` as `{version: 1, mode}` and restored after reload and restart. The server allowlist gains `theme` (ARCHITECTURE §9), with the same JSON/size rules; any other value read back is ignored (System).
+- [x] The choice is saved per account in `PUT /api/ui-state/theme` as `{version: 1, mode}` and restored after reload and restart. The server allowlist gains `theme` (ARCHITECTURE §9), with the same JSON/size rules; any other value read back is ignored (System).
   - U: T7 `uiStateKeys` includes `theme`; unknown keys still 404 (Go); the client validator (Vitest).
   - I: T7 per-account `theme` round-trip through PostgreSQL (Go).
   - E: T7 *Theme persists* (desktop; Light survives reload and `ctl.restartApp()`).
-- [ ] System follows the OS live: with System selected, a `prefers-color-scheme` change flips the UI and every terminal without a reload. With Dark or Light selected, an OS change does nothing.
+- [x] System follows the OS live: with System selected, a `prefers-color-scheme` change flips the UI and every terminal without a reload. With Dark or Light selected, an OS change does nothing.
   - U: T7 `matchMedia` change listener applies only in System mode, and is removed on sign-out (Vitest).
   - I: n/a (browser media query).
   - E: T7 *System follows the OS* (desktop and `iphone-13-pro`; `page.emulateMedia({colorScheme})` flips it). **Manual (T14):** switch macOS and iOS appearance with hostbud open.
-- [ ] No flash of the wrong theme: a tiny inline script in `index.html` applies the last resolved mode (a per-browser `localStorage` mirror, `hostbud.theme`) before the stylesheet paints, including on the sign-in screen and the M5 unreachable screen. After sign-in the account's saved setting wins and updates the mirror. A browser without storage (blocked, private mode) falls back to System without errors.
+- [x] No flash of the wrong theme: a tiny inline script in `index.html` applies the last resolved mode (a per-browser `localStorage` mirror, `hostbud.theme`) before the stylesheet paints, including on the sign-in screen and the M5 unreachable screen. After sign-in the account's saved setting wins and updates the mirror. A browser without storage (blocked, private mode) falls back to System without errors.
   - U: T7 the boot script's logic as a pure function (mirror present/absent/invalid, storage throwing); `check-dist` asserts the inline script is present, under 1 KiB, and runs before the stylesheet link (Vitest/node).
   - I: n/a (browser-side).
   - E: T7 *No flash of the wrong theme* (desktop; saved Light with an OS in dark: an init script records the root background at the first animation frame, and it's already light).
-- [ ] The `theme-color` meta follows the resolved theme at runtime (M5's light/dark `media` variants are replaced by one value the app updates), so the phone's status bar and the installed app's chrome match.
+- [x] The `theme-color` meta follows the resolved theme at runtime (M5's light/dark `media` variants are replaced by one value the app updates), so the phone's status bar and the installed app's chrome match.
   - U: T7 meta updated on each change (Vitest).
   - I: n/a (browser-side).
   - E: T7 *Pick Dark and Light* checks the meta's `content` in both phone projects. **Manual (T14):** the installed app's status bar on the iPhone in both themes.
-- [ ] The light theme is complete: every UI token has a light value that meets WCAG AA (text ≥ 4.5:1 on its surface, UI borders and icons ≥ 3:1), and no component uses a hard-coded dark color (a lint check fails on hex colors in `.vue` files outside `lib/theme.ts` and `main.css`).
+- [x] The light theme is complete: every UI token has a light value that meets WCAG AA (text ≥ 4.5:1 on its surface, UI borders and icons ≥ 3:1), and no component uses a hard-coded dark color (a lint check fails on hex colors in `.vue` files outside `lib/theme.ts` and `main.css`).
   - U: T7 token contrast tests; the hex-color check runs in `make lint` (Vitest/node).
   - I: n/a (presentation only).
   - E: T7 *Pick Dark and Light* screenshots the tree, a dialog and the terminal in Light as a trace artifact (no pixel diff; inspected at M7).
@@ -270,11 +270,11 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
   - U: T1 the new builders live in `internal/tmux`, and `internal/archtest` still passes (no exec outside `sshx`, no SQL outside `store`) (Go).
   - I: the existing deploy-config check still passes unchanged (T14 CP5); no new file in `internal/store/migrations/` (T14 audit).
   - E: n/a: nothing new is reachable beyond the routes covered above.
-- [ ] The `ui_state` route keeps its rules for the new key: authentication, Origin on PUT, JSON only, 64 KiB, per-account namespacing, no event.
+- [x] The `ui_state` route keeps its rules for the new key: authentication, Origin on PUT, JSON only, 64 KiB, per-account namespacing, no event.
   - U: T7 handler tests for `theme` (401, 403, 400, 413) (Go).
   - I: T7 per-account round-trip (above).
   - E: T7 *Theme persists* also checks a foreign-Origin PUT gets 403.
-- [ ] The inline theme boot script reads only `localStorage` and sets one attribute; it holds no data and needs no network. ARCHITECTURE §11 notes that a future CSP (M7) must allow it by hash.
+- [x] The inline theme boot script reads only `localStorage` and sets one attribute; it holds no data and needs no network. ARCHITECTURE §11 notes that a future CSP (M7) must allow it by hash.
   - U: T7 `check-dist` content check (node).
   - I: n/a (static file).
   - E: n/a: covered by *No flash of the wrong theme*.
@@ -299,10 +299,10 @@ Profiles: `desktop-chromium`, `iphone-13-pro` (`http://localhost:9055`) and `iph
 - [x] **(T6) Pin projects:** pin two projects → a Pinned section in their manual order; unpin → back at the end of the unpinned section; a drag across the boundary changes nothing (desktop and `iphone-13-pro`).
 - [x] **(T6) Every customization survives reload and restart:** drag to reorder, rename, hide/unhide, pin, collapse and expand, then reload **and** restart → everything is as the user left it (desktop and `iphone-13-pro`).
 - [x] **(T6) Customizations are per account:** account B, signed in on the same stack, sees none of account A's pins, hidden rows, collapse state or order (desktop).
-- [ ] **(T7) Pick Dark and Light:** each choice applies at once to `<html data-theme>`, the background token, `theme-color` and the terminal's theme (`__hostbud.termTheme()`), with the terminal still attached (desktop and `iphone-13-pro`).
-- [ ] **(T7) Theme persists:** Light survives reload and restart; a second account still starts in System; a foreign-Origin `PUT /api/ui-state/theme` → 403 (desktop).
-- [ ] **(T7) System follows the OS:** in System mode, `page.emulateMedia({colorScheme: 'light'})` then `'dark'` flips the UI and terminal without a reload; in Dark mode it doesn't (desktop and `iphone-13-pro`).
-- [ ] **(T7) No flash of the wrong theme:** with Light saved and the emulated OS dark, the root background at the first animation frame of a reload is already the light token (desktop).
+- [x] **(T7) Pick Dark and Light:** each choice applies at once to `<html data-theme>`, the background token, `theme-color` and the terminal's theme (`__hostbud.termTheme()`), with the terminal still attached (desktop and `iphone-13-pro`).
+- [x] **(T7) Theme persists:** Light survives reload and restart; a second account still starts in System; a foreign-Origin `PUT /api/ui-state/theme` → 403 (desktop).
+- [x] **(T7) System follows the OS:** in System mode, `page.emulateMedia({colorScheme: 'light'})` then `'dark'` flips the UI and terminal without a reload; in Dark mode it doesn't (desktop and `iphone-13-pro`).
+- [x] **(T7) No flash of the wrong theme:** with Light saved and the emulated OS dark, the root background at the first animation frame of a reload is already the light token (desktop).
 - [ ] **(T8) Keyboard shortcuts help:** Ctrl+Shift+/ and `?` from the tree open it; it lists the registry's entries; Escape closes and restores focus (desktop).
 - [ ] **(T8) Switch tabs from the keyboard:** with three tabs open and the last one focused, Ctrl+Shift+] wraps to the first tab and Ctrl+Shift+[ wraps back to the last; after each switch, typing in the terminal reaches that tab's shell (`capture-pane`); with one tab, the chords leave it focused and send nothing to the shell (desktop).
 - [ ] **(T8) Toggle to the last tab:** with three tabs, select tab 1 then tab 3: Ctrl+Shift+D focuses tab 1, again focuses tab 3, and typing after each reaches that tab's shell (`capture-pane`); after closing tab 1 it goes to the next most recent open tab; with one tab it does nothing and sends nothing to the shell (desktop).

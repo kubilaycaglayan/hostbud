@@ -1,7 +1,9 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import type { SearchAddon } from '@xterm/addon-search'
+import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import TerminalSearch from './TerminalSearch.vue'
+import { useThemeStore } from '@/stores/theme'
 
 afterEach(() => {
   document.body.innerHTML = ''
@@ -27,6 +29,7 @@ async function mountSearch(initial = '') {
   const search = fakeSearch()
   const w = mount(TerminalSearch, {
     props: { search: search as unknown as SearchAddon, initial },
+    global: { plugins: [createPinia()] },
     attachTo: document.body,
   })
   await flushPromises()
@@ -36,6 +39,19 @@ async function mountSearch(initial = '') {
 const lastOpts = (fn: ReturnType<typeof vi.fn>) => fn.mock.calls.at(-1)![1]
 
 describe('TerminalSearch', () => {
+  it('updates search decorations when the theme changes', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const theme = useThemeStore()
+    theme.mode = 'dark'
+    const search = fakeSearch()
+    mount(TerminalSearch, { props: { search: search as unknown as SearchAddon, initial: 'x' }, global: { plugins: [pinia] }, attachTo: document.body })
+    expect(lastOpts(search.findNext).decorations).toMatchObject({ matchOverviewRuler: '#5fb3f9' })
+    theme.mode = 'light'
+    await flushPromises()
+    expect(lastOpts(search.findNext).decorations).toMatchObject({ matchOverviewRuler: '#0969da' })
+  })
+
   it('searches as you type, with the case and regex options', async () => {
     const { w, search, field } = await mountSearch()
     expect(document.activeElement).toBe(field.element)

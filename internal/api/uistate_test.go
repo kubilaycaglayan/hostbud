@@ -52,6 +52,13 @@ func TestUIStateRoundTripPerAccount(t *testing.T) {
 	if rec := e.do(t, http.MethodGet, "/api/ui-state/tree", "", nil); rec.Code != http.StatusOK || rec.Body.String() != treeV2 {
 		t.Fatalf("GET tree v2: %d %q", rec.Code, rec.Body)
 	}
+	theme := `{"version":1,"mode":"light"}`
+	if rec := e.do(t, http.MethodPut, "/api/ui-state/theme", theme, nil); rec.Code != http.StatusNoContent {
+		t.Fatalf("PUT theme = %d %s", rec.Code, rec.Body)
+	}
+	if rec := e.do(t, http.MethodGet, "/api/ui-state/theme", "", nil); rec.Code != http.StatusOK || rec.Body.String() != theme {
+		t.Fatalf("GET theme = %d %q", rec.Code, rec.Body)
+	}
 	// Another account doesn't see it.
 	other := map[string]string{"Cookie": SessionCookie + "=" + otherToken}
 	if rec := e.do(t, http.MethodGet, "/api/ui-state/layout", "", other); rec.Code != http.StatusNotFound {
@@ -66,14 +73,18 @@ func TestUIStateRefusals(t *testing.T) {
 		hdr                      map[string]string
 		want                     int
 	}{
-		{"unknown key GET", http.MethodGet, "/api/ui-state/theme", "", nil, http.StatusNotFound},
+		{"unknown key GET", http.MethodGet, "/api/ui-state/unknown", "", nil, http.StatusNotFound},
 		{"unknown key PUT", http.MethodPut, "/api/ui-state/other", `{}`, nil, http.StatusNotFound},
 		{"invalid JSON", http.MethodPut, "/api/ui-state/layout", `{"tabs":`, nil, http.StatusBadRequest},
 		{"too big", http.MethodPut, "/api/ui-state/layout", `"` + strings.Repeat("x", 64<<10) + `"`, nil, http.StatusRequestEntityTooLarge},
 		{"tree too big", http.MethodPut, "/api/ui-state/tree", `"` + strings.Repeat("x", 64<<10) + `"`, nil, http.StatusRequestEntityTooLarge},
+		{"theme invalid JSON", http.MethodPut, "/api/ui-state/theme", `{"mode":`, nil, http.StatusBadRequest},
+		{"theme too big", http.MethodPut, "/api/ui-state/theme", `"` + strings.Repeat("x", 64<<10) + `"`, nil, http.StatusRequestEntityTooLarge},
 		{"signed out GET", http.MethodGet, "/api/ui-state/layout", "", map[string]string{"Cookie": SessionCookie + "=bad"}, http.StatusUnauthorized},
 		{"signed out PUT", http.MethodPut, "/api/ui-state/layout", `{}`, map[string]string{"Cookie": SessionCookie + "=bad"}, http.StatusUnauthorized},
+		{"theme signed out GET", http.MethodGet, "/api/ui-state/theme", "", map[string]string{"Cookie": SessionCookie + "=bad"}, http.StatusUnauthorized},
 		{"foreign Origin", http.MethodPut, "/api/ui-state/layout", `{}`, map[string]string{"Origin": "http://evil.example.com"}, http.StatusForbidden},
+		{"theme foreign Origin", http.MethodPut, "/api/ui-state/theme", `{"version":1,"mode":"dark"}`, map[string]string{"Origin": "http://evil.example.com"}, http.StatusForbidden},
 	}
 	for _, c := range cases {
 		if rec := e.do(t, c.method, c.path, c.body, c.hdr); rec.Code != c.want {

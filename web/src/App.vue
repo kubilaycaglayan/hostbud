@@ -22,6 +22,7 @@ import { useLayoutStore } from '@/stores/layout'
 import { useLiveStore } from '@/stores/live'
 import { useMachinesStore } from '@/stores/machines'
 import { useTreeStore } from '@/stores/tree'
+import { useThemeStore } from '@/stores/theme'
 import { useWindowsStore } from '@/stores/windows'
 import { useProjectsStore } from '@/stores/projects'
 import { FolderPlus } from 'lucide-vue-next'
@@ -32,6 +33,7 @@ const layout = useLayoutStore()
 const live = useLiveStore()
 const machines = useMachinesStore()
 const tree = useTreeStore()
+const theme = useThemeStore()
 const windows = useWindowsStore()
 const projects = useProjectsStore()
 
@@ -46,6 +48,11 @@ const killing = ref(false)
 const drawerOpen = ref(false)
 const swipeStart = ref<{ x: number; y: number } | null>(null)
 const target = ref('') // the session the kill confirmation is about
+const themeChoices = [
+  { mode: 'dark', label: 'Dark' },
+  { mode: 'light', label: 'Light' },
+  { mode: 'system', label: 'System' },
+] as const
 function askKill(name: string) {
   target.value = name
   killing.value = true
@@ -136,6 +143,7 @@ watch(
   () => auth.status,
   async (s) => {
     if (s !== 'authenticated') {
+      theme.signOut()
       live.stop()
       layout.reset()
       app.showList()
@@ -144,6 +152,7 @@ watch(
     await Promise.all([
       layout.load(),
       tree.load(),
+      theme.load(),
       projects.load(MACHINE).catch((error) => console.warn("hostbud: can't load projects", error)),
     ])
     tree.sync()
@@ -211,17 +220,20 @@ onUnmounted(() => {
         />
       </button>
       <div class="ml-auto min-w-0 text-sm text-muted">
-        <details v-if="compact" class="relative">
+        <details class="relative">
           <summary aria-label="Account" class="flex min-h-11 cursor-pointer list-none items-center rounded border border-border px-3">Account</summary>
           <div class="absolute right-0 top-full z-30 mt-1 w-56 rounded border border-border bg-surface p-2 shadow-lg">
             <p class="truncate px-2 py-2" data-testid="account-email">{{ auth.email }}</p>
+            <fieldset class="px-2 py-1" aria-label="Theme">
+              <legend class="py-1 text-xs text-muted">Theme</legend>
+              <label v-for="choice in themeChoices" :key="choice.mode" class="flex min-h-11 items-center gap-2">
+                <input type="radio" name="theme" :value="choice.mode" :checked="theme.mode === choice.mode" @change="theme.setMode(choice.mode)">
+                {{ choice.label }}
+              </label>
+            </fieldset>
             <button type="button" class="min-h-11 w-full rounded px-2 text-left" @click="auth.logout()">Sign out</button>
           </div>
         </details>
-        <div v-else class="flex items-center gap-2">
-          <span class="max-w-40 truncate">{{ auth.email }}</span>
-          <button type="button" class="min-h-11 rounded border border-border px-3" @click="auth.logout()">Sign out</button>
-        </div>
       </div>
     </header>
     <div class="flex min-h-0 flex-1">
@@ -279,7 +291,7 @@ onUnmounted(() => {
     </div>
     <DialogRoot v-if="compact && hasTabs" v-model:open="drawerOpen">
       <DialogPortal>
-        <DialogOverlay class="fixed inset-0 z-40 bg-black/50" />
+        <DialogOverlay class="fixed inset-0 z-40 bg-overlay" />
         <DialogContent
           class="fixed inset-y-0 left-0 z-50 flex w-[min(85vw,20rem)] flex-col border-r border-border bg-surface p-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] pl-[max(0.75rem,env(safe-area-inset-left))] text-fg shadow-xl"
           @pointerdown="onDrawerPointerDown"

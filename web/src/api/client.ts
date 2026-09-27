@@ -134,7 +134,7 @@ export const projectsApi = {
 }
 
 /** UI state keys the server accepts (internal/api/uistate.go). */
-export type UIStateKey = 'layout' | 'tree'
+export type UIStateKey = 'layout' | 'tree' | 'theme'
 
 /** The account's saved UI state, or null if nothing is saved yet. The value
  * is whatever was stored: callers validate it. */

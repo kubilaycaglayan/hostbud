@@ -13,6 +13,7 @@ declare global {
         needle: string,
         session?: string,
       ) => { x: number; y: number; width: number; height: number } | null
+      termTheme: (session?: string) => { background: string; foreground: string }
       panes: () => { session: string; active: boolean; focused: boolean }[]
     }
   }

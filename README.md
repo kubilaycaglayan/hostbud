@@ -4,6 +4,8 @@ Manage the tmux sessions on your server from a web UI: browse directories, organ
 
 > Status: **M5** — hostbud includes phone controls and can be installed as a home-screen app. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
+Choose **Dark**, **Light** or **System** from the Account menu. System follows the device appearance, and the selected theme applies to the interface and open terminals.
+
 ## How it works
 - Runs in Docker on one host, behind Caddy: plain HTTP on `127.0.0.1:9055` for SSH port forwarding, and HTTPS on your domain bound to the host's Tailscale IP (a Let's Encrypt certificate via Cloudflare DNS-01).
 - Reaches the host's tmux over SSH using a dedicated key in your ssh-agent (private keys never enter the container) and pins the host's own SSH host keys.

@@ -19,6 +19,7 @@ import { copySelection, installOsc52 } from '@/lib/clipboard'
 import { registerPane, unregisterPane } from '@/lib/e2eHooks'
 import { hyperlinkHandler, openLink, type LinkHover } from '@/lib/links'
 import { keepScrollback } from '@/lib/scrollback'
+import { darkTerminalTheme, lightTerminalTheme } from '@/lib/theme'
 import type { SplitDir, Tab } from '@/lib/layout'
 import { clipboardKey, editingKey, searchKey } from '@/lib/terminalKeys'
 import { applyModifiers, createModifiers } from '@/lib/keyBar'
@@ -26,6 +27,7 @@ import { createCopyModeController, swipeDelta } from '@/lib/copyMode'
 import { useAuthStore } from '@/stores/auth'
 import { useSessionsStore } from '@/stores/sessions'
 import { useToastsStore } from '@/stores/toasts'
+import { useThemeStore } from '@/stores/theme'
 
 const props = withDefaults(
   defineProps<{
@@ -75,6 +77,7 @@ let conn: TermSession | null = null
 let observer: ResizeObserver | null = null
 let last = { cols: 0, rows: 0 }
 const auth = useAuthStore()
+const theme = useThemeStore()
 const sessions = useSessionsStore()
 const splitTargets = computed(() => sessions.list(props.machine).map((x) => x.name))
 const copyMode = createCopyModeController(
@@ -210,7 +213,7 @@ onMounted(async () => {
     // OSC 8 hyperlinks: http(s) only; hovering shows the real target.
     linkHandler: hyperlinkHandler((h) => (linkHover.value = h)),
     scrollback: 5000,
-    theme: { background: '#0f1115', foreground: '#d7dae0', cursor: '#5fb3f9' },
+    theme: theme.resolved === 'dark' ? darkTerminalTheme : lightTerminalTheme,
   })
   fit = new FitAddon()
   t.loadAddon(fit)
@@ -232,6 +235,7 @@ onMounted(async () => {
     // No WebGL: xterm's DOM renderer is used.
   }
   term.value = t
+  watch(() => theme.resolved, (value) => { t.options.theme = value === 'dark' ? darkTerminalTheme : lightTerminalTheme }, { immediate: true })
   t.onData((d) => {
     const bytes = applyModifiers(d, modifiers)
     if (copyMode.inMode.value) void copyMode.exitThen(() => conn?.send(bytes))
@@ -309,6 +313,7 @@ onMounted(async () => {
         }
         return null
       },
+      termTheme: () => ({ background: String(t.options.theme?.background ?? ''), foreground: String(t.options.theme?.foreground ?? '') }),
     }, () => ({ session: props.session, active: props.active, focused: takesInput() }))
 })
 

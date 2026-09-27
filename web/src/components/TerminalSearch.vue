@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { ISearchOptions, SearchAddon } from '@xterm/addon-search'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { searchDecorations } from '@/lib/theme'
+import { useThemeStore } from '@/stores/theme'
 
 // The terminal's search bar. It searches xterm's buffer: the screen plus the
 // scrollback received since attaching (older tmux history is copy mode's
@@ -11,13 +13,7 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ close: [] }>()
 
-// Terminal theme colors (the terminal is dark in every UI theme for now).
-const DECORATIONS: ISearchOptions['decorations'] = {
-  matchBackground: '#264f78',
-  matchOverviewRuler: '#5fb3f9',
-  activeMatchBackground: '#9a6700',
-  activeMatchColorOverviewRuler: '#f0c674',
-}
+const theme = useThemeStore()
 
 const query = ref(props.initial)
 const caseSensitive = ref(false)
@@ -57,7 +53,7 @@ function run(dir: 'next' | 'previous', incremental = false) {
     caseSensitive: caseSensitive.value,
     regex: regex.value,
     incremental,
-    decorations: DECORATIONS,
+    decorations: searchDecorations[theme.resolved],
   }
   if (dir === 'next') props.search.findNext(query.value, opts)
   else props.search.findPrevious(query.value, opts)
@@ -67,6 +63,7 @@ function run(dir: 'next' | 'previous', incremental = false) {
 // re-highlights for a new term (it compares the options after storing
 // them), so an option change clears its cache first.
 watch(query, () => run('next', true))
+watch(() => theme.resolved, () => run('next', true))
 watch([caseSensitive, regex], () => {
   props.search.clearDecorations()
   run('next', true)

@@ -43,8 +43,10 @@ const signedIn = () =>
       ? { status: 200, body: { email: 'person@example.com' } }
       : path === '/api/ui-state/layout'
         ? { status: 404, body: { error: 'nothing saved yet' } }
-        : path === '/api/ui-state/tree'
+      : path === '/api/ui-state/tree'
           ? { status: 404, body: { error: 'nothing saved yet' } }
+          : path === '/api/ui-state/theme'
+            ? { status: 404, body: { error: 'nothing saved yet' } }
           : path === '/api/projects?machine=host'
             ? { status: 200, body: { projects: [] } }
             : { status: method === 'POST' ? 204 : 200 },
@@ -84,6 +86,22 @@ describe('App shell', () => {
     // Signed in ⇒ live updates start (no polling).
     expect(IdleSocket.instances.map((x) => x.url)).toEqual(['ws://localhost:3000/ws/events'])
     expect(wrapper.get('[role=status]').text()).toBe('Connecting…')
+  })
+
+  it('offers a Theme radio group in the account menu and saves the choice', async () => {
+    const calls = signedIn()
+    const wrapper = mount(App, { attachTo: document.body })
+    await flushPromises()
+    const details = wrapper.get('details')
+    ;(details.element as HTMLDetailsElement).open = true
+    await wrapper.vm.$nextTick()
+    expect(details.findAll('input[type=radio]').map((radio) => (radio.element as HTMLInputElement).value)).toEqual(['dark', 'light', 'system'])
+    const light = details.get('input[value=light]')
+    await light.setValue(true)
+    await flushPromises()
+    expect(document.documentElement.dataset.theme).toBe('light')
+    expect(calls).toContainEqual(expect.objectContaining({ method: 'PUT', path: '/api/ui-state/theme', body: { version: 1, mode: 'light' } }))
+    wrapper.unmount()
   })
 
   it('hides the sidebar when toggled', async () => {

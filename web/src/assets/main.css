@@ -7,34 +7,33 @@
   }
 }
 
-/* Theme tokens. Dark is the default; light follows the OS until a theme
-   toggle lands (stored in ui_state). */
+/* The app sets data-theme to the resolved mode before CSS paints. */
 :root {
   --hb-bg: #0f1115;
   --hb-surface: #171a21;
   --hb-tree-header: #20242d;
-  --hb-border: #262a33;
+  --hb-border: #626a78;
   --hb-fg: #d7dae0;
   --hb-muted: #8b919c;
   --hb-accent: #5fb3f9;
   --hb-danger: #f47067;
   --hb-ok: #57ab5a;
+  --hb-overlay: rgb(0 0 0 / 0.55);
   color-scheme: dark;
 }
 
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme='dark']) {
-    --hb-bg: #ffffff;
-    --hb-surface: #f5f6f8;
-    --hb-tree-header: #eef1f5;
-    --hb-border: #d8dbe0;
-    --hb-fg: #1f2328;
-    --hb-muted: #656d76;
-    --hb-accent: #0969da;
-    --hb-danger: #cf222e;
-    --hb-ok: #1a7f37;
-    color-scheme: light;
-  }
+:root[data-theme='light'] {
+  --hb-bg: #ffffff;
+  --hb-surface: #f5f6f8;
+  --hb-tree-header: #eef1f5;
+  --hb-border: #7c8794;
+  --hb-fg: #1f2328;
+  --hb-muted: #656d76;
+  --hb-accent: #0969da;
+  --hb-danger: #cf222e;
+  --hb-ok: #1a7f37;
+  --hb-overlay: rgb(0 0 0 / 0.38);
+  color-scheme: light;
 }
 
 @theme inline {
@@ -47,12 +46,17 @@
   --color-accent: var(--hb-accent);
   --color-danger: var(--hb-danger);
   --color-ok: var(--hb-ok);
+  --color-overlay: var(--hb-overlay);
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 }
 
 html,
 body {
   height: 100%;
+}
+
+html {
+  background-color: var(--color-bg);
 }
 
 body {
