@@ -33,14 +33,14 @@ test('(T2) Tree state upgrades from M4', async ({ page, ui, target, request }) =
   const second = uniqueName('tree-second')
   await createSession(target, first, path)
   await createSession(target, second, path)
-  await putUIState(request, 'tree', { version: 1, projects: [project.id], sessions: { [project.id]: [second, first] } })
+  await putUIState(page.request, 'tree', { version: 1, projects: [project.id], sessions: { [project.id]: [second, first] } })
   await page.reload()
   const rows = page.getByRole('group', { name: `Sessions in ${projectName}` }).locator('[data-session-row]')
   await expect.poll(async () => (await rows.allTextContents()).map((text) => text.trim())).toEqual([second, first])
   await ui.treeItem(second).focus()
   await page.keyboard.press('Alt+ArrowDown')
   await ui.waitForSave('tree')
-  expect(await getUIState(request, 'tree')).toMatchObject({ version: 2, projects: [project.id], sessions: { [project.id]: [first, second] } })
+  expect(await getUIState(page.request, 'tree')).toMatchObject({ version: 2, projects: [project.id], sessions: { [project.id]: [first, second] } })
 })
 
 test('(T2) Tree state survives an app restart', async ({ page, ui, target, request }) => {
