@@ -76,5 +76,8 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    // Keep fonts as same-origin files; small font subsets must not be inlined
+    // because the application CSP only allows font-src 'self'.
+    assetsInlineLimit: 0,
   },
 })

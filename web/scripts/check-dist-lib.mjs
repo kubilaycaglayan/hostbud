@@ -9,6 +9,8 @@ export function checkDist(dist) {
   }
   if (!exists('index.html')) fail('missing index.html')
   if (!exists('manifest.webmanifest')) fail('missing manifest.webmanifest')
+  const inlineFont = productionFiles(dist).find((name) => name.endsWith('.css') && /data:font\//i.test(readFileSync(file(name), 'utf8')))
+  if (inlineFont) fail(`inline font asset violates the same-origin CSP: ${inlineFont}`)
   const html = readFileSync(file('index.html'), 'utf8')
   const inlineScripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi)]
     .filter((match) => !/\bsrc\s*=/i.test(match[1]))
