@@ -33,13 +33,13 @@ test('(T1) filesystem API: browse home, literal paths, hidden files and symlink 
     expect(listing.path).toBe(base)
     expect(listing.entries.map((e: { name: string }) => e.name)).toEqual([
       'a-dir',
+      'private', // unreadable, but still a directory: directories sort first
       "space quote ' 雪;$()",
       'z-dir',
       'a-file',
       'broken-link',
       'loop-a',
       'loop-b',
-      'private',
       'unreadable-link',
       'valid-link',
       'z-file',
