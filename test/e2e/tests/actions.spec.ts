@@ -92,10 +92,11 @@ test('rename: the new name is in tmux ls and in the list', async ({ page, ui, ta
   await expect(ui.session(name)).toBeVisible(soon)
 
   await ui.sessionAction(name, 'Rename')
-  const dialog = page.getByRole('dialog', { name: 'Rename session' })
-  await expect(dialog.getByLabel('New name')).toHaveValue(name)
-  await dialog.getByLabel('New name').fill(renamed)
-  await dialog.getByRole('button', { name: 'Rename' }).click()
+  // Rename is inline in the tree (M5 T4).
+  const editor = page.getByRole('textbox', { name: `Rename ${name}` })
+  await expect(editor).toHaveValue(name)
+  await editor.fill(renamed)
+  await editor.press('Enter')
 
   await expect(ui.session(renamed)).toBeVisible(soon)
   await expect(ui.session(name)).toHaveCount(0)

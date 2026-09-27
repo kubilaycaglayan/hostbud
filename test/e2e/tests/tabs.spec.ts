@@ -96,9 +96,10 @@ test.describe('desktop', () => {
 
     const renamed = uniqueName('e2e-rn')
     await ui.sessionAction(a, 'Rename')
-    const dialog = page.getByRole('dialog', { name: 'Rename session' })
-    await dialog.getByLabel('New name').fill(renamed)
-    await dialog.getByRole('button', { name: 'Rename' }).click()
+    // Rename is inline in the tree (M5 T4).
+    const editor = page.getByRole('textbox', { name: `Rename ${a}` })
+    await editor.fill(renamed)
+    await editor.press('Enter')
     await expect(ui.tab(renamed)).toBeVisible()
     expect(await ui.tabNames()).toEqual([renamed, b, c])
     await typeInTab(ui, target, renamed)
