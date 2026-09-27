@@ -65,7 +65,7 @@ The v2 ROADMAP *Rules* and AGENTS.md apply in full. That covers: e2e runs only o
 | CP2 | T2–T4 | `make lint test`, `scripts/compose-config.sh` | Green (2026-09-27, after fixing five lint findings) |
 | CP3 | T5–T7 | `make lint test`, e2e `tsc` | Green (2026-09-27, after fixing ten lint findings) |
 | CP4 | T8–T9 | `make lint test` **three times in a row** (timers and concurrent signals), e2e `tsc` | Green 3/3 (2026-09-27) |
-| CP5 | T10–T12 | `make lint test`, `vue-tsc`, e2e `tsc`, `make gitleaks`, docs check | Not run |
+| CP5 | T10–T12 | `make lint test`, `vue-tsc`, e2e `tsc`, `make gitleaks`, docs check | Green (2026-09-27) |
 | CP6 | T13 | `make lint test`, e2e `tsc`, `make gitleaks`, `make deploy` (no `make e2e`: on demand only) | Not run |
 
 **Progress note:**
