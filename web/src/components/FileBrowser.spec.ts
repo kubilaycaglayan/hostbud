@@ -9,6 +9,7 @@ let projectsList: { id: string; machineId: string; path: string; name: string; s
 let projectCount = 0
 let deferredPath: string | null = null
 let releaseListing: (() => void) | null = null
+let failNextListing = false
 vi.stubGlobal('fetch', fetchMock)
 
 describe('FileBrowser', () => {
@@ -20,13 +21,21 @@ describe('FileBrowser', () => {
     projectCount = 0
     deferredPath = null
     releaseListing = null
+    failNextListing = false
     fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
       const parsed = new URL(String(url), 'http://localhost')
       let body: unknown = {}
       if (parsed.pathname.endsWith('/fs/home')) body = { path: '/home/dev' }
       else if (parsed.pathname.endsWith('/fs/stat')) body = { name: 'broken-link', path: '/home/dev/broken-link', kind: 'symlink', symlink: true, symlinkState: 'broken' }
+      else if (parsed.pathname.endsWith('/fs') && failNextListing) {
+        failNextListing = false
+        return { ok: false, status: 504, headers: new Headers(), json: async () => ({ error: "The host's file service didn't answer within 10s", hint: 'Try again.' }), text: async () => '' }
+      }
       else if (parsed.pathname.endsWith('/fs') && parsed.searchParams.get('path') === deferredPath) {
-        await new Promise<void>((resolve) => { releaseListing = resolve })
+        await new Promise<void>((resolve, reject) => {
+          releaseListing = resolve
+          init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true })
+        })
         body = { path: deferredPath, entries: [] }
       }
       else if (parsed.pathname.endsWith('/fs') && parsed.searchParams.get('path') === '/home/dev/missing') {
@@ -44,6 +53,10 @@ describe('FileBrowser', () => {
         ...(parsed.searchParams.get('hidden') === 'true' ? [{ name: '.hidden', path: '/home/dev/.hidden', kind: 'file' }] : []),
       ] }
       else if (parsed.pathname.endsWith('/fs/mkdir')) {
+        if (failNextListing) {
+          failNextListing = false
+          return { ok: false, status: 504, headers: new Headers(), json: async () => ({ error: "The host's file service didn't answer within 10s" }), text: async () => '' }
+        }
         const requestBody = JSON.parse(String(init?.body)) as { path: string; name: string }
         const child = `${requestBody.path}/${requestBody.name}`
         createdFolders.add(child)
@@ -188,6 +201,50 @@ describe('FileBrowser', () => {
     await flushPromises()
     expect(wrapper.find('[role="alert"]').exists()).toBe(true)
     expect(currentProject().attributes('disabled')).toBeDefined()
+    wrapper.unmount()
+  })
+
+  it('shows Retry on an SFTP timeout and starts a fresh listing', async () => {
+    const wrapper = mount(FileBrowser, { props: { machine: 'host' } })
+    await flushPromises()
+    failNextListing = true
+    await wrapper.get('#browser-path').element.closest('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    await flushPromises()
+    expect(wrapper.get('[role="alert"]').text()).toContain("The host's file service didn't answer within 10s")
+    await wrapper.get('[role="alert"] button').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+    expect(wrapper.find('[aria-label="Directory entries"]').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('keeps a typed folder name when mkdir times out', async () => {
+    const wrapper = mount(FileBrowser, { props: { machine: 'host' } })
+    await flushPromises()
+    failNextListing = true
+    await wrapper.get('#folder-name').setValue('keep-folder')
+    await wrapper.get('#folder-name').element.closest('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    await flushPromises()
+    expect((wrapper.get('#folder-name').element as HTMLInputElement).value).toBe('keep-folder')
+    expect(wrapper.text()).toContain("The host's file service didn't answer within 10s")
+    wrapper.unmount()
+  })
+
+  it('aborts an earlier directory listing when navigation changes', async () => {
+    const wrapper = mount(FileBrowser, { props: { machine: 'host' } })
+    await flushPromises()
+    deferredPath = '/home/dev/work'
+    const input = wrapper.get('#browser-path')
+    await input.setValue(deferredPath)
+    await input.element.closest('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    await flushPromises()
+    const pending = fetchMock.mock.calls.find(([url]) => String(url).includes('path=%2Fhome%2Fdev%2Fwork'))
+    expect(pending?.[1].signal).toBeDefined()
+    await input.setValue('/home/dev/notes.txt')
+    await input.element.closest('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    await flushPromises()
+    expect((pending?.[1].signal as AbortSignal).aborted).toBe(true)
+    expect(wrapper.get('[aria-label="Breadcrumbs"]').text()).toContain('home')
     wrapper.unmount()
   })
 

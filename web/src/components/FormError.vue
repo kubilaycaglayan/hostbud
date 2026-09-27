@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // An API error shown inside an open dialog. (A toast would be hidden from
 // assistive technology while the modal is open.)
-const props = defineProps<{ id: string; title: string; message: string; hint?: string }>()
+const props = defineProps<{ id: string; title: string; message: string; hint?: string; retry?: () => void }>()
 </script>
 
 <template>
@@ -25,5 +25,6 @@ const props = defineProps<{ id: string; title: string; message: string; hint?: s
     >
       {{ props.hint }}
     </p>
+    <button v-if="props.retry" type="button" class="touch-target mt-2 min-h-11 underline" @click="props.retry">Retry</button>
   </div>
 </template>

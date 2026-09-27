@@ -13,18 +13,19 @@ stop)
 	pkill -f '^sshd' || true
 	;;
 stall)
-	if [ "${2:-}" != tmux ]; then echo "usage: sshd-ctl.sh stall tmux <seconds>|off" >&2; exit 2; fi
+	case "${2:-}" in tmux|sftp) kind=$2 ;; *) echo "usage: sshd-ctl.sh stall tmux|sftp <seconds>|off" >&2; exit 2 ;; esac
 	stall_dir=/home/dev/.hostbud-stall
 	install -d -o dev -g dev -m 700 "$stall_dir"
+	stall_file=$stall_dir/$kind
 	case "${3:-}" in
-		off) rm -f "$stall_dir/tmux" ;;
-		*[!0-9]*|'') echo "usage: sshd-ctl.sh stall tmux <seconds>|off" >&2; exit 2 ;;
+		off) rm -f "$stall_file" ;;
+		*[!0-9]*|'') echo "usage: sshd-ctl.sh stall tmux|sftp <seconds>|off" >&2; exit 2 ;;
 		*) seconds=$3; if [ "$seconds" -gt 60 ]; then seconds=60; fi
-		   deadline=$(($(date +%s) + seconds)); printf '%s\n' "$deadline" >"$stall_dir/tmux"; chown dev:dev "$stall_dir/tmux" ;;
+		   deadline=$(($(date +%s) + seconds)); printf '%s\n' "$deadline" >"$stall_file"; chown dev:dev "$stall_file" ;;
 	esac
 	;;
 *)
-	echo "usage: sshd-ctl.sh start|stop|stall tmux <seconds>|off" >&2
+	echo "usage: sshd-ctl.sh start|stop|stall tmux|sftp <seconds>|off" >&2
 	exit 2
 	;;
 esac

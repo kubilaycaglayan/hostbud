@@ -98,12 +98,22 @@ func (s *server) fsList(w http.ResponseWriter, r *http.Request) {
 		}
 		hidden, _ = strconv.ParseBool(hiddenText)
 	}
-	full, entries, err := s.cfg.FileSystem.List(r.Context(), path, hidden)
+	var full string
+	var entries []fsbrowse.Entry
+	var truncated bool
+	var err error
+	if paged, ok := s.cfg.FileSystem.(interface {
+		ListPage(context.Context, string, bool) (string, []fsbrowse.Entry, bool, error)
+	}); ok {
+		full, entries, truncated, err = paged.ListPage(r.Context(), path, hidden)
+	} else {
+		full, entries, err = s.cfg.FileSystem.List(r.Context(), path, hidden)
+	}
 	if err != nil {
 		s.writeFilesystemError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"path": full, "entries": entries})
+	writeJSON(w, http.StatusOK, map[string]any{"path": full, "entries": entries, "truncated": truncated})
 }
 
 func (s *server) fsStat(w http.ResponseWriter, r *http.Request) {
@@ -157,6 +167,13 @@ func (s *server) fsMkdir(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) writeFilesystemError(w http.ResponseWriter, err error) {
+	var operation *fsbrowse.Error
+	if errors.As(err, &operation) && operation.Timeout > 0 {
+		writeError(w, http.StatusGatewayTimeout,
+			"The host's file service didn't answer within "+operation.Timeout.String(),
+			"Try again; if it keeps happening, check that sftp-server works: `ssh <host> -s sftp`.")
+		return
+	}
 	switch {
 	case errors.Is(err, fsbrowse.ErrInvalidPath):
 		writeError(w, http.StatusBadRequest, "invalid path", "Use an absolute or home-relative target path.")

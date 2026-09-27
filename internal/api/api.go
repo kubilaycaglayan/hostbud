@@ -42,6 +42,7 @@ type Config struct {
 	// browser notices a hung connection (default 15s).
 	Heartbeat   time.Duration
 	ExecTimeout time.Duration
+	SFTPTimeout time.Duration
 }
 
 // New returns the root HTTP handler.
@@ -54,6 +55,9 @@ func New(cfg Config) http.Handler {
 	}
 	if cfg.ExecTimeout <= 0 {
 		cfg.ExecTimeout = 10 * time.Second
+	}
+	if cfg.SFTPTimeout <= 0 {
+		cfg.SFTPTimeout = 10 * time.Second
 	}
 	s := &server{cfg: cfg, machines: map[string]Snapshotter{}}
 	for _, m := range cfg.Machines {
@@ -121,7 +125,7 @@ func handleHealth(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *server) runtimeLimits(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]int64{"execTimeoutMs": s.cfg.ExecTimeout.Milliseconds()})
+	writeJSON(w, http.StatusOK, map[string]int64{"execTimeoutMs": s.cfg.ExecTimeout.Milliseconds(), "sftpTimeoutMs": s.cfg.SFTPTimeout.Milliseconds()})
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

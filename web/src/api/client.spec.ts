@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, copyModeApi, getUIState, projectsApi, putUIState, request, runtimeApi, sessionsApi, setExecTimeoutMs, windowsApi } from './client'
+import { ApiError, copyModeApi, filesystemApi, getUIState, projectsApi, putUIState, request, runtimeApi, sessionsApi, setExecTimeoutMs, setSftpTimeoutMs, windowsApi } from './client'
 import { stubFetch } from '@/test-utils'
 
 afterEach(() => {
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
   setExecTimeoutMs(10_000)
+  setSftpTimeoutMs(10_000)
 })
 
 describe('request', () => {
@@ -42,10 +43,13 @@ describe('request', () => {
 describe('runtime limits', () => {
   it('uses the server exec timeout plus five seconds for tmux-backed requests', async () => {
     const timeout = vi.spyOn(AbortSignal, 'timeout')
-    stubFetch((_method, path) => ({ status: 200, body: path === '/api/runtime/limits' ? { execTimeoutMs: 25_000 } : { name: 'work' } }))
+    stubFetch((_method, path) => ({ status: 200, body: path === '/api/runtime/limits' ? { execTimeoutMs: 25_000, sftpTimeoutMs: 15_000 } : { name: 'work' } }))
     await runtimeApi.configureExecTimeout()
     await sessionsApi.create('host', { name: 'work' })
     expect(timeout).toHaveBeenCalledWith(30_000)
+    timeout.mockClear()
+    await filesystemApi.list('host', '/home/dev', false)
+    expect(timeout).toHaveBeenCalledWith(20_000)
   })
 })
 

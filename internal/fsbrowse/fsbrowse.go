@@ -4,6 +4,7 @@ package fsbrowse
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/pkg/sftp"
 )
@@ -23,6 +25,9 @@ const (
 	MaxPathBytes       = 4096
 	MaxEntries         = 2000
 	MaxNameBytes       = 255
+	MaxResponseBytes   = 1 << 20
+	MaxResponseName    = 1024
+	MaxConcurrentOps   = 4
 )
 
 var ErrInvalidPath = errors.New("invalid filesystem path")
@@ -71,6 +76,8 @@ type Service struct {
 	idleTimer  *time.Timer
 	closed     bool
 	lastUsed   time.Time
+	active     int
+	slots      chan struct{}
 }
 
 // New creates the SFTP browser for machine. Timeouts use safe defaults when
@@ -83,7 +90,7 @@ func New(opener SubsystemOpener, machine string, idleTimeout, operationTimeout t
 		operationTimeout = DefaultOpTimeout
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Service{opener: opener, machine: machine, idle: idleTimeout, timeout: operationTimeout, ctx: ctx, cancel: cancel}
+	return &Service{opener: opener, machine: machine, idle: idleTimeout, timeout: operationTimeout, ctx: ctx, cancel: cancel, slots: make(chan struct{}, MaxConcurrentOps)}
 }
 
 // OperationTimeout reports the per-operation deadline configured for this service.
@@ -103,10 +110,6 @@ func (s *Service) Close() error {
 }
 
 func (s *Service) closeLocked() {
-	if s.client != nil {
-		_ = s.client.Close()
-		s.client = nil
-	}
 	if s.pipe != nil {
 		_ = s.pipe.Close()
 		s.pipe = nil
@@ -114,6 +117,10 @@ func (s *Service) closeLocked() {
 	if s.connCancel != nil {
 		s.connCancel()
 		s.connCancel = nil
+	}
+	if s.client != nil {
+		_ = s.client.Close()
+		s.client = nil
 	}
 }
 
@@ -172,7 +179,9 @@ func (s *Service) touchLocked() {
 	s.idleTimer = time.AfterFunc(s.idle, func() {
 		s.mu.Lock()
 		defer s.mu.Unlock()
-		if s.client != nil && time.Since(s.lastUsed) >= s.idle {
+		if s.active > 0 {
+			s.touchLocked()
+		} else if s.client != nil && time.Since(s.lastUsed) >= s.idle {
 			s.closeLocked()
 		}
 	})
@@ -186,40 +195,86 @@ func (s *Service) withClient(ctx context.Context, op string, fn func(*sftp.Clien
 	}
 	opCtx, cancel := context.WithTimeout(ctx, s.timeout)
 	defer cancel()
+	if err := s.acquireSlot(opCtx); err != nil {
+		var timeout time.Duration
+		if errors.Is(err, context.DeadlineExceeded) {
+			timeout = s.timeout
+		}
+		return &Error{Op: op, Err: err, Timeout: timeout}
+	}
+	defer s.releaseSlot()
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if err := opCtx.Err(); err != nil {
-		return err
+		s.mu.Unlock()
+		var timeout time.Duration
+		if errors.Is(err, context.DeadlineExceeded) {
+			timeout = s.timeout
+		}
+		return &Error{Op: op, Err: err, Timeout: timeout}
 	}
 	if err := s.ensureLocked(opCtx); err != nil {
+		s.mu.Unlock()
 		if opCtx.Err() != nil {
-			return opCtx.Err()
+			return &Error{Op: op, Err: opCtx.Err(), Timeout: s.timeout}
 		}
 		return &Error{Op: op, Err: err}
 	}
 	client, pipe := s.client, s.pipe
-	stop := context.AfterFunc(opCtx, func() { _ = pipe.Close() })
+	s.active++
+	s.lastUsed = time.Now()
+	s.touchLocked()
+	s.mu.Unlock()
+	stop := context.AfterFunc(opCtx, func() {
+		s.mu.Lock()
+		if s.pipe == pipe {
+			s.closeLocked()
+		}
+		s.mu.Unlock()
+	})
 	err := fn(client)
 	stop()
+	s.mu.Lock()
+	s.active--
 	if opCtx.Err() != nil {
 		err = opCtx.Err()
+		if s.pipe == pipe {
+			s.closeLocked()
+		}
 	}
 	if err != nil {
 		var statusErr *sftp.StatusError
-		if !errors.As(err, &statusErr) && !errors.Is(err, ErrNotDirectory) {
+		if !errors.As(err, &statusErr) && !errors.Is(err, ErrNotDirectory) && s.pipe == pipe {
 			s.closeLocked()
 		}
-		return &Error{Op: op, Err: err}
+		s.mu.Unlock()
+		var timeout time.Duration
+		if errors.Is(err, context.DeadlineExceeded) {
+			timeout = s.timeout
+		}
+		return &Error{Op: op, Err: err, Timeout: timeout}
 	}
 	s.lastUsed = time.Now()
 	s.touchLocked()
+	s.mu.Unlock()
 	return nil
 }
 
+func (s *Service) acquireSlot(ctx context.Context) error {
+	select {
+	case s.slots <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (s *Service) releaseSlot() { <-s.slots }
+
 // Error preserves the operation and underlying SFTP/ssh failure for the API.
 type Error struct {
-	Op  string
-	Err error
+	Op      string
+	Err     error
+	Timeout time.Duration
 }
 
 func (e *Error) Error() string { return e.Op + ": " + e.Err.Error() }
@@ -317,15 +372,23 @@ func (s *Service) Home(ctx context.Context) (string, error) {
 }
 
 func (s *Service) List(ctx context.Context, value string, hidden bool) (string, []Entry, error) {
+	full, rows, _, err := s.ListPage(ctx, value, hidden)
+	return full, rows, err
+}
+
+// ListPage returns a bounded page and reports whether more directory entries
+// were omitted by the entry or JSON response limit.
+func (s *Service) ListPage(ctx context.Context, value string, hidden bool) (string, []Entry, bool, error) {
 	home, err := s.Home(ctx)
 	if err != nil {
-		return "", nil, err
+		return "", nil, false, err
 	}
 	full, err := Normalize(value, home)
 	if err != nil {
-		return "", nil, err
+		return "", nil, false, err
 	}
 	var rows []Entry
+	truncated := false
 	err = s.withClient(ctx, "list directory", func(c *sftp.Client) error {
 		info, err := c.Stat(full)
 		if err != nil {
@@ -338,21 +401,70 @@ func (s *Service) List(ctx context.Context, value string, hidden bool) (string, 
 		if err != nil {
 			return err
 		}
-		if len(infos) > MaxEntries {
-			return ErrTooManyEntries
-		}
 		rows = make([]Entry, 0, len(infos))
+		allRows := rows
 		for _, info := range infos {
 			name := info.Name()
 			if name == "." || name == ".." || (!hidden && strings.HasPrefix(name, ".")) {
 				continue
 			}
-			rows = append(rows, entry(name, path.Join(full, name), info))
+			allRows = append(allRows, entry(name, path.Join(full, name), info))
 		}
-		sortEntries(rows)
-		return nil
+		rows, truncated, err = boundEntries(full, allRows)
+		return err
 	})
-	return full, rows, err
+	return full, rows, truncated, err
+}
+
+func boundEntries(full string, rows []Entry) ([]Entry, bool, error) {
+	sortEntries(rows)
+	truncated := false
+	for i := range rows {
+		if len(rows[i].Name) > MaxResponseName {
+			rows[i].Name = truncateUTF8(rows[i].Name, MaxResponseName)
+			truncated = true
+		}
+	}
+	if len(rows) > MaxEntries {
+		rows = rows[:MaxEntries]
+		truncated = true
+	}
+	bounded := rows[:0]
+	used := listingResponseBase(full)
+	for _, row := range rows {
+		encoded, err := json.Marshal(row)
+		if err != nil {
+			return nil, truncated, err
+		}
+		extra := len(encoded)
+		if len(bounded) > 0 {
+			extra++
+		}
+		if used+extra > MaxResponseBytes {
+			truncated = true
+			break
+		}
+		bounded = append(bounded, row)
+		used += extra
+	}
+	return bounded, truncated, nil
+}
+
+func listingResponseBase(full string) int {
+	pathJSON, _ := json.Marshal(full)
+	return len(`{"entries":[`) + len(`],"path":`) + len(pathJSON) + len(`,"truncated":true}`) + 1
+}
+
+func truncateUTF8(value string, limit int) string {
+	value = strings.ToValidUTF8(value, "�")
+	if len(value) <= limit {
+		return value
+	}
+	value = value[:limit]
+	for !utf8.ValidString(value) {
+		value = value[:len(value)-1]
+	}
+	return value
 }
 
 func (s *Service) Stat(ctx context.Context, value string) (StatResult, error) {

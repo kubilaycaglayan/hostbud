@@ -5,6 +5,7 @@
 // each route runs one hard-coded command.
 import { execFile } from 'node:child_process'
 import { createServer } from 'node:http'
+import { URL } from 'node:url'
 
 const actions = {
   'POST /restart-app': ['docker', ['restart', '--time', '5', 'hostbud-e2e-app']],
@@ -14,6 +15,8 @@ const actions = {
   'POST /sshd/start': ['docker', ['exec', 'hostbud-e2e-target', '/usr/local/bin/sshd-ctl.sh', 'start']],
   'POST /stall/tmux/on': ['docker', ['exec', 'hostbud-e2e-target', '/usr/local/bin/sshd-ctl.sh', 'stall', 'tmux', '60']],
   'POST /stall/tmux/off': ['docker', ['exec', 'hostbud-e2e-target', '/usr/local/bin/sshd-ctl.sh', 'stall', 'tmux', 'off']],
+  'POST /stall/sftp/on': ['docker', ['exec', 'hostbud-e2e-target', '/usr/local/bin/sshd-ctl.sh', 'stall', 'sftp', '60']],
+  'POST /stall/sftp/off': ['docker', ['exec', 'hostbud-e2e-target', '/usr/local/bin/sshd-ctl.sh', 'stall', 'sftp', 'off']],
   // A network cut: the app's TCP connections hang (no close), as when a
   // phone's Wi-Fi drops. Restore keeps the alias the Caddyfile proxies to.
   'POST /network/cut': ['docker', ['network', 'disconnect', 'hostbud-e2e', 'hostbud-e2e-app']],
@@ -25,12 +28,21 @@ createServer((req, res) => {
     res.writeHead(200).end('ok\n')
     return
   }
-  const action = actions[`${req.method} ${req.url}`]
+  const url = new URL(req.url ?? '/', 'http://hostbud-e2e-ctl')
+  const action = actions[`${req.method} ${url.pathname}`]
   if (!action) {
     res.writeHead(404).end('unknown action\n')
     return
   }
-  execFile(action[0], action[1], { timeout: 120_000 }, async (err, stdout, stderr) => {
+  const args = [...action[1]]
+  if (url.pathname.endsWith('/on') && url.pathname.startsWith('/stall/')) {
+    const ttl = url.searchParams.get('ttl')
+    if (ttl !== null) {
+      if (!/^\d+$/.test(ttl)) { res.writeHead(400).end('ttl must be seconds from 1 to 60\n'); return }
+      args[args.length - 1] = String(Math.min(60, Math.max(1, Number(ttl))))
+    }
+  }
+  execFile(action[0], args, { timeout: 120_000 }, async (err, stdout, stderr) => {
     if (err) {
       res.writeHead(500).end(`${err.message}\n${stderr}`)
       return

@@ -6,8 +6,11 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os"
 	"path"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -163,6 +166,92 @@ func TestIntegrationCancelAndCloseSFTP(t *testing.T) {
 	}
 	if _, err := c.Exec(context.Background(), sshx.HostMachineID, "true"); err != nil {
 		t.Fatalf("ssh unusable after SFTP close: %v", err)
+	}
+}
+
+func TestIntegrationSFTPStallTimesOutClosesAndRecovers(t *testing.T) {
+	c := testenv.Connected(t, testenv.SSHD)
+	testenv.Sh(t, c, "/usr/local/bin/sshd-ctl.sh stall sftp 60")
+	defer testenv.Sh(t, c, "/usr/local/bin/sshd-ctl.sh stall sftp off")
+	svc := fsbrowse.New(c, sshx.HostMachineID, time.Minute, time.Second)
+	started := time.Now()
+	_, err := svc.Home(context.Background())
+	if !errors.Is(err, context.DeadlineExceeded) || time.Since(started) > 3*time.Second {
+		t.Fatalf("stalled SFTP Home = %v after %v", err, time.Since(started))
+	}
+	var timeout *fsbrowse.Error
+	if !errors.As(err, &timeout) || timeout.Timeout != time.Second {
+		t.Fatalf("SFTP timeout details = %+v", err)
+	}
+	procEntries, _ := os.ReadDir("/proc")
+	for _, entry := range procEntries {
+		argv, readErr := os.ReadFile(filepath.Join("/proc", entry.Name(), "cmdline"))
+		if readErr != nil {
+			continue
+		}
+		args := strings.Split(string(argv), "\x00")
+		for i := 0; i+2 < len(args); i++ {
+			if args[i] == "-F" && args[i+1] == c.ConfigPath() {
+				for j := i; j+2 < len(args); j++ {
+					if args[j] == "-s" && args[j+1] == "sftp" {
+						t.Fatalf("SFTP ssh child survived timeout: pid=%s argv=%q", entry.Name(), args)
+					}
+				}
+			}
+		}
+	}
+	testenv.Sh(t, c, "/usr/local/bin/sshd-ctl.sh stall sftp off")
+	if _, err := svc.Home(context.Background()); err != nil {
+		t.Fatalf("SFTP after stall: %v", err)
+	}
+	if err := svc.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestIntegrationDirectoryListingCapsEntries(t *testing.T) {
+	c := testenv.Connected(t, testenv.SSHD)
+	root := "/home/dev/fsbrowse-cap"
+	testenv.Sh(t, c, "rm -rf "+sshx.Quote(root)+"; mkdir -p "+sshx.Quote(root)+"; i=0; while [ $i -lt 2500 ]; do : >"+sshx.Quote(root)+"/f$(printf '%04d' $i); i=$((i+1)); done")
+	t.Cleanup(func() { testenv.Sh(t, c, "rm -rf "+sshx.Quote(root)) })
+	svc := fsbrowse.New(c, sshx.HostMachineID, time.Minute, 10*time.Second)
+	t.Cleanup(func() { _ = svc.Close() })
+	full, rows, truncated, err := svc.ListPage(context.Background(), root, false)
+	if err != nil || full != root || len(rows) != fsbrowse.MaxEntries || !truncated {
+		t.Fatalf("bounded listing: path=%s entries=%d truncated=%t err=%v", full, len(rows), truncated, err)
+	}
+}
+
+func TestIntegrationCancelledSFTPRequestsFreeSlots(t *testing.T) {
+	c := testenv.Connected(t, testenv.SSHD)
+	svc := fsbrowse.New(c, sshx.HostMachineID, time.Minute, 5*time.Second)
+	t.Cleanup(func() { _ = svc.Close() })
+	testenv.Sh(t, c, "/usr/local/bin/sshd-ctl.sh stall sftp 60")
+	t.Cleanup(func() { testenv.Sh(t, c, "/usr/local/bin/sshd-ctl.sh stall sftp off") })
+	contexts := make([]context.CancelFunc, 5)
+	results := make(chan error, len(contexts))
+	for i := range contexts {
+		ctx, cancel := context.WithCancel(context.Background())
+		contexts[i] = cancel
+		go func() { _, err := svc.Home(ctx); results <- err }()
+	}
+	time.Sleep(150 * time.Millisecond)
+	for _, cancel := range contexts {
+		cancel()
+	}
+	for range contexts {
+		select {
+		case err := <-results:
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("cancelled SFTP request = %v", err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("cancelled requests did not release SFTP slots")
+		}
+	}
+	testenv.Sh(t, c, "/usr/local/bin/sshd-ctl.sh stall sftp off")
+	if _, err := svc.Home(context.Background()); err != nil {
+		t.Fatalf("sixth request after cancellation: %v", err)
 	}
 }
 

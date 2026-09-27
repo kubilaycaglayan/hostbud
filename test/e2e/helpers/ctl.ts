@@ -17,6 +17,9 @@ export const ctl = {
   /** Stalls target tmux commands for at most the switch TTL. */
   stallTmux: () => call('/stall/tmux/on'),
   unstallTmux: () => call('/stall/tmux/off'),
+  /** Stalls SFTP startup for a bounded TTL. */
+  stallSftp: (ttl = 60) => call(`/stall/sftp/on?ttl=${ttl}`),
+  unstallSftp: () => call('/stall/sftp/off'),
   /** Disconnects hostbud-e2e-app from the e2e network (connections hang). */
   cutNetwork: () => call('/network/cut'),
   /** Reconnects it; a no-op when it is connected. */

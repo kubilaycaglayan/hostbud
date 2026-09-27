@@ -113,7 +113,7 @@ test('(T1) SFTP unavailable recovery: failure is actionable and browsing recover
   try {
     const failed = await request.get(homePath, { timeout: 20_000 })
     expect([503, 504]).toContain(failed.status())
-    expect((await failed.json()).error).toMatch(/filesystem (unavailable|request timed out)/)
+    expect((await failed.json()).error).toMatch(/filesystem (unavailable|request timed out)|file service didn't answer within/)
   } finally {
     await ctl.startSshd()
   }

@@ -2,7 +2,7 @@ import { expect, test } from '../helpers/fixtures.ts'
 import { ctl } from '../helpers/ctl.ts'
 import { uniqueName } from '../helpers/target.ts'
 
-test.use({ allowedBrowserErrors: /^HTTP 504: POST .*\/api\/machines\/host\/sessions/ })
+test.use({ allowedBrowserErrors: /^HTTP 504: (POST .*\/api\/machines\/host\/sessions|GET .*\/api\/machines\/host\/fs)/ })
 
 for (const project of ['desktop-chromium', 'iphone-13-pro']) {
   test(`(T2) session create timeout keeps the form open on ${project}`, async ({ page, ui }, info) => {
@@ -56,5 +56,23 @@ for (const project of ['desktop-chromium', 'iphone-13-pro']) {
     }
     await expect.poll(() => target.display(name, '#{session_attached}'), { timeout: 15_000 }).toBe('1')
     await expect(page.getByText(/Reconnecting…/)).toHaveCount(0)
+  })
+
+  test(`(T3) stalled file browser offers Retry on ${project}`, async ({ ui }, info) => {
+    test.skip(info.project.name !== project)
+    await ui.open()
+    await ctl.stallSftp(60)
+    const dialog = await ui.openFileBrowser()
+    try {
+      await expect(dialog.getByRole('alert')).toContainText("The host's file service didn't answer within 10s", { timeout: 15_000 })
+      await expect(dialog.getByRole('button', { name: 'Retry' })).toBeVisible()
+    } finally {
+      await ctl.unstallSftp()
+    }
+    await dialog.getByRole('button', { name: 'Retry' }).click()
+    await expect(dialog.getByRole('alert')).toHaveCount(0, { timeout: 10_000 })
+    await expect(dialog.getByRole('button', { name: 'Close file browser' })).toBeVisible()
+    await dialog.getByRole('button', { name: 'Close file browser' }).click()
+    await expect(dialog).toHaveCount(0)
   })
 }

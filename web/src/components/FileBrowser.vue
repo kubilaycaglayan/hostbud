@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { filesystemApi, projectsApi, type FileEntry } from '@/api/client'
 import type { Project } from '@/api/types'
 import FormError from './FormError.vue'
@@ -25,6 +25,7 @@ const error = ref<{ message: string; hint?: string } | null>(null)
 const folderName = ref('')
 const folderError = ref('')
 const busy = ref(false)
+let navigationController: AbortController | undefined
 const sessionProject = ref<Project | null>(null)
 const selectedProject = ref<Project | null>(null)
 const suggestions = computed(() => {
@@ -38,15 +39,18 @@ const crumbs = computed(() => {
 })
 
 async function navigate(next: string) {
+  navigationController?.abort()
+  const controller = new AbortController()
+  navigationController = controller
   loading.value = true
   error.value = null
   try {
-    const result = await filesystemApi.list(props.machine, next, hidden.value)
+    const result = await filesystemApi.list(props.machine, next, hidden.value, controller.signal)
     path.value = result.path
     pathInput.value = result.path
     entries.value = result.entries
-  } catch (e) { error.value = describeError(e) }
-  finally { loading.value = false }
+  } catch (e) { if (!controller.signal.aborted) error.value = describeError(e) }
+  finally { if (navigationController === controller) loading.value = false }
 }
 async function initialize() {
   try {
@@ -58,6 +62,7 @@ async function initialize() {
 }
 watch(hidden, () => { if (path.value) void navigate(path.value) })
 onMounted(() => { void initialize() })
+onBeforeUnmount(() => navigationController?.abort())
 
 async function createFolder() {
   const name = folderName.value.trim()
@@ -198,9 +203,10 @@ function openCurrentProject() {
       title="Couldn't open this directory"
       :message="error.message"
       :hint="error.hint"
+      :retry="() => navigate(path)"
     />
     <ul
-      v-if="!loading"
+      v-if="!loading && !error"
       class="min-h-0 flex-1 overflow-y-auto"
       aria-label="Directory entries"
     >

@@ -8,7 +8,7 @@ LABEL hostbud.image="1"
 ARG WITH_TMUX=1
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-      openssh-server openssh-client tini procps vim htop less locales ca-certificates \
+      openssh-server openssh-client openssh-sftp-server tini procps vim htop less locales ca-certificates \
  && if [ "$WITH_TMUX" = "1" ]; then apt-get install -y --no-install-recommends tmux; fi \
  && rm -rf /var/lib/apt/lists/* \
  && sed -i 's/^# *en_US.UTF-8/en_US.UTF-8/' /etc/locale.gen && locale-gen \
@@ -21,7 +21,10 @@ RUN useradd -m -d /home/dev -s /bin/bash dev && usermod -p '*' dev
 COPY sshd_config /etc/ssh/sshd_config.d/hostbud-test.conf
 COPY entrypoint.sh keygen.sh sshd-ctl.sh /usr/local/bin/
 COPY tmux-wrap.sh /usr/local/lib/hostbud/tmux-wrap.sh
-RUN if [ "$WITH_TMUX" = "1" ]; then chmod 755 /usr/local/lib/hostbud/tmux-wrap.sh && ln -s /usr/local/lib/hostbud/tmux-wrap.sh /usr/local/bin/tmux; fi
+COPY sftp-wrap.sh /usr/local/bin/sftp-wrap
+RUN chmod 755 /usr/local/bin/sftp-wrap \
+ && sed -i '/^Subsystem[[:space:]]sftp[[:space:]]/c\Subsystem sftp /usr/local/bin/sftp-wrap' /etc/ssh/sshd_config \
+ && if [ "$WITH_TMUX" = "1" ]; then chmod 755 /usr/local/lib/hostbud/tmux-wrap.sh && ln -s /usr/local/lib/hostbud/tmux-wrap.sh /usr/local/bin/tmux; fi
 
 ENV LANG=en_US.UTF-8
 EXPOSE 22

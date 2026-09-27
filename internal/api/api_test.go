@@ -264,7 +264,7 @@ func TestHealth(t *testing.T) {
 
 func TestRuntimeLimitsIsAuthenticatedAndReportsExecDeadline(t *testing.T) {
 	e := newEnv(t)
-	if rec := e.do(t, http.MethodGet, "/api/runtime/limits", "", nil); rec.Code != http.StatusOK || strings.TrimSpace(rec.Body.String()) != `{"execTimeoutMs":10000}` {
+	if rec := e.do(t, http.MethodGet, "/api/runtime/limits", "", nil); rec.Code != http.StatusOK || strings.TrimSpace(rec.Body.String()) != `{"execTimeoutMs":10000,"sftpTimeoutMs":10000}` {
 		t.Fatalf("runtime limits: %d %s", rec.Code, rec.Body)
 	}
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/runtime/limits", nil)
@@ -396,6 +396,16 @@ func TestFilesystemErrorsAreActionable(t *testing.T) {
 		if rec.Code != tt.status || body.Error == "" || body.Hint == "" {
 			t.Fatalf("error response: %d %s", rec.Code, rec.Body)
 		}
+	}
+}
+
+func TestSFTPTimeoutIncludesConfiguredDurationAndHint(t *testing.T) {
+	e := newEnv(t)
+	e.fs.err = &fsbrowse.Error{Op: "list directory", Err: context.DeadlineExceeded, Timeout: 3 * time.Second}
+	rec := e.do(t, http.MethodGet, "/api/machines/host/fs?path=~", "", nil)
+	body := decodeBody[errorBody](t, rec)
+	if rec.Code != http.StatusGatewayTimeout || body.Error != "The host's file service didn't answer within 3s" || !strings.Contains(body.Hint, "ssh <host> -s sftp") {
+		t.Fatalf("SFTP timeout response: %d %+v", rec.Code, body)
 	}
 }
 

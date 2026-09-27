@@ -16,14 +16,23 @@ export class ApiError extends Error {
 }
 
 let execTimeoutMs = 10_000
+let sftpTimeoutMs = 10_000
 
 /** Applies the authenticated server's configured exec deadline to remote API requests. */
 export function setExecTimeoutMs(value: number) {
   if (Number.isFinite(value) && value >= 2_000 && value <= 120_000) execTimeoutMs = value
 }
 
+export function setSftpTimeoutMs(value: number) {
+  if (Number.isFinite(value) && value >= 2_000 && value <= 120_000) sftpTimeoutMs = value
+}
+
 function execSignal(): AbortSignal {
   return AbortSignal.timeout(execTimeoutMs + 5_000)
+}
+
+function sftpSignal(): AbortSignal {
+  return AbortSignal.timeout(sftpTimeoutMs + 5_000)
 }
 
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
@@ -79,8 +88,9 @@ export const authApi = {
 export const runtimeApi = {
   async configureExecTimeout() {
     try {
-      const { execTimeoutMs: value } = await request<{ execTimeoutMs: number }>('GET', '/api/runtime/limits')
+      const { execTimeoutMs: value, sftpTimeoutMs: sftpValue } = await request<{ execTimeoutMs: number; sftpTimeoutMs: number }>('GET', '/api/runtime/limits')
       setExecTimeoutMs(value)
+      setSftpTimeoutMs(sftpValue)
     } catch {
       // Keep the shipped default if configuration discovery is unavailable.
     }
@@ -142,15 +152,16 @@ export interface FileEntry {
 }
 
 export const filesystemApi = {
-  home: (machine: string) => request<{ path: string }>('GET', `/api/machines/${encodeURIComponent(machine)}/fs/home`),
-  list: (machine: string, path: string, hidden: boolean) => request<{ path: string; entries: FileEntry[] }>(
-    'GET', `/api/machines/${encodeURIComponent(machine)}/fs?path=${encodeURIComponent(path)}&hidden=${hidden}`,
+  home: (machine: string) => request<{ path: string }>('GET', `/api/machines/${encodeURIComponent(machine)}/fs/home`, undefined, { signal: sftpSignal() }),
+  list: (machine: string, path: string, hidden: boolean, signal?: AbortSignal) => request<{ path: string; entries: FileEntry[]; truncated?: boolean }>(
+    'GET', `/api/machines/${encodeURIComponent(machine)}/fs?path=${encodeURIComponent(path)}&hidden=${hidden}`, undefined,
+    { signal: signal ? AbortSignal.any([signal, sftpSignal()]) : sftpSignal() },
   ),
   stat: (machine: string, path: string) => request<FileEntry & { symlink: boolean }>(
-    'GET', `/api/machines/${encodeURIComponent(machine)}/fs/stat?path=${encodeURIComponent(path)}`,
+    'GET', `/api/machines/${encodeURIComponent(machine)}/fs/stat?path=${encodeURIComponent(path)}`, undefined, { signal: sftpSignal() },
   ),
   mkdir: (machine: string, path: string, name: string) => request<{ path: string }>(
-    'POST', `/api/machines/${encodeURIComponent(machine)}/fs/mkdir`, { path, name },
+    'POST', `/api/machines/${encodeURIComponent(machine)}/fs/mkdir`, { path, name }, { signal: sftpSignal() },
   ),
 }
 

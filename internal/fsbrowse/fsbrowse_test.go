@@ -2,11 +2,14 @@ package fsbrowse
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 func TestNormalize(t *testing.T) {
@@ -63,6 +66,52 @@ func TestSortEntriesDirectoryFirstThenName(t *testing.T) {
 	want := []string{"a-dir", "z-dir", "a-file", "link", "z-file"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("sorted names = %v, want %v", got, want)
+	}
+}
+
+func TestBoundedListingHelpers(t *testing.T) {
+	rows := make([]Entry, 2000)
+	for i := range rows {
+		rows[i] = Entry{Name: strings.Repeat("雪", 400), Path: "/" + strings.Repeat("p", 2000)}
+	}
+	bounded, truncated, err := boundEntries("/home/dev", rows)
+	if err != nil || !truncated || len(bounded) >= len(rows) {
+		t.Fatalf("bounded list len=%d truncated=%t err=%v", len(bounded), truncated, err)
+	}
+	if len(bounded[0].Name) > MaxResponseName || !utf8.ValidString(bounded[0].Name) {
+		t.Fatalf("truncated name is invalid: bytes=%d valid=%t", len(bounded[0].Name), utf8.ValidString(bounded[0].Name))
+	}
+	body, err := json.Marshal(map[string]any{"path": "/home/dev", "entries": bounded, "truncated": truncated})
+	if err != nil || len(body)+1 > MaxResponseBytes {
+		t.Fatalf("serialized response bytes=%d err=%v", len(body)+1, err)
+	}
+}
+
+func TestOperationSlotsBoundConcurrencyAndFreeOnCancel(t *testing.T) {
+	svc := New(&unusedOpener{}, "host", time.Minute, time.Second)
+	for range MaxConcurrentOps {
+		if err := svc.acquireSlot(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	deadline, stop := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	if err := svc.acquireSlot(deadline); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("fifth operation = %v, want timeout", err)
+	}
+	stop()
+	ctx, cancel := context.WithCancel(context.Background())
+	result := make(chan error, 1)
+	go func() { result <- svc.acquireSlot(ctx) }()
+	cancel()
+	if err := <-result; !errors.Is(err, context.Canceled) {
+		t.Fatalf("fifth operation = %v", err)
+	}
+	svc.releaseSlot()
+	if err := svc.acquireSlot(context.Background()); err != nil {
+		t.Fatalf("slot wasn't freed: %v", err)
+	}
+	for range MaxConcurrentOps {
+		svc.releaseSlot()
 	}
 }
 

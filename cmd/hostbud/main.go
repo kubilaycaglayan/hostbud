@@ -132,6 +132,7 @@ func run() error {
 		Handler: api.New(api.Config{
 			Log: log, Dist: web.Dist(),
 			ExecTimeout:    cfg.ExecTimeout,
+			SFTPTimeout:    cfg.SFTPTimeout,
 			Origins:        api.AllowedOrigins(cfg.Domain, cfg.LocalPort),
 			Bus:            bus,
 			Machines:       []api.Snapshotter{inv},

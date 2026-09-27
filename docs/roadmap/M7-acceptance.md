@@ -58,19 +58,19 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 
 ## SFTP bounds
 
-- [ ] Each SFTP operation (home, list, stat, mkdir and the subsystem handshake) is bounded by `HOSTBUD_SFTP_TIMEOUT` and answers 504 with `{error, hint}` on timeout. A timed-out or cancelled operation closes the SFTP client, and the next operation starts a fresh subsystem.
+- [x] Each SFTP operation (home, list, stat, mkdir and the subsystem handshake) is bounded by `HOSTBUD_SFTP_TIMEOUT` and answers 504 with `{error, hint}` on timeout. A timed-out or cancelled operation closes the SFTP client, and the next operation starts a fresh subsystem.
   - U: T3 never-answering fake opener: deadline, close, reopen (Go).
   - I: T3 sftp stall: timeout within the bound + 2 s, the subsystem process is gone, and a later call works on a fresh client (Go, `test/sshd`).
   - E: T3 *Stalled SFTP times out (API)*.
-- [ ] At most 4 SFTP operations run per machine at once. More wait within their own deadline, and a cancelled request frees its slot. Autocomplete aborts its previous request while the user types.
+- [x] At most 4 SFTP operations run per machine at once. More wait within their own deadline, and a cancelled request frees its slot. Autocomplete aborts its previous request while the user types.
   - U: T3 semaphore (fifth waits, times out, frees on cancel) (Go); autocomplete abort (Vitest).
   - I: T3 five cancelled requests, then a sixth succeeds (Go, `test/sshd`).
   - E: n/a: concurrency limits aren't observable from a single serial user; the unit and integration tests cover them.
-- [ ] A listing response is capped at 2000 entries **and** 1 MiB of JSON (`truncated: true`), and a name in it is cut at 1024 bytes.
+- [x] A listing response is capped at 2000 entries **and** 1 MiB of JSON (`truncated: true`), and a name in it is cut at 1024 bytes.
   - U: T3 response cap and name cap (Go).
   - I: T3 a 2500-entry directory returns 2000 with `truncated` (Go, `test/sshd`).
   - E: n/a: M4's file browser scenarios cover listing; building a 1 MiB listing in e2e adds time without new coverage.
-- [ ] The file browser shows a timeout as an error with **Retry** in place of the entries, never a spinner longer than timeout + 5 s. Breadcrumbs and Cancel keep working, and mkdir keeps the typed name on error.
+- [x] The file browser shows a timeout as an error with **Retry** in place of the entries, never a spinner longer than timeout + 5 s. Breadcrumbs and Cancel keep working, and mkdir keeps the typed name on error.
   - U: T3 error state, Retry, mkdir name kept (Vitest).
   - I: n/a: frontend; the server side is above.
   - E: T3 *Stalled file browser shows Retry* (desktop and `iphone-13-pro`).
