@@ -7,6 +7,7 @@ import { useLayoutStore } from './layout'
 import { useMachinesStore } from './machines'
 import { useSessionsStore } from './sessions'
 import { useProjectsStore } from './projects'
+import { useQueuesStore } from './queues'
 import { useTreeStore } from './tree'
 import { useWindowsStore } from './windows'
 
@@ -27,6 +28,7 @@ export const useLiveStore = defineStore('live', () => {
         machines.apply(e)
         sessions.apply(e)
         projects.apply(e)
+        useQueuesStore().apply(e)
         useTreeStore().sync()
         useWindowsStore().applyEvent(e)
         closeEndedSessions(e)
@@ -57,6 +59,7 @@ export const useLiveStore = defineStore('live', () => {
     useMachinesStore().reset()
     useSessionsStore().reset()
     useProjectsStore().reset()
+    useQueuesStore().reset()
     useTreeStore().reset()
     useWindowsStore().reset()
   }

@@ -11,6 +11,7 @@ import ShortcutsDialog from '@/components/ShortcutsDialog.vue'
 import CommandPalette from '@/components/CommandPalette.vue'
 import RemoveProjectDialog from '@/components/RemoveProjectDialog.vue'
 import KillSessionDialog from '@/components/KillSessionDialog.vue'
+import QueuePanel from '@/components/QueuePanel.vue'
 import HostBanner from '@/components/HostBanner.vue'
 import TabBar from '@/components/TabBar.vue'
 import TabView from '@/components/TabView.vue'
@@ -31,7 +32,7 @@ import { useWindowsStore } from '@/stores/windows'
 import { useProjectsStore } from '@/stores/projects'
 import { useToastsStore } from '@/stores/toasts'
 import { useSessionsStore } from '@/stores/sessions'
-import { FolderSearch, PanelLeftClose, PanelLeftOpen, Search, SquareTerminal } from 'lucide-vue-next'
+import { FolderSearch, ListOrdered, PanelLeftClose, PanelLeftOpen, Search, SquareTerminal } from 'lucide-vue-next'
 import { isEditableTarget, isTerminalTarget, isTreeTarget, matchingShortcut, shortcutLabels, shortcutPlatform, shortcuts } from '@/lib/shortcuts'
 import { projectTree, sessionKey, windowKey } from '@/lib/tree'
 import { dispatchPaletteAction } from '@/lib/paletteActions'
@@ -55,6 +56,7 @@ const host = computed(() => machines.byId(MACHINE))
 
 const creating = ref(false)
 const browsing = ref(false)
+const queueOpen = ref(false) // V2-M1 Queue panel
 const sessionProject = ref<Project | null>(null) // the project a New session here dialog is for
 const killing = ref(false)
 const drawerOpen = ref(false)
@@ -184,6 +186,19 @@ function browseFiles() {
   browsing.value = true
 }
 
+function openQueue() {
+  drawerOpen.value = false
+  queueOpen.value = true
+}
+
+/** "Open session" in the Queue panel: the run's session in a tab (on a
+ * phone, the single-terminal view). */
+function openQueueSession(name: string) {
+  queueOpen.value = false
+  openSession(name)
+  void nextTick(focusActiveTerminal)
+}
+
 function showTree() {
   if (compact.value && hasTabs.value) {
     drawerOpen.value = true
@@ -299,7 +314,7 @@ function selectPaletteItem(id: string) {
   paletteActionSplitDir = splitDir
   const actionId = id.slice('action:'.length)
   dispatchPaletteAction(actionId, paletteActionHandlers)
-  const opensUi = ['new-session', 'browse-files', 'shortcuts', 'sign-out', 'close-tab', 'next-tab', 'previous-tab'].includes(actionId)
+  const opensUi = ['new-session', 'browse-files', 'queue', 'shortcuts', 'sign-out', 'close-tab', 'next-tab', 'previous-tab'].includes(actionId)
     || actionId.startsWith('new-project-session:')
     || actionId.startsWith('rename-project:')
     || actionId.startsWith('rename-session:')
@@ -310,6 +325,7 @@ function selectPaletteItem(id: string) {
 }
 
 const paletteActionHandlers = {
+  queue: openQueue,
   newSession: () => {
     if (paletteActionSplitDir && layout.focused) {
       splitTarget.value = { pane: layout.focused.id, dir: paletteActionSplitDir }
@@ -539,6 +555,9 @@ onUnmounted(() => {
       <IconButton label="Browse files" @click="browseFiles">
         <FolderSearch :size="18" aria-hidden="true" />
       </IconButton>
+      <IconButton label="Queue" @click="openQueue">
+        <ListOrdered :size="18" aria-hidden="true" />
+      </IconButton>
       <IconButton
         v-if="compact || coarsePointer"
         label="Command palette"
@@ -666,6 +685,11 @@ onUnmounted(() => {
       :compact="compact"
       :session="target"
       @killed="onKilled"
+    />
+    <QueuePanel
+      v-model:open="queueOpen"
+      :compact="compact"
+      @open-session="openQueueSession"
     />
     <ShortcutsDialog :open="shortcutsOpen" @update:open="closeShortcuts" />
     <RemoveProjectDialog :project="removingProject" :session-count="removePreview.count" :destinations="removePreview.destinations" :display-path="removingProjectPath" @cancel="removingProject = null" @removed="onProjectRemoved" />

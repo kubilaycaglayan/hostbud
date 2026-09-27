@@ -1,0 +1,372 @@
+<script setup lang="ts">
+import { computed, nextTick, ref, watch } from 'vue'
+import {
+  AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogOverlay, AlertDialogPortal, AlertDialogRoot, AlertDialogTitle,
+  DialogClose, DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle,
+} from 'reka-ui'
+import { VueDraggable } from 'vue-draggable-plus'
+import { ArrowDown, ArrowUp, GripVertical } from 'lucide-vue-next'
+import { queuesApi } from '@/api/client'
+import type { QueueItem } from '@/api/types'
+import FormError from './FormError.vue'
+import { AGENTS, type Agent, flagsError, INSTRUCTION_PREFIX, instructionError, itemActions, moveQueued, queueControls, statusLabel } from '@/lib/queue'
+import { useQueuesStore } from '@/stores/queues'
+import { useProjectsStore } from '@/stores/projects'
+import { describeError } from '@/stores/toasts'
+
+// V2-M1 Queue panel: one queue for a project; items run one after another
+// in their own tmux session, advancing only when the agent's own /goal is
+// achieved. It updates from /ws/events (queue.changed, run.changed) only.
+const props = defineProps<{ compact?: boolean }>()
+const open = defineModel<boolean>('open', { default: false })
+const emit = defineEmits<{ openSession: [name: string] }>()
+
+const store = useQueuesStore()
+const projects = useProjectsStore()
+const queue = computed(() => store.queues[0] ?? null)
+const items = ref<QueueItem[]>([])
+watch(() => queue.value?.items, (next) => { items.value = [...(next ?? [])] }, { immediate: true })
+const hasQueued = computed(() => items.value.some((i) => i.status === 'queued'))
+const controls = computed(() => queue.value ? queueControls(queue.value.status, hasQueued.value) : null)
+
+const error = ref<{ title: string; message: string; hint?: string } | null>(null)
+const busy = ref(false)
+
+async function act(title: string, fn: () => Promise<unknown>) {
+  busy.value = true
+  error.value = null
+  try {
+    const result = await fn()
+    if (result && typeof result === 'object' && 'items' in result && 'status' in result) store.put(result as never)
+  } catch (e) {
+    error.value = { title, ...describeError(e) }
+    void store.load()
+  } finally {
+    busy.value = false
+  }
+}
+
+watch(open, (isOpen) => { if (isOpen && !store.loaded) void store.load() })
+
+// ---- creating the queue ----
+const newProjectId = ref('')
+const newName = ref('Milestones')
+watch(() => projects.items, (list) => { if (!newProjectId.value && list.length) newProjectId.value = list[0].id }, { immediate: true })
+function createQueue() {
+  void act("Couldn't create the queue", () => queuesApi.create(newProjectId.value, newName.value.trim() || 'Milestones'))
+}
+
+// ---- adding and editing items ----
+interface Draft { agent: Agent; flags: string; instruction: string }
+const draft = ref<Draft>({ agent: 'claude', flags: '', instruction: INSTRUCTION_PREFIX })
+const draftTouched = ref(false)
+const draftErrors = computed(() => ({ flags: flagsError(draft.value.flags), instruction: instructionError(draft.value.instruction) }))
+function addItem() {
+  draftTouched.value = true
+  if (!queue.value || draftErrors.value.flags || draftErrors.value.instruction) return
+  const q = queue.value
+  const d = { ...draft.value }
+  void act("Couldn't add the item", async () => {
+    await queuesApi.addItem(q.id, d)
+    draft.value = { agent: d.agent, flags: d.flags, instruction: INSTRUCTION_PREFIX }
+    draftTouched.value = false
+  })
+}
+
+const editing = ref<string | null>(null)
+const edit = ref<Draft>({ agent: 'claude', flags: '', instruction: '' })
+const editErrors = computed(() => ({ flags: flagsError(edit.value.flags), instruction: instructionError(edit.value.instruction) }))
+function startEdit(item: QueueItem) {
+  editing.value = item.id
+  edit.value = { agent: item.agent, flags: item.flags, instruction: item.instruction }
+}
+function saveEdit(item: QueueItem) {
+  if (editErrors.value.flags || editErrors.value.instruction) return
+  const e = { ...edit.value }
+  void act("Couldn't save the item", async () => {
+    await queuesApi.updateItem(item.id, e)
+    editing.value = null
+  })
+}
+function removeItem(item: QueueItem) {
+  void act("Couldn't delete the item", () => queuesApi.removeItem(item.id))
+}
+
+// ---- order: drag (desktop), move buttons and Alt+Arrow keys ----
+function reorder(ids: string[]) {
+  if (!queue.value) return
+  const q = queue.value
+  void act("Couldn't reorder the queue", () => queuesApi.reorder(q.id, ids))
+}
+function move(item: QueueItem, delta: -1 | 1) {
+  const ids = moveQueued(items.value, item.id, delta)
+  if (!ids) return
+  reorder(ids)
+  void nextTick(() => document.querySelector<HTMLElement>(`[data-queue-item="${item.id}"]`)?.focus())
+}
+function onRowKey(event: KeyboardEvent, item: QueueItem) {
+  if (!event.altKey || !itemActions(item).move) return
+  if (event.key === 'ArrowUp') { event.preventDefault(); move(item, -1) }
+  if (event.key === 'ArrowDown') { event.preventDefault(); move(item, 1) }
+}
+function onDragMove(e: { related?: HTMLElement }) {
+  return e.related?.dataset.queueStatus === 'queued'
+}
+function onDragEnd() {
+  reorder(items.value.filter((i) => i.status === 'queued').map((i) => i.id))
+}
+
+// ---- queue controls and owner overrides ----
+function control(action: 'start' | 'pause' | 'resume') {
+  if (!queue.value) return
+  const q = queue.value
+  void act(`Couldn't ${action} the queue`, () => queuesApi[action](q.id))
+}
+
+// The pending confirmation. Its dialog's open state is separate: closing
+// the dialog (the action button closes it first) must not lose the action.
+const confirming = ref<{ kind: 'skip' | 'mark-done' | 'delete-queue'; item?: QueueItem } | null>(null)
+const confirmOpen = ref(false)
+function ask(kind: 'skip' | 'mark-done' | 'delete-queue', item?: QueueItem) {
+  confirming.value = { kind, item }
+  confirmOpen.value = true
+}
+const confirmText = computed(() => {
+  const c = confirming.value
+  if (!c) return { title: '', body: '', action: '' }
+  if (c.kind === 'delete-queue') return { title: 'Delete this queue?', body: 'Its items and their history are removed. Run sessions stay open; close them yourself.', action: 'Delete queue' }
+  if (c.kind === 'skip') return { title: `Skip item ${c.item?.position}?`, body: 'The queue moves on without it when you resume.', action: 'Skip' }
+  return { title: `Mark item ${c.item?.position} done?`, body: "This overrides the agent's own /goal verdict. The queue moves on when you resume.", action: 'Mark done' }
+})
+function confirmAction() {
+  const c = confirming.value
+  confirming.value = null
+  confirmOpen.value = false
+  if (!c) return
+  if (c.kind === 'delete-queue' && queue.value) {
+    const q = queue.value
+    void act("Couldn't delete the queue", async () => {
+      await queuesApi.remove(q.id)
+      store.queues = store.queues.filter((x) => x.id !== q.id)
+    })
+  } else if (c.item) {
+    const it = c.item
+    void act(c.kind === 'skip' ? "Couldn't skip the item" : "Couldn't mark the item done", () => (c.kind === 'skip' ? queuesApi.skip(it.id) : queuesApi.markDone(it.id)))
+  }
+}
+function retry(item: QueueItem) {
+  void act("Couldn't retry the item", () => queuesApi.retry(item.id))
+}
+function openSession(item: QueueItem) {
+  if (!item.run?.sessionName) return
+  open.value = false
+  emit('openSession', item.run.sessionName)
+}
+
+const badge: Record<QueueItem['status'], string> = {
+  queued: 'border-border text-muted',
+  running: 'border-accent text-accent',
+  done: 'border-ok text-ok',
+  needs_attention: 'border-danger text-danger',
+  skipped: 'border-border text-muted',
+}
+</script>
+
+<template>
+  <DialogRoot v-model:open="open">
+    <DialogPortal>
+      <DialogOverlay class="fixed inset-0 z-40 bg-overlay" />
+      <DialogContent
+        class="fixed z-40 flex flex-col overflow-hidden border border-border bg-surface text-fg"
+        :class="props.compact ? 'inset-0 h-dvh w-full pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]' : 'left-1/2 top-1/2 max-h-[min(48rem,90vh)] w-[min(52rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded'"
+      >
+        <div class="flex items-start justify-between gap-2 border-b border-border px-3 py-2">
+          <div class="min-w-0">
+            <DialogTitle class="text-base font-bold">
+              Queue
+            </DialogTitle>
+            <DialogDescription class="text-sm text-muted">
+              Items run one after another in their own session. The next starts only when the agent's /goal is achieved.
+            </DialogDescription>
+          </div>
+          <DialogClose aria-label="Close queue panel" title="Close" class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border">
+            ×
+          </DialogClose>
+        </div>
+        <div class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-3">
+          <FormError v-if="error" id="queue-error" :title="error.title" :message="error.message" :hint="error.hint" />
+          <p v-if="store.loadError" role="alert" class="mt-2 text-danger">
+            Couldn't load the queue: {{ store.loadError }}
+          </p>
+
+          <form v-if="!queue && store.loaded" class="mt-2 flex flex-col gap-3" aria-label="Create queue" @submit.prevent="createQueue">
+            <p v-if="!projects.items.length" class="text-muted">
+              Save a folder as a project first (Browse files → Open as project).
+            </p>
+            <label class="block">Project
+              <select v-model="newProjectId" autocomplete="off" class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 text-base">
+                <option v-for="p in projects.items" :key="p.id" :value="p.id">{{ p.name }} — {{ p.path }}</option>
+              </select>
+            </label>
+            <label class="block">Queue name
+              <input v-model="newName" autocomplete="off" class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 text-base">
+            </label>
+            <div>
+              <button type="submit" :disabled="busy || !newProjectId" class="touch-target min-h-11 rounded bg-accent px-3 font-bold text-bg">
+                Create queue
+              </button>
+            </div>
+          </form>
+
+          <template v-if="queue">
+            <div class="mt-2 flex flex-wrap items-center gap-2">
+              <h3 class="min-w-0 font-bold">
+                {{ queue.name }} <span class="font-normal text-muted">· {{ queue.projectName }}</span>
+              </h3>
+              <span data-testid="queue-status" class="rounded border border-border px-2 text-sm">{{ queue.status }}</span>
+              <div class="ml-auto flex flex-wrap gap-2">
+                <button v-if="controls?.start || queue.status === 'idle' || queue.status === 'finished'" type="button" :disabled="busy || !controls?.start" class="touch-target min-h-11 rounded bg-accent px-3 font-bold text-bg" @click="control('start')">Start</button>
+                <button v-if="controls?.pause" type="button" :disabled="busy" class="touch-target min-h-11 rounded border border-border px-3" @click="control('pause')">Pause</button>
+                <button v-if="controls?.resume" type="button" :disabled="busy" class="touch-target min-h-11 rounded bg-accent px-3 font-bold text-bg" @click="control('resume')">Resume</button>
+                <button type="button" :disabled="busy" class="touch-target min-h-11 rounded border border-border px-3" @click="ask('delete-queue')">Delete queue</button>
+              </div>
+            </div>
+            <p class="mt-1 break-all text-sm text-muted">
+              {{ queue.projectPath }}
+            </p>
+
+            <p v-if="!items.length" class="mt-3 text-muted">
+              No items yet. Add one below.
+            </p>
+            <VueDraggable
+              v-else
+              v-model="items"
+              tag="ol"
+              handle=".queue-drag-handle"
+              :disabled="props.compact || busy"
+              :animation="150"
+              :move="onDragMove"
+              aria-label="Queue items"
+              class="mt-3 flex flex-col gap-2"
+              @end="onDragEnd"
+            >
+              <li
+                v-for="item in items"
+                :key="item.id"
+                :data-queue-item="item.id"
+                :data-queue-status="item.status"
+                :aria-label="`Item ${item.position}: ${item.instruction}`"
+                tabindex="0"
+                class="rounded border border-border p-2"
+                @keydown="onRowKey($event, item)"
+              >
+                <form v-if="editing === item.id" class="flex flex-col gap-2" :aria-label="`Edit item ${item.position}`" @submit.prevent="saveEdit(item)">
+                  <label class="block">Agent
+                    <select v-model="edit.agent" autocomplete="off" class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 text-base">
+                      <option v-for="a in AGENTS" :key="a" :value="a">{{ a }}</option>
+                    </select>
+                  </label>
+                  <label class="block">Flags
+                    <input v-model="edit.flags" autocomplete="off" spellcheck="false" class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 font-mono text-base">
+                  </label>
+                  <p v-if="editErrors.flags" class="text-sm text-danger">{{ editErrors.flags }}</p>
+                  <label class="block">Instruction
+                    <input v-model="edit.instruction" autocomplete="off" spellcheck="false" class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 font-mono text-base">
+                  </label>
+                  <p v-if="editErrors.instruction" class="text-sm text-danger">{{ editErrors.instruction }}</p>
+                  <div class="flex gap-2">
+                    <button type="submit" :disabled="busy" class="touch-target min-h-11 rounded bg-accent px-3 font-bold text-bg">Save</button>
+                    <button type="button" class="touch-target min-h-11 rounded border border-border px-3" @click="editing = null">Cancel</button>
+                  </div>
+                </form>
+                <template v-else>
+                  <div class="flex items-start gap-2">
+                    <span v-if="itemActions(item).move && !props.compact" class="queue-drag-handle touch-target inline-flex min-h-11 min-w-8 cursor-grab items-center justify-center text-muted" :aria-label="`Drag to reorder item ${item.position}`" role="button">
+                      <GripVertical :size="16" aria-hidden="true" />
+                    </span>
+                    <span class="min-w-6 pt-1 text-muted">{{ item.position }}.</span>
+                    <div class="min-w-0 flex-1">
+                      <p class="break-words font-mono text-sm">{{ item.instruction }}</p>
+                      <p class="mt-1 break-words text-sm text-muted">
+                        {{ item.agent }}<template v-if="item.flags"> · <span class="font-mono">{{ item.flags }}</span></template>
+                        <template v-if="item.run?.sessionName"> · session <span class="font-mono">{{ item.run.sessionName }}</span></template>
+                      </p>
+                      <p class="mt-1 flex flex-wrap items-center gap-2">
+                        <span data-testid="item-status" :class="badge[item.status]" class="rounded border px-2 text-sm">{{ statusLabel(item) }}</span>
+                      </p>
+                      <p v-if="item.run?.detail && (item.status === 'needs_attention' || item.run.status === 'failed')" role="status" class="mt-1 break-words text-sm text-danger">
+                        {{ item.run.detail }}
+                      </p>
+                    </div>
+                  </div>
+                  <div class="mt-2 flex flex-wrap gap-2">
+                    <template v-if="itemActions(item).move">
+                      <button type="button" class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border" :aria-label="`Move item ${item.position} up`" :disabled="busy" @click="move(item, -1)">
+                        <ArrowUp :size="16" aria-hidden="true" />
+                      </button>
+                      <button type="button" class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border" :aria-label="`Move item ${item.position} down`" :disabled="busy" @click="move(item, 1)">
+                        <ArrowDown :size="16" aria-hidden="true" />
+                      </button>
+                    </template>
+                    <button v-if="itemActions(item).edit" type="button" class="touch-target min-h-11 rounded border border-border px-3" :aria-label="`Edit item ${item.position}`" @click="startEdit(item)">Edit</button>
+                    <button v-if="itemActions(item).remove" type="button" class="touch-target min-h-11 rounded border border-border px-3" :aria-label="`Delete item ${item.position}`" :disabled="busy" @click="removeItem(item)">Delete</button>
+                    <button v-if="itemActions(item).retry" type="button" class="touch-target min-h-11 rounded bg-accent px-3 font-bold text-bg" :aria-label="`Retry item ${item.position}`" :disabled="busy" @click="retry(item)">Retry</button>
+                    <button v-if="itemActions(item).skip" type="button" class="touch-target min-h-11 rounded border border-border px-3" :aria-label="`Skip item ${item.position}`" :disabled="busy" @click="ask('skip', item)">Skip</button>
+                    <button v-if="itemActions(item).markDone" type="button" class="touch-target min-h-11 rounded border border-border px-3" :aria-label="`Mark item ${item.position} done`" :disabled="busy" @click="ask('mark-done', item)">Mark done</button>
+                    <button v-if="itemActions(item).openSession" type="button" class="touch-target min-h-11 rounded border border-border px-3" :aria-label="`Open session of item ${item.position}`" @click="openSession(item)">Open session</button>
+                  </div>
+                </template>
+              </li>
+            </VueDraggable>
+
+            <form class="mt-4 flex flex-col gap-2 border-t border-border pt-3" aria-label="Add item" @submit.prevent="addItem">
+              <h4 class="font-bold">Add item</h4>
+              <div class="flex flex-wrap gap-2">
+                <label class="block min-w-32">Agent
+                  <select v-model="draft.agent" autocomplete="off" class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 text-base">
+                    <option v-for="a in AGENTS" :key="a" :value="a">{{ a }}</option>
+                  </select>
+                </label>
+                <label class="block min-w-0 flex-1">Flags
+                  <input v-model="draft.flags" autocomplete="off" spellcheck="false" placeholder="--dangerously-skip-permissions" class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 font-mono text-base">
+                </label>
+              </div>
+              <p v-if="draftTouched && draftErrors.flags" class="text-sm text-danger">{{ draftErrors.flags }}</p>
+              <label class="block">Instruction
+                <input v-model="draft.instruction" autocomplete="off" spellcheck="false" class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 font-mono text-base">
+              </label>
+              <p v-if="draftTouched && draftErrors.instruction" class="text-sm text-danger">{{ draftErrors.instruction }}</p>
+              <div>
+                <button type="submit" :disabled="busy" class="touch-target min-h-11 rounded bg-accent px-3 font-bold text-bg">Add item</button>
+              </div>
+            </form>
+          </template>
+        </div>
+      </DialogContent>
+    </DialogPortal>
+  </DialogRoot>
+  <AlertDialogRoot v-model:open="confirmOpen">
+    <AlertDialogPortal>
+      <AlertDialogOverlay class="fixed inset-0 z-[60] bg-overlay" />
+      <AlertDialogContent
+        class="fixed z-[60] border border-border bg-surface p-5 text-fg"
+        :class="props.compact ? 'inset-x-0 bottom-0 max-h-[90dvh] w-full overflow-y-auto rounded-t-2xl pb-[max(1.25rem,env(safe-area-inset-bottom))]' : 'top-1/2 left-1/2 w-[min(24rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded'"
+      >
+        <AlertDialogTitle class="text-base font-bold">
+          {{ confirmText.title }}
+        </AlertDialogTitle>
+        <AlertDialogDescription class="mt-2 text-muted">
+          {{ confirmText.body }}
+        </AlertDialogDescription>
+        <div class="mt-4 flex justify-end gap-2">
+          <AlertDialogCancel class="touch-target min-h-11 rounded border border-border px-3 py-2">
+            Cancel
+          </AlertDialogCancel>
+          <AlertDialogAction class="touch-target min-h-11 rounded bg-accent px-3 py-2 font-bold text-bg" @click.prevent="confirmAction">
+            {{ confirmText.action }}
+          </AlertDialogAction>
+        </div>
+      </AlertDialogContent>
+    </AlertDialogPortal>
+  </AlertDialogRoot>
+</template>

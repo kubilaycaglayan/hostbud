@@ -1,7 +1,7 @@
 // Typed client for hostbud's JSON API. Errors carry the server's
 // {error, hint} shape (and Retry-After for 429s).
 
-import type { Machine, Project, Session, TmuxWindows } from './types'
+import type { Machine, Project, Queue, QueueItem, Session, TmuxWindows } from './types'
 
 export class ApiError extends Error {
   constructor(
@@ -240,6 +240,27 @@ export const projectsApi = {
   remove: (id: string) => request<void>('DELETE', `/api/projects/${encodeURIComponent(id)}`),
   createSession: (id: string, spec: { name?: string; startCommand?: string }) =>
     request<{ name: string }>('POST', `/api/projects/${encodeURIComponent(id)}/sessions`, spec, { signal: execSignal() }),
+}
+
+const q = (id: string) => encodeURIComponent(id)
+
+/** The V2-M1 queue API (/api/queues, /api/queue-items). */
+export const queuesApi = {
+  list: () => request<{ queues: Queue[] }>('GET', '/api/queues'),
+  create: (projectId: string, name: string) => request<Queue>('POST', '/api/queues', { projectId, name }),
+  rename: (id: string, name: string) => request<Queue>('PATCH', `/api/queues/${q(id)}`, { name }),
+  remove: (id: string) => request<void>('DELETE', `/api/queues/${q(id)}`),
+  addItem: (id: string, item: { agent: string; flags: string; instruction: string }) => request<QueueItem>('POST', `/api/queues/${q(id)}/items`, item),
+  updateItem: (id: string, item: { agent?: string; flags?: string; instruction?: string }) => request<QueueItem>('PATCH', `/api/queue-items/${q(id)}`, item),
+  removeItem: (id: string) => request<void>('DELETE', `/api/queue-items/${q(id)}`),
+  reorder: (id: string, itemIds: string[]) => request<Queue>('PUT', `/api/queues/${q(id)}/order`, { itemIds }),
+  // Starting a run checks the client and creates its session over ssh.
+  start: (id: string) => request<Queue>('POST', `/api/queues/${q(id)}/start`, undefined, { signal: execSignal() }),
+  pause: (id: string) => request<Queue>('POST', `/api/queues/${q(id)}/pause`),
+  resume: (id: string) => request<Queue>('POST', `/api/queues/${q(id)}/resume`, undefined, { signal: execSignal() }),
+  retry: (id: string) => request<Queue>('POST', `/api/queue-items/${q(id)}/retry`),
+  skip: (id: string) => request<Queue>('POST', `/api/queue-items/${q(id)}/skip`),
+  markDone: (id: string) => request<Queue>('POST', `/api/queue-items/${q(id)}/mark-done`),
 }
 
 /** UI state keys the server accepts (internal/api/uistate.go). */

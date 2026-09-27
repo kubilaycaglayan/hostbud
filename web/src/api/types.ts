@@ -61,9 +61,61 @@ export interface Project {
   updatedAt: string
 }
 
+// V2-M1 queue (internal/queue, internal/store).
+export type QueueStatus = 'idle' | 'running' | 'paused' | 'finished'
+export type QueueItemStatus = 'queued' | 'running' | 'done' | 'needs_attention' | 'skipped'
+export type RunStatus = 'starting' | 'running' | 'achieved' | 'failed' | 'exited' | 'stale' | 'cancelled'
+
+export interface RunSummary {
+  id: string
+  status: RunStatus
+  sessionName: string
+  detail?: string
+  clientVersion?: string
+  startedAt: string
+  endedAt?: string
+}
+
+export interface QueueItem {
+  id: string
+  queueId: string
+  position: number
+  agent: 'claude' | 'codex'
+  flags: string
+  instruction: string
+  status: QueueItemStatus
+  run?: RunSummary
+}
+
+export interface Queue {
+  id: string
+  projectId: string
+  name: string
+  status: QueueStatus
+  projectName: string
+  projectPath: string
+  items: QueueItem[]
+}
+
+export interface QueueChanged {
+  action: string
+  queueId: string
+  queue?: Queue
+}
+
+export interface RunChanged {
+  runId: string
+  itemId: string
+  queueId: string
+  status: RunStatus
+  detail?: string
+}
+
 export type ServerEvent =
   | { type: 'snapshot'; machines: Machine[]; sessions: Record<string, Session[]> }
   | { type: 'machine.status'; machine: string; payload: Machine }
   | { type: 'sessions.changed'; machine: string; payload: { sessions: Session[] } }
   | { type: 'projects.changed'; machine: string; payload: { action: string; project: Project } }
+  | { type: 'queue.changed'; machine: string; payload: QueueChanged }
+  | { type: 'run.changed'; machine: string; payload: RunChanged }
   | { type: 'heartbeat' }

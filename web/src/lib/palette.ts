@@ -70,6 +70,7 @@ export function buildPaletteItems(data: PaletteData): PaletteItem[] {
   const actions: PaletteItem[] = [
     action('new-session', 'New session', undefined, 'tree-new-session'),
     action('browse-files', 'Browse files'),
+    action('queue', 'Open queue panel'),
     action('collapse-all', 'Collapse all'),
     action('expand-all', 'Expand all'),
     action(data.showHidden ? 'hide-hidden' : 'show-hidden', data.showHidden ? 'Hide hidden' : 'Show hidden'),
