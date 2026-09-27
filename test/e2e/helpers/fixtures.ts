@@ -1,4 +1,4 @@
-import { test as base, expect } from '@playwright/test'
+import { test as base, expect, type Page } from '@playwright/test'
 import { Target } from './target.ts'
 import { UI } from './ui.ts'
 
@@ -11,6 +11,39 @@ interface Fixtures {
 }
 
 export const EMPTY_LAYOUT = { version: 1, tabs: [], activeTab: null }
+export const EMPTY_TREE = {
+  version: 2,
+  projects: [],
+  sessions: {},
+  pinned: [],
+  hidden: { projects: [], sessions: [] },
+  collapsed: [],
+  expanded: [],
+  showHidden: false,
+}
+const SYSTEM_THEME = { version: 1, mode: 'system' }
+
+async function resetScenarioState(page: Page, baseURL: string | undefined, target: Target) {
+  // The SSH target is disposable; every browser test starts with no tmux state.
+  await target.resetTmux()
+  const response = await page.request.get('/api/projects?machine=host')
+  // Auth scenarios use an intentionally signed-out context and don't create
+  // project or UI state for the shared test account.
+  if (response.status() === 401) return
+  if (!response.ok()) throw new Error(`reset e2e projects: ${response.status()} ${await response.text()}`)
+  const { projects } = await response.json() as { projects: { id: string }[] }
+  const origin = new URL(baseURL!).origin
+  for (const project of projects) {
+    const deleted = await page.request.delete(`/api/projects/${encodeURIComponent(project.id)}`, {
+      headers: { Origin: origin },
+    })
+    if (!deleted.ok()) throw new Error(`reset e2e project ${project.id}: ${deleted.status()} ${await deleted.text()}`)
+  }
+  for (const [key, data] of [['layout', EMPTY_LAYOUT], ['tree', EMPTY_TREE], ['theme', SYSTEM_THEME]] as const) {
+    const saved = await page.request.put(`/api/ui-state/${key}`, { data, headers: { Origin: origin } })
+    if (!saved.ok()) throw new Error(`reset e2e ${key}: ${saved.status()} ${await saved.text()}`)
+  }
+}
 
 // A new account has no saved layout, tree or theme yet: their initial GETs
 // answer 404, which is the API's normal default-state response.
@@ -27,9 +60,10 @@ export const test = base.extend<Fixtures>({
   },
 
   // Fails the test on console errors, uncaught exceptions, failed requests
-  // and HTTP error responses the page ran into. Every test starts with no
-  // open tabs (the saved layout is per account, and the account is shared).
-  page: async ({ page, allowedBrowserErrors, baseURL }, use) => {
+  // and HTTP error responses the page ran into. The browser tests share one
+  // account and a disposable target, so reset their persistent state first.
+  page: async ({ page, allowedBrowserErrors, baseURL, target }, use) => {
+    await resetScenarioState(page, baseURL, target)
     const problems: string[] = []
     const report = (line: string) => {
       if (!allowedBrowserErrors?.test(line) && !NEW_ACCOUNT_UI_STATE.test(line)) problems.push(line)
@@ -59,11 +93,6 @@ export const test = base.extend<Fixtures>({
     )
     page.on('response', (r) => {
       if (r.status() >= 400) report(`HTTP ${r.status()}: ${r.request().method()} ${r.url()}`)
-    })
-    // Signed out (the auth scenarios) this answers 401: nothing to reset.
-    await page.request.put('/api/ui-state/layout', {
-      data: EMPTY_LAYOUT,
-      headers: { Origin: new URL(baseURL!).origin },
     })
     await use(page)
     expect(problems, 'browser console errors or failed requests').toEqual([])

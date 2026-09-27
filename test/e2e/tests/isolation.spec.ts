@@ -33,6 +33,8 @@ test('each browser scenario starts with clean shared account and target state', 
   expect((await request.get('/api/projects?machine=host')).status()).toBe(200)
   expect((await (await request.get('/api/projects?machine=host')).json()).projects).toEqual([])
   expect(await listSessions(request)).toEqual([])
+  expect(await getUIState(page.request, 'tree')).toEqual(EMPTY_TREE)
+  expect(await getUIState(page.request, 'theme')).toEqual({ version: 1, mode: 'system' })
   expect(await getUIState(request, 'tree')).toEqual(EMPTY_TREE)
   expect(await getUIState(request, 'theme')).toEqual({ version: 1, mode: 'system' })
   expect(await target.sessions()).toEqual([])
