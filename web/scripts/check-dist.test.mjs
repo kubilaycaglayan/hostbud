@@ -71,6 +71,12 @@ describe('check-dist PWA validation', () => {
     writeFileSync(join(dir, 'index.html'), html.replace('</script>', '</script><script>evil()</script>'))
     assert.throws(() => checkDist(dir), /more than one inline script/)
   })
+  it('rejects font data URLs that violate the same-origin CSP', () => {
+    const dir = fixture()
+    mkdirSync(join(dir, 'assets'))
+    writeFileSync(join(dir, 'assets/app.css'), 'src: url(data:font/woff2;base64,AA==)')
+    assert.throws(() => checkDist(dir), /inline font asset/)
+  })
   it('generates the expected PNG sizes from a fixture SVG', () => {
     const dir = mkdtempSync(join(tmpdir(), 'hostbud-icons-'))
     dirs.push(dir)
