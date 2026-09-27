@@ -71,6 +71,20 @@ describe('auth store', () => {
     expect(auth.status).toBe('authenticated')
   })
 
+  it('signs out locally before asking the server', async () => {
+    // Pending saves stop on the local sign-out; sent during the logout
+    // request, they would reach the server with a revoked session (401).
+    const auth = useAuthStore()
+    auth.status = 'authenticated'
+    let statusDuringRequest = ''
+    stubFetch(() => {
+      statusDuringRequest = auth.status
+      return { status: 204 }
+    })
+    await auth.logout()
+    expect(statusDuringRequest).toBe('anonymous')
+  })
+
   it('logs out even if the request fails', async () => {
     stubFetch(() => ({ status: 500, body: { error: 'x' } }))
     const auth = useAuthStore()

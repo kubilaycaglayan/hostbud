@@ -42,13 +42,12 @@ export const useAuthStore = defineStore('auth', () => {
     await login(address, password)
   }
 
+  /** Signs out here first: that stops pending saves, which sent during the
+   * logout request would reach the server with a revoked session (401). */
   async function logout() {
-    try {
-      await authApi.logout()
-    } finally {
-      status.value = 'anonymous'
-      email.value = ''
-    }
+    status.value = 'anonymous'
+    email.value = ''
+    await authApi.logout()
   }
 
   /** A protected request answered 401: the session is gone. */
