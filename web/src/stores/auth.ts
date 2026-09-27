@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { ApiError, authApi } from '@/api/client'
+import { ApiError, authApi, runtimeApi } from '@/api/client'
 
 export type AuthStatus = 'loading' | 'anonymous' | 'authenticated' | 'unreachable' | 'server-error'
 
@@ -13,6 +13,7 @@ export const useAuthStore = defineStore('auth', () => {
     status.value = 'loading'
     try {
       email.value = (await authApi.me()).email
+      await runtimeApi.configureExecTimeout()
       status.value = 'authenticated'
       serverError.value = ''
     } catch (e) {

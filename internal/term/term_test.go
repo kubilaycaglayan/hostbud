@@ -249,6 +249,40 @@ func TestStalledClientIsDropped(t *testing.T) {
 	eventually(t, "handler done", func() bool { return h.Active() == 0 })
 }
 
+func TestAttachWatchdogClosesSilentHostWith4408(t *testing.T) {
+	proc := newFake()
+	h, url, _ := serve(t, proc)
+	h.AttachTimeout = 80 * time.Millisecond
+	c := dial(t, url+"?machine=host&session=s1")
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	_, _, err := c.Read(ctx)
+	if websocket.CloseStatus(err) != 4408 || !strings.Contains(err.Error(), "host didn't answer") {
+		t.Fatalf("watchdog close = %v, status %d", err, websocket.CloseStatus(err))
+	}
+	eventually(t, "silent attach killed", func() bool { _, _, killed := proc.snapshot(); return killed })
+}
+
+func TestAttachWatchdogStopsAfterFirstOutput(t *testing.T) {
+	proc := newFake()
+	h, url, _ := serve(t, proc)
+	h.AttachTimeout = 80 * time.Millisecond
+	c := dial(t, url+"?machine=host&session=s1")
+	proc.output <- []byte("ready")
+	ctx, cancel := context.WithTimeout(t.Context(), 250*time.Millisecond)
+	defer cancel()
+	typ, data, err := c.Read(ctx)
+	if err != nil || typ != websocket.MessageBinary || string(data) != "ready" {
+		t.Fatalf("initial output: type=%v data=%q err=%v", typ, data, err)
+	}
+	time.Sleep(120 * time.Millisecond)
+	_, _, killed := proc.snapshot()
+	if killed {
+		t.Fatal("attach watchdog killed process after output")
+	}
+	_ = c.Close(websocket.StatusNormalClosure, "done")
+}
+
 func TestBadRequests(t *testing.T) {
 	_, url, _ := serve(t, newFake())
 	httpURL := "http" + strings.TrimPrefix(url, "ws")

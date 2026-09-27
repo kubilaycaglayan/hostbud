@@ -50,6 +50,7 @@ type Handler struct {
 	// PingInterval and PingTimeout override the WebSocket ping defaults
 	// (25s, 10s); tests shorten them.
 	PingInterval, PingTimeout time.Duration
+	AttachTimeout             time.Duration
 
 	active atomic.Int64
 }
@@ -111,15 +112,22 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.active.Add(1)
 	defer h.active.Add(-1)
 	log.Info("terminal attached", "machine", q.Get("machine"), "session", q.Get("session"))
-	h.bridge(ctx, cancel, c, proc, log)
+	attachTimeout := h.AttachTimeout
+	if attachTimeout <= 0 {
+		attachTimeout = 10 * time.Second
+	}
+	h.bridge(ctx, cancel, c, proc, log, attachTimeout)
 	log.Info("terminal detached", "machine", q.Get("machine"), "session", q.Get("session"))
 }
 
 // bridge pumps bytes both ways until the process exits or the socket
 // closes, then makes sure the process is gone.
-func (h *Handler) bridge(ctx context.Context, cancel context.CancelFunc, c *websocket.Conn, proc Process, log *slog.Logger) {
+func (h *Handler) bridge(ctx context.Context, cancel context.CancelFunc, c *websocket.Conn, proc Process, log *slog.Logger, attachTimeout time.Duration) {
 	out := make(chan []byte, outQueue)
 	var wg sync.WaitGroup
+	watchdog := time.NewTimer(attachTimeout)
+	defer watchdog.Stop()
+	watchingFirstOutput := true
 
 	// PTY → queue. A full queue means a stalled client: drop it.
 	stalled := make(chan struct{})
@@ -189,7 +197,10 @@ loop:
 		case <-ctx.Done():
 			break loop
 		case <-stalled:
-			_ = c.Close(websocket.StatusPolicyViolation, "client too slow; reconnect")
+			_ = c.Close(websocket.StatusTryAgainLater, "client too slow; reconnect")
+			break loop
+		case <-watchdog.C:
+			_ = c.Close(websocket.StatusCode(4408), "host didn't answer")
 			break loop
 		case <-h.Shutdown:
 			_ = c.Close(websocket.StatusGoingAway, "hostbud is restarting; reconnect")
@@ -198,6 +209,10 @@ loop:
 			if !ok {
 				exited = true
 				break loop
+			}
+			if watchingFirstOutput {
+				watchdog.Stop()
+				watchingFirstOutput = false
 			}
 			if write(ctx, c, websocket.MessageBinary, b) != nil {
 				break loop

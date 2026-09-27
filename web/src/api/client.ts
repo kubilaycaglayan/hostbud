@@ -15,16 +15,35 @@ export class ApiError extends Error {
   }
 }
 
+let execTimeoutMs = 10_000
+
+/** Applies the authenticated server's configured exec deadline to remote API requests. */
+export function setExecTimeoutMs(value: number) {
+  if (Number.isFinite(value) && value >= 2_000 && value <= 120_000) execTimeoutMs = value
+}
+
+function execSignal(): AbortSignal {
+  return AbortSignal.timeout(execTimeoutMs + 5_000)
+}
+
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
 export async function request<T>(method: Method, path: string, body?: unknown, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(path, {
-    ...init,
-    method,
-    credentials: 'same-origin',
-    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  })
+  let res: Response
+  try {
+    res = await fetch(path, {
+      ...init,
+      method,
+      credentials: 'same-origin',
+      headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    })
+  } catch (error) {
+    if (error instanceof DOMException && ['AbortError', 'TimeoutError'].includes(error.name)) {
+      throw new ApiError(504, "hostbud didn't answer", 'The host may be busy; hostbud will retry.')
+    }
+    throw error
+  }
   if (!res.ok) {
     let error = `request failed (${res.status})`
     let hint: string | undefined
@@ -57,6 +76,17 @@ export const authApi = {
   logout: () => request<void>('POST', '/api/auth/logout'),
 }
 
+export const runtimeApi = {
+  async configureExecTimeout() {
+    try {
+      const { execTimeoutMs: value } = await request<{ execTimeoutMs: number }>('GET', '/api/runtime/limits')
+      setExecTimeoutMs(value)
+    } catch {
+      // Keep the shipped default if configuration discovery is unavailable.
+    }
+  },
+}
+
 export interface CreateSession {
   name?: string
   path?: string
@@ -69,20 +99,20 @@ export const sessionsApi = {
   machines: () => request<{ machines: Machine[] }>('GET', '/api/machines'),
   list: (machine: string) => request<{ sessions: Session[] }>('GET', sessionsPath(machine)),
   create: (machine: string, spec: CreateSession) =>
-    request<{ name: string }>('POST', sessionsPath(machine), spec),
+    request<{ name: string }>('POST', sessionsPath(machine), spec, { signal: execSignal() }),
   rename: (machine: string, from: string, to: string) =>
-    request<{ name: string }>('PATCH', `${sessionsPath(machine)}/${encodeURIComponent(from)}`, { name: to }),
+    request<{ name: string }>('PATCH', `${sessionsPath(machine)}/${encodeURIComponent(from)}`, { name: to }, { signal: execSignal() }),
   /** Kills a session: callers must have the user's confirmation. */
   kill: (machine: string, name: string) =>
-    request<void>('DELETE', `${sessionsPath(machine)}/${encodeURIComponent(name)}`),
+    request<void>('DELETE', `${sessionsPath(machine)}/${encodeURIComponent(name)}`, undefined, { signal: execSignal() }),
 }
 
 export const windowsApi = {
   list: (machine: string, name: string) => request<TmuxWindows>(
-    'GET', `${sessionsPath(machine)}/${encodeURIComponent(name)}/windows`, undefined, { signal: AbortSignal.timeout(10_000) },
+    'GET', `${sessionsPath(machine)}/${encodeURIComponent(name)}/windows`, undefined, { signal: execSignal() },
   ),
   select: (machine: string, name: string, window: string, pane?: string) => request<TmuxWindows>(
-    'POST', `${sessionsPath(machine)}/${encodeURIComponent(name)}/select`, { window, ...(pane === undefined ? {} : { pane }) }, { signal: AbortSignal.timeout(10_000) },
+    'POST', `${sessionsPath(machine)}/${encodeURIComponent(name)}/select`, { window, ...(pane === undefined ? {} : { pane }) }, { signal: execSignal() },
   ),
 }
 
@@ -98,7 +128,7 @@ export const copyModeApi = {
     'POST',
     `${sessionsPath(machine)}/${encodeURIComponent(name)}/copy-mode`,
     { action, ...(lines === undefined ? {} : { lines }) },
-    { signal: AbortSignal.timeout(10_000) },
+    { signal: execSignal() },
   ),
 }
 
@@ -131,7 +161,7 @@ export const projectsApi = {
   rename: (id: string, name: string) => request<Project>('PATCH', `/api/projects/${encodeURIComponent(id)}`, { name }),
   remove: (id: string) => request<void>('DELETE', `/api/projects/${encodeURIComponent(id)}`),
   createSession: (id: string, spec: { name?: string; startCommand?: string }) =>
-    request<{ name: string }>('POST', `/api/projects/${encodeURIComponent(id)}/sessions`, spec),
+    request<{ name: string }>('POST', `/api/projects/${encodeURIComponent(id)}/sessions`, spec, { signal: execSignal() }),
 }
 
 /** UI state keys the server accepts (internal/api/uistate.go). */

@@ -1,8 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, copyModeApi, getUIState, projectsApi, putUIState, request, sessionsApi, windowsApi } from './client'
+import { ApiError, copyModeApi, getUIState, projectsApi, putUIState, request, runtimeApi, sessionsApi, setExecTimeoutMs, windowsApi } from './client'
 import { stubFetch } from '@/test-utils'
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.restoreAllMocks()
+  setExecTimeoutMs(10_000)
+})
 
 describe('request', () => {
   it('sends JSON and returns the parsed body', async () => {
@@ -27,6 +31,21 @@ describe('request', () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('oops', { status: 502 })))
     const err = await request('GET', '/api/x').catch((e) => e)
     expect(err).toMatchObject({ status: 502, message: 'request failed (502)', hint: undefined })
+  })
+
+  it('maps an aborted remote request to an actionable timeout error', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new DOMException('timed out', 'TimeoutError') }))
+    await expect(request('POST', '/api/machines/host/sessions', {})).rejects.toMatchObject({ status: 504, message: "hostbud didn't answer" })
+  })
+})
+
+describe('runtime limits', () => {
+  it('uses the server exec timeout plus five seconds for tmux-backed requests', async () => {
+    const timeout = vi.spyOn(AbortSignal, 'timeout')
+    stubFetch((_method, path) => ({ status: 200, body: path === '/api/runtime/limits' ? { execTimeoutMs: 25_000 } : { name: 'work' } }))
+    await runtimeApi.configureExecTimeout()
+    await sessionsApi.create('host', { name: 'work' })
+    expect(timeout).toHaveBeenCalledWith(30_000)
   })
 })
 

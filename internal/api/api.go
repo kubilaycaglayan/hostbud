@@ -40,7 +40,8 @@ type Config struct {
 	TrustedProxies []netip.Prefix // peers whose X-Forwarded-* headers count (Caddy)
 	// Heartbeat is how often /ws/events sends {"type":"heartbeat"}, so the
 	// browser notices a hung connection (default 15s).
-	Heartbeat time.Duration
+	Heartbeat   time.Duration
+	ExecTimeout time.Duration
 }
 
 // New returns the root HTTP handler.
@@ -51,6 +52,9 @@ func New(cfg Config) http.Handler {
 	if cfg.Heartbeat <= 0 {
 		cfg.Heartbeat = defaultHeartbeat
 	}
+	if cfg.ExecTimeout <= 0 {
+		cfg.ExecTimeout = 10 * time.Second
+	}
 	s := &server{cfg: cfg, machines: map[string]Snapshotter{}}
 	for _, m := range cfg.Machines {
 		info, _ := m.Snapshot()
@@ -60,6 +64,7 @@ func New(cfg Config) http.Handler {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", handleHealth)
+	mux.HandleFunc("GET /api/runtime/limits", s.runtimeLimits)
 	if cfg.Auth != nil {
 		mux.HandleFunc("POST /api/auth/register", s.register)
 		mux.HandleFunc("POST /api/auth/login", s.login)
@@ -113,6 +118,10 @@ type server struct {
 
 func handleHealth(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (s *server) runtimeLimits(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]int64{"execTimeoutMs": s.cfg.ExecTimeout.Milliseconds()})
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

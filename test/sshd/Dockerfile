@@ -20,6 +20,8 @@ RUN useradd -m -d /home/dev -s /bin/bash dev && usermod -p '*' dev
 
 COPY sshd_config /etc/ssh/sshd_config.d/hostbud-test.conf
 COPY entrypoint.sh keygen.sh sshd-ctl.sh /usr/local/bin/
+COPY tmux-wrap.sh /usr/local/lib/hostbud/tmux-wrap.sh
+RUN if [ "$WITH_TMUX" = "1" ]; then chmod 755 /usr/local/lib/hostbud/tmux-wrap.sh && ln -s /usr/local/lib/hostbud/tmux-wrap.sh /usr/local/bin/tmux; fi
 
 ENV LANG=en_US.UTF-8
 EXPOSE 22

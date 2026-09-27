@@ -46,7 +46,7 @@ func renderConfig(c Config) string {
 	return b.String()
 }
 
-const connectTimeoutSeconds = 5
+const connectTimeoutSeconds = 10
 
 // knownHosts reads every *.pub file in dir and returns known_hosts lines
 // pinning those keys to HostAlias. Only public keys are read.

@@ -239,6 +239,36 @@ func TestBackoffAndRecovery(t *testing.T) {
 	}
 }
 
+func TestTimeoutPollerMarksTimedOutAndBacksOff(t *testing.T) {
+	f := &fakeExec{probeOut: probeOK, listOut: line("a", 0, 1, 1)}
+	h := start(t, f)
+	h.drain()
+	f.set(func(f *fakeExec) {
+		f.listErr = &sshx.Error{Kind: sshx.KindTimeout, Timeout: 10 * time.Second, Message: "The host didn't answer within 10s"}
+	})
+	if got := h.step(); got != time.Second {
+		t.Fatalf("first timeout delay = %v", got)
+	}
+	evs := h.drain()
+	if len(evs) != 1 {
+		t.Fatalf("events: %+v", evs)
+	}
+	m := evs[0].Payload.(Machine)
+	if m.Status != StatusUnreachable || !strings.Contains(m.Error, "timed out") {
+		t.Fatalf("machine after timeout: %+v", m)
+	}
+	if got := h.step(); got != 2*time.Second {
+		t.Fatalf("backoff after timeout = %v", got)
+	}
+	f.set(func(f *fakeExec) { f.listErr = nil })
+	if got := h.step(); got != time.Second {
+		t.Fatalf("recovery delay = %v", got)
+	}
+	if m, _ := h.inv.Snapshot(); m.Status != StatusOK {
+		t.Fatalf("machine did not recover: %+v", m)
+	}
+}
+
 func TestTmuxMissingAndInstalled(t *testing.T) {
 	f := &fakeExec{probeOut: probeNoTmux}
 	h := start(t, f)

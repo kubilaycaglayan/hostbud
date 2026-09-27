@@ -112,7 +112,7 @@ func TestNewWritesConfigInOrder(t *testing.T) {
 	conf := string(data)
 	order := []string{
 		"Host hostbud-host", "HostName host.docker.internal", "User dev", "HostKeyAlias hostbud-host",
-		"Host *", "ControlMaster auto", "ControlPath " + cfg.Dir + "/cm/%C",
+		"Host *", "ControlMaster auto", "ControlPath " + cfg.Dir + "/cm/%C", "ConnectTimeout 10",
 		"UserKnownHostsFile " + cfg.Dir + "/known_hosts", "StrictHostKeyChecking yes", "BatchMode yes",
 	}
 	pos := -1
@@ -223,6 +223,10 @@ func TestExecTimeoutKillsProcess(t *testing.T) {
 	if !IsKind(err, KindTimeout) {
 		t.Fatalf("got %v", err)
 	}
+	var timeoutErr *Error
+	if !errors.As(err, &timeoutErr) || timeoutErr.Timeout != 200*time.Millisecond || !strings.Contains(timeoutErr.Message, "200ms") {
+		t.Fatalf("timeout should include configured duration: %+v", timeoutErr)
+	}
 	if d := time.Since(start); d > 3*time.Second {
 		t.Fatalf("Exec took %v; the process wasn't killed", d)
 	}
@@ -238,6 +242,70 @@ func TestExecContextCancel(t *testing.T) {
 	}
 	if d := time.Since(start); d > 3*time.Second {
 		t.Fatalf("cancel took %v", d)
+	}
+}
+
+type fakeMasterOps struct {
+	exitErr  error
+	checkOut []byte
+	checkErr error
+	paths    []string
+	killed   []int
+	removed  []string
+}
+
+func (f *fakeMasterOps) exit(context.Context) error            { return f.exitErr }
+func (f *fakeMasterOps) check(context.Context) ([]byte, error) { return f.checkOut, f.checkErr }
+func (f *fakeMasterOps) kill(pid int) error                    { f.killed = append(f.killed, pid); return nil }
+func (f *fakeMasterOps) sockets() ([]string, error)            { return f.paths, nil }
+func (f *fakeMasterOps) remove(path string) error              { f.removed = append(f.removed, path); return nil }
+
+func TestControlMasterResetsAfterTwoTimeoutsAndRemovesOnlyOwnSocket(t *testing.T) {
+	c := fakeSSH(t, "exit 0")
+	cmDir := filepath.Join(c.cfg.Dir, "cm")
+	ops := &fakeMasterOps{
+		exitErr: errors.New("exit failed"), checkOut: []byte("Master running (pid=4321)\n"),
+		paths: []string{filepath.Join(cmDir, "socket-hash")},
+	}
+	c.masterOps = ops
+	timeout := &Error{Kind: KindTimeout}
+	c.recordExecResult("host", timeout, context.Background())
+	if len(ops.killed) != 0 {
+		t.Fatal("reset before the second consecutive timeout")
+	}
+	c.recordExecResult("host", timeout, context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := c.awaitRecovery(ctx, "host"); err != nil {
+		t.Fatal(err)
+	}
+	if len(ops.killed) != 1 || ops.killed[0] != 4321 || len(ops.removed) != 1 || ops.removed[0] != filepath.Join(cmDir, "socket-hash") {
+		t.Fatalf("recovery did not kill the checked master and remove its socket: %+v", ops)
+	}
+}
+
+func TestSuccessfulExecClearsConsecutiveTimeoutCount(t *testing.T) {
+	c := fakeSSH(t, "exit 0")
+	ops := &fakeMasterOps{}
+	c.masterOps = ops
+	timeout := &Error{Kind: KindTimeout}
+	c.recordExecResult("host", timeout, context.Background())
+	c.recordExecResult("host", nil, context.Background())
+	c.recordExecResult("host", timeout, context.Background())
+	if len(ops.killed) != 0 || c.recovering["host"] != nil {
+		t.Fatal("a successful exec did not clear the timeout streak")
+	}
+}
+
+func TestControlMasterRefusesSocketOutsideItsDirectory(t *testing.T) {
+	c := fakeSSH(t, "exit 0")
+	ops := &fakeMasterOps{exitErr: errors.New("exit failed"), checkOut: []byte("Master running (pid=4321)\n"), paths: []string{filepath.Join(t.TempDir(), "foreign")}}
+	c.masterOps = ops
+	if err := c.resetMaster(context.Background()); err == nil || !strings.Contains(err.Error(), "outside") {
+		t.Fatalf("outside socket was not rejected: %v", err)
+	}
+	if len(ops.removed) != 0 {
+		t.Fatalf("removed a foreign path: %v", ops.removed)
 	}
 }
 

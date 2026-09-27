@@ -8,6 +8,7 @@ package inventory
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"slices"
 	"strings"
@@ -309,6 +310,9 @@ func (inv *Inventory) fail(err error) {
 	if errors.As(err, &e) {
 		if e.Kind != sshx.KindRemote {
 			msg, hint = e.Message, e.Hint
+		}
+		if e.Kind == sshx.KindTimeout {
+			msg = fmt.Sprintf("The host timed out after %s", e.Timeout)
 		}
 		inv.opt.Log.Debug("poll failed", "machine", inv.opt.MachineID, "kind", e.Kind, "stderr", e.Stderr)
 	}

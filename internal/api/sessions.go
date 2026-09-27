@@ -259,6 +259,7 @@ var codeStatus = map[session.Code]int{
 	session.CodeTmuxMissing:    http.StatusServiceUnavailable,
 	session.CodeUnavailable:    http.StatusServiceUnavailable,
 	session.CodeTmuxVersion:    http.StatusConflict,
+	session.CodeTimeout:        http.StatusGatewayTimeout,
 }
 
 func (s *server) writeSessionError(w http.ResponseWriter, err error) {

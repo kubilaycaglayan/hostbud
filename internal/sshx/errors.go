@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 )
 
 // Kind classifies SSH failures so the UI can show an actionable message.
@@ -28,6 +29,7 @@ type Error struct {
 	Message  string
 	Hint     string
 	ExitCode int
+	Timeout  time.Duration
 	Stderr   string
 }
 

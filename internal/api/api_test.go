@@ -262,6 +262,19 @@ func TestHealth(t *testing.T) {
 	}
 }
 
+func TestRuntimeLimitsIsAuthenticatedAndReportsExecDeadline(t *testing.T) {
+	e := newEnv(t)
+	if rec := e.do(t, http.MethodGet, "/api/runtime/limits", "", nil); rec.Code != http.StatusOK || strings.TrimSpace(rec.Body.String()) != `{"execTimeoutMs":10000}` {
+		t.Fatalf("runtime limits: %d %s", rec.Code, rec.Body)
+	}
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/runtime/limits", nil)
+	rec := httptest.NewRecorder()
+	e.h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("anonymous runtime limits: %d", rec.Code)
+	}
+}
+
 func TestListMachinesAndSessions(t *testing.T) {
 	e := newEnv(t)
 	rec := e.do(t, http.MethodGet, "/api/machines", "", nil)
@@ -523,6 +536,7 @@ func TestSessionErrorsMapToStatus(t *testing.T) {
 		session.CodeNotFound:     404,
 		session.CodeTmuxMissing:  503,
 		session.CodeUnavailable:  503,
+		session.CodeTimeout:      504,
 		session.CodeInternal:     500,
 	}
 	for code, status := range cases {
@@ -532,6 +546,28 @@ func TestSessionErrorsMapToStatus(t *testing.T) {
 		body := decodeBody[errorBody](t, rec)
 		if rec.Code != status || body.Error != "msg "+string(code) || body.Hint != "hint" {
 			t.Errorf("%s: %d %s", code, rec.Code, rec.Body)
+		}
+	}
+}
+
+func TestTmuxBackedRoutesMapTimeoutTo504(t *testing.T) {
+	cases := []struct{ method, path, body string }{
+		{http.MethodPost, "/api/machines/host/sessions", `{"name":"new"}`},
+		{http.MethodPatch, "/api/machines/host/sessions/a", `{"name":"b"}`},
+		{http.MethodDelete, "/api/machines/host/sessions/a", ""},
+		{http.MethodPost, "/api/machines/host/sessions/a/copy-mode", `{"action":"enter"}`},
+		{http.MethodGet, "/api/machines/host/sessions/a/windows", ""},
+		{http.MethodPost, "/api/machines/host/sessions/a/select", `{"window":"@1"}`},
+		{http.MethodPost, "/api/projects/project-a/sessions", `{"name":"new"}`},
+	}
+	for _, tc := range cases {
+		e := newEnv(t)
+		err := &session.Error{Code: session.CodeTimeout, Message: "The host didn't answer within 10s", Hint: "hostbud will retry"}
+		e.svc.err, e.projects.err = err, err
+		rec := e.do(t, tc.method, tc.path, tc.body, nil)
+		body := decodeBody[errorBody](t, rec)
+		if rec.Code != http.StatusGatewayTimeout || body.Error != err.Message || body.Hint != err.Hint {
+			t.Errorf("%s %s: %d %s", tc.method, tc.path, rec.Code, rec.Body)
 		}
 	}
 }

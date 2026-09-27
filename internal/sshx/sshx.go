@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -38,6 +39,10 @@ type Client struct {
 	cfg        Config
 	configPath string
 	agent      func(context.Context) agentState
+	masterOps  masterOperations
+	timeoutMu  sync.Mutex
+	timeouts   map[string]int
+	recovering map[string]chan struct{}
 }
 
 // New writes the ssh config and known_hosts (pinning the keys found in
@@ -54,7 +59,9 @@ func New(cfg Config) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Client{cfg: cfg, configPath: path, agent: checkAgent}, nil
+	c := &Client{cfg: cfg, configPath: path, agent: checkAgent, timeouts: map[string]int{}, recovering: map[string]chan struct{}{}}
+	c.masterOps = commandMasterOperations{client: c}
+	return c, nil
 }
 
 // ConfigPath is the generated ssh config (for `ssh -F`).
@@ -147,18 +154,21 @@ func (p *subsystemPipe) Close() error {
 // Exec runs args (each shell-quoted) on machine and returns stdout. It is
 // bounded by DefaultTimeout unless ctx has an earlier deadline; cancelling
 // ctx kills ssh. Failures are *Error values with an actionable message.
-func (c *Client) Exec(ctx context.Context, machine string, args ...string) ([]byte, error) {
+func (c *Client) Exec(ctx context.Context, machine string, args ...string) (out []byte, resultErr error) {
 	argv, err := c.Args(machine, nil, args...)
 	if err != nil {
 		return nil, err
 	}
-	if _, ok := ctx.Deadline(); !ok {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, c.cfg.Timeout)
-		defer cancel()
+	ctx, cancel := context.WithTimeout(ctx, c.cfg.Timeout)
+	defer cancel()
+	defer func() { c.recordExecResult(machine, resultErr, ctx) }()
+	if err := c.awaitRecovery(ctx, machine); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, c.timeoutError("")
+		}
+		return nil, err
 	}
-
-	cmd := exec.CommandContext(ctx, c.cfg.SSHBinary, argv...) //nolint:gosec // argv is built from quoted args
+	cmd := commandContext(ctx, c.cfg.SSHBinary, argv...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	cmd.WaitDelay = time.Second // don't hang on pipes held open by children
@@ -167,13 +177,11 @@ func (c *Client) Exec(ctx context.Context, machine string, args ...string) ([]by
 		return stdout.Bytes(), nil
 	}
 
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return nil, c.timeoutError(stderr.String())
+	}
 	if ctx.Err() != nil {
-		return nil, &Error{
-			Kind:    KindTimeout,
-			Message: "the host didn't answer in time",
-			Hint:    "The host may be overloaded or unreachable; hostbud retries automatically.",
-			Stderr:  stderr.String(),
-		}
+		return nil, ctx.Err()
 	}
 	var exitErr *exec.ExitError
 	if !errors.As(err, &exitErr) {
@@ -183,6 +191,33 @@ func (c *Client) Exec(ctx context.Context, machine string, args ...string) ([]by
 		return stdout.Bytes(), &Error{Kind: KindRemote, ExitCode: code, Stderr: stderr.String()}
 	}
 	return nil, classify(ctx, stderr.String(), c.agent)
+}
+
+func (c *Client) timeoutError(stderr string) *Error {
+	return &Error{
+		Kind: KindTimeout, Timeout: c.cfg.Timeout,
+		Message: fmt.Sprintf("The host didn't answer within %s", c.cfg.Timeout),
+		Hint:    "It may be overloaded or tmux may be stuck. hostbud will retry; check the host with `ssh <host> tmux ls`.",
+		Stderr:  stderr,
+	}
+}
+
+// commandContext starts a command in its own process group so cancellation
+// kills ssh and any helper process it started, not only the group leader.
+func commandContext(ctx context.Context, name string, args ...string) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, name, args...) //nolint:gosec // caller supplies fixed or quoted argv
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error {
+		if cmd.Process == nil {
+			return os.ErrProcessDone
+		}
+		err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		if errors.Is(err, syscall.ESRCH) {
+			return os.ErrProcessDone
+		}
+		return err
+	}
+	return cmd
 }
 
 // checkAgent inspects SSH_AUTH_SOCK: missing socket, or no identities.

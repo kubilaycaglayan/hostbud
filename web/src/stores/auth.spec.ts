@@ -66,6 +66,7 @@ describe('auth store', () => {
       'POST /api/auth/register',
       'POST /api/auth/login',
       'GET /api/auth/me',
+      'GET /api/runtime/limits',
     ])
     expect(auth.status).toBe('authenticated')
   })

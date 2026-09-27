@@ -217,6 +217,16 @@ describe('TermSession', () => {
     expect(sockets).toHaveLength(2)
   })
 
+  it('the 4408 silent-host close is retryable', async () => {
+    const { sockets, states } = session()
+    sockets[0].open()
+    sockets[0].onclose?.({ code: 4408, reason: "host didn't answer" } as CloseEvent)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(last(states)).toEqual(['reconnecting', 1])
+    await vi.advanceTimersByTimeAsync(500)
+    expect(sockets).toHaveLength(2)
+  })
+
   it('retries at once when the browser comes back online or the page becomes visible', async () => {
     const { sockets, win, doc } = session()
     sockets[0].open()

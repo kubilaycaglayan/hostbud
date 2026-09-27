@@ -111,6 +111,7 @@ Host *
   ControlMaster auto
   ControlPath /data/ssh/cm/%C
   ControlPersist 10m
+  ConnectTimeout 10
   ServerAliveInterval 15
   ServerAliveCountMax 3
   UserKnownHostsFile /data/ssh/known_hosts
@@ -175,6 +176,7 @@ A session belongs to its `session_links` project when a link exists on the same 
 - Protocol: **binary frames** for terminal I/O in both directions; small **JSON text frames** for control (`{"type":"resize","cols":..,"rows":..}`, `{"type":"ping"}`; server → `{"type":"exit","code":..}`).
 - Resize → `pty.Setsize` → ssh forwards window-change → tmux resizes.
 - WebSocket close ⇒ kill the ssh process (tmux session survives). The server holds **no terminal state**. The server pings each client every 25 s and drops one that doesn't answer within 10 s (a vanished browser), which also ends its ssh process.
+- The first-output watchdog uses `HOSTBUD_EXEC_TIMEOUT`; if the host produces no terminal data before it expires, the server closes with `4408` (`host didn't answer`). The client treats that close as a dropped connection and retries.
 - **Auto-reconnect** (`web/src/api/term.ts`, `TermSession`): the client sends `{"type":"ping"}` every 10 s, and 25 s without any frame (a network cut hangs TCP without a close) counts as a drop. After a drop it re-attaches with backoff 0.5 s, 1, 2, 4, 8, then every 10 s (±20 % jitter, no cap), right away on the browser's `online` event or when the page becomes visible; the backoff starts over once an attach has stayed up for 5 s. It re-attaches at the current size and keeps xterm's buffer (tmux's redraw replaces the screen; the scrollback stays searchable). Keys typed meanwhile are dropped, not queued. It does **not** retry after an `exit` frame (detach, or the session ended), after the view closed, for a session that left the live list, or when an attempt that failed before opening finds the sign-in gone (`/api/auth/me` 401 ⇒ the sign-in form). Exit code 255 is ssh's own failure (host unreachable, a dead ControlMaster), not tmux ending, so it is retried like a drop. While retrying, a strip over the terminal says "Reconnecting… (attempt n)" with **Retry now**.
 - Each tab/split pane = its own WebSocket + ssh process, all multiplexed over the machine's ControlMaster. Inactive tabs stay attached (their scrollback keeps filling), which is why the layout caps open terminals at 16 (§11).
 - Same session open in two views: tmux sizes per its `window-size` option; document this, don't override it.
@@ -281,6 +283,7 @@ POST   /api/auth/register             {email, password} — whitelist required
 POST   /api/auth/login                {email, password} — whitelist required
 POST   /api/auth/logout               revoke current session
 GET    /api/auth/me                   current account, or 401
+GET    /api/runtime/limits            authenticated runtime limits used by the browser client
 GET    /api/machines                      list (with status) — v1: just the host
 GET    /api/machines/:id/sessions
 POST   /api/machines/:id/sessions         {name, path, startCommand?}
@@ -433,7 +436,7 @@ A separate Compose project `hostbud-e2e` (`test/e2e/`), started, run and torn do
 | `hostbud-e2e-app` | The real hostbud image, with `HOSTBUD_HOST_ADDR=hostbud-e2e-target`, the target's host keys mounted at `/run/host-keys`, and a short poll interval. |
 | `hostbud-e2e-caddy` | The production Caddy image (`deploy/caddy/Dockerfile`) and proxy config (`deploy/caddy/hostbud.caddy`: loopback-port site), so traffic goes through the production proxy path. `test/e2e/Caddyfile` adds the domain path for the test domain `hostbud.example.test` (the app's `HOSTBUD_DOMAIN`) with `tls internal`, since e2e has no Cloudflare token or tailnet; the name resolves to Caddy through `extra_hosts`. The production site's DNS-01 issuer is checked by `make test` (`caddy adapt`). |
 | `hostbud-e2e-target-notmux`, `hostbud-e2e-app-notmux` | The tmux-less target and a second app instance for it (same database), served by Caddy on `:9056` through `test/e2e/Caddyfile`, which imports the production Caddyfile unchanged and adds only that site. |
-| `hostbud-e2e-ctl` | Failure switches for the runner, which has no Docker access: a tiny HTTP service with the Docker socket that runs only fixed commands (restart or stop/start `hostbud-e2e-app`, stop/start sshd on the target, disconnect/reconnect `hostbud-e2e-app` from the `hostbud-e2e` network). App start polls `/api/health` through Caddy. |
+| `hostbud-e2e-ctl` | Failure switches for the runner, which has no Docker access: a tiny HTTP service with the Docker socket that runs only fixed commands (restart or stop/start `hostbud-e2e-app`, stop/start sshd on the target, bounded tmux stall on the target, disconnect/reconnect `hostbud-e2e-app` from the `hostbud-e2e` network). App start polls `/api/health` through Caddy. |
 | `hostbud-e2e-runner` | Playwright. Uses `network_mode: service:hostbud-e2e-caddy`, so the browser opens `http://localhost:9055` exactly like the port-forward path (and the Origin check is exercised for real). Also has SSH access to the target to act as "a real terminal". |
 
 **Profiles:** Chromium desktop, and Playwright's `iPhone 13 Pro` device (WebKit, 390×844, touch), both on `http://localhost:9055`; plus `iphone-13-pro-domain`, the same device on `https://hostbud.example.test` (the phone and domain scenarios). WebKit on Linux is not real iOS Safari; iOS-specific behavior (on-screen keyboard, gestures) stays on the manual checklist.
@@ -485,10 +488,10 @@ Every bound is recorded here with its enforcement point and the result when it i
 
 | What | Limit | Enforced in | On hit (server) | On hit (user sees) | Configurable |
 |---|---|---|---|---|---|
-| Non-interactive SSH exec | 10 s default; `WaitDelay` 1 s | `sshx.Client.Exec` | Context cancellation terminates ssh; timeout is currently a generic SSH timeout (T2 adds value-aware 504 mapping and ControlMaster recovery) | Existing actionable host error; T2 adds a duration-bearing message | Yes: `HOSTBUD_EXEC_TIMEOUT`, 2 s–2 min |
+| Non-interactive SSH exec | 10 s default; `WaitDelay` 1 s | `sshx.Client.Exec` | Deadline kills the ssh process group and returns `KindTimeout`; after two consecutive timeouts, the ControlMaster is reset with bounded control checks | 504 with the configured duration and a recovery hint; poller marks the host unreachable | Yes: `HOSTBUD_EXEC_TIMEOUT`, 2 s–2 min |
 | SSH agent probe | 3 s | `sshx.checkAgent` | Probe context expires and reports agent unavailable | SSH auth hint | No |
 | ControlMaster shutdown | 5 s in the server shutdown path | `cmd/hostbud` passes a deadline to `sshx.Client.Close` | Stops waiting when shutdown context expires | None during normal shutdown | No |
-| ControlMaster recovery | Not implemented (T2) | `sshx` | T2 bounds checks and self-heals after two exec timeouts | T2 keeps later operations from hanging | No |
+| ControlMaster recovery | Two consecutive exec timeouts; `ssh -O exit`/`check` bounded at 3 s each | `sshx.Client` | Stops the master and removes only sockets confined to `/data/ssh/cm` | Next exec starts a fresh master | No |
 | Inventory polling | `HOSTBUD_POLL_INTERVAL` default 3 s, minimum 500 ms; exponential failure backoff default 8× interval, capped at 30 s and never below interval | `inventory.Run` | Poller waits for retry, marks host unreachable, recovers on a successful poll | Machine status banner | Interval: yes; backoff: no |
 | SFTP operation | 10 s default; subsystem idle close 1 min | `fsbrowse.Service` | Per-operation context closes a failed SFTP stream; T3 adds concurrency limit and explicit timeout response | File-browser error; T3 adds Retry state | Yes: `HOSTBUD_SFTP_TIMEOUT`, 2 s–2 min |
 | SFTP path/listing | Path 4096 bytes; 2000 entries; name 255 bytes | `fsbrowse` validation and listing | Rejects long paths/names; listing currently rejects over 2000 entries (T3 changes to bounded truncation) | Actionable validation or listing error | No |

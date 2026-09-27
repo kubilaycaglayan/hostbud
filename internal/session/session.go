@@ -32,6 +32,7 @@ const (
 	CodeUnavailable    Code = "unavailable" // host unreachable / not probed yet
 	CodeInternal       Code = "internal"
 	CodeTmuxVersion    Code = "tmux_version"
+	CodeTimeout        Code = "timeout"
 )
 
 // Error is an actionable, user-facing error.
@@ -388,6 +389,9 @@ func (s *Service) refresh(ctx context.Context, t Tracker) {
 func (s *Service) remoteError(err error) error {
 	var e *sshx.Error
 	if errors.As(err, &e) {
+		if e.Kind == sshx.KindTimeout {
+			return errorf(CodeTimeout, e.Hint, "%s", e.Message)
+		}
 		if e.Kind == sshx.KindRemote {
 			if e.ExitCode == 127 {
 				return errorf(CodeTmuxMissing, "Install it with `sudo apt install tmux`.", "tmux not found on the host")

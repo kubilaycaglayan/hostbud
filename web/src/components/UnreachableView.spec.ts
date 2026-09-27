@@ -35,10 +35,10 @@ describe('UnreachableView', () => {
     window.dispatchEvent(new Event('online'))
     await flushPromises()
     expect(auth.status).toBe('authenticated')
-    expect(calls).toHaveLength(1)
+    expect(calls).toHaveLength(2)
     document.dispatchEvent(new Event('visibilitychange'))
     await flushPromises()
-    expect(calls).toHaveLength(1)
+    expect(calls).toHaveLength(2)
     wrapper.unmount()
   })
 

@@ -8,7 +8,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -146,4 +149,77 @@ func TestIntegrationTimeoutKillsRemoteCall(t *testing.T) {
 	if !sshx.IsKind(err, sshx.KindTimeout) || time.Since(start) > 5*time.Second {
 		t.Fatalf("got %v after %v", err, time.Since(start))
 	}
+}
+
+func TestIntegrationTmuxStallTimesOutAndRecovers(t *testing.T) {
+	testenv.Agent(t, true)
+	c := testenv.Client(t, testenv.SSHD, testenv.Options{Timeout: 500 * time.Millisecond})
+	deadline := time.Now().Add(5 * time.Second).Unix()
+	testenv.Sh(t, c, "mkdir -p /home/dev/.hostbud-stall && printf '%d\\n' "+strconv.FormatInt(deadline, 10)+" >/home/dev/.hostbud-stall/tmux")
+	t.Cleanup(func() {
+		_, _ = c.Exec(context.Background(), sshx.HostMachineID, "rm", "-f", "/home/dev/.hostbud-stall/tmux")
+	})
+	start := time.Now()
+	_, err := c.Exec(context.Background(), sshx.HostMachineID, "tmux", "-V")
+	if !sshx.IsKind(err, sshx.KindTimeout) || time.Since(start) > 2500*time.Millisecond {
+		t.Fatalf("stalled tmux = %v after %v", err, time.Since(start))
+	}
+	entries, _ := os.ReadDir("/proc")
+	for _, entry := range entries {
+		argv, readErr := os.ReadFile(filepath.Join("/proc", entry.Name(), "cmdline"))
+		if readErr != nil {
+			continue
+		}
+		parts := strings.Split(string(argv), "\x00")
+		for i := 0; i+1 < len(parts); i++ {
+			if parts[i] == "-F" && parts[i+1] == c.ConfigPath() {
+				t.Fatalf("ssh child survived timeout: pid=%s argv=%q", entry.Name(), parts)
+			}
+		}
+	}
+	testenv.Sh(t, c, "rm -f /home/dev/.hostbud-stall/tmux")
+	if _, err := c.Exec(context.Background(), sshx.HostMachineID, "tmux", "-V"); err != nil {
+		t.Fatalf("tmux after stall: %v", err)
+	}
+}
+
+func TestIntegrationStoppedControlMasterRecovers(t *testing.T) {
+	testenv.Agent(t, true)
+	c := testenv.Client(t, testenv.SSHD, testenv.Options{Timeout: 500 * time.Millisecond})
+	if _, err := c.Exec(context.Background(), sshx.HostMachineID, "true"); err != nil {
+		t.Fatal(err)
+	}
+	check := exec.CommandContext(context.Background(), "ssh", "-F", c.ConfigPath(), "-O", "check", sshx.HostAlias)
+	out, err := check.CombinedOutput()
+	if err != nil {
+		t.Fatalf("check master: %v %s", err, out)
+	}
+	match := regexp.MustCompile(`pid=([0-9]+)`).FindSubmatch(out)
+	var pid int
+	if len(match) == 2 {
+		pid, _ = strconv.Atoi(string(match[1]))
+	}
+	if pid <= 1 {
+		t.Fatalf("missing master pid in %q", out)
+	}
+	if err := syscall.Kill(pid, syscall.SIGSTOP); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = syscall.Kill(pid, syscall.SIGCONT) }()
+	for range 2 {
+		if _, err := c.Exec(context.Background(), sshx.HostMachineID, "true"); !sshx.IsKind(err, sshx.KindTimeout) {
+			t.Fatalf("timeout = %v", err)
+		}
+	}
+	deadline := time.Now().Add(12 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, err := c.Exec(context.Background(), sshx.HostMachineID, "true"); err == nil {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	check = exec.CommandContext(context.Background(), "ps", "-ef")
+	ps, _ := check.CombinedOutput()
+	entries, _ := os.ReadDir(filepath.Join(filepath.Dir(c.ConfigPath()), "cm"))
+	t.Fatalf("ControlMaster did not recover; sockets=%v; config=%s; ps=%s", entries, c.ConfigPath(), ps)
 }

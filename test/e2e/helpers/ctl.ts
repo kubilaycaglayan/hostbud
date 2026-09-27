@@ -14,6 +14,9 @@ export const ctl = {
   /** Stops sshd on the target, dropping every open connection. */
   stopSshd: () => call('/sshd/stop'),
   startSshd: () => call('/sshd/start'),
+  /** Stalls target tmux commands for at most the switch TTL. */
+  stallTmux: () => call('/stall/tmux/on'),
+  unstallTmux: () => call('/stall/tmux/off'),
   /** Disconnects hostbud-e2e-app from the e2e network (connections hang). */
   cutNetwork: () => call('/network/cut'),
   /** Reconnects it; a no-op when it is connected. */

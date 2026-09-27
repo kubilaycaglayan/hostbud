@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http/httptest"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -119,6 +120,25 @@ func (e *env) eventually(what string, cond func() bool) {
 }
 
 func (e *env) capture(name string) string { return e.sh("tmux capture-pane -p -t =" + name + ":") }
+
+func TestIntegrationSilentAttachGetsTimeoutClose(t *testing.T) {
+	e := setup(t, func(h *term.Handler) { h.AttachTimeout = 300 * time.Millisecond })
+	e.newSession("stall")
+	deadline := time.Now().Add(4 * time.Second).Unix()
+	e.sh("mkdir -p /home/dev/.hostbud-stall && printf '%d\\n' " + strconv.FormatInt(deadline, 10) + " >/home/dev/.hostbud-stall/tmux")
+	t.Cleanup(func() { e.sh("rm -f /home/dev/.hostbud-stall/tmux") })
+	conn, _, err := websocket.Dial(t.Context(), e.url+"?machine=host&session=stall&cols=80&rows=24", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = conn.CloseNow() }()
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+	defer cancel()
+	_, _, err = conn.Read(ctx)
+	if websocket.CloseStatus(err) != 4408 || !strings.Contains(err.Error(), "host didn't answer") {
+		t.Fatalf("silent attach close = %v (%d)", err, websocket.CloseStatus(err))
+	}
+}
 
 func TestIntegrationAttachTypeResizeClose(t *testing.T) {
 	e := setup(t)
