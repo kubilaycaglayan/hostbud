@@ -215,13 +215,14 @@ func requestLimits(cfg Config, next http.Handler) http.Handler {
 			w.Header().Set("Cache-Control", "no-store")
 		}
 		if isStateChanging(r.Method) && hasRequestBody(r) {
-			if r.ContentLength > 64<<10 {
-				writeError(w, http.StatusRequestEntityTooLarge, "request body is limited to 64 KiB", "Send a smaller JSON request.")
-				return
-			}
+			// The media type first: a non-JSON body is refused whatever its size.
 			mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 			if err != nil || mediaType != "application/json" {
 				writeError(w, http.StatusUnsupportedMediaType, "content type must be application/json", "Send a JSON request body.")
+				return
+			}
+			if r.ContentLength > 64<<10 {
+				writeError(w, http.StatusRequestEntityTooLarge, "request body is limited to 64 KiB", "Send a smaller JSON request.")
 				return
 			}
 			r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
