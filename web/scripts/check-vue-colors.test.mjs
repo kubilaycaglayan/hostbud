@@ -18,4 +18,12 @@ describe('Vue color lint', () => {
     writeFileSync(join(dir, 'components/Bad.vue'), '<div style="color: #fff; background: rgb(0, 0, 0)"/>')
     assert.equal(findHardcodedColors(dir).length, 1)
   })
+
+  it('does not treat issue numbers in source comments as colors', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'hostbud-colors-'))
+    dirs.push(dir)
+    mkdirSync(join(dir, 'components'))
+    writeFileSync(join(dir, 'components/Reference.vue'), '<script setup>\n// xtermjs/xterm.js#6012\n</script>')
+    assert.deepEqual(findHardcodedColors(dir), [])
+  })
 })
