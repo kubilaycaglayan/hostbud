@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, provide, ref, watch } from 'vue'
 import { DialogClose, DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
 import AuthView from '@/components/AuthView.vue'
 import UnreachableView from '@/components/UnreachableView.vue'
@@ -7,6 +7,7 @@ import CreateSessionDialog from '@/components/CreateSessionDialog.vue'
 import FileBrowserDialog from '@/components/FileBrowserDialog.vue'
 import ProjectSessionDialog from '@/components/ProjectSessionDialog.vue'
 import TreePanel from '@/components/TreePanel.vue'
+import ShortcutsDialog from '@/components/ShortcutsDialog.vue'
 import KillSessionDialog from '@/components/KillSessionDialog.vue'
 import HostBanner from '@/components/HostBanner.vue'
 import TabBar from '@/components/TabBar.vue'
@@ -26,6 +27,7 @@ import { useThemeStore } from '@/stores/theme'
 import { useWindowsStore } from '@/stores/windows'
 import { useProjectsStore } from '@/stores/projects'
 import { FolderPlus } from 'lucide-vue-next'
+import { isEditableTarget, isTerminalTarget, isTreeTarget, matchingShortcut, shortcutPlatform } from '@/lib/shortcuts'
 
 const app = useAppStore()
 const auth = useAuthStore()
@@ -48,6 +50,10 @@ const killing = ref(false)
 const drawerOpen = ref(false)
 const swipeStart = ref<{ x: number; y: number } | null>(null)
 const target = ref('') // the session the kill confirmation is about
+const shortcutsOpen = ref(false)
+let shortcutReturnFocus: HTMLElement | null = null
+let focusTreeOnNextDrawerOpen = false
+let focusTerminalOnNextDrawerClose = false
 const themeChoices = [
   { mode: 'dark', label: 'Dark' },
   { mode: 'light', label: 'Light' },
@@ -127,6 +133,85 @@ function onCreated(name: string) {
   else openSession(name)
 }
 
+function openShortcuts() {
+  shortcutReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
+  shortcutsOpen.value = true
+}
+
+function closeShortcuts(open: boolean) {
+  shortcutsOpen.value = open
+  if (!open) void nextTick(() => shortcutReturnFocus?.focus())
+}
+
+async function toggleTreeTerminalFocus() {
+  if (isTreeTarget(document.activeElement)) {
+    const closesCompactDrawer = compact.value && hasTabs.value
+    if (closesCompactDrawer) focusTerminalOnNextDrawerClose = true
+    drawerOpen.value = false
+    app.showTerminal()
+    if (closesCompactDrawer) return
+    await nextTick()
+    focusActiveTerminal()
+    return
+  }
+  if (compact.value && hasTabs.value) {
+    focusTreeOnNextDrawerOpen = true
+    drawerOpen.value = true
+    return
+  }
+  if (!compact.value && !app.sidebarOpen) app.toggleSidebar()
+  await nextTick()
+  focusTreeRow()
+}
+
+function focusTreeRow() {
+  const rows = [...document.querySelectorAll<HTMLElement>('[role="treeitem"][data-tree-key]')]
+  const selected = rows.find((row) => row.getAttribute('aria-selected') === 'true')
+    ?? rows.find((row) => row.dataset.treeKey === (selectedSession.value ? `session:${selectedSession.value}` : ''))
+  ;(selected ?? rows[0])?.focus()
+}
+
+function onDrawerOpenAutoFocus(event: Event) {
+  if (!focusTreeOnNextDrawerOpen) return
+  focusTreeOnNextDrawerOpen = false
+  event.preventDefault()
+  void nextTick(focusTreeRow)
+}
+
+function focusActiveTerminal() {
+  document.querySelector<HTMLElement>('[data-focused="true"] .xterm-helper-textarea')?.focus()
+}
+
+function onDrawerCloseAutoFocus(event: Event) {
+  if (!focusTerminalOnNextDrawerClose) return
+  focusTerminalOnNextDrawerClose = false
+  event.preventDefault()
+  void nextTick(focusActiveTerminal)
+}
+
+function onShortcutKeydown(event: KeyboardEvent) {
+  if (auth.status !== 'authenticated' || event.defaultPrevented || event.repeat) return
+  const platform = shortcutPlatform()
+  const global = matchingShortcut(event, platform, 'global')
+  if (global) {
+    if (global.id === 'help') openShortcuts()
+    else if (global.id === 'next-tab') layout.cycleTab(1)
+    else if (global.id === 'previous-tab') layout.cycleTab(-1)
+    else if (global.id === 'last-tab') layout.toggleLastTab()
+    else if (global.id === 'focus-tree-terminal') void toggleTreeTerminalFocus()
+    else if (global.id === 'palette') { event.preventDefault(); return } // T9 installs the action in this shared registry slot.
+    else return
+    event.preventDefault()
+    return
+  }
+  if (isTerminalTarget(event.target) || isEditableTarget(event.target)) return
+  const outside = matchingShortcut(event, platform, 'outside-terminal')
+  if (outside?.id === 'help') {
+    event.preventDefault()
+    openShortcuts()
+  }
+}
+
 const compact = useMediaQuery(COMPACT_QUERY)
 const hasTabs = computed(() => layout.loaded && layout.tabs.length > 0)
 
@@ -169,9 +254,11 @@ const flushState = () => {
 onMounted(() => {
   void auth.check()
   window.addEventListener('pagehide', flushState)
+  window.addEventListener('keydown', onShortcutKeydown, true)
 })
 onUnmounted(() => {
   window.removeEventListener('pagehide', flushState)
+  window.removeEventListener('keydown', onShortcutKeydown, true)
   live.stop()
 })
 </script>
@@ -296,6 +383,8 @@ onUnmounted(() => {
           class="fixed inset-y-0 left-0 z-50 flex w-[min(85vw,20rem)] flex-col border-r border-border bg-surface p-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] pl-[max(0.75rem,env(safe-area-inset-left))] text-fg shadow-xl"
           @pointerdown="onDrawerPointerDown"
           @pointerup="onDrawerPointerUp"
+          @open-auto-focus="onDrawerOpenAutoFocus"
+          @close-auto-focus="onDrawerCloseAutoFocus"
         >
           <div class="mb-2 flex items-center justify-between">
             <DialogTitle class="text-base font-bold">Project tree</DialogTitle>
@@ -329,6 +418,7 @@ onUnmounted(() => {
       :session="target"
       @killed="onKilled"
     />
+    <ShortcutsDialog :open="shortcutsOpen" @update:open="closeShortcuts" />
   </div>
   <ToastRegion />
 </template>

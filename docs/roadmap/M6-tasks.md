@@ -17,7 +17,7 @@ Update this table in the same commit that finishes a task.
 | T5 Hide and unhide | Done |
 | T6 Pinned projects | Done |
 | T7 Theme setting | Done |
-| T8 Keyboard shortcuts | Not started |
+| T8 Keyboard shortcuts | Done |
 | T9 Command palette | Not started |
 | T10 Taken session names get a number | Not started |
 | T11 Remove a project | Not started |
@@ -37,6 +37,8 @@ T5 completed with per-account hide/unhide controls, hidden-row presentation and 
 T6 completed with per-account pinning, separate ordered sections, section-bounded drag and keyboard moves, and desktop/phone persistence and account-isolation scenarios. The Go handler rejects attempts to set the global `pinned` field. CP3 passed with `make lint test`; E2E scenarios were type-checked only, as required.
 
 T7 completed with Dark / Light / System account settings, per-account persistence, first-paint theme boot, contrast-checked UI and terminal palettes, live terminal/search updates and typed desktop/phone scenarios. Go API and PostgreSQL coverage, `make web-test`, `make web-lint`, `make web-build`, `make go-test` and `make e2e-lint` passed. The command palette theme action is T9; CP4 remains pending until T9.
+
+T8 completed with the shared shortcut registry and help dialog, global tab/focus chords, in-memory recent-tab switching, tree new-session shortcut and xterm interception. Unit coverage, frontend tests/lint and E2E type-check passed; browser E2E remains paused until M7. CP4 remains pending until T9.
 
 ## Rules for this milestone
 

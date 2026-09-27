@@ -1,4 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
+import { defineComponent, h } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App.vue'
@@ -25,6 +26,13 @@ class IdleSocket {
     this.closed = true
   }
 }
+
+const terminalFocusStub = defineComponent({
+  props: { focused: Boolean, active: Boolean },
+  setup(props) {
+    return () => h('section', { 'data-focused': props.focused && props.active ? 'true' : undefined }, [h('textarea', { class: 'xterm-helper-textarea' })])
+  },
+})
 
 beforeEach(() => {
   setActivePinia(createPinia())
@@ -193,7 +201,7 @@ describe('tabs', () => {
     },
   }
 
-  async function signedInWith(saved: unknown, attachTo?: Element) {
+  async function signedInWith(saved: unknown, attachTo?: Element, terminalStub: true | typeof terminalFocusStub = true) {
     let release = () => {}
     const gate = new Promise<void>((r) => (release = r))
     stubFetch((method, path) => {
@@ -211,7 +219,7 @@ describe('tabs', () => {
       return realFetch(path, init)
     })
     // xterm can't render in jsdom; TerminalView has its own spec.
-    const wrapper = mount(App, { attachTo, global: { stubs: { TerminalView: true } } })
+    const wrapper = mount(App, { attachTo, global: { stubs: { TerminalView: terminalStub } } })
     const { useSessionsStore } = await import('./stores/sessions')
     const { useMachinesStore } = await import('./stores/machines')
     const feed = () => {
@@ -292,6 +300,31 @@ describe('tabs', () => {
     await flushPromises()
     expect(useLayoutStore().tabs).toEqual([])
     expect(useAppStore().terminalShown).toBe(false)
+  })
+
+  it('moves focus between the tree and terminal from the global shortcut on desktop', async () => {
+    const saved = {
+      version: 1,
+      tabs: [{ id: 't1', root: { type: 'pane', id: 'p1', machine: 'host', session: 'acc-b' }, focusedPane: 'p1' }],
+      activeTab: 't1',
+    }
+    const desktop = await signedInWith(saved, document.body, terminalFocusStub)
+    desktop.release()
+    await flushPromises()
+    desktop.feed()
+    await flushPromises()
+    const row = desktop.wrapper.get('[data-tree-key="session:acc-b"]')
+    const terminal = desktop.wrapper.get('.xterm-helper-textarea')
+    ;(terminal.element as HTMLTextAreaElement).focus()
+    const toTree = new KeyboardEvent('keydown', { key: 'e', ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true })
+    window.dispatchEvent(toTree)
+    await flushPromises()
+    expect(toTree.defaultPrevented).toBe(true)
+    expect(document.activeElement).toBe(row.element)
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'e', ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true }))
+    await flushPromises()
+    expect(document.activeElement).toBe(terminal.element)
+    desktop.wrapper.unmount()
   })
 
   it('uses the tree as the compact home screen and opens it over a still-mounted terminal', async () => {

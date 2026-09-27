@@ -40,6 +40,17 @@ afterEach(() => {
 })
 
 describe('SessionTree', () => {
+  it('starts a new session for the focused project, session, or Other group with N', async () => {
+    const wrapper = mount(SessionTree)
+    await wrapper.get('[data-tree-key="project:a"]').trigger('keydown', { key: 'N', shiftKey: true })
+    expect(wrapper.emitted('sessionInProject')?.at(-1)?.[0]).toMatchObject({ id: 'a' })
+    await wrapper.get('[data-tree-key="session:one"]').trigger('keydown', { key: 'n' })
+    expect(wrapper.emitted('sessionInProject')?.at(-1)?.[0]).toMatchObject({ id: 'a' })
+    await wrapper.get('[data-tree-key="other"]').trigger('keydown', { key: 'n' })
+    expect(wrapper.emitted('create')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
   it('moves groups and session rows in the explicit order', async () => {
     const wrapper = mount(SessionTree, { attachTo: document.body })
     expect(wrapper.find('button[aria-label="Move project b up"]').exists()).toBe(false)

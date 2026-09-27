@@ -15,6 +15,7 @@ export const SAVE_RETRY_MS = 5_000
  */
 export const useLayoutStore = defineStore('layout', () => {
   const layout = shallowRef<L.Layout>(L.emptyLayout())
+  const recentTabIds = ref<string[]>([])
   const loaded = ref(false)
   const toasts = useToastsStore()
   // Renames in flight from this UI ("machine/from" → to): the list may show
@@ -26,6 +27,16 @@ export const useLayoutStore = defineStore('layout', () => {
   const tabs = computed(() => layout.value.tabs)
   const activeTab = computed(() => L.activeTab(layout.value))
   const focused = computed(() => L.focusedPane(layout.value))
+
+  function rememberActive() {
+    const id = L.activeTab(layout.value)?.id
+    if (id) recentTabIds.value = [id, ...recentTabIds.value.filter((candidate) => candidate !== id)]
+  }
+
+  function pruneRecentTabs() {
+    recentTabIds.value = recentTabIds.value.filter((id) => tabs.value.some((tab) => tab.id === id))
+    rememberActive()
+  }
 
   /** Loads the saved layout. Invalid data falls back to an empty layout. */
   async function load() {
@@ -43,6 +54,7 @@ export const useLayoutStore = defineStore('layout', () => {
     }
     if (gen !== generation) return // signed out meanwhile
     layout.value = next
+    recentTabIds.value = []
     loaded.value = true
   }
 
@@ -54,6 +66,7 @@ export const useLayoutStore = defineStore('layout', () => {
     renames.clear()
     loaded.value = false
     layout.value = L.emptyLayout()
+    recentTabIds.value = []
   }
 
   function send(keepalive = false) {
@@ -103,6 +116,7 @@ export const useLayoutStore = defineStore('layout', () => {
       return false
     }
     layout.value = next
+    rememberActive()
     return true
   }
 
@@ -123,6 +137,7 @@ export const useLayoutStore = defineStore('layout', () => {
     }
     if (result === 'missing') return false
     layout.value = next
+    rememberActive()
     return true
   }
 
@@ -134,6 +149,7 @@ export const useLayoutStore = defineStore('layout', () => {
 
   function closePane(paneId: string) {
     layout.value = L.closePane(layout.value, paneId)
+    pruneRecentTabs()
   }
 
   function focusPane(tabId: string, paneId: string) {
@@ -150,15 +166,38 @@ export const useLayoutStore = defineStore('layout', () => {
 
   function activate(tabId: string) {
     layout.value = L.activate(layout.value, tabId)
+    rememberActive()
+  }
+
+  function cycleTab(offset: number) {
+    const current = activeTab.value
+    if (!current || tabs.value.length < 2) return false
+    const index = tabs.value.findIndex((tab) => tab.id === current.id)
+    const next = tabs.value[(index + offset + tabs.value.length) % tabs.value.length]
+    activate(next.id)
+    return true
+  }
+
+  function toggleLastTab() {
+    const current = activeTab.value?.id
+    const valid = recentTabIds.value.filter((id) => tabs.value.some((tab) => tab.id === id))
+    recentTabIds.value = valid
+    const target = valid.find((id) => id !== current)
+    if (!target) return false
+    activate(target)
+    return true
   }
 
   function closeTab(tabId: string) {
     layout.value = L.closeTab(layout.value, tabId)
+    recentTabIds.value = recentTabIds.value.filter((id) => id !== tabId)
+    rememberActive()
   }
 
   /** Closes every view of a session without a notice (killed from this UI). */
   function closeSession(machine: string, session: string) {
     layout.value = L.removePanes(layout.value, (p) => p.machine === machine && p.session === session)
+    pruneRecentTabs()
   }
 
   function expectRename(machine: string, from: string, to: string) {
@@ -192,6 +231,7 @@ export const useLayoutStore = defineStore('layout', () => {
       return
     }
     layout.value = L.removePanes(next, (p) => p.machine === machine && gone.includes(p.session))
+    pruneRecentTabs()
     toasts.push(
       gone.length === 1
         ? { title: `Session ${gone[0]} ended`, message: 'Its terminal was closed.' }
@@ -204,6 +244,7 @@ export const useLayoutStore = defineStore('layout', () => {
     loaded,
     tabs,
     activeTab,
+    recentTabIds,
     focused,
     load,
     reset,
@@ -216,6 +257,8 @@ export const useLayoutStore = defineStore('layout', () => {
     cycleFocus,
     setSizes,
     activate,
+    cycleTab,
+    toggleLastTab,
     closeTab,
     closeSession,
     expectRename,

@@ -28,6 +28,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useSessionsStore } from '@/stores/sessions'
 import { useToastsStore } from '@/stores/toasts'
 import { useThemeStore } from '@/stores/theme'
+import { shouldInterceptGlobalShortcut, shortcutPlatform } from '@/lib/shortcuts'
 
 const props = withDefaults(
   defineProps<{
@@ -245,6 +246,7 @@ onMounted(async () => {
   // terminal sends, once per keydown, instead of xterm's or the browser's
   // default (Cmd+← would navigate back).
   t.attachCustomKeyEventHandler((ev) => {
+    if (ev.type === 'keydown' && shouldInterceptGlobalShortcut(ev, shortcutPlatform())) return false
     const bytes = editingKey(ev)
     if (bytes !== undefined) {
       if (ev.type === 'keydown') {

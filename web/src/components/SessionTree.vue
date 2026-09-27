@@ -14,6 +14,7 @@ import { useLayoutStore } from '@/stores/layout'
 import type { SplitDir } from '@/lib/layout'
 import type { ProjectGroup } from '@/lib/tree'
 import { canReorderProjectSections, sessionKey, windowKey } from '@/lib/tree'
+import { matchingTreeShortcut } from '@/lib/shortcuts'
 import SessionList from './SessionList.vue'
 import ProjectTreeRow from './ProjectTreeRow.vue'
 
@@ -24,6 +25,7 @@ const emit = defineEmits<{
   split: [name: string, dir: SplitDir]
   kill: [name: string]
   sessionInProject: [project: Project]
+  create: []
 }>()
 const tree = useTreeStore()
 const projects = useProjectsStore()
@@ -265,12 +267,12 @@ function onTreeKeydown(event: KeyboardEvent) {
   const windowID = item.dataset.treeWindow ?? ''
   const items = visibleItems()
   const index = items.indexOf(item)
-  if (event.key === 'F2' && (kind === 'project' || kind === 'session')) {
+  if (matchingTreeShortcut(event, 'tree-rename') && (kind === 'project' || kind === 'session')) {
     event.preventDefault()
     startRename(key)
     return
   }
-  if ((event.key === 'h' || event.key === 'H') && (kind === 'project' || kind === 'session')) {
+  if (matchingTreeShortcut(event, 'tree-hide') && (kind === 'project' || kind === 'session')) {
     event.preventDefault()
     if (kind === 'project') hideProject(key.slice('project:'.length))
     else {
@@ -279,7 +281,7 @@ function onTreeKeydown(event: KeyboardEvent) {
     }
     return
   }
-  if ((event.key === 'p' || event.key === 'P') && kind === 'project') {
+  if (matchingTreeShortcut(event, 'tree-pin') && kind === 'project') {
     event.preventDefault()
     const id = key.slice('project:'.length)
     if (tree.order.pinned.includes(id)) tree.unpinProject(id)
@@ -293,6 +295,18 @@ function onTreeKeydown(event: KeyboardEvent) {
   }
   const moveFocus = (to: number) => {
     if (to >= 0 && to < items.length) focusKey(items[to].dataset.treeKey ?? '')
+  }
+
+  if (matchingTreeShortcut(event, 'tree-new-session')) {
+    if (kind === 'other') emit('create')
+    else {
+      const projectId = kind === 'project' ? key.slice('project:'.length) : item.dataset.treeGroup
+      const project = projectId ? projects.items.find((candidate) => candidate.id === projectId) : undefined
+      if (project) emit('sessionInProject', project)
+      else if (kind === 'session') emit('create')
+    }
+    if (kind === 'project' || kind === 'session' || kind === 'other') event.preventDefault()
+    return
   }
 
   if (event.key === 'Tab') {
@@ -318,9 +332,9 @@ function onTreeKeydown(event: KeyboardEvent) {
     }
     return
   }
-  if (event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
+  if (matchingTreeShortcut(event, 'tree-reorder-up') || matchingTreeShortcut(event, 'tree-reorder-down')) {
     event.preventDefault()
-    const offset = event.key === 'ArrowUp' ? -1 : 1
+    const offset = matchingTreeShortcut(event, 'tree-reorder-up') ? -1 : 1
     if (kind === 'project') {
       const id = key.slice('project:'.length)
       const pinned = tree.order.pinned.includes(id)
@@ -349,11 +363,11 @@ function onTreeKeydown(event: KeyboardEvent) {
     }
     return
   }
-  if (event.key === 'ArrowDown') { event.preventDefault(); moveFocus(index + 1); return }
-  if (event.key === 'ArrowUp') { event.preventDefault(); moveFocus(index - 1); return }
-  if (event.key === 'Home') { event.preventDefault(); moveFocus(0); return }
-  if (event.key === 'End') { event.preventDefault(); moveFocus(items.length - 1); return }
-  if (event.key === 'ArrowRight') {
+  if (matchingTreeShortcut(event, 'tree-down')) { event.preventDefault(); moveFocus(index + 1); return }
+  if (matchingTreeShortcut(event, 'tree-up')) { event.preventDefault(); moveFocus(index - 1); return }
+  if (matchingTreeShortcut(event, 'tree-home')) { event.preventDefault(); moveFocus(0); return }
+  if (matchingTreeShortcut(event, 'tree-end')) { event.preventDefault(); moveFocus(items.length - 1); return }
+  if (matchingTreeShortcut(event, 'tree-expand')) {
     event.preventDefault()
     if ((kind === 'project' || kind === 'other') && item.getAttribute('aria-expanded') === 'false') {
       tree.setCollapsed(kind === 'other' ? '__other__' : key.slice('project:'.length), false)
@@ -364,7 +378,7 @@ function onTreeKeydown(event: KeyboardEvent) {
     } else if (item.getAttribute('aria-expanded') === 'true') moveFocus(index + 1)
     return
   }
-  if (event.key === 'ArrowLeft') {
+  if (matchingTreeShortcut(event, 'tree-collapse')) {
     event.preventDefault()
     if ((kind === 'project' || kind === 'other') && item.getAttribute('aria-expanded') === 'true') {
       tree.setCollapsed(kind === 'other' ? '__other__' : key.slice('project:'.length), true)
@@ -378,7 +392,7 @@ function onTreeKeydown(event: KeyboardEvent) {
     }
     return
   }
-  if (event.key === 'Enter') {
+  if (matchingTreeShortcut(event, 'tree-open')) {
     event.preventDefault()
     if (kind === 'session') item.querySelector<HTMLButtonElement>('[data-session-row]')?.click()
     else if (kind === 'window') emit('selectWindow', name, windowID)
@@ -386,7 +400,7 @@ function onTreeKeydown(event: KeyboardEvent) {
     else tree.toggleCollapsed(kind === 'other' ? '__other__' : key.slice('project:'.length))
     return
   }
-  if (event.key === 'Delete' && kind === 'session') {
+  if (matchingTreeShortcut(event, 'tree-kill') && kind === 'session') {
     event.preventDefault()
     const name = key.slice('session:'.length)
     emit('kill', name)

@@ -38,6 +38,7 @@ const emit = defineEmits<{
         @split="(name, dir) => emit('split', name, dir)"
         @kill="emit('kill', $event)"
         @session-in-project="emit('sessionInProject', $event)"
+        @create="emit('create')"
       />
     </div>
   </section>

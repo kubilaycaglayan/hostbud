@@ -136,6 +136,45 @@ describe('save', () => {
 })
 
 describe('tabs', () => {
+  it('cycles with wraparound and does nothing with one tab', async () => {
+    const layout = await loaded()
+    expect(layout.cycleTab(1)).toBe(false)
+    layout.open('host', 'a')
+    expect(layout.cycleTab(-1)).toBe(false)
+    layout.open('host', 'b')
+    layout.open('host', 'c')
+    expect(layout.activeTab?.id).toBe(layout.tabs[2].id)
+    expect(layout.cycleTab(1)).toBe(true)
+    expect(layout.activeTab?.id).toBe(layout.tabs[0].id)
+    expect(layout.cycleTab(-1)).toBe(true)
+    expect(layout.activeTab?.id).toBe(layout.tabs[2].id)
+  })
+
+  it('tracks recent activations in memory and toggles between the two most recent open tabs', async () => {
+    const layout = await loaded()
+    layout.open('host', 'a')
+    layout.open('host', 'b')
+    layout.open('host', 'c')
+    const [a, b, c] = layout.tabs.map((tab) => tab.id)
+    expect(layout.recentTabIds).toEqual([c, b, a])
+    layout.activate(a)
+    layout.activate(c)
+    expect(layout.toggleLastTab()).toBe(true)
+    expect(layout.activeTab?.id).toBe(a)
+    expect(layout.toggleLastTab()).toBe(true)
+    expect(layout.activeTab?.id).toBe(c)
+    layout.closeTab(a)
+    expect(layout.recentTabIds).not.toContain(a)
+    expect(layout.toggleLastTab()).toBe(true)
+    expect(layout.activeTab?.id).toBe(b)
+  })
+
+  it('does not seed the recent list from a restored layout', async () => {
+    const layout = await loaded(saved([{ session: 'a' }, { session: 'b' }], 1))
+    expect(layout.recentTabIds).toEqual([])
+    expect(layout.toggleLastTab()).toBe(false)
+  })
+
   it('the limit shows a notice and opens nothing', async () => {
     const layout = await loaded()
     for (let i = 0; i < MAX_PANES; i++) expect(layout.open('host', `s${i}`)).toBe(true)

@@ -196,20 +196,20 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
   - U: T8 registry is the only source (the help dialog renders every entry; the palette hint matches); platform formatting (⌘ vs Ctrl) (Vitest).
   - I: n/a (frontend only).
   - E: T8 *Keyboard shortcuts help* (desktop).
-- [ ] Ctrl+Shift+] moves to the next tab and Ctrl+Shift+[ to the previous one, on every platform and even from a focused terminal. They wrap around at either end, do nothing with a single tab, and focus the new tab's focused pane so typing reaches it. The keys never reach the program.
+- [x] Ctrl+Shift+] moves to the next tab and Ctrl+Shift+[ to the previous one, on every platform and even from a focused terminal. They wrap around at either end, do nothing with a single tab, and focus the new tab's focused pane so typing reaches it. The keys never reach the program.
   - U: T8 next/previous with wrap-around, the single-tab no-op, and focus moving to the new tab's focused pane; xterm's custom key handler returns `false` for both chords (Vitest).
   - I: n/a (frontend only).
   - E: T8 *Switch tabs from the keyboard* (desktop) · T8 *Shortcuts don't reach the program* (desktop).
-- [ ] Ctrl+Shift+D (Ctrl on every platform, never ⌘) switches to the previously selected tab, and pressing it again switches back, even from a focused terminal. If that tab was closed, it goes to the most recently selected tab that's still open; with one tab it does nothing. The new tab's focused pane gets focus, and the key never reaches the program or the browser's own Ctrl+Shift+D.
+- [x] Ctrl+Shift+D (Ctrl on every platform, never ⌘) switches to the previously selected tab, and pressing it again switches back, even from a focused terminal. If that tab was closed, it goes to the most recently selected tab that's still open; with one tab it does nothing. The new tab's focused pane gets focus, and the key never reaches the program or the browser's own Ctrl+Shift+D.
   - U: T8 the most-recently-selected list (click, chords, palette and opening a session all count; closing drops the tab), the toggle, the closed-tab fallback, the single-tab no-op, `preventDefault()`, xterm's custom key handler returns `false`, ⌘⇧D unbound (Vitest).
   - I: n/a (frontend only; the list is in memory, not persisted).
   - E: T8 *Toggle to the last tab* (desktop).
-- [ ] No global shortcut takes a key a terminal program needs: registry entries that fire while the terminal is focused use ⌘ or Ctrl+Shift only, never plain Ctrl+letter, Alt+letter or function keys, and don't collide with M3's keys (Ctrl/⌘+Shift+C/V/F, Mac editing keys). Browser-reserved chords (Ctrl+T, Ctrl+W, Ctrl+N, Ctrl+Tab) aren't used.
+- [x] No global shortcut takes a key a terminal program needs: registry entries that fire while the terminal is focused use ⌘ or Ctrl+Shift only, never plain Ctrl+letter, Alt+letter or function keys, and don't collide with M3's keys (Ctrl/⌘+Shift+C/V/F, Mac editing keys). Browser-reserved chords (Ctrl+T, Ctrl+W, Ctrl+N, Ctrl+Tab) aren't used.
   - U: T8 a registry test fails on any terminal-scope chord that is plain Ctrl/Alt+key, a duplicate, or one of M3's keys; `terminalKeys.ts` tests pass unchanged (Vitest).
   - I: n/a (frontend only).
   - E: T8 *Shortcuts don't reach the program* (desktop; Ctrl+Shift+] switches tabs while vim runs, and vim's buffer is unchanged, checked with `capture-pane`).
-- [ ] The help dialog (**Keyboard shortcuts**) lists every shortcut grouped (General, Tabs, Tree), shows the current platform's keys, and closes on Escape with focus restored. Shortcuts are not customizable in M6 (documented).
-  - U: T8 grouping, platform keys, focus restore (Vitest).
+- [x] The help dialog (**Keyboard shortcuts**) lists every shortcut grouped (General, Tabs, Tree), shows the current platform's keys, and closes on Escape with focus restored. Shortcuts are not customizable in M6 (documented).
+  - U: T8 grouping, platform keys and Escape close event (Vitest); focus restoration is checked by the task-tagged browser scenario.
   - I: n/a (frontend only).
   - E: T8 *Keyboard shortcuts help* (opened with the chord and with `?` from the tree; Escape closes).
 
@@ -303,10 +303,10 @@ Profiles: `desktop-chromium`, `iphone-13-pro` (`http://localhost:9055`) and `iph
 - [x] **(T7) Theme persists:** Light survives reload and restart; a second account still starts in System; a foreign-Origin `PUT /api/ui-state/theme` → 403 (desktop).
 - [x] **(T7) System follows the OS:** in System mode, `page.emulateMedia({colorScheme: 'light'})` then `'dark'` flips the UI and terminal without a reload; in Dark mode it doesn't (desktop and `iphone-13-pro`).
 - [x] **(T7) No flash of the wrong theme:** with Light saved and the emulated OS dark, the root background at the first animation frame of a reload is already the light token (desktop).
-- [ ] **(T8) Keyboard shortcuts help:** Ctrl+Shift+/ and `?` from the tree open it; it lists the registry's entries; Escape closes and restores focus (desktop).
-- [ ] **(T8) Switch tabs from the keyboard:** with three tabs open and the last one focused, Ctrl+Shift+] wraps to the first tab and Ctrl+Shift+[ wraps back to the last; after each switch, typing in the terminal reaches that tab's shell (`capture-pane`); with one tab, the chords leave it focused and send nothing to the shell (desktop).
-- [ ] **(T8) Toggle to the last tab:** with three tabs, select tab 1 then tab 3: Ctrl+Shift+D focuses tab 1, again focuses tab 3, and typing after each reaches that tab's shell (`capture-pane`); after closing tab 1 it goes to the next most recent open tab; with one tab it does nothing and sends nothing to the shell (desktop).
-- [ ] **(T8) Shortcuts don't reach the program:** with vim in one tab and a shell in another, Ctrl+Shift+] / [ switch tabs, and vim's buffer and mode are unchanged; Ctrl+Shift+E moves focus to the tree and back (desktop).
+- [x] **(T8) Keyboard shortcuts help:** Ctrl+Shift+/ and `?` from the tree open it; it lists the registry's entries; Escape closes and restores focus (desktop; authored and type-checked, browser run at M7).
+- [x] **(T8) Switch tabs from the keyboard:** with three tabs open and the last one focused, Ctrl+Shift+] wraps to the first tab and Ctrl+Shift+[ wraps back to the last; after each switch, typing in the terminal reaches that tab's shell (`capture-pane`); with one tab, the chords leave it focused and send nothing to the shell (desktop; authored and type-checked, browser run at M7).
+- [x] **(T8) Toggle to the last tab:** with three tabs, select tab 1 then tab 3: Ctrl+Shift+D focuses tab 1, again focuses tab 3, and typing after each reaches that tab's shell (`capture-pane`); after closing tab 1 it goes to the next most recent open tab; with one tab it does nothing and sends nothing to the shell (desktop; authored and type-checked, browser run at M7).
+- [x] **(T8) Shortcuts don't reach the program:** with vim in one tab and a shell in another, Ctrl+Shift+] / [ switch tabs, and vim's buffer and mode are unchanged; Ctrl+Shift+E moves focus to the tree and back (desktop; authored and type-checked, browser run at M7).
 - [ ] **(T9) Palette opens without stealing Ctrl+K:** in a shell, Ctrl+K deletes to the end of the line (`capture-pane`); Ctrl+Shift+K opens the palette (desktop).
 - [ ] **(T9) Palette jumps to a session:** type part of a name, Enter → its tab is focused (or opened) and the terminal is focused; Escape without choosing returns focus (desktop and `iphone-13-pro`).
 - [ ] **(T9) Palette runs actions:** Theme: Light applies; Hide then Unhide a session; New session in <project> lands under the project; Kill asks for confirmation and Cancel leaves the session alive (desktop).

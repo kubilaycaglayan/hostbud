@@ -401,6 +401,15 @@ describe('TerminalView', () => {
     expect(ws.sent).toHaveLength(1)
   })
 
+  it('keeps registered global shortcuts out of xterm while passing ordinary terminal chords through', async () => {
+    await mountTerm()
+    const t = h.terms[0]
+    expect(t.keyHandler(new KeyboardEvent('keydown', { key: ']', code: 'BracketRight', ctrlKey: true, shiftKey: true }))).toBe(false)
+    expect(t.keyHandler(new KeyboardEvent('keydown', { key: 'd', ctrlKey: true, shiftKey: true }))).toBe(false)
+    expect(t.keyHandler(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))).toBe(true)
+    expect(t.keyHandler(new KeyboardEvent('keydown', { key: 'b', altKey: true }))).toBe(true)
+  })
+
   it('Option+click forces selection on macOS; OSC 52 is loaded', async () => {
     await mountTerm()
     expect(h.terms[0].options.macOptionClickForcesSelection).toBe(true)
