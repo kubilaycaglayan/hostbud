@@ -46,6 +46,7 @@ test('(T5) Option-click caret placement', async ({ page, ui, target }) => {
   await page.waitForTimeout(300)
   await ui.type('X')
   await expect.poll(() => promptLine(target, name)).toMatch(/echo abcdeXfghij$/)
+  await page.keyboard.press('Control+e') // Ctrl-U kills only left of the caret, which the click moved
   await page.keyboard.press('Control+u')
 
   // Single-line, soft-wrapped: the click is a row above the caret.
@@ -56,6 +57,7 @@ test('(T5) Option-click caret placement', async ({ page, ui, target }) => {
   await page.waitForTimeout(500)
   await ui.type('X')
   await expect.poll(async () => (await target.capture(name)).includes('aaaXMARKbbb')).toBe(true)
+  await page.keyboard.press('Control+e') // Ctrl-U kills only left of the caret, which the click moved
   await page.keyboard.press('Control+u')
 
   // Multiline: a bordered prompt box; clicks land on the character and line
