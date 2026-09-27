@@ -18,6 +18,7 @@ const resolvingLinks = ref(new Set<string>())
 const linkErrors = ref<Record<string, string>>({})
 const projectStore = useProjectsStore()
 const projects = computed(() => projectStore.items)
+const currentProject = computed(() => projects.value.find((project) => project.path === path.value))
 const hidden = ref(false)
 const loading = ref(false)
 const error = ref<{ message: string; hint?: string } | null>(null)
@@ -85,17 +86,25 @@ async function resolveLink(entry: FileEntry) {
 }
 
 async function openProject(entry: FileEntry) {
-  const existing = projects.value.find((p) => p.path === entry.path)
+  await openProjectPath(entry.path, entry.name)
+}
+async function openProjectPath(projectPath: string, name: string) {
+  const existing = projects.value.find((p) => p.path === projectPath)
   if (existing) { selectedProject.value = existing; return }
   busy.value = true
   try {
-    const project = await projectsApi.create(props.machine, entry.path, entry.name)
+    const project = await projectsApi.create(props.machine, projectPath, name)
     const prior = projects.value.find((p) => p.path === project.path)
     if (prior) { selectedProject.value = prior; return }
     projectStore.remember(project)
     selectedProject.value = project
   } catch (e) { error.value = describeError(e) }
   finally { busy.value = false }
+}
+function openCurrentProject() {
+  if (!path.value) return
+  const name = path.value.split('/').filter(Boolean).at(-1) || '/'
+  void openProjectPath(path.value, name)
 }
 </script>
 
@@ -141,6 +150,17 @@ async function openProject(entry: FileEntry) {
         type="submit"
       >
         Go
+      </button>
+      <button
+        type="button"
+        class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border"
+        :aria-label="currentProject ? 'Open project' : 'Add this directory as project'"
+        :title="currentProject ? 'Open project' : 'Add this directory as project'"
+        :disabled="!projectStore.loaded || loading || Boolean(error) || busy || !path"
+        @click="openCurrentProject"
+      >
+        <FolderOpen v-if="currentProject" :size="18" aria-hidden="true" />
+        <FolderPlus v-else :size="18" aria-hidden="true" />
       </button>
       <ul
         v-if="suggestions.length"

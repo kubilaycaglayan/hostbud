@@ -6,6 +6,9 @@ import FileBrowser from './FileBrowser.vue'
 const fetchMock = vi.fn()
 const createdFolders = new Set<string>()
 let projectsList: { id: string; machineId: string; path: string; name: string; sortOrder: number; pinned: boolean; createdAt: string; updatedAt: string }[] = []
+let projectCount = 0
+let deferredPath: string | null = null
+let releaseListing: (() => void) | null = null
 vi.stubGlobal('fetch', fetchMock)
 
 describe('FileBrowser', () => {
@@ -14,11 +17,18 @@ describe('FileBrowser', () => {
     fetchMock.mockReset()
     createdFolders.clear()
     projectsList = []
+    projectCount = 0
+    deferredPath = null
+    releaseListing = null
     fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
       const parsed = new URL(String(url), 'http://localhost')
       let body: unknown = {}
       if (parsed.pathname.endsWith('/fs/home')) body = { path: '/home/dev' }
       else if (parsed.pathname.endsWith('/fs/stat')) body = { name: 'broken-link', path: '/home/dev/broken-link', kind: 'symlink', symlink: true, symlinkState: 'broken' }
+      else if (parsed.pathname.endsWith('/fs') && parsed.searchParams.get('path') === deferredPath) {
+        await new Promise<void>((resolve) => { releaseListing = resolve })
+        body = { path: deferredPath, entries: [] }
+      }
       else if (parsed.pathname.endsWith('/fs') && parsed.searchParams.get('path') === '/home/dev/missing') {
         return { ok: false, status: 404, headers: new Headers(), json: async () => ({ error: 'path not found', hint: 'Check the path and try again.' }), text: async () => '' }
       } else if (parsed.pathname.endsWith('/fs') && parsed.searchParams.get('path') === '/home/dev/notes.txt') {
@@ -39,9 +49,12 @@ describe('FileBrowser', () => {
         createdFolders.add(child)
         body = { path: child }
       }
-      else if (parsed.pathname === '/api/projects' && init?.method === 'POST') body = { id: 'p1', machineId: 'host', path: '/home/dev/work', name: 'work' }
+      else if (parsed.pathname === '/api/projects' && init?.method === 'POST') {
+        const requestBody = JSON.parse(String(init.body)) as { machineId: string; path: string; name: string }
+        body = { id: `p${++projectCount}`, ...requestBody, sortOrder: 0, pinned: false, createdAt: '', updatedAt: '' }
+      }
       else if (parsed.pathname === '/api/projects' && init?.method === 'GET') body = { projects: projectsList }
-      else if (parsed.pathname === '/api/projects/p1/recent-commands') body = { commands: ['make test'] }
+      else if (/^\/api\/projects\/[^/]+\/recent-commands$/.test(parsed.pathname)) body = { commands: parsed.pathname === '/api/projects/p1/recent-commands' ? ['make test'] : [] }
       else if (parsed.pathname.endsWith('/sessions')) body = { name: 'work' }
       return { ok: true, status: 200, headers: new Headers(), text: async () => JSON.stringify(body) }
     })
@@ -114,6 +127,68 @@ describe('FileBrowser', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('Project: Saved work')
     expect(fetchMock.mock.calls.some(([url, init]) => String(url) === '/api/projects' && init?.method === 'POST')).toBe(false)
+    await wrapper.get('#browser-path').setValue('/home/dev/work')
+    await wrapper.get('#browser-path').element.closest('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    await flushPromises()
+    const currentAction = wrapper.get('button[aria-label="Open project"]')
+    expect(currentAction.attributes('title')).toBe('Open project')
+    await currentAction.trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Project: Saved work')
+    expect(fetchMock.mock.calls.some(([url, init]) => String(url) === '/api/projects' && init?.method === 'POST')).toBe(false)
+  })
+
+  it('adds or opens the current directory, follows navigation, and starts a session there', async () => {
+    const wrapper = mount(FileBrowser, { props: { machine: 'host' } })
+    await flushPromises()
+    const currentProject = () => wrapper.get('button[aria-label="Add this directory as project"], button[aria-label="Open project"]')
+    expect(currentProject().attributes('aria-label')).toBe('Add this directory as project')
+    expect(currentProject().attributes('title')).toBe('Add this directory as project')
+    expect(currentProject().classes()).toContain('touch-target')
+    await currentProject().trigger('click')
+    await flushPromises()
+    expect(currentProject().attributes('aria-label')).toBe('Open project')
+    expect(wrapper.text()).toContain('Project: dev')
+    expect(fetchMock.mock.calls.filter(([url, init]) => String(url) === '/api/projects' && init?.method === 'POST')).toHaveLength(1)
+    expect(fetchMock).toHaveBeenCalledWith('/api/projects', expect.objectContaining({ method: 'POST', body: JSON.stringify({ machineId: 'host', path: '/home/dev', name: 'dev' }) }))
+    await currentProject().trigger('click')
+    await flushPromises()
+    expect(fetchMock.mock.calls.filter(([url, init]) => String(url) === '/api/projects' && init?.method === 'POST')).toHaveLength(1)
+
+    await wrapper.findAll('button').find((button) => button.text().trim() === 'work/')!.trigger('click')
+    await flushPromises()
+    expect(currentProject().attributes('aria-label')).toBe('Add this directory as project')
+    await currentProject().trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Project: work')
+    expect(fetchMock).toHaveBeenCalledWith('/api/projects', expect.objectContaining({ method: 'POST', body: JSON.stringify({ machineId: 'host', path: '/home/dev/work', name: 'work' }) }))
+    await wrapper.findAll('button').find((button) => button.text().trim() === 'New session here')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[aria-label="New session here"] h2').text()).toContain('New session in work')
+    expect(wrapper.text()).toContain('Directory: /home/dev/work')
+    expect(fetchMock.mock.calls.filter(([url, init]) => String(url) === '/api/projects' && init?.method === 'POST')).toHaveLength(2)
+    wrapper.unmount()
+  })
+
+  it('disables the current-directory action while loading or after a path error', async () => {
+    const wrapper = mount(FileBrowser, { props: { machine: 'host' } })
+    await flushPromises()
+    const currentProject = () => wrapper.get('button[aria-label="Add this directory as project"], button[aria-label="Open project"]')
+    deferredPath = '/home/dev/work'
+    await wrapper.get('#browser-path').setValue(deferredPath)
+    await wrapper.get('#browser-path').element.closest('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    await flushPromises()
+    expect(currentProject().attributes('disabled')).toBeDefined()
+    releaseListing?.()
+    await flushPromises()
+    expect(currentProject().attributes('disabled')).toBeUndefined()
+
+    await wrapper.get('#browser-path').setValue('/home/dev/missing')
+    await wrapper.get('#browser-path').element.closest('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    await flushPromises()
+    expect(wrapper.find('[role="alert"]').exists()).toBe(true)
+    expect(currentProject().attributes('disabled')).toBeDefined()
+    wrapper.unmount()
   })
 
   it('supports keyboard autocomplete and recovers from invalid paths in place', async () => {

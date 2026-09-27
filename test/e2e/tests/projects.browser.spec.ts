@@ -3,11 +3,63 @@ import { newAccount } from '../helpers/auth.ts'
 import { owner } from '../helpers/db.ts'
 import { ctl } from '../helpers/ctl.ts'
 import { shq, uniqueName } from '../helpers/target.ts'
-import { forbidInLogs } from '../helpers/api.ts'
+import { forbidInLogs, mutate } from '../helpers/api.ts'
 
 for (const profile of ['desktop', 'phone'] as const) {
   test.describe(`project browser ${profile}`, () => {
     test.use(profile === 'phone' ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } : {})
+
+    test('(T12) Add the current directory as a project', async ({ page, request, target, ui }) => {
+      const folderName = uniqueName('e2e-current-directory')
+      const folderPath = `/home/dev/${folderName}`
+      const sessionName = uniqueName('e2e-current-session')
+      forbidInLogs(folderName, folderPath, sessionName)
+      await target.run(`mkdir -p ${shq(folderPath)}`)
+      await page.goto('/')
+      await page.getByRole('button', { name: 'Browse files' }).click()
+      const dialog = page.getByRole('dialog', { name: 'Browse files' })
+
+      const homeAction = dialog.getByRole('button', { name: 'Add this directory as project' })
+      await expect(homeAction).toHaveAttribute('title', 'Add this directory as project')
+      await homeAction.click()
+      await expect(dialog.getByText('Project: dev')).toBeVisible()
+      await expect(dialog.getByRole('button', { name: 'Open project' })).toBeVisible()
+      const afterHome = await (await request.get('/api/projects?machine=host')).json()
+      const homeProjects = (afterHome.projects as { id: string; path: string }[]).filter((project) => project.path === '/home/dev')
+      expect(homeProjects).toHaveLength(1)
+      await dialog.getByRole('button', { name: 'Close file browser' }).click()
+      await expect(ui.treeItem('dev')).toBeVisible()
+      await expect(ui.treeItem('dev')).toContainText('/home/dev')
+
+      await page.getByRole('button', { name: 'Browse files' }).click()
+      const reopened = page.getByRole('dialog', { name: 'Browse files' })
+      await expect(reopened.getByRole('button', { name: 'Open project' })).toBeVisible()
+      await reopened.getByLabel('Current path').fill(folderPath)
+      await reopened.getByRole('button', { name: 'Go' }).click()
+      const addFolder = reopened.getByRole('button', { name: 'Add this directory as project' })
+      await expect(addFolder).toBeEnabled()
+      await addFolder.click()
+      await expect(reopened.getByText(`Project: ${folderName}`)).toBeVisible()
+      await expect(reopened.getByRole('button', { name: 'Open project' })).toBeVisible()
+      await reopened.getByRole('button', { name: 'Open project' }).click()
+      const projects = await (await request.get('/api/projects?machine=host')).json()
+      const folderProjects = (projects.projects as { id: string; path: string }[]).filter((project) => project.path === folderPath)
+      expect(folderProjects).toHaveLength(1)
+
+      await reopened.getByRole('button', { name: 'New session here' }).click()
+      const create = page.getByRole('dialog', { name: 'New session here' })
+      await create.getByLabel('Name').fill(sessionName)
+      await create.getByRole('button', { name: 'Create session' }).click()
+      await expect.poll(async () => {
+        const data = await (await request.get('/api/machines/host/sessions')).json()
+        return data.sessions.some((session: { name: string; path: string }) => session.name === sessionName && session.path === folderPath)
+      }).toBe(true)
+      await reopened.getByRole('button', { name: 'Close file browser' }).click()
+      await ui.showList()
+      await expect(page.getByRole('group', { name: `Sessions in ${folderName}` }).getByRole('button', { name: sessionName, exact: true })).toBeVisible()
+      expect((await mutate(request, 'DELETE', `/api/projects/${folderProjects[0].id}`)).status()).toBe(204)
+      expect((await mutate(request, 'DELETE', `/api/projects/${homeProjects[0].id}`)).status()).toBe(204)
+    })
 
     test('(T4) File browser dialog and icon actions', async ({ page, target }) => {
       const name = uniqueName('e2e-browser-dialog')

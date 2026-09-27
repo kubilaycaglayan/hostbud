@@ -21,7 +21,7 @@ Update this table in the same commit that finishes a task.
 | T9 Command palette | Done |
 | T10 Taken session names get a number | Done |
 | T11 Remove a project | Done |
-| T12 Add the current directory as a project | Not started |
+| T12 Add the current directory as a project | Done |
 | T13 Left bar toggle and icon toolbar | Not started |
 | T14 Docs, audit and release | Not started |
 | T15 Safe Docker cleanup | Not started |
@@ -45,6 +45,8 @@ T9 completed with session/window/project search, fuzzy ranking, action dispatch,
 T10 completed with typed-name collision numbering, 64-character suffix trimming, tmux race retries, unchanged rename conflicts and informational toasts when a typed name changes. Go unit/integration tests, frontend tests/lint and E2E TypeScript checks passed; browser E2E remains paused until M7. The M1 invalid-input scenario now expects a numbered session for a taken name.
 
 T11 completed with account-wide project removal, cascading links and command history, immediate path-based session re-placement, confirmation from the tree and command palette, and a close-and-toast path for an open New session here dialog. Go/PostgreSQL/test-sshd integration, frontend tests/lint and E2E TypeScript checks passed; desktop and phone browser scenarios are authored and remain paused until M7. No migration or environment variable was added.
+
+T12 completed with an accessible Add/Open action in the file browser path bar, reusing the row actions' deduplicating project logic. It follows navigation, stays disabled until project data is loaded and while listings load or fail, and supports starting a session at the selected path. FileBrowser unit tests and frontend/E2E type checks pass; desktop and phone browser scenarios are authored and remain paused until M7. No new environment variable or server route was added.
 
 ## Rules for this milestone
 
@@ -312,7 +314,7 @@ The file browser has add/open icons only on child-folder rows, so the folder you
 
 **Tests:** U (Vitest): the button shows Add or Open depending on whether the shown path is a project, and changes after navigating; clicking it creates the project with the shown path, or selects the existing one without a second POST; disabled while loading and on error; the touch-target class. I: n/a (frontend only; `POST /api/projects` has its integration tests from M4).
 
-**E2E:** add in `projects.browser.spec.ts` (desktop and `iphone-13-pro`): **(T12) Add the current directory as project** (open the browser at home, click *Add this directory as project* → the home project appears in the tree with a `~` path, and the button now reads *Open project*; navigate into a folder and add it the same way; *New session here* starts a session in that folder, placed under it; clicking the button again doesn't create a duplicate). Type-check only.
+**E2E:** added in `projects.browser.spec.ts` (desktop and phone profile / `iphone-13-pro`): **(T12) Add the current directory as project** (open the browser at home, click *Add this directory as project* → the home project appears in the tree with a `~` path, and the button now reads *Open project*; navigate into a folder and add it the same way; *New session here* starts a session in that folder, placed under it; clicking the button again doesn't create a duplicate). Type-checked only; browser runs remain paused until M7.
 
 **Done:** the directory being browsed can be added or opened as a project from the path bar, on desktop and phone, and the scenarios compile.
 

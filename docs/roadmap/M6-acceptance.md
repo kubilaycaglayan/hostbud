@@ -233,7 +233,7 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 
 ## Add the current directory as a project
 
-- [ ] The file browser's path bar has a button for the directory being shown: *Add this directory as project* (FolderPlus), or *Open project* (FolderOpen) when it already is one. It uses the same logic as the row icons (no duplicates; the name defaults to the last path component), follows navigation, is disabled while loading or on error, and *New session here* works for it afterwards.
+- [x] The file browser's path bar has a button for the directory being shown: *Add this directory as project* (FolderPlus), or *Open project* (FolderOpen) when it already is one. It uses the same logic as the row icons (no duplicates; the name defaults to the last path component), follows navigation, is disabled while loading or on error, and *New session here* works for it afterwards.
   - U: T12 Add/Open state, create vs select without a second POST, disabled states, touch target (Vitest).
   - I: n/a: frontend only; `POST /api/projects` keeps its M4 integration tests.
   - E: T12 *Add the current directory as project* (desktop and `iphone-13-pro`).
@@ -316,7 +316,7 @@ Profiles: `desktop-chromium`, `iphone-13-pro` (`http://localhost:9055`) and `iph
 - [x] **(T10) Create with a taken name:** `POST` twice with the same name → 201 both times, the second named `<n>-1`; renaming another session to `<n>` → 409 (API; authored and type-checked, browser run at M7).
 - [x] **(T11) Remove a project:** a project with a session open in a tab; Remove → Cancel leaves it; Remove → confirm: the header is gone, the session is under Other sessions, the tab keeps its tmux client PID, the folder still exists on the target; reload and restart → still removed; adding the folder again gives a fresh project with no recent commands (desktop and `iphone-13-pro` via long-press; authored and type-checked, browser run at M7).
 - [x] **(T11) Delete project API:** signed out → 401, foreign Origin → 403, unknown id → 404, delete → 204 then 404; the list no longer has it (API; authored and type-checked, browser run at M7).
-- [ ] **(T12) Add the current directory as project:** at home, *Add this directory as project* → the home project appears with a `~` path and the button reads *Open project*; a subfolder is added the same way; *New session here* lands under it; a second click makes no duplicate (desktop and `iphone-13-pro`).
+- [x] **(T12) Add the current directory as project:** at home, *Add this directory as project* → the home project appears with a `~` path and the button reads *Open project*; a subfolder is added the same way; *New session here* lands under it; a second click makes no duplicate (desktop and `iphone-13-pro`; authored and type-checked, browser run at M7).
 - [ ] **(T13) Left bar toggle and toolbar:** no "Projects & sessions" or "Projects" text; *Hide sidebar* hides the left bar and becomes *Show sidebar*, which survives reload and brings it back; the *New session* icon creates a session; the *Add project* icon opens the file browser (desktop). On phones the toggle opens the drawer, its *Hide sidebar* closes it, and both icon buttons meet the touch-target size (both phone projects).
 - [ ] **(T14) Touch targets and zoom for M6 controls:** M5's *Touch targets* and *Usable without zoom* checks extended to chevrons, window rows, Pinned, Show hidden, inline rename, the palette button and the theme menu (both phone projects).
 
