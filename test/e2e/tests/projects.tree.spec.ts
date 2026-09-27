@@ -217,8 +217,7 @@ for (const profile of ['desktop', 'phone'] as const) {
       forbidInLogs(account.email, account.password)
       await owner.allow(account.email)
       await target.run(`mkdir -p ${shq(first)} ${shq(second)}`)
-      await page.goto('/')
-      await ui.signOut()
+      await ui.dropSession()
       await expect(ui.authForm().tab('Sign in')).toBeVisible()
       await ui.authForm().tab('Create account').click()
       await ui.authForm().email.fill(account.email)
@@ -310,6 +309,7 @@ for (const profile of ['desktop', 'phone'] as const) {
     })
 
     test('(T5) Account controls in app header', async ({ page, target, ui }) => {
+      await createAccount(ui) // it signs out; keep the shared session valid
       const name = uniqueName('e2e-account-header')
       const path = `/home/dev/${name}`
       await target.run(`mkdir -p ${shq(path)}`)

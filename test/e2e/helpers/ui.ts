@@ -56,6 +56,13 @@ export class UI {
     }
   }
 
+  /** Shows the sign-in form by dropping this context's cookie. Unlike
+   * signOut(), it leaves the shared saved session valid for later tests. */
+  async dropSession(): Promise<void> {
+    await this.page.context().clearCookies()
+    await this.page.goto('/')
+  }
+
   async signOut(): Promise<void> {
     await this.openAccountMenu()
     await this.page.getByRole('button', { name: 'Sign out' }).click()
@@ -237,14 +244,16 @@ export class UI {
   }
 
   async createAccount(account: { email: string; password: string }): Promise<void> {
-    // Scenarios call this first, before any page is loaded.
-    if (!(await this.tree().isVisible())) await this.open()
-    await this.signOut()
-    const f = this.authForm()
-    await f.tab('Create account').click()
-    await f.email.fill(account.email)
-    await f.password.fill(account.password)
-    await f.submit('Create account').click()
-    await expect(this.tree()).toBeVisible()
+    // Drops only this context's cookie: signing out would revoke the shared
+    // session in .auth.json and sign out every later test. The UI form is
+    // covered by auth.spec.ts.
+    const origin = new URL((await this.page.request.get('/')).url()).origin
+    await this.page.context().clearCookies()
+    const headers = { Origin: origin }
+    const reg = await this.page.request.post(origin + '/api/auth/register', { data: account, headers })
+    expect(reg.status(), await reg.text()).toBe(201)
+    const login = await this.page.request.post(origin + '/api/auth/login', { data: account, headers })
+    expect(login.ok(), await login.text()).toBe(true)
+    await this.open()
   }
 }

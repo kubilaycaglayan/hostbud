@@ -113,7 +113,7 @@ test('(T2) Single terminal view and rotation', async ({ page, target, ui }) => {
 })
 
 test('(T2) Account menu on the phone', async ({ page, ui }) => {
-  await ui.open()
+  await createAccount(ui) // it signs out; keep the shared session valid
   const header = page.locator('header')
   const trigger = header.getByRole('button', { name: 'Account' })
   await expect(trigger).toBeVisible()
