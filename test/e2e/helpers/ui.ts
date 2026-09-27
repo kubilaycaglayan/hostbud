@@ -230,7 +230,8 @@ export class UI {
   }
 
   async createAccount(account: { email: string; password: string }): Promise<void> {
-    await this.signOut()
+    await this.page.goto('/')
+    if (await this.page.locator('summary[aria-label="Account"]').isVisible()) await this.signOut()
     const f = this.authForm()
     await f.tab('Create account').click()
     await f.email.fill(account.email)

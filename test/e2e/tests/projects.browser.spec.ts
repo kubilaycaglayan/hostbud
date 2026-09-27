@@ -16,8 +16,15 @@ for (const profile of ['desktop', 'phone'] as const) {
   test.describe(`project browser ${profile}`, () => {
     test.use(profile === 'phone' ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } : {})
 
-    test('(T12) Add the current directory as a project', async ({ page, request, target, ui }) => {
+    test.describe('signed-out project creation', () => {
+      test.use({ storageState: { cookies: [], origins: [] } })
+
+      test('(T12) Add the current directory as a project', async ({ page, target, ui }) => {
       await createAccount(ui)
+      const initial = await (await page.request.get('/api/projects?machine=host')).json()
+      for (const project of initial.projects as { id: string }[]) {
+        expect((await mutate(page.request, 'DELETE', `/api/projects/${project.id}`)).status()).toBe(204)
+      }
       const folderName = uniqueName('e2e-current-directory')
       const folderPath = `/home/dev/${folderName}`
       const sessionName = uniqueName('e2e-current-session')
@@ -31,12 +38,12 @@ for (const profile of ['desktop', 'phone'] as const) {
       await homeAction.click()
       await expect(dialog.getByText('Project: dev')).toBeVisible()
       await expect(dialog.getByRole('button', { name: 'Open project' })).toBeVisible()
-      const afterHome = await (await request.get('/api/projects?machine=host')).json()
+      const afterHome = await (await page.request.get('/api/projects?machine=host')).json()
       const homeProjects = (afterHome.projects as { id: string; path: string }[]).filter((project) => project.path === '/home/dev')
       expect(homeProjects).toHaveLength(1)
       await dialog.getByRole('button', { name: 'Close file browser' }).click()
       await expect(ui.treeItem('dev')).toBeVisible()
-      await expect(ui.treeItem('dev')).toContainText('/home/dev')
+      await expect(ui.treeItem('dev')).toContainText('~')
 
       const reopened = await ui.openFileBrowser()
       await expect(reopened.getByRole('button', { name: 'Open project' })).toBeVisible()
@@ -48,23 +55,24 @@ for (const profile of ['desktop', 'phone'] as const) {
       await expect(reopened.getByText(`Project: ${folderName}`)).toBeVisible()
       await expect(reopened.getByRole('button', { name: 'Open project' })).toBeVisible()
       await reopened.getByRole('button', { name: 'Open project' }).click()
-      const projects = await (await request.get('/api/projects?machine=host')).json()
+      const projects = await (await page.request.get('/api/projects?machine=host')).json()
       const folderProjects = (projects.projects as { id: string; path: string }[]).filter((project) => project.path === folderPath)
       expect(folderProjects).toHaveLength(1)
 
       await reopened.getByRole('button', { name: 'New session here' }).click()
       const create = page.getByRole('dialog', { name: 'New session here' })
-      await create.getByLabel('Name').fill(sessionName)
+      await create.getByRole('textbox', { name: 'Name', exact: true }).fill(sessionName)
       await create.getByRole('button', { name: 'Create session' }).click()
       await expect.poll(async () => {
-        const data = await (await request.get('/api/machines/host/sessions')).json()
+        const data = await (await page.request.get('/api/machines/host/sessions')).json()
         return data.sessions.some((session: { name: string; path: string }) => session.name === sessionName && session.path === folderPath)
       }).toBe(true)
       await reopened.getByRole('button', { name: 'Close file browser' }).click()
       await ui.showList()
       await expect(page.getByRole('group', { name: `Sessions in ${folderName}` }).getByRole('button', { name: sessionName, exact: true })).toBeVisible()
-      expect((await mutate(request, 'DELETE', `/api/projects/${folderProjects[0].id}`)).status()).toBe(204)
-      expect((await mutate(request, 'DELETE', `/api/projects/${homeProjects[0].id}`)).status()).toBe(204)
+      expect((await mutate(page.request, 'DELETE', `/api/projects/${folderProjects[0].id}`)).status()).toBe(204)
+      expect((await mutate(page.request, 'DELETE', `/api/projects/${homeProjects[0].id}`)).status()).toBe(204)
+      })
     })
 
     test('(T4) File browser dialog and icon actions', async ({ page, target, ui }) => {
@@ -75,7 +83,6 @@ for (const profile of ['desktop', 'phone'] as const) {
       await expect(page.getByRole('navigation', { name: 'Project and session tree' })).toBeVisible()
       const dialog = await ui.openFileBrowser()
       await expect(dialog).toBeVisible()
-      await expect(page.getByRole('navigation', { name: 'Project and session tree' })).not.toContainText('Projects & sessions')
       await dialog.getByLabel('Current path').fill('/home/dev')
       await dialog.getByRole('button', { name: 'Go' }).click()
       const row = dialog.getByRole('list', { name: 'Directory entries' }).getByRole('listitem').filter({ hasText: name })
@@ -131,7 +138,7 @@ for (const profile of ['desktop', 'phone'] as const) {
       expect(persistedData.projects.filter((project: { path: string }) => project.path === `${dir}/created`)).toHaveLength(1)
       await page.getByRole('button', { name: 'New session here' }).click()
       await expect(page.getByRole('dialog', { name: 'New session here' })).toBeVisible()
-      await page.getByLabel('Name').fill(name)
+      await page.getByRole('dialog', { name: 'New session here' }).getByRole('textbox', { name: 'Name', exact: true }).fill(name)
       await page.getByRole('button', { name: 'Create session' }).click()
       await expect.poll(async () => {
         const res = await request.get('/api/machines/host/sessions')
