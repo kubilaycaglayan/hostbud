@@ -68,6 +68,64 @@ func TestIntegrationCreateWithDefaults(t *testing.T) {
 	}
 }
 
+func TestIntegrationSessionNameBoundariesAndUnicodePath(t *testing.T) {
+	svc, c := setup(t)
+	ctx := context.Background()
+	unicodePath := "/home/dev/sess-it/space λ"
+	if _, err := c.Exec(ctx, sshx.HostMachineID, "mkdir", "-p", unicodePath); err != nil {
+		t.Fatal(err)
+	}
+	short, err := svc.Create(ctx, session.Spec{Machine: sshx.HostMachineID, Name: "a", Path: unicodePath})
+	if err != nil || short != "a" {
+		t.Fatalf("one-character session name = %q, %v", short, err)
+	}
+	longName := strings.Repeat("x", 64)
+	long, err := svc.Create(ctx, session.Spec{Machine: sshx.HostMachineID, Name: longName, Path: "/home/dev/sess-it"})
+	if err != nil || long != longName {
+		t.Fatalf("64-character session name = %q, %v", long, err)
+	}
+	if got := display(t, c, long, "#{session_path}"); got != "/home/dev/sess-it" {
+		t.Fatalf("session path = %q, want /home/dev/sess-it", got)
+	}
+}
+
+type killBeforeRename struct {
+	inner inventory.Executor
+	name  string
+}
+
+func (e killBeforeRename) Exec(ctx context.Context, machine string, args ...string) ([]byte, error) {
+	if len(args) > 1 && args[0] == "tmux" && args[1] == "rename-session" {
+		if _, err := e.inner.Exec(ctx, machine, "tmux", "kill-session", "-t", "="+e.name); err != nil {
+			return nil, err
+		}
+	}
+	return e.inner.Exec(ctx, machine, args...)
+}
+
+func TestIntegrationRenameRacesKilledSession(t *testing.T) {
+	_, c := setup(t)
+	const name = "rename-during-kill"
+	if _, err := c.Exec(context.Background(), sshx.HostMachineID, "tmux", "new-session", "-d", "-s", name, "-c", "/home/dev"); err != nil {
+		t.Fatal(err)
+	}
+	service := session.New(killBeforeRename{inner: c, name: name}, map[string]session.Tracker{sshx.HostMachineID: &fakeTrackerForRename{c: c}}, nil)
+	err := service.Rename(context.Background(), sshx.HostMachineID, name, "renamed-after-kill")
+	var serviceErr *session.Error
+	if !errors.As(err, &serviceErr) || serviceErr.Code != session.CodeNotFound {
+		t.Fatalf("rename during kill = %v; want not-found", err)
+	}
+}
+
+type fakeTrackerForRename struct{ c *sshx.Client }
+
+func (fakeTrackerForRename) Snapshot() (inventory.Machine, []tmux.Session) {
+	return inventory.Machine{ID: sshx.HostMachineID, Status: inventory.StatusOK,
+			Capabilities: inventory.Capabilities{Home: "/home/dev", TmuxVersion: "3.4"}},
+		[]tmux.Session{{Name: "rename-during-kill"}}
+}
+func (fakeTrackerForRename) Refresh(context.Context) error { return nil }
+
 func TestIntegrationCreateWithStartCommand(t *testing.T) {
 	svc, c := setup(t)
 	name, err := svc.Create(context.Background(), session.Spec{

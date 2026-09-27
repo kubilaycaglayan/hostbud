@@ -65,9 +65,8 @@ func classify(ctx context.Context, stderr string, agent func(context.Context) ag
 		strings.Contains(s, "host key for") && strings.Contains(s, "has changed"),
 		strings.Contains(s, "no matching host key type found"):
 		e.Kind = KindHostKey
-		e.Message = "the host's SSH host key doesn't match the key hostbud pinned"
-		e.Hint = "The files mounted from /etc/ssh/ssh_host_*_key.pub don't belong to the machine at HOSTBUD_HOST_ADDR. " +
-			"If the host's keys were regenerated, redeploy (make deploy) to re-pin them; otherwise check HOSTBUD_HOST_ADDR."
+		e.Message = "The host's SSH key changed."
+		e.Hint = "If you expected this, run `make deploy` to re-pin the host's mounted SSH public keys; otherwise check HOSTBUD_HOST_ADDR and the host-key mounts."
 	case strings.Contains(s, "connection refused"):
 		e.Kind = KindUnreachable
 		e.Message = "can't reach sshd on the host (connection refused)"

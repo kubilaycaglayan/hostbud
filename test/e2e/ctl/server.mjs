@@ -14,6 +14,8 @@ const actions = {
   'POST /app/start': ['docker', ['start', 'hostbud-e2e-app']],
   'POST /sshd/stop': ['docker', ['exec', 'hostbud-e2e-target', '/usr/local/bin/sshd-ctl.sh', 'stop']],
   'POST /sshd/start': ['docker', ['exec', 'hostbud-e2e-target', '/usr/local/bin/sshd-ctl.sh', 'start']],
+  'POST /hostkey/rotate': ['docker', ['exec', 'hostbud-e2e-target', '/usr/local/bin/sshd-ctl.sh', 'rotate-hostkey']],
+  'POST /hostkey/restore': ['docker', ['exec', 'hostbud-e2e-target', '/usr/local/bin/sshd-ctl.sh', 'restore-hostkey']],
   'POST /stall/tmux/on': ['docker', ['exec', 'hostbud-e2e-target', '/usr/local/bin/sshd-ctl.sh', 'stall', 'tmux', '60']],
   'POST /stall/tmux/off': ['docker', ['exec', 'hostbud-e2e-target', '/usr/local/bin/sshd-ctl.sh', 'stall', 'tmux', 'off']],
   'POST /stall/sftp/on': ['docker', ['exec', 'hostbud-e2e-target', '/usr/local/bin/sshd-ctl.sh', 'stall', 'sftp', '60']],

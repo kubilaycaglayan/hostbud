@@ -59,6 +59,24 @@ func TestIntegrationSFTPHomeListStatAndMkdir(t *testing.T) {
 	if !reflect.DeepEqual(names, want) {
 		t.Fatalf("default listing = %q, want %q", names, want)
 	}
+	if _, _, err := svc.List(context.Background(), root+"/private", false); !fsbrowse.IsPermission(err) {
+		t.Fatalf("list unreadable directory = %v, want permission denied", err)
+	}
+	readonly := root + "/readonly"
+	testenv.Sh(t, c, "mkdir -p "+sshx.Quote(readonly)+"; chmod 555 "+sshx.Quote(readonly))
+	if _, err := svc.Mkdir(context.Background(), readonly, "new-child"); !fsbrowse.IsPermission(err) {
+		t.Fatalf("mkdir in read-only directory = %v, want permission denied", err)
+	}
+	if _, err := fsbrowse.Normalize("/"+strings.Repeat("x", fsbrowse.MaxPathBytes), "/home/dev"); err == nil {
+		t.Fatal("overlong SFTP path was accepted")
+	}
+	exactPath := "/" + strings.Repeat("x", fsbrowse.MaxPathBytes-1)
+	if _, err := fsbrowse.Normalize(exactPath, "/home/dev"); err != nil {
+		t.Fatalf("4096-byte SFTP path rejected before reaching the target: %v", err)
+	}
+	if _, _, err := svc.List(context.Background(), exactPath, false); errors.Is(err, fsbrowse.ErrInvalidPath) {
+		t.Fatalf("4096-byte SFTP path was rejected locally: %v", err)
+	}
 	_, hiddenRows, err := svc.List(context.Background(), root, true)
 	if err != nil {
 		t.Fatal(err)
@@ -103,6 +121,16 @@ func TestIntegrationSFTPHomeListStatAndMkdir(t *testing.T) {
 	}
 	if _, err := svc.Stat(context.Background(), path.Join(root, "missing")); !fsbrowse.IsNotExist(err) {
 		t.Fatalf("Stat missing path error = %v, want not-exist", err)
+	}
+}
+
+func TestIntegrationSFTPUnreachableTarget(t *testing.T) {
+	testenv.Agent(t, true)
+	c := testenv.Client(t, testenv.SSHD, testenv.Options{Port: 2222})
+	svc := fsbrowse.New(c, sshx.HostMachineID, time.Minute, 5*time.Second)
+	defer func() { _ = svc.Close() }()
+	if _, err := svc.Home(context.Background()); err == nil || !strings.Contains(strings.ToLower(err.Error()), "connect") {
+		t.Fatalf("SFTP with unreachable sshd = %v; want connection error", err)
 	}
 }
 

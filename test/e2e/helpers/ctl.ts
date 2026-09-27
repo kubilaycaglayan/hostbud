@@ -14,6 +14,10 @@ export const ctl = {
   /** Stops sshd on the target, dropping every open connection. */
   stopSshd: () => call('/sshd/stop'),
   startSshd: () => call('/sshd/start'),
+  /** Rotates only the disposable target's ed25519 host key. */
+  rotateHostKey: () => call('/hostkey/rotate'),
+  /** Restores the per-run target host key pinned by hostbud at startup. */
+  restoreHostKey: () => call('/hostkey/restore'),
   /** Stalls target tmux commands for at most the switch TTL. */
   stallTmux: () => call('/stall/tmux/on'),
   unstallTmux: () => call('/stall/tmux/off'),

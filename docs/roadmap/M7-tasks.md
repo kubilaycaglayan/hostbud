@@ -19,7 +19,7 @@ Update this table in the same commit that finishes a task.
 | T7 Container and deploy hardening | Done |
 | T8 Tailscale identity allowlist | Done |
 | T9 Backup and restore | Done |
-| T10 Integration suite completion and log hygiene | Not started |
+| T10 Integration suite completion and log hygiene | In progress |
 | T11 Fresh-host install and `make doctor` | Not started |
 | T12 Docs and security audit | Not started |
 | T13 Full e2e run | Not started |
@@ -257,7 +257,7 @@ The ROADMAP asks for "an integration test suite against `test/sshd`". Most of it
 - **Coverage matrix** (ARCHITECTURE §13, a table): rows are the packages that touch the host (`sshx`, `tmux`, `inventory`, `session`, `term`, `fsbrowse`, `projects`) and PostgreSQL (`store`, `auth`); columns are the happy path, not found, invalid input, timeout (T2/T3), unreachable host, tmux missing, host-key mismatch, and concurrency. Each cell names a test or says n/a with a reason.
 - **Gaps to fill** (confirm each against the matrix first; some may already exist):
   - **host-key mismatch:** the integration target's host key rotated → `sshx` returns `KindHostKey`; inventory status carries the actionable message ("The host's SSH key changed. If you expected this, …"); no ControlMaster is created; restoring the key recovers;
-  - **agent problems:** empty agent (no identities) and a missing socket → `KindAuth` with a hint about `HOST_SSH_AUTH_SOCK` and `ssh-add`;
+  - **agent problems:** empty agent (no identities) and a missing socket → `KindAgent` with a hint about `HOST_SSH_AUTH_SOCK` or `ssh-add`;
   - **sshd down:** `unreachable` with `ConnectTimeout` (T2) in effect, recovery on restart;
   - **tmux server killed on the target** (`kill-server` on the test target only) → empty list, not an error, and creating a session starts a new server;
   - **races:** creating the same name twice concurrently (one 409, one 201); renaming a session while it's killed; attaching to a session killed during the handshake (exit frame);

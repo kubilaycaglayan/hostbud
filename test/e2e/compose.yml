@@ -26,6 +26,7 @@ services:
       hostbud-e2e-keygen: { condition: service_completed_successfully }
     volumes:
       - keys:/keys:ro
+      - hostpub:/keys/hostpub
 
   # Same, without tmux ("tmux missing" scenario).
   hostbud-e2e-target-notmux:

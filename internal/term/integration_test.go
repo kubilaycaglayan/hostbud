@@ -253,6 +253,26 @@ func TestIntegrationDetachSendsExitFrame(t *testing.T) {
 	e.eventually("ssh process gone", func() bool { return e.h.Active() == 0 })
 }
 
+func TestIntegrationSessionKilledDuringAttachHandshakeSendsExit(t *testing.T) {
+	e := setup(t)
+	const name = "term-killed-handshake"
+	e.newSession(name)
+	e.h.Start = func(ctx context.Context, argv []string, cols, rows int) (term.Process, error) {
+		e.sh("tmux kill-session -t =" + name)
+		return term.StartPTY(ctx, argv, cols, rows)
+	}
+	_, out := e.attach(name, 80, 24)
+	select {
+	case control, ok := <-out.control:
+		if !ok || control.Type != "exit" || control.Code == nil || *control.Code != 1 {
+			t.Fatalf("attach handshake exit frame = %+v (ok=%v); want remote exit", control, ok)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("no exit frame after session was killed during attach handshake")
+	}
+	e.eventually("ssh process gone", func() bool { return e.h.Active() == 0 })
+}
+
 func TestIntegrationVim(t *testing.T) {
 	e := setup(t)
 	e.newSession("term-vim")

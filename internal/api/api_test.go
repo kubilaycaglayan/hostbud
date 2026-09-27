@@ -471,6 +471,7 @@ func TestFilesystemErrorsAreActionable(t *testing.T) {
 		status int
 	}{{fsbrowse.ErrInvalidName, http.StatusBadRequest},
 		{fsbrowse.ErrAlreadyExists, http.StatusConflict},
+		{&fsbrowse.Error{Op: "list directory", Err: os.ErrPermission}, http.StatusForbidden},
 		{fsbrowse.ErrTooManyEntries, http.StatusRequestEntityTooLarge},
 		{fsbrowse.ErrNotDirectory, http.StatusBadRequest},
 		{os.ErrNotExist, http.StatusNotFound},

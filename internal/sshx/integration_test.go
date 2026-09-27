@@ -80,12 +80,58 @@ func TestIntegrationControlMasterReuse(t *testing.T) {
 	}
 }
 
+func TestIntegrationConcurrentExecsShareControlMaster(t *testing.T) {
+	c := testenv.Connected(t, testenv.SSHD)
+	const count = 8
+	results := make(chan string, count)
+	errs := make(chan error, count)
+	for i := range count {
+		go func(i int) {
+			want := strconv.Itoa(i)
+			out, err := c.Exec(context.Background(), sshx.HostMachineID, "printf", "%s", want)
+			if err != nil {
+				errs <- err
+				return
+			}
+			results <- string(out)
+		}(i)
+	}
+	got := make(map[string]int, count)
+	for range count {
+		select {
+		case err := <-errs:
+			t.Fatal(err)
+		case value := <-results:
+			got[value]++
+		case <-time.After(10 * time.Second):
+			t.Fatal("concurrent ssh exec timed out")
+		}
+	}
+	for i := range count {
+		if got[strconv.Itoa(i)] != 1 {
+			t.Errorf("result %q appeared %d times", strconv.Itoa(i), got[strconv.Itoa(i)])
+		}
+	}
+}
+
 func TestIntegrationPinnedKeyMismatchRefused(t *testing.T) {
 	testenv.Agent(t, true)
 	c := testenv.Client(t, testenv.SSHD, testenv.Options{HostKeysDir: testenv.WrongHostKeys(t)})
 	_, err := c.Exec(context.Background(), sshx.HostMachineID, "true")
 	if !sshx.IsKind(err, sshx.KindHostKey) {
 		t.Fatalf("got %v; want a host-key error", err)
+	}
+	var detail *sshx.Error
+	if !errors.As(err, &detail) || detail.Message != "The host's SSH key changed." ||
+		!strings.Contains(detail.Hint, "If you expected this") {
+		t.Fatalf("host-key error is not actionable: %+v", err)
+	}
+	entries, readErr := os.ReadDir(filepath.Join(filepath.Dir(c.ConfigPath()), "cm"))
+	if readErr != nil && !errors.Is(readErr, os.ErrNotExist) {
+		t.Fatal(readErr)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("host-key mismatch created a ControlMaster socket: %v", entries)
 	}
 }
 

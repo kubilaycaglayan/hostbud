@@ -187,7 +187,7 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
   - U: n/a: the matrix documents the I layer.
   - I: T10 fills every gap the matrix shows; T12 audits it.
   - E: n/a: documentation of integration coverage.
-- [ ] The failure cases are covered against the real target: host-key mismatch (a hard error with the actionable message, no master created, recovery on restore); empty or missing agent (`KindAuth` with the `HOST_SSH_AUTH_SOCK`/`ssh-add` hint); sshd down; tmux server killed (empty list, then create works); concurrent create of one name (one 201, one 409); rename during kill; attach to a session killed mid-handshake; SFTP permission denied; name and path boundaries (1/64 chars, Unicode, 4096-byte path).
+- [ ] The failure cases are covered against the real target: host-key mismatch (a hard error with the actionable message, no master created, recovery on restore); empty or missing agent (`KindAgent` with the `HOST_SSH_AUTH_SOCK`/`ssh-add` hint); sshd down; tmux server killed (empty list, then create works); concurrent create of one name (one 201, one 409); rename during kill; attach to a session killed mid-handshake; SFTP permission denied; name and path boundaries (1/64 chars, Unicode, 4096-byte path).
   - U: T10 messages and hints for the new error kinds (Go).
   - I: T10 each case (Go, `test/sshd`).
   - E: T10 *Host key change is a hard error* (desktop); the others are user-visible through M1/M4 scenarios already or aren't reachable from a serial single user.

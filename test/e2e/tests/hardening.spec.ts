@@ -33,6 +33,25 @@ for (const project of ['desktop-chromium', 'iphone-13-pro']) {
   })
 }
 
+test('(T10) a changed host key blocks terminal attach until the pinned key is restored', async ({ ui, target }) => {
+  const name = uniqueName('hostkey-change')
+  await target.tmux('new-session', '-d', '-s', name, '-c', '/home/dev')
+  await ui.open()
+  await expect(ui.session(name)).toBeVisible()
+  try {
+    await ctl.rotateHostKey()
+    const banner = ui.banner()
+    await expect(banner).toContainText("The host's SSH key changed.", { timeout: 20_000 })
+    await expect(banner).toContainText('If you expected this')
+    await ui.openTerminal(name)
+    await expect(ui.page.getByRole('status').filter({ hasText: 'Reconnecting…' })).toBeVisible()
+  } finally {
+    await ctl.restoreHostKey()
+  }
+  await expect(ui.banner()).toHaveCount(0, { timeout: 20_000 })
+  await expect.poll(() => target.display(name, '#{session_attached}'), { timeout: 20_000 }).toBe('1')
+})
+
 for (const project of ['desktop-chromium', 'iphone-13-pro']) {
   test(`(T2) session create timeout keeps the form open on ${project}`, async ({ page, ui }, info) => {
     test.skip(info.project.name !== project)

@@ -62,7 +62,7 @@ func TestIntegrationConcurrentTypedSessionCreateReturnsConflict(t *testing.T) {
 	statuses := make(chan int, 2)
 	for range 2 {
 		go func() {
-			req, err := http.NewRequest(http.MethodPost, server.URL+"/api/machines/host/sessions", strings.NewReader(`{"name":"`+name+`","path":"/home/dev"}`))
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, server.URL+"/api/machines/host/sessions", strings.NewReader(`{"name":"`+name+`","path":"/home/dev"}`))
 			if err != nil {
 				statuses <- 0
 				return

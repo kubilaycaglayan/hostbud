@@ -4,6 +4,9 @@ package inventory_test
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -12,6 +15,7 @@ import (
 
 	"hostbud/internal/events"
 	"hostbud/internal/inventory"
+	"hostbud/internal/session"
 	"hostbud/internal/sshx"
 	"hostbud/internal/testenv"
 	"hostbud/internal/tmux"
@@ -78,6 +82,113 @@ func TestIntegrationPollerSeesCreateAndKill(t *testing.T) {
 	await(t, ch, 2*interval, "sessions.changed without inv-it", func(e events.Event) bool {
 		return e.Type == events.SessionsChanged && !hasSession("inv-it")(e)
 	})
+}
+
+func TestIntegrationTmuxServerKilledListsEmptyAndCanRecreate(t *testing.T) {
+	inv, _, c := run(t, testenv.SSHD)
+	if err := inv.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	testenv.Sh(t, c, "tmux new-session -d -s server-kill-it")
+	if err := inv.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, sessions := inv.Snapshot(); !slices.ContainsFunc(sessions, func(s tmux.Session) bool { return s.Name == "server-kill-it" }) {
+		t.Fatalf("initial session not listed: %+v", sessions)
+	}
+	_, _ = c.Exec(context.Background(), sshx.HostMachineID, "tmux", "kill-server")
+	if err := inv.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, sessions := inv.Snapshot(); len(sessions) != 0 {
+		t.Fatalf("sessions after tmux server exit = %+v", sessions)
+	}
+	machine, _ := inv.Snapshot()
+	if machine.Status != inventory.StatusOK {
+		t.Fatalf("no-server status = %+v; want ok", machine)
+	}
+	service := session.New(c, map[string]session.Tracker{sshx.HostMachineID: inv}, nil)
+	name, err := service.Create(context.Background(), session.Spec{Machine: sshx.HostMachineID, Name: "server-recreated", Path: "/home/dev"})
+	if err != nil || name != "server-recreated" {
+		t.Fatalf("create after kill-server = %q, %v", name, err)
+	}
+	if sessions := testenv.Sh(t, c, "tmux list-sessions -F '#{session_name}'"); !strings.Contains(sessions, name) {
+		t.Fatalf("session after server restart = %q", sessions)
+	}
+}
+
+func TestIntegrationPinnedHostKeyErrorAndRecovery(t *testing.T) {
+	testenv.Agent(t, true)
+	c := testenv.Client(t, testenv.SSHD, testenv.Options{HostKeysDir: testenv.WrongHostKeys(t)})
+	bus := events.NewBus()
+	ch, unsubscribe := bus.Subscribe(32)
+	defer unsubscribe()
+	inv := inventory.New(c, bus, inventory.Options{MachineID: sshx.HostMachineID, Interval: interval})
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { inv.Run(ctx); close(done) }()
+	t.Cleanup(func() { cancel(); <-done })
+
+	failure := await(t, ch, 5*time.Second, "host-key mismatch status", func(e events.Event) bool {
+		m, ok := e.Payload.(inventory.Machine)
+		return e.Type == events.MachineStatus && ok && m.Status == inventory.StatusUnreachable
+	}).Payload.(inventory.Machine)
+	if failure.Error != "The host's SSH key changed." || !strings.Contains(failure.Hint, "If you expected this") {
+		t.Fatalf("host-key mismatch status = %+v", failure)
+	}
+	if entries, err := os.ReadDir(filepath.Join(filepath.Dir(c.ConfigPath()), "cm")); err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	} else if len(entries) != 0 {
+		t.Fatalf("host-key mismatch created ControlMaster sockets: %v", entries)
+	}
+
+	var pins strings.Builder
+	entries, err := os.ReadDir(filepath.Join(testenv.KeysDir(), "hostpub"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		key, err := os.ReadFile(filepath.Join(testenv.KeysDir(), "hostpub", entry.Name()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		fields := strings.Fields(string(key))
+		if len(fields) < 2 {
+			t.Fatalf("invalid test host key %s", entry.Name())
+		}
+		fmt.Fprintf(&pins, "%s %s %s\n", sshx.HostAlias, fields[0], fields[1])
+	}
+	knownHosts := filepath.Join(filepath.Dir(c.ConfigPath()), "known_hosts")
+	if err := os.WriteFile(knownHosts, []byte(pins.String()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := inv.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	await(t, ch, 5*time.Second, "host after re-pinning", func(e events.Event) bool {
+		m, ok := e.Payload.(inventory.Machine)
+		return e.Type == events.MachineStatus && ok && m.Status == inventory.StatusOK
+	})
+}
+
+func TestIntegrationUnreachableSSHDMarksMachine(t *testing.T) {
+	testenv.Agent(t, true)
+	c := testenv.Client(t, testenv.SSHD, testenv.Options{Port: 2222})
+	bus := events.NewBus()
+	ch, unsubscribe := bus.Subscribe(32)
+	defer unsubscribe()
+	inv := inventory.New(c, bus, inventory.Options{MachineID: sshx.HostMachineID, Interval: interval})
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { inv.Run(ctx); close(done) }()
+	t.Cleanup(func() { cancel(); <-done })
+	failure := await(t, ch, 5*time.Second, "unreachable sshd status", func(e events.Event) bool {
+		m, ok := e.Payload.(inventory.Machine)
+		return e.Type == events.MachineStatus && ok && m.Status == inventory.StatusUnreachable
+	}).Payload.(inventory.Machine)
+	if !strings.Contains(failure.Error, "connection refused") || !strings.Contains(failure.Hint, "sshd") {
+		t.Fatalf("unreachable sshd status = %+v", failure)
+	}
 }
 
 func TestIntegrationProbeTmuxMissing(t *testing.T) {

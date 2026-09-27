@@ -8,6 +8,24 @@ start)
 	mkdir -p /run/sshd
 	/usr/sbin/sshd -E /var/log/sshd.log
 	;;
+rotate-hostkey)
+	ssh-keygen -q -t ed25519 -N '' -f /tmp/hostbud-rotated-ed25519
+	cp /tmp/hostbud-rotated-ed25519 /etc/ssh/ssh_host_ed25519_key
+	cp /tmp/hostbud-rotated-ed25519.pub /etc/ssh/ssh_host_ed25519_key.pub
+	cp /tmp/hostbud-rotated-ed25519.pub /keys/hostpub/ssh_host_ed25519_key.pub
+	chmod 600 /etc/ssh/ssh_host_ed25519_key
+	"$0" stop
+	"$0" start
+	;;
+restore-hostkey)
+	cp /keys/host/ssh_host_ed25519_key /etc/ssh/ssh_host_ed25519_key
+	cp /keys/host/ssh_host_ed25519_key.pub /etc/ssh/ssh_host_ed25519_key.pub
+	cp /keys/host/ssh_host_ed25519_key.pub /keys/hostpub/ssh_host_ed25519_key.pub
+	chmod 600 /etc/ssh/ssh_host_ed25519_key
+	"$0" stop
+	"$0" start
+	rm -f /tmp/hostbud-rotated-ed25519 /tmp/hostbud-rotated-ed25519.pub
+	;;
 stop)
 	pkill -x sshd || true
 	pkill -f '^sshd' || true
@@ -25,7 +43,7 @@ stall)
 	esac
 	;;
 *)
-	echo "usage: sshd-ctl.sh start|stop|stall tmux|sftp <seconds>|off" >&2
+	echo "usage: sshd-ctl.sh start|stop|rotate-hostkey|restore-hostkey|stall tmux|sftp <seconds>|off" >&2
 	exit 2
 	;;
 esac
