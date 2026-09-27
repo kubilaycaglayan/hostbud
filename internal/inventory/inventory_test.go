@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -21,6 +22,9 @@ type fakeExec struct {
 	listOut   string
 	listErr   error
 	listCalls int
+	paneOut   string
+	paneErr   error
+	paneCalls int
 }
 
 func (f *fakeExec) Exec(_ context.Context, _ string, args ...string) ([]byte, error) {
@@ -28,6 +32,10 @@ func (f *fakeExec) Exec(_ context.Context, _ string, args ...string) ([]byte, er
 	defer f.mu.Unlock()
 	if args[0] == "sh" {
 		return []byte(f.probeOut), f.probeErr
+	}
+	if strings.Contains(strings.Join(args, " "), "list-panes") {
+		f.paneCalls++
+		return []byte(f.paneOut), f.paneErr
 	}
 	f.listCalls++
 	return []byte(f.listOut), f.listErr
@@ -181,6 +189,40 @@ func TestPublishesOnlyOnChange(t *testing.T) {
 	}
 	if f.listCalls < 7 {
 		t.Fatalf("list calls = %d", f.listCalls)
+	}
+}
+
+func TestPaneAgentChangesPublishCollapsedSessionMetadata(t *testing.T) {
+	f := &fakeExec{probeOut: probeOK, listOut: line("a", 0, 1, 1)}
+	h := start(t, f)
+	h.drain()
+
+	f.set(func(f *fakeExec) { f.paneOut = "P\ta\tcodex\n" })
+	h.step()
+	evs := h.drain()
+	if len(evs) != 1 || evs[0].Type != events.SessionsChanged {
+		t.Fatalf("agent appearance events = %+v", evs)
+	}
+	sessions := evs[0].Payload.(SessionsChanged).Sessions
+	if len(sessions) != 1 || !slices.Equal(sessions[0].Agents, []string{"codex"}) {
+		t.Fatalf("session agent metadata = %+v", sessions)
+	}
+
+	f.set(func(f *fakeExec) { f.paneOut = "P\ta\tbash\n" })
+	h.step()
+	evs = h.drain()
+	if len(evs) != 1 || len(evs[0].Payload.(SessionsChanged).Sessions[0].Agents) != 0 {
+		t.Fatalf("agent exit events = %+v", evs)
+	}
+
+	f.set(func(f *fakeExec) { f.paneOut = "P\ta\tcodex\n" })
+	h.step()
+	h.drain()
+	f.set(func(f *fakeExec) { f.paneErr = errors.New("supplementary query failed") })
+	h.step()
+	_, got := h.inv.Snapshot()
+	if !slices.Equal(got[0].Agents, []string{"codex"}) {
+		t.Fatalf("failed supplementary query cleared the last known agent: %+v", got)
 	}
 }
 

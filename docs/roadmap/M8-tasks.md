@@ -19,6 +19,7 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 | T7 Contrast in long-lived terminal clients | Implemented; e2e written, not run yet |
 | T8 Dictation editor, focus return and terminal text view | Implemented; e2e written and type-checked, run pending M7 T13 |
 | T9 Touch scrolling through tmux | Implemented; e2e written, not run yet |
+| T12 Agent marks on session rows | Implemented; focused unit/integration pass; e2e written and type-checked, run pending M7 T13 |
 
 **Progress note (T2–T4, 2026-09-27):** Vitest (447 tests), eslint, `vue-tsc` and the e2e `tsc` passed; deployed to the host from a clean checkout of `f664bb8` (a pre-deploy `pg_dump` is in `backups/`), and the stack came up healthy. Still open for these tasks:
 - **E2E runs:** the scenarios *(T2) Compact tree*, *(T3) Compact file browser*, *(T3) No browser autocomplete outside login password* and *(T4) Custom tab order* type-check but haven't run: e2e stays paused until M7 T13. The T2 commit also updated two M6 scenarios that expanded single-window sessions (*(T4) Inline rename a session*, *(T3) Window rows follow the real terminal*).
@@ -138,6 +139,16 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 **Tests:** U: T9 `touchScroll.spec.ts` (swipe to lines, direction, threshold, multi-finger, momentum, stacking, speed cap), `copyMode.spec.ts` wheel actions, `TerminalView.spec.ts` swipe sends `wheel-up`; Go `TestWheelState`, `TestAppWheelArgs`, `TestCopyModeArgs` wheel cases, `TestCopyModeWheelFollowsTmuxWheelRule`, `TestCopyModeAPIValidationAndAccess` wheel cases. I: T9 `TestIntegrationWheelScrollsAppOrTmuxHistory` (`test/sshd`): in a shell the wheel enters copy mode and scrolls; a mouse-reporting app receives SGR wheel reports and the pane stays out of copy mode. E: T9 *Touch swipe scrolls the full tmux history* and *Touch swipe scrolls a mouse-aware full-screen app* (phone projects).
 
 **E2E:** Add the two T9 phone scenarios above on the throwaway target, never the real host's tmux. Type-check only until M7 T13's scheduled full e2e run. Momentum feel is a manual owner check on the iPhone PWA.
+
+## T12 — Agent marks on session rows
+
+- Show tiny colored Codex and Claude Code logos before the session name in the left gutter. A mark appears when any pane reports a recognized foreground command (`codex`, `claude` or `claude-code`); show both in stable order when a session has both. Keep logos out of terminal tabs and other session lists.
+- Add only recognized agent names to session metadata by reading pane foreground commands during the regular inventory poll. Discard other command names and all arguments. Detection is best-effort and must not change tmux configuration.
+- Include the metadata in session snapshots/events so the mark appears on collapsed session rows without fetching window/pane details. Re-evaluate it on each poll and publish changes when marks appear or disappear.
+
+**Tests:** U: T12 Go parsing/inventory tests cover known and unknown commands plus agent appearance/disappearance; Vitest covers small colored logos before the name, stable order, accessible labeling and left-gutter-only display. I: T12 `TestIntegrationPollerReportsForegroundAgentCommand` runs a fake `codex` executable on `test/sshd` and verifies the mark clears when it exits. E: T12 *Agent logos appear on collapsed session rows* (desktop and iPhone 13 Pro), using fake Codex and Claude processes on the throwaway target.
+
+**E2E:** Add T12 *Agent logos appear on collapsed session rows* (desktop and iPhone 13 Pro): run fake `codex` and `claude` foreground commands in separate panes, verify both compact colored marks appear on the session row without expanding it, and verify an ordinary shell session has no mark. Type-check only under the paused E2E run policy.
 
 ## Done
 

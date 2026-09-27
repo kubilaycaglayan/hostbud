@@ -10,6 +10,7 @@ import { useTreeStore } from '@/stores/tree'
 import { useWindowsStore } from '@/stores/windows'
 import { describeError } from '@/stores/toasts'
 import InlineRename from './InlineRename.vue'
+import AgentMark from './AgentMark.vue'
 
 const props = defineProps<{
   sessions: Session[]
@@ -51,6 +52,14 @@ function isExpanded(key: string) { return tree?.order.expanded.includes(key) ?? 
 function windowError(name: string) {
   const error = describeError(windowsFor(name)?.error)
   return [error.message, error.hint].filter(Boolean).join(' ')
+}
+function agentLabel(agent: 'codex' | 'claude') { return agent === 'codex' ? 'Codex running' : 'Claude Code running' }
+function sessionLabel(s: Session) {
+  return [s.name, ...(s.agents ?? []).map(agentLabel), ...(isHidden(s.name) ? ['hidden'] : [])].join(', ')
+}
+function visibleAgents(s: Session): ('codex' | 'claude')[] {
+  if (!props.treeView) return []
+  return (['codex', 'claude'] as const).filter((agent) => s.agents?.includes(agent))
 }
 /** Only rows that really expand get a chevron (M8 T2): several windows, or
  * one already-loaded window split into panes. The inventory reports window
@@ -152,7 +161,7 @@ const sortableSessions = computed({
       :aria-level="props.treeView ? (props.level ?? 1) : undefined"
       :aria-selected="props.treeView && s.name === props.selected ? 'true' : undefined"
       :aria-expanded="canExpand(s) ? isExpanded(sessionKey('host', s.name)) : undefined"
-      :aria-label="props.treeView ? s.name + (isHidden(s.name) ? ', hidden' : '') : undefined"
+      :aria-label="props.treeView ? sessionLabel(s) : undefined"
       :tabindex="props.treeView && props.focusedKey === ('session:' + s.name) ? 0 : props.treeView ? -1 : undefined"
       :data-tree-key="props.treeView ? 'session:' + s.name : undefined"
       :data-tree-kind="props.treeView ? 'session' : undefined"
@@ -161,6 +170,11 @@ const sortableSessions = computed({
       :class="[s.name === props.selected ? 'bg-bg' : '', isHidden(s.name) ? 'opacity-50' : '']"
     >
       <!-- The name leads (M8 T2); status, expand and actions follow. -->
+      <AgentMark
+        v-for="agent in visibleAgents(s)"
+        :key="agent"
+        :agent="agent"
+      />
       <InlineRename
         v-if="props.treeView && props.editingName === s.name"
         :name="s.name"

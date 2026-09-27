@@ -19,6 +19,7 @@ export interface Session {
   id: string
   name: string
   path: string
+  agents?: ('codex' | 'claude')[]
   projectId?: string
   attached: number
   windows: number

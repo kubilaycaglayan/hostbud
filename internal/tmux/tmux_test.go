@@ -3,6 +3,7 @@ package tmux
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -269,7 +270,7 @@ func TestParseSessions(t *testing.T) {
 		{ID: "$4", Name: "b", Attached: 0, Windows: 1, Path: "/home/dev/with:colon",
 			Created: time.Unix(1760000200, 0).UTC(), Activity: time.Unix(1760000300, 0).UTC()},
 	}
-	if !slices.Equal(got, want) {
+	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %+v\nwant %+v", got, want)
 	}
 
@@ -279,6 +280,30 @@ func TestParseSessions(t *testing.T) {
 	for _, bad := range []string{"$0:acc\n", "$0:a:x:1:1:1:/p\n"} {
 		if _, err := ParseSessions(bad); err == nil {
 			t.Errorf("ParseSessions(%q) accepted", bad)
+		}
+	}
+}
+
+func TestParsePaneAgents(t *testing.T) {
+	if got, want := ListPaneCommands(), []string{"env", "LC_ALL=C.UTF-8", "tmux", "list-panes", "-a", "-F", "P\t#{session_name}\t#{pane_current_command}"}; !slices.Equal(got, want) {
+		t.Fatalf("ListPaneCommands() = %q, want %q", got, want)
+	}
+	got, err := ParsePaneAgents("P\tacc-a\tcodex\nP\tacc-a\tbash\nP\tacc-a\tclaude\nP\tacc-b\tvim\nP\tacc-c\tCLAUDE-CODE\nP\tlegacy.session\tcodex\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string][]string{"acc-a": {"codex", "claude"}, "acc-c": {"claude"}, "legacy.session": {"codex"}}
+	if len(got) != len(want) {
+		t.Fatalf("agents = %#v, want %#v", got, want)
+	}
+	for session, agents := range want {
+		if !slices.Equal(got[session], agents) {
+			t.Fatalf("agents[%s] = %#v, want %#v", session, got[session], agents)
+		}
+	}
+	for _, bad := range []string{"x\tacc\tcodex\n", "P\t\tcodex\n", "P\tacc\tclaude\textra\n"} {
+		if _, err := ParsePaneAgents(bad); err == nil {
+			t.Errorf("ParsePaneAgents(%q) accepted", bad)
 		}
 	}
 }

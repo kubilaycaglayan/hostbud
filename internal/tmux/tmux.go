@@ -37,6 +37,7 @@ type Session struct {
 	ID        string    `json:"id"`
 	Name      string    `json:"name"`
 	Path      string    `json:"path"`
+	Agents    []string  `json:"agents,omitempty"`
 	ProjectID string    `json:"projectId,omitempty"`
 	Attached  int       `json:"attached"` // number of attached clients
 	Windows   int       `json:"windows"`
@@ -86,6 +87,54 @@ func ParseSessions(out string) ([]Session, error) {
 		})
 	}
 	return sessions, nil
+}
+
+// ListPaneCommands returns a host-wide, low-detail view of each pane's
+// foreground command. It is used to decorate session rows without loading
+// full window metadata or exposing arbitrary process arguments.
+func ListPaneCommands() []string {
+	return []string{"env", "LC_ALL=C.UTF-8", "tmux", "list-panes", "-a", "-F", "P\t#{session_name}\t#{pane_current_command}"}
+}
+
+// ParsePaneAgents extracts only recognized foreground harness names by
+// session. Other command names and all command arguments are discarded.
+func ParsePaneAgents(out string) (map[string][]string, error) {
+	found := make(map[string]map[string]bool)
+	for line := range strings.SplitSeq(strings.TrimRight(out, "\n"), "\n") {
+		if line == "" {
+			continue
+		}
+		f := strings.SplitN(line, "\t", 3)
+		if len(f) != 3 || f[0] != "P" || f[1] == "" || strings.ContainsAny(f[1]+f[2], "\t\r\n") {
+			return nil, fmt.Errorf("unexpected pane command record")
+		}
+		var agent string
+		switch strings.ToLower(strings.TrimSpace(f[2])) {
+		case "codex":
+			agent = "codex"
+		case "claude", "claude-code":
+			agent = "claude"
+		}
+		if agent == "" {
+			continue
+		}
+		if found[f[1]] == nil {
+			found[f[1]] = make(map[string]bool)
+		}
+		found[f[1]][agent] = true
+	}
+	result := make(map[string][]string, len(found))
+	for name, agents := range found {
+		list := make([]string, 0, len(agents))
+		// Stable icon ordering when a session has more than one agent.
+		for _, agent := range []string{"codex", "claude"} {
+			if agents[agent] {
+				list = append(list, agent)
+			}
+		}
+		result[name] = list
+	}
+	return result, nil
 }
 
 // NewSession describes a session to create.

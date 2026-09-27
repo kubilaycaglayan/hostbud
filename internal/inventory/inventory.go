@@ -128,7 +128,15 @@ func New(exec Executor, bus *events.Bus, opt Options) *Inventory {
 func (inv *Inventory) Snapshot() (Machine, []tmux.Session) {
 	inv.mu.Lock()
 	defer inv.mu.Unlock()
-	return inv.machine, append([]tmux.Session{}, inv.sessions...)
+	return inv.machine, cloneSessions(inv.sessions)
+}
+
+func cloneSessions(sessions []tmux.Session) []tmux.Session {
+	copyOf := append([]tmux.Session{}, sessions...)
+	for i := range copyOf {
+		copyOf[i].Agents = append([]string(nil), sessions[i].Agents...)
+	}
+	return copyOf
 }
 
 // Refresh polls now (e.g. right after a mutation) and returns once the
@@ -270,6 +278,28 @@ func (inv *Inventory) poll(ctx context.Context) bool {
 		return false
 	}
 
+	// Keep the session list useful even if this supplementary metadata query
+	// fails. Preserve the last known marks until another successful query;
+	// arbitrary process names/arguments stay remote.
+	if len(sessions) > 0 {
+		inv.mu.Lock()
+		previousAgents := make(map[string][]string, len(inv.sessions))
+		for _, session := range inv.sessions {
+			previousAgents[session.Name] = append([]string(nil), session.Agents...)
+		}
+		inv.mu.Unlock()
+		for i := range sessions {
+			sessions[i].Agents = previousAgents[sessions[i].Name]
+		}
+		if paneOut, paneErr := inv.exec.Exec(ctx, inv.opt.MachineID, tmux.ListPaneCommands()...); paneErr == nil {
+			if agents, parseErr := tmux.ParsePaneAgents(string(paneOut)); parseErr == nil {
+				for i := range sessions {
+					sessions[i].Agents = agents[sessions[i].Name]
+				}
+			}
+		}
+	}
+
 	// Status first, so a UI clears its banner before the list updates.
 	now := time.Now().UTC()
 	inv.setMachine(func(m *Machine) {
@@ -354,19 +384,20 @@ func (inv *Inventory) setSessions(sessions []tmux.Session) {
 
 	inv.mu.Lock()
 	changed := !inv.listed || !slices.EqualFunc(inv.sessions, sessions, sameSession)
-	inv.sessions = sessions
+	inv.sessions = cloneSessions(sessions)
 	inv.listed = true
 	inv.mu.Unlock()
 
 	if changed {
 		inv.bus.Publish(events.Event{
 			Type: events.SessionsChanged, Machine: inv.opt.MachineID,
-			Payload: SessionsChanged{Sessions: append([]tmux.Session{}, sessions...)},
+			Payload: SessionsChanged{Sessions: cloneSessions(sessions)},
 		})
 	}
 }
 
 func sameSession(a, b tmux.Session) bool {
-	a.Activity, b.Activity = time.Time{}, time.Time{}
-	return a == b
+	return a.ID == b.ID && a.Name == b.Name && a.Path == b.Path &&
+		a.ProjectID == b.ProjectID && a.Attached == b.Attached && a.Windows == b.Windows &&
+		a.Created.Equal(b.Created) && slices.Equal(a.Agents, b.Agents)
 }

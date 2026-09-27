@@ -61,6 +61,24 @@ describe('SessionList', () => {
     expect(row.element.lastElementChild?.getAttribute('aria-label')).toBe('Drag to reorder session a')
   })
 
+  it('shows compact agent logos before left-gutter session names without changing the accessible row label', () => {
+    const session = { ...s('agent-work'), agents: ['codex', 'claude'] as ('codex' | 'claude')[] }
+    setActivePinia(createPinia())
+    const w = mount(SessionList, { props: { sessions: [session], treeView: true } })
+    const row = w.get('li')
+    const marks = row.findAll('[data-agent-mark]')
+    expect(marks.map((mark) => mark.attributes('data-agent'))).toEqual(['codex', 'claude'])
+    expect(marks.map((mark) => mark.attributes('title'))).toEqual(['Codex running', 'Claude Code running'])
+    expect(row.attributes('aria-label')).toBe('agent-work, Codex running, Claude Code running')
+    expect(row.get('[data-session-row]').attributes('aria-label')).toBe('agent-work')
+    expect(row.element.firstElementChild?.getAttribute('data-agent')).toBe('codex')
+  })
+
+  it('keeps agent logos out of non-gutter session lists', () => {
+    const w = mount(SessionList, { props: { sessions: [{ ...s('agent-work'), agents: ['codex'] }] } })
+    expect(w.find('[data-agent-mark]').exists()).toBe(false)
+  })
+
   it('emits select and marks the selected session', async () => {
     const w = mount(SessionList, { props: { sessions: [s('a'), s('b')], selected: 'b' } })
     expect(w.get('button[aria-label="b"]').attributes('aria-current')).toBe('true')

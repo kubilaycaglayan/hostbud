@@ -84,6 +84,41 @@ func TestIntegrationPollerSeesCreateAndKill(t *testing.T) {
 	})
 }
 
+func TestIntegrationPollerReportsForegroundAgentCommand(t *testing.T) {
+	inv, _, c := run(t, testenv.SSHD)
+	testenv.Sh(t, c, "tmux kill-session -t =inventory-agent-it 2>/dev/null; true")
+	t.Cleanup(func() { testenv.Sh(t, c, "tmux kill-session -t =inventory-agent-it 2>/dev/null; true") })
+	testenv.Sh(t, c, "ln -sf /bin/sleep /home/dev/codex")
+	testenv.Sh(t, c, "tmux new-session -d -s inventory-agent-it -c /home/dev")
+	testenv.Sh(t, c, "tmux send-keys -t =inventory-agent-it: '/home/dev/codex 60' Enter")
+	if err := inv.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	_, sessions := inv.Snapshot()
+	agent, ok := findSession(sessions, "inventory-agent-it")
+	if !ok || !slices.Equal(agent.Agents, []string{"codex"}) {
+		t.Fatalf("foreground codex metadata = %+v (found %v)", agent, ok)
+	}
+	testenv.Sh(t, c, "tmux send-keys -t =inventory-agent-it: C-c")
+	if err := inv.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	_, sessions = inv.Snapshot()
+	agent, ok = findSession(sessions, "inventory-agent-it")
+	if !ok || len(agent.Agents) != 0 {
+		t.Fatalf("shell metadata after agent exits = %+v (found %v)", agent, ok)
+	}
+}
+
+func findSession(sessions []tmux.Session, name string) (tmux.Session, bool) {
+	for _, session := range sessions {
+		if session.Name == name {
+			return session, true
+		}
+	}
+	return tmux.Session{}, false
+}
+
 func TestIntegrationTmuxServerKilledListsEmptyAndCanRecreate(t *testing.T) {
 	inv, _, c := run(t, testenv.SSHD)
 	if err := inv.Refresh(context.Background()); err != nil {

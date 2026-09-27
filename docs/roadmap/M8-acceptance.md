@@ -94,6 +94,14 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
   - Status (2026-09-27): U coverage is written and passing (`terminalOutput.spec.ts`, `TerminalTextDialog.spec.ts`, `TerminalView.spec.ts`, Go capture/API tests); E `test/e2e/tests/dictation.spec.ts` is written and type-checked, run pending M7 T13.
   - **Manual (owner, open):** verify two consecutive dictations with native iOS dictation in the iPhone 13 Pro PWA; Playwright cannot invoke iOS system dictation.
 
+## Agent marks in the left session list
+
+- [ ] Collapsed session rows show tiny colored Codex and Claude Code marks when any pane's foreground command is recognized. A session with both harnesses shows both marks in stable order; ordinary commands show none. Marks appear without opening window/pane details, stay in the left gutter only, and are exposed accessibly without changing the session name or row actions.
+  - U: T12 command-to-agent parsing, unknown-command handling and inventory event changes (Go); T12 compact mark order, placement, accessible label and gutter-only behavior (Vitest).
+  - I: T12 `TestIntegrationPollerReportsForegroundAgentCommand` against `test/sshd`, including clearing the agent when its fake foreground command exits.
+  - E: T12 *Agent logos appear on collapsed session rows* (desktop and iPhone 13 Pro), including both marks from separate panes and no mark for an ordinary shell.
+  - Status: Go unit and integration coverage and the Vitest component coverage pass; E2E is written/type-checked and its full run is paused until M7 T13.
+
 ## Manual checks (owner)
 
 Manual check (owner): if Codex cannot run in the throwaway E2E target, verify the reported “Ask Codex to do anything” prompt surface through a dark-to-light OS theme change with the long-running session still attached. This remains open owner backlog and does not block M8.
