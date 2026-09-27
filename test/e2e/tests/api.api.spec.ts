@@ -1,6 +1,6 @@
 import { sessionCookieHeader } from '../helpers/auth.ts'
 import { expect, test } from '../helpers/fixtures.ts'
-import { uniqueName } from '../helpers/target.ts'
+import { shq, uniqueName } from '../helpers/target.ts'
 import {
   FOREIGN_ORIGIN,
   MACHINE,
@@ -76,6 +76,34 @@ test('(T10) Create with a taken name numbers it; rename still conflicts', async 
   const rename = await mutate(request, 'PATCH', `${sessionsPath}/${another}`, { name })
   expect(rename.status()).toBe(409)
   expect(await target.sessions()).toEqual(expect.arrayContaining([name, `${name}-1`, another]))
+})
+
+// V2-M1 T0: start commands run in the user's login shell (PATH from
+// ~/.profile), in the chosen folder, and a command that ends keeps its session.
+test('(V2-M1 T0) Session with start command: API variant', async ({ target, request }) => {
+  const dir = `${uniqueName('e2e-startapi')} x`
+  const tool = uniqueName('hostbud-e2e-tool')
+  forbidInLogs(dir, tool)
+  await target.run(`mkdir -p ~/.local/bin ${shq('/home/dev/' + dir)} && printf '#!/bin/sh\\necho "TOOL_OK[$*]"\\nexec sleep 3600\\n' > ~/.local/bin/${tool} && chmod 755 ~/.local/bin/${tool}`)
+  try {
+    const name = uniqueName('e2e-startapi')
+    const created = await mutate(request, 'POST', sessionsPath, {
+      name,
+      path: `~/${dir}`,
+      startCommand: `${tool} --flag 'a b' "$HOME" ~/x`,
+    })
+    expect(created.status(), await created.text()).toBe(201)
+    await expect.poll(() => target.capture(name)).toContain('TOOL_OK[--flag a b /home/dev /home/dev/x]')
+    expect(await target.display(name, '#{pane_current_path}')).toBe(`/home/dev/${dir}`)
+
+    const ended = uniqueName('e2e-startapi-end')
+    const done = await mutate(request, 'POST', sessionsPath, { name: ended, path: `~/${dir}`, startCommand: `sh -c 'echo HOSTBUD_START_OK'` })
+    expect(done.status(), await done.text()).toBe(201)
+    await expect.poll(() => target.capture(ended)).toContain('HOSTBUD_START_OK')
+    expect(await target.sessions()).toContain(ended)
+  } finally {
+    await target.run(`rm -f ~/.local/bin/${tool}`)
+  }
 })
 
 // API validation (T12)

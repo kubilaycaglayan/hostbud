@@ -310,7 +310,7 @@ GET    /api/runtime/limits            authenticated runtime limits used by the b
 GET    /api/runtime/terminal-slots    authenticated terminal-capacity check used after a refused WebSocket upgrade
 GET    /api/machines                      list (with status) — v1: just the host
 GET    /api/machines/:id/sessions
-POST   /api/machines/:id/sessions         {name, path, startCommand?}
+POST   /api/machines/:id/sessions         {name, path, startCommand?} — the command runs as `"$SHELL" -lic '<command>'; exec "$SHELL" -l` (login-shell PATH; the session outlives the command)
 PATCH  /api/machines/:id/sessions/:name   rename
 DELETE /api/machines/:id/sessions/:name   kill (UI confirms)
 POST   /api/machines/:id/sessions/:name/copy-mode

@@ -10,7 +10,7 @@ Update this table in the same commit that finishes a task.
 
 | Task | Status |
 |---|---|
-| T0 Prerequisite: start-command bug | Not started |
+| T0 Prerequisite: start-command bug | Done (e2e written and type-checked; run on demand) |
 | T1 Spike on this host | Not started |
 | T2 Schema migration and store | Not started |
 | T3 Run tokens and the hook endpoint | Not started |
@@ -68,7 +68,10 @@ The v2 ROADMAP *Rules* and AGENTS.md apply in full. That covers: e2e runs only o
 | CP5 | T10–T12 | `make lint test`, `vue-tsc`, e2e `tsc`, `make gitleaks`, docs check | Not run |
 | CP6 | T13 | `make lint test`, e2e `tsc`, `make gitleaks`, `make deploy` (no `make e2e`: on demand only) | Not run |
 
-**Progress note:** (preconditions and checkpoint results go here.)
+**Progress note:**
+- **P1** (2026-09-27): v1 M1–M7 done; M7 T13's full e2e run is on demand, M7 T15 cleanup and M8 are still open (allowed).
+- **P2** (2026-09-27): `internal/events` has typed `sessions.changed` / `projects.changed`; `session.Service.Create(ctx, Spec{Machine, Name, Path, Env, StartCommand})` is the only creation path (the sessions API and `projects.Service.CreateSession` both call it); `internal/store/migrations` is numbered 0001–0004 and append-only.
+- **P3 / T0** (2026-09-27): reproduced on the e2e target and on the host through hostbud's own `ssh`. Symptom: the session is created and then gone. Root cause: a tmux server started over SSH has the bare non-interactive `PATH` (`/usr/local/bin:/usr/bin:…`), so `default-shell -c <command>` couldn't find tools installed under `~/.local/bin` or an npm prefix (`claude`, `codex`); the command exited 127 and took the session with it. Quoting, `-c <dir>`, `ready()` and the name logic were ruled out (a plain `sh -c '…'` works; the path and name tests pass). Fix: `tmux.StartShell` runs the command as `"$SHELL" -lic '<command>'; exec "$SHELL" -l`, so it gets the login shell's `PATH` and the session stays open on a shell after the command ends (output visible, never a silent vanish). Verified on the host with the real `claude --version` / `codex --version`.
 
 **What e2e reaches:**
 - Every run uses the T7 stubs.

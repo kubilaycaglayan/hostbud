@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"hostbud/internal/sshx"
 )
 
 var nameRE = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
@@ -235,7 +237,7 @@ type NewSession struct {
 	Name         string
 	Path         string            // absolute start directory
 	Env          map[string]string // -e KEY=VAL, only with tmux ≥ 3.2
-	StartCommand string            // run by the default shell; empty = shell
+	StartCommand string            // shell command line, run by StartShell; empty = shell
 }
 
 // ErrEnvUnsupported means env vars were requested on tmux < 3.2.
@@ -277,10 +279,21 @@ func NewSessionArgs(s NewSession, v Version) ([]string, error) {
 		}
 	}
 	if s.StartCommand != "" {
-		// One argument: tmux hands it to the user's shell, like typing it.
-		args = append(args, s.StartCommand)
+		// One argument: tmux hands it to its default shell with -c.
+		args = append(args, StartShell(s.StartCommand))
 	}
 	return args, nil
+}
+
+// StartShell wraps a start command line so it runs as if typed at a prompt:
+// in the user's interactive login shell, with that shell's PATH (a tmux
+// server started over SSH only has the bare non-interactive PATH, so tools
+// in ~/.local/bin or an npm prefix weren't found and the session vanished).
+// When the command ends, the session stays open on a login shell, with the
+// command's output (or its "not found" error) still on screen.
+func StartShell(command string) string {
+	const shell = `"${SHELL:-/bin/sh}"`
+	return shell + " -lic " + sshx.Quote(command) + "; exec " + shell + " -l"
 }
 
 // RenameSessionArgs returns the argv for rename-session.

@@ -163,7 +163,6 @@ Tasks: [roadmap/M8-tasks.md](roadmap/M8-tasks.md) · Checklist: [roadmap/M8-acce
 ---
 
 ## Later (not scheduled)
-- **Session start command creation failure (reported):** creating a session with a start command fails to create the session. Investigate and fix; M4's documented behavior expects the command to pass through the normal session creation path and run in the selected directory. Keep this item open until reproduced and verified.
 - **Multi-machine:** discover hosts from `~/.ssh/config`, custom connections, activate/deactivate, host-key trust UI (keyscan → confirm fingerprint), Machine level in the tree.
 - **Public GitHub repo + CI** (lint, tests, gitleaks).
 

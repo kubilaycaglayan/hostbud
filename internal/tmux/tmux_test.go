@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"hostbud/internal/sshx"
 )
 
 func TestValidateName(t *testing.T) {
@@ -51,7 +53,8 @@ func TestNewSessionArgs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want = []string{"tmux", "new-session", "-d", "-s", "web", "-c", "/home/dev/my app", "-e", "A=x y", "-e", "B=2", "htop -d 10"}
+	want = []string{"tmux", "new-session", "-d", "-s", "web", "-c", "/home/dev/my app", "-e", "A=x y", "-e", "B=2",
+		`"${SHELL:-/bin/sh}" -lic 'htop -d 10'; exec "${SHELL:-/bin/sh}" -l`}
 	if !slices.Equal(got, want) {
 		t.Fatalf("got %q\nwant %q", got, want)
 	}
@@ -63,8 +66,27 @@ func TestNewSessionStartCommandRemainsOneArgument(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got[len(got)-1] != command {
-		t.Fatalf("start command argument = %q, want exact command %q", got[len(got)-1], command)
+	if got[len(got)-1] != StartShell(command) {
+		t.Fatalf("start command argument = %q, want %q", got[len(got)-1], StartShell(command))
+	}
+}
+
+// StartShell quotes the command for the shell tmux runs it with: after that
+// shell's own parsing, the login shell gets the command byte for byte.
+func TestStartShellQuoting(t *testing.T) {
+	for _, command := range []string{
+		"claude --model 'opus 4' \"/goal ship it\"",
+		`echo "$HOME" ~/x; printf '%s\n' 'it'\''s'`,
+		"codex -c 'hooks.Stop=[{\"command\":\"curl $HOSTBUD_URL\"}]'",
+	} {
+		got := StartShell(command)
+		prefix, suffix := `"${SHELL:-/bin/sh}" -lic `, `; exec "${SHELL:-/bin/sh}" -l`
+		if !strings.HasPrefix(got, prefix) || !strings.HasSuffix(got, suffix) {
+			t.Fatalf("StartShell(%q) = %q", command, got)
+		}
+		if quoted := strings.TrimSuffix(strings.TrimPrefix(got, prefix), suffix); quoted != sshx.Quote(command) {
+			t.Fatalf("command quoted as %q, want %q", quoted, sshx.Quote(command))
+		}
 	}
 }
 
