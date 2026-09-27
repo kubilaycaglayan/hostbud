@@ -86,6 +86,9 @@ func New(opener SubsystemOpener, machine string, idleTimeout, operationTimeout t
 	return &Service{opener: opener, machine: machine, idle: idleTimeout, timeout: operationTimeout, ctx: ctx, cancel: cancel}
 }
 
+// OperationTimeout reports the per-operation deadline configured for this service.
+func (s *Service) OperationTimeout() time.Duration { return s.timeout }
+
 // Close releases the SFTP subsystem and its ssh process.
 func (s *Service) Close() error {
 	s.mu.Lock()
@@ -179,7 +182,7 @@ func (s *Service) touchLocked() {
 // which interrupts an in-flight SFTP packet and lets the next request reconnect.
 func (s *Service) withClient(ctx context.Context, op string, fn func(*sftp.Client) error) error {
 	if ctx == nil {
-		ctx = context.Background()
+		ctx = s.ctx
 	}
 	opCtx, cancel := context.WithTimeout(ctx, s.timeout)
 	defer cancel()

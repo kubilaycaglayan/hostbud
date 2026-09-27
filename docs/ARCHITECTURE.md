@@ -407,6 +407,11 @@ chosen port. Before starting Compose, verify that the chosen host port is free
 silently selecting or colliding with another service. It must never be published
 on `0.0.0.0`, the Tailscale address, or through Caddy.
 
+M7 also configures the exec and SFTP deadlines and terminal attachment caps:
+`HOSTBUD_EXEC_TIMEOUT` (10 s, 2 s–2 min), `HOSTBUD_SFTP_TIMEOUT` (10 s,
+2 s–2 min), `HOSTBUD_MAX_TERMINALS_PER_USER` (32, 1–256), and
+`HOSTBUD_MAX_TERMINALS` (128, 1–1024). See §15 for the full inventory.
+
 ---
 
 ## 13. Testing strategy
@@ -473,3 +478,31 @@ hostbud/
 ├─ docs/{ARCHITECTURE.md,ROADMAP.md}
 ├─ AGENTS.md  CLAUDE.md  README.md  LICENSE
 ```
+
+## 15. Limits and timeouts
+
+Every bound is recorded here with its enforcement point and the result when it is reached. T1 records current behavior and gaps; M7 T2–T5 fill the marked gaps and update this table in the same task commit.
+
+| What | Limit | Enforced in | On hit (server) | On hit (user sees) | Configurable |
+|---|---|---|---|---|---|
+| Non-interactive SSH exec | 10 s default; `WaitDelay` 1 s | `sshx.Client.Exec` | Context cancellation terminates ssh; timeout is currently a generic SSH timeout (T2 adds value-aware 504 mapping and ControlMaster recovery) | Existing actionable host error; T2 adds a duration-bearing message | Yes: `HOSTBUD_EXEC_TIMEOUT`, 2 s–2 min |
+| SSH agent probe | 3 s | `sshx.checkAgent` | Probe context expires and reports agent unavailable | SSH auth hint | No |
+| ControlMaster shutdown | 5 s in the server shutdown path | `cmd/hostbud` passes a deadline to `sshx.Client.Close` | Stops waiting when shutdown context expires | None during normal shutdown | No |
+| ControlMaster recovery | Not implemented (T2) | `sshx` | T2 bounds checks and self-heals after two exec timeouts | T2 keeps later operations from hanging | No |
+| Inventory polling | `HOSTBUD_POLL_INTERVAL` default 3 s, minimum 500 ms; exponential failure backoff default 8× interval, capped at 30 s and never below interval | `inventory.Run` | Poller waits for retry, marks host unreachable, recovers on a successful poll | Machine status banner | Interval: yes; backoff: no |
+| SFTP operation | 10 s default; subsystem idle close 1 min | `fsbrowse.Service` | Per-operation context closes a failed SFTP stream; T3 adds concurrency limit and explicit timeout response | File-browser error; T3 adds Retry state | Yes: `HOSTBUD_SFTP_TIMEOUT`, 2 s–2 min |
+| SFTP path/listing | Path 4096 bytes; 2000 entries; name 255 bytes | `fsbrowse` validation and listing | Rejects long paths/names; listing currently rejects over 2000 entries (T3 changes to bounded truncation) | Actionable validation or listing error | No |
+| Terminal WebSocket input | 1 MiB per message | `term.Handler` read limit | Oversized frame closes the connection | Terminal reconnects after a dropped socket | No |
+| Terminal WebSocket output | Queue 64 × 32 KiB; write timeout 10 s | `term.Handler` | Full queue cancels ssh attach; write context bounds socket write | Terminal reconnects and tmux redraws | No |
+| Terminal WebSocket liveness | Server ping every 25 s, 10 s pong timeout; browser drops after 25 s without a frame; browser ping every 10 s | `term.Handler`, `web/src/api/term.ts` | Unanswered peer ends attach; silent browser connection is replaced | Reconnecting strip and automatic reattach | No |
+| Terminal attachments | Client layout allows 16 panes; no server/account cap (T4) | `web/src/lib/layout.ts`; server gap | T4 rejects over-cap upgrades before ssh starts | T4 shows a limit error with manual Retry | Yes: `HOSTBUD_MAX_TERMINALS_PER_USER` default 32 (1–256), `HOSTBUD_MAX_TERMINALS` default 128 (1–1024) |
+| Events WebSocket | 64-event subscriber buffer; heartbeat 15 s; ping 25 s; write timeout 10 s; browser silence 40 s | `events.Bus`, `api.eventsSocket`, `web/src/api/live.ts` | Slow subscriber is closed and reconnects for a snapshot | Live state reconnects and receives a fresh snapshot | No |
+| HTTP server | Header read 10 s; idle connection 2 min; shutdown 10 s | `cmd/hostbud` | Slow headers are closed; idle connections expire; shutdown is bounded | Browser request fails or reconnects | No |
+| JSON request bodies | 64 KiB for session and UI-state handlers; other state-changing handlers do not yet share the decoder (T5) | API handlers | Oversized request gets 413; T5 makes content type, field and header handling uniform | Form/API error | No |
+| UI state | 64 KiB per saved value | `api.putUIState` | Oversized value gets 413 | Previous saved value remains | No |
+| REST request duration | No common handler deadline (T5) | API middleware gap | T5 adds 30 s request deadline | Actionable 503/504 instead of a hang | No |
+| Database pool/query | No explicit pool or query bounds (T5) | `store` | T5 sets pool limits and PostgreSQL timeouts | T5 maps outage/timeout to 503 and health to degraded | No |
+| Authentication | Session TTL 720 h; failures: 5 login, 10 registration, 20 per IP; blocks 30 s ×2 up to 1 h; failure window 1 h | `config`, `auth`, PostgreSQL rate-limit store | Rejects with 429 and `Retry-After` | Sign-in throttle message | Yes: existing `HOSTBUD_*` auth settings |
+| Browser layout | 16 terminals globally; 4 panes per tab; layout save debounce 500 ms; reconnect 0.5/1/2/4/8 s then 10 s cap; events backoff up to 10 s | `web/src/lib/layout.ts`, `web/src/stores/layout.ts`, `web/src/api/*` | Client rejects invalid/over-limit layout or retries network | Layout limit notice and reconnect indicator | No |
+
+**Static architecture guard:** `internal/archtest` rejects uncontextualized `exec.Command`, HTTP helpers/default clients or `http.Client` values without a timeout, and WebSocket accepts without a read limit. It also enforces the documented `context.Background()` allowlist with a reason and occurrence count.

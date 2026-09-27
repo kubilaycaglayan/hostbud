@@ -81,6 +81,30 @@ func TestHostbudPublishesNoPorts(t *testing.T) {
 	}
 }
 
+func TestHardeningLimitsOnlyReachHostbud(t *testing.T) {
+	c := load(t)
+	want := map[string]string{
+		"HOSTBUD_EXEC_TIMEOUT":           "10s",
+		"HOSTBUD_SFTP_TIMEOUT":           "10s",
+		"HOSTBUD_MAX_TERMINALS_PER_USER": "32",
+		"HOSTBUD_MAX_TERMINALS":          "128",
+	}
+	app := c.Services["hostbud"]
+	for key, value := range want {
+		if got, ok := env(app, key); !ok || got != value {
+			t.Errorf("hostbud %s = %q, present=%v; want %q", key, got, ok, value)
+		}
+		for name, svc := range c.Services {
+			if name == "hostbud" {
+				continue
+			}
+			if _, ok := env(svc, key); ok {
+				t.Errorf("%s unexpectedly receives %s", name, key)
+			}
+		}
+	}
+}
+
 // Placeholder values scripts/compose-config.sh and caddy-config.sh render with.
 const (
 	placeholderDomain = "hostbud.example.com"

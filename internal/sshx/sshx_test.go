@@ -187,7 +187,7 @@ func fakeSSH(t *testing.T, script string) *Client {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.agent = func() agentState { return agentOK }
+	c.agent = func(context.Context) agentState { return agentOK }
 	return c
 }
 
@@ -250,7 +250,7 @@ func TestExecMapsSSHFailure(t *testing.T) {
 }
 
 func TestClassify(t *testing.T) {
-	ok := func() agentState { return agentOK }
+	ok := func(context.Context) agentState { return agentOK }
 	cases := []struct {
 		name   string
 		stderr string
@@ -273,9 +273,9 @@ func TestClassify(t *testing.T) {
 			agent := ok
 			if tc.agent != agentOK {
 				a := tc.agent
-				agent = func() agentState { return a }
+				agent = func(context.Context) agentState { return a }
 			}
-			e := classify(tc.stderr, agent)
+			e := classify(context.Background(), tc.stderr, agent)
 			if e.Kind != tc.kind || !strings.Contains(e.Hint, tc.hint) || e.Message == "" {
 				t.Fatalf("classify = %+v; want kind %s, hint containing %q", e, tc.kind, tc.hint)
 			}

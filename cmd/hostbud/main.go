@@ -75,22 +75,18 @@ func run() error {
 	}
 
 	// Pins the host's key from the read-only mounted public host keys.
-	ssh, err := sshx.New(sshx.Config{
-		Dir:         filepath.Join(cfg.DataDir, "ssh"),
-		HostKeysDir: hostKeysDir,
-		HostAddr:    cfg.HostAddr,
-		HostUser:    cfg.HostSSHUser,
-	})
+	deps, err := buildDeps(cfg)
 	if err != nil {
 		return err
 	}
+	ssh := deps.ssh
 	log.Debug("ssh config written", "path", ssh.ConfigPath())
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = ssh.Close(ctx)
 	}()
-	filesystem := fsbrowse.New(ssh, store.HostMachineID, fsbrowse.DefaultIdleTimeout, fsbrowse.DefaultOpTimeout)
+	filesystem := deps.filesystem
 	defer func() { _ = filesystem.Close() }()
 
 	// Track the host's tmux sessions; every change goes out on the bus.
@@ -141,7 +137,7 @@ func run() error {
 			Sessions:       sessions,
 			Projects:       projectService,
 			FileSystem:     filesystem,
-			Terminal:       &term.Handler{SSH: ssh, Log: log, Shutdown: ctx.Done()},
+			Terminal:       &term.Handler{SSH: ssh, Log: log, Shutdown: ctx.Done(), MaxPerUser: cfg.MaxTerminalsPerUser, MaxTotal: cfg.MaxTerminals},
 			UIState:        st,
 			Auth:           accounts,
 			TrustedProxies: proxies,
@@ -172,6 +168,29 @@ func run() error {
 		return err
 	}
 	return nil
+}
+
+type runtimeDeps struct {
+	ssh        *sshx.Client
+	filesystem *fsbrowse.Service
+}
+
+// buildDeps wires the configured remote-call bounds into the host clients.
+func buildDeps(cfg config.Config) (runtimeDeps, error) {
+	return buildDepsAt(cfg, hostKeysDir)
+}
+
+// buildDepsAt keeps the wiring testable with an isolated host-key fixture.
+func buildDepsAt(cfg config.Config, keysDir string) (runtimeDeps, error) {
+	client, err := sshx.New(sshx.Config{
+		Dir: filepath.Join(cfg.DataDir, "ssh"), HostKeysDir: keysDir,
+		HostAddr: cfg.HostAddr, HostUser: cfg.HostSSHUser, Timeout: cfg.ExecTimeout,
+	})
+	if err != nil {
+		return runtimeDeps{}, err
+	}
+	filesystem := fsbrowse.New(client, store.HostMachineID, fsbrowse.DefaultIdleTimeout, cfg.SFTPTimeout)
+	return runtimeDeps{ssh: client, filesystem: filesystem}, nil
 }
 
 // backup writes a consistent copy of the database to dest (make backup).

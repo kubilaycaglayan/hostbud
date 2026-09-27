@@ -1,6 +1,7 @@
 package sshx
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -53,7 +54,7 @@ const (
 )
 
 // classify maps ssh's exit status 255 + stderr to an actionable error.
-func classify(stderr string, agent func() agentState) *Error {
+func classify(ctx context.Context, stderr string, agent func(context.Context) agentState) *Error {
 	s := strings.ToLower(stderr)
 	e := &Error{ExitCode: 255, Stderr: stderr}
 	switch {
@@ -80,7 +81,7 @@ func classify(stderr string, agent func() agentState) *Error {
 		e.Message = "can't reach sshd on the host"
 		e.Hint = "Check that sshd is running and that the Docker network can reach the host (HOSTBUD_HOST_ADDR)."
 	case strings.Contains(s, "permission denied"), strings.Contains(s, "too many authentication failures"):
-		switch agent() {
+		switch agent(ctx) {
 		case agentMissing:
 			e.Kind = KindAgent
 			e.Message = "no ssh-agent socket in the container"

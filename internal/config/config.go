@@ -14,22 +14,26 @@ import (
 // Config is the runtime configuration. Every field comes from an env var;
 // see .env.example for documentation.
 type Config struct {
-	Listen       string        // HOSTBUD_LISTEN
-	DataDir      string        // HOSTBUD_DATA_DIR
-	PollInterval time.Duration // HOSTBUD_POLL_INTERVAL
-	LogLevel     slog.Level    // HOSTBUD_LOG_LEVEL
-	LocalPort    int           // HOSTBUD_LOCAL_PORT
-	Domain       string        // HOSTBUD_DOMAIN (optional until M2)
-	HostSSHUser  string        // HOST_SSH_USER
-	HostAddr     string        // HOSTBUD_HOST_ADDR
-	HostLabel    string        // HOSTBUD_HOST_LABEL
-	DBHost       string        // HOSTBUD_DB_HOST
-	DBPort       int           // HOSTBUD_DB_PORT
-	DBName       string        // HOSTBUD_DB_NAME
-	DBUser       string        // HOSTBUD_DB_USER
-	DBPassword   string        // HOSTBUD_DB_PASSWORD
-	DBSSLMode    string        // HOSTBUD_DB_SSLMODE
-	DBLocalPort  int           // HOSTBUD_DB_LOCAL_PORT (Compose only)
+	Listen              string        // HOSTBUD_LISTEN
+	DataDir             string        // HOSTBUD_DATA_DIR
+	PollInterval        time.Duration // HOSTBUD_POLL_INTERVAL
+	ExecTimeout         time.Duration // HOSTBUD_EXEC_TIMEOUT
+	SFTPTimeout         time.Duration // HOSTBUD_SFTP_TIMEOUT
+	MaxTerminalsPerUser int           // HOSTBUD_MAX_TERMINALS_PER_USER
+	MaxTerminals        int           // HOSTBUD_MAX_TERMINALS
+	LogLevel            slog.Level    // HOSTBUD_LOG_LEVEL
+	LocalPort           int           // HOSTBUD_LOCAL_PORT
+	Domain              string        // HOSTBUD_DOMAIN (optional until M2)
+	HostSSHUser         string        // HOST_SSH_USER
+	HostAddr            string        // HOSTBUD_HOST_ADDR
+	HostLabel           string        // HOSTBUD_HOST_LABEL
+	DBHost              string        // HOSTBUD_DB_HOST
+	DBPort              int           // HOSTBUD_DB_PORT
+	DBName              string        // HOSTBUD_DB_NAME
+	DBUser              string        // HOSTBUD_DB_USER
+	DBPassword          string        // HOSTBUD_DB_PASSWORD
+	DBSSLMode           string        // HOSTBUD_DB_SSLMODE
+	DBLocalPort         int           // HOSTBUD_DB_LOCAL_PORT (Compose only)
 
 	// Authentication (docs/ARCHITECTURE.md §8).
 	SessionTTL          time.Duration // HOSTBUD_SESSION_TTL
@@ -81,6 +85,13 @@ func Load(getenv func(string) string) (Config, error) {
 		}
 		return d
 	}
+	durationRange := func(key, def string, minimum, maximum time.Duration) time.Duration {
+		d, err := time.ParseDuration(get(key, def))
+		if err != nil || d < minimum || d > maximum {
+			errs = append(errs, fmt.Errorf("%s: must be a duration between %s and %s (like %s)", key, minimum, maximum, def))
+		}
+		return d
+	}
 	count := func(key, def string) int {
 		n, err := strconv.Atoi(get(key, def))
 		if err != nil || n < 1 {
@@ -88,6 +99,17 @@ func Load(getenv func(string) string) (Config, error) {
 		}
 		return n
 	}
+	countRange := func(key, def string, minimum, maximum int) int {
+		n, err := strconv.Atoi(get(key, def))
+		if err != nil || n < minimum || n > maximum {
+			errs = append(errs, fmt.Errorf("%s: must be a whole number between %d and %d", key, minimum, maximum))
+		}
+		return n
+	}
+	cfg.ExecTimeout = durationRange("HOSTBUD_EXEC_TIMEOUT", "10s", 2*time.Second, 2*time.Minute)
+	cfg.SFTPTimeout = durationRange("HOSTBUD_SFTP_TIMEOUT", "10s", 2*time.Second, 2*time.Minute)
+	cfg.MaxTerminalsPerUser = countRange("HOSTBUD_MAX_TERMINALS_PER_USER", "32", 1, 256)
+	cfg.MaxTerminals = countRange("HOSTBUD_MAX_TERMINALS", "128", 1, 1024)
 	cfg.SessionTTL = duration("HOSTBUD_SESSION_TTL", "720h", time.Minute)
 	cfg.LoginMaxFailures = count("HOSTBUD_LOGIN_MAX_FAILURES", "5")
 	cfg.RegisterMaxFailures = count("HOSTBUD_REGISTER_MAX_FAILURES", "10")

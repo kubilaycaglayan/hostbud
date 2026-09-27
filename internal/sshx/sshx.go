@@ -37,7 +37,7 @@ type Config struct {
 type Client struct {
 	cfg        Config
 	configPath string
-	agent      func() agentState
+	agent      func(context.Context) agentState
 }
 
 // New writes the ssh config and known_hosts (pinning the keys found in
@@ -81,6 +81,9 @@ func (c *Client) Args(machine string, sshOpts []string, args ...string) ([]strin
 
 // Binary is the ssh executable.
 func (c *Client) Binary() string { return c.cfg.SSHBinary }
+
+// Timeout is the default deadline used for non-interactive remote commands.
+func (c *Client) Timeout() time.Duration { return c.cfg.Timeout }
 
 // OpenSFTP starts the system ssh binary's SFTP subsystem for machine. It uses
 // the generated config and the same ControlMaster as Exec, but never builds a
@@ -179,11 +182,11 @@ func (c *Client) Exec(ctx context.Context, machine string, args ...string) ([]by
 	if code := exitErr.ExitCode(); code != 255 {
 		return stdout.Bytes(), &Error{Kind: KindRemote, ExitCode: code, Stderr: stderr.String()}
 	}
-	return nil, classify(stderr.String(), c.agent)
+	return nil, classify(ctx, stderr.String(), c.agent)
 }
 
 // checkAgent inspects SSH_AUTH_SOCK: missing socket, or no identities.
-func checkAgent() agentState {
+func checkAgent(parent context.Context) agentState {
 	sock := os.Getenv("SSH_AUTH_SOCK")
 	if sock == "" {
 		return agentMissing
@@ -192,7 +195,7 @@ func checkAgent() agentState {
 	if err != nil || st.Mode()&os.ModeSocket == 0 {
 		return agentMissing
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(parent, 3*time.Second)
 	defer cancel()
 	out, err := exec.CommandContext(ctx, "ssh-add", "-l").CombinedOutput()
 	if err != nil {

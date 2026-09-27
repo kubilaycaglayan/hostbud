@@ -17,20 +17,24 @@ func TestLoadDefaults(t *testing.T) {
 		t.Fatalf("Load: %v", err)
 	}
 	want := Config{
-		Listen:       ":8080",
-		DataDir:      "/data",
-		PollInterval: 3 * time.Second,
-		LogLevel:     slog.LevelInfo,
-		LocalPort:    9055,
-		HostSSHUser:  "dev",
-		HostAddr:     "host.docker.internal",
-		HostLabel:    "Host machine",
-		DBHost:       "hostbud-postgres",
-		DBPort:       5432,
-		DBName:       "hostbud",
-		DBUser:       "hostbud",
-		DBSSLMode:    "disable",
-		DBLocalPort:  9543,
+		Listen:              ":8080",
+		DataDir:             "/data",
+		PollInterval:        3 * time.Second,
+		ExecTimeout:         10 * time.Second,
+		SFTPTimeout:         10 * time.Second,
+		MaxTerminalsPerUser: 32,
+		MaxTerminals:        128,
+		LogLevel:            slog.LevelInfo,
+		LocalPort:           9055,
+		HostSSHUser:         "dev",
+		HostAddr:            "host.docker.internal",
+		HostLabel:           "Host machine",
+		DBHost:              "hostbud-postgres",
+		DBPort:              5432,
+		DBName:              "hostbud",
+		DBUser:              "hostbud",
+		DBSSLMode:           "disable",
+		DBLocalPort:         9543,
 
 		SessionTTL:          720 * time.Hour,
 		LoginMaxFailures:    5,
@@ -44,6 +48,52 @@ func TestLoadDefaults(t *testing.T) {
 	}
 	if cfg != want {
 		t.Fatalf("got %+v, want %+v", cfg, want)
+	}
+}
+
+func TestLoadHardeningBounds(t *testing.T) {
+	cases := []struct {
+		name    string
+		vars    map[string]string
+		wantErr string
+	}{
+		{name: "valid minimum and maximum", vars: map[string]string{
+			"HOST_SSH_USER": "dev", "HOSTBUD_EXEC_TIMEOUT": "2s", "HOSTBUD_SFTP_TIMEOUT": "2m",
+			"HOSTBUD_MAX_TERMINALS_PER_USER": "256", "HOSTBUD_MAX_TERMINALS": "1024",
+		}},
+		{name: "exec below range", vars: map[string]string{"HOSTBUD_EXEC_TIMEOUT": "1999ms"}, wantErr: "HOSTBUD_EXEC_TIMEOUT"},
+		{name: "exec above range", vars: map[string]string{"HOSTBUD_EXEC_TIMEOUT": "121s"}, wantErr: "HOSTBUD_EXEC_TIMEOUT"},
+		{name: "exec malformed", vars: map[string]string{"HOSTBUD_EXEC_TIMEOUT": "soon"}, wantErr: "HOSTBUD_EXEC_TIMEOUT"},
+		{name: "sftp below range", vars: map[string]string{"HOSTBUD_SFTP_TIMEOUT": "1s"}, wantErr: "HOSTBUD_SFTP_TIMEOUT"},
+		{name: "sftp above range", vars: map[string]string{"HOSTBUD_SFTP_TIMEOUT": "3m"}, wantErr: "HOSTBUD_SFTP_TIMEOUT"},
+		{name: "sftp malformed", vars: map[string]string{"HOSTBUD_SFTP_TIMEOUT": "soon"}, wantErr: "HOSTBUD_SFTP_TIMEOUT"},
+		{name: "per user below range", vars: map[string]string{"HOSTBUD_MAX_TERMINALS_PER_USER": "0"}, wantErr: "HOSTBUD_MAX_TERMINALS_PER_USER"},
+		{name: "per user above range", vars: map[string]string{"HOSTBUD_MAX_TERMINALS_PER_USER": "257"}, wantErr: "HOSTBUD_MAX_TERMINALS_PER_USER"},
+		{name: "per user malformed", vars: map[string]string{"HOSTBUD_MAX_TERMINALS_PER_USER": "many"}, wantErr: "HOSTBUD_MAX_TERMINALS_PER_USER"},
+		{name: "global below range", vars: map[string]string{"HOSTBUD_MAX_TERMINALS": "0"}, wantErr: "HOSTBUD_MAX_TERMINALS"},
+		{name: "global above range", vars: map[string]string{"HOSTBUD_MAX_TERMINALS": "1025"}, wantErr: "HOSTBUD_MAX_TERMINALS"},
+		{name: "global malformed", vars: map[string]string{"HOSTBUD_MAX_TERMINALS": "many"}, wantErr: "HOSTBUD_MAX_TERMINALS"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			vars := map[string]string{"HOST_SSH_USER": "dev"}
+			for k, v := range tc.vars {
+				vars[k] = v
+			}
+			cfg, err := Load(envFrom(vars))
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("Load error = %v, want error naming %s", err, tc.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.ExecTimeout != 2*time.Second || cfg.SFTPTimeout != 2*time.Minute || cfg.MaxTerminalsPerUser != 256 || cfg.MaxTerminals != 1024 {
+				t.Fatalf("unexpected limits: %+v", cfg)
+			}
+		})
 	}
 }
 

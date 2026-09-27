@@ -35,7 +35,7 @@ func TestRestrictedImports(t *testing.T) {
 		}
 		if d.IsDir() {
 			switch d.Name() {
-			case "node_modules", ".cache", ".git", "web", "test":
+			case "node_modules", ".cache", ".git", "web", "test", "testdata":
 				return filepath.SkipDir
 			}
 			return nil

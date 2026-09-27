@@ -42,6 +42,8 @@ type Handler struct {
 	SSH   SSH
 	Log   *slog.Logger
 	Start Starter // default StartPTY
+	// MaxPerUser and MaxTotal configure attach caps (enforcement is added in M7 T4).
+	MaxPerUser, MaxTotal int
 	// Shutdown, when closed, ends every open terminal with "going away"
 	// (a disconnect the client reconnects from), before ssh is torn down.
 	Shutdown <-chan struct{}
