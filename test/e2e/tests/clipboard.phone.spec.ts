@@ -10,9 +10,10 @@ test.beforeEach(async ({ target, isMobile }) => {
 test('(T2) Touch long press selects terminal text for copying', async ({ page, ui, target }) => {
   const session = await openShell(ui, target, 'e2e-touch-copy')
   const marker = uniqueName('touch-copy')
-  await target.tmux('send-keys', '-t', `=${session}:`, '-l', `printf '%s\\n' ${marker}; seq 1 400`)
+  await target.tmux('send-keys', '-t', `=${session}:`, '-l', `seq 1 400; printf '%s\\n' ${marker}`)
   await target.tmux('send-keys', '-t', `=${session}:`, 'Enter')
-  await expect.poll(() => ui.termText(session)).toContain('400')
+  // The marker comes last so that it is still on screen after the history.
+  await expect.poll(() => ui.termText(session)).toMatch(new RegExp(`^${marker}\\s*$`, 'm'))
   const rect = await textRect(page, marker)
   await page.getByTestId('terminal').dispatchEvent('pointerdown', {
     pointerType: 'touch',
