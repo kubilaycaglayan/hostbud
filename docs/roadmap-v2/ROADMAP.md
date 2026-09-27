@@ -128,7 +128,7 @@ Run each check with **both** real clients, in a scratch directory the owner does
 - Apply the S8 result: if a stdin-fed `set-environment` hides the token from the process list, use it for `HOSTBUD_RUN_TOKEN`. If not, keep `-e` and record the known limitation (v2 §9) in README security notes.
 - The session name is recorded on the run. The run starts in `starting`.
 - **Tests:** U: name derivation and collision suffixing, env map contents, argv passed unchanged to `sshx`; I: against `test/sshd`, the created session has the three variables in `tmux show-environment -t '=<name>'` and runs in the project path; if S8 chose the stdin method, the token never appears in `ps` output during creation; E: covered by T9 (runs start through the dispatcher).
-- **E2E:** no standalone scenario: sessions for runs are only reachable through the queue, and T9's *Two items in order* asserts the session name, path and env through the target.
+- **E2E:** no standalone scenario: sessions for runs are only reachable through the queue, and T9's *Three items in order* asserts the session name, path and env through the target.
 
 #### T5 — Adapter interface and the Claude Code adapter
 - `internal/agents`: the `Adapter` interface and `GoalState` from v2 §7, plus a registry keyed by `Kind()`.
@@ -220,7 +220,7 @@ Run each check with **both** real clients, in a scratch directory the owner does
 - New env var **`HOSTBUD_RUN_STALE_AFTER`** (Go duration, default `90m`, or the S9 value) in `.env.example` and `internal/config`.
 - **Tests:** U: the full transition table with a fake adapter and clock (every §5.2 row, every §5.4 edge, a concurrent double `turn_end` advancing once, restart recovery); I: with `test/sshd` and the stub `claude`, one item runs from `starting` to `achieved` and the next session is created; E: see below.
 - **E2E:** add (API-level, stubs):
-  - *Two items in order*: item 2's session appears only after item 1's stub writes its achieved record. Check the session names, project path and `HOSTBUD_*` env on the target;
+  - *Three items in order*: each next item's session appears only after the previous stub writes its achieved record, and the queue ends `finished`. Check the session names, project path and `HOSTBUD_*` env on the target;
   - *Decoy text does not advance*: the queue stays on item 1;
   - *Needs attention*: failed, exited, stale and changed session id each pause the queue with the item `needs_attention`, and the session is still alive;
   - *Late achieved after stale*: the item is `done`, and the queue stays paused until resumed;
@@ -245,7 +245,7 @@ Run each check with **both** real clients, in a scratch directory the owner does
 #### T11 — Queue panel on the phone
 - The panel works in the phone layout: a drawer or full-screen sheet, touch-sized controls, and reorder by touch drag or move buttons. "Open session" switches to the single-terminal view.
 - **Tests:** U: responsive layout components; I: n/a; E: see below.
-- **E2E:** add *Queue panel (phone)* (iPhone 13 Pro profile): create two items, start, see status changes live, open a run's session, Retry a needs-attention item.
+- **E2E:** add *Queue panel (phone)* (iPhone 13 Pro profile): create two items, start, see item 1 turn done and item 2 start and finish live, open a run's session, Retry a needs-attention item.
 
 #### T12 — Docs alignment
 - v1 [ARCHITECTURE.md](../ARCHITECTURE.md):
@@ -280,8 +280,8 @@ Each line: criterion — coverage.
 3. **Schema is append-only and keeps v1 data.** — U: T2 · I: T2 (migrate a populated v1 copy) · E: n/a (not user-visible; covered indirectly by every T9 scenario).
 4. **Hook endpoint contract** (`204/401/404/410/413`, 64 KiB cap, per-run rate limit, no cookie or Origin needed, tokens stored hashed and revoked at run end but not on stale). — U: T3 · I: T3 (through Caddy) · E: T3 *Hook endpoint*.
 5. **No secrets in logs or argv:** tokens never logged, never literal in the command or settings JSON. — U: T3, T5, T6 · I: T3 log-hygiene, T4 (`ps` check if S8 allows) · E: n/a (logs aren't observable from the browser).
-6. **Runs start correctly:** session `<project>-q<pos>` (collision-suffixed) in the project path with `HOSTBUD_*` env, through the single session-create service. — U: T4 · I: T4 · E: T9 *Two items in order*.
-7. **Only a bound, structured achieved record advances the queue** (bound session, after start, equal condition; Codex row equivalent). — U: T5, T6 (fixture matrices) · I: T5, T6 (SFTP / reader against `test/sshd`), T9 · E: T9 *Two items in order*, *Mixed clients*.
+6. **Runs start correctly:** session `<project>-q<pos>` (collision-suffixed) in the project path with `HOSTBUD_*` env, through the single session-create service. — U: T4 · I: T4 · E: T9 *Three items in order*.
+7. **Only a bound, structured achieved record advances the queue** (bound session, after start, equal condition; Codex row equivalent). — U: T5, T6 (fixture matrices) · I: T5, T6 (SFTP / reader against `test/sshd`), T9 · E: T9 *Three items in order*, *Mixed clients*.
 8. **Decoy text never advances.** — U: T5, T6 decoy fixtures · I: T7 (stub-vs-adapter test) · E: T9 *Decoy text does not advance*.
 9. **Fail closed:** failed, exited, stale, a changed session id and unknown formats set `needs_attention` and pause the queue; the session keeps running. — U: T9 · I: T9 · E: T9 *Needs attention*.
 10. **Late achieved after stale** marks the item done and keeps the queue paused. — U: T9 · I: n/a (timer semantics are fully covered with a fake clock in U) · E: T9 *Late achieved after stale*.
@@ -290,7 +290,7 @@ Each line: criterion — coverage.
 13. **Queue API is Origin-checked and authenticated.** — U: T8 · I: T8 · E: T8 *Queue API*.
 14. **UI updates from events only** (no reload, no polling). — U: T10 · I: n/a (frontend behavior) · E: T10 *Queue panel*.
 15. **Panel usable on desktop and phone.** — U: T10, T11 · I: n/a · E: T10, T11.
-16. **Restart safety:** after `hostbud` restarts mid-run, the run resumes tracking, and a goal achieved during the restart is picked up. — U: T9 · I: T9 · E: T9 (restart `hostbud-e2e-app` during *Two items in order*).
+16. **Restart safety:** after `hostbud` restarts mid-run, the run resumes tracking, and a goal achieved during the restart is picked up. — U: T9 · I: T9 · E: T9 (restart `hostbud-e2e-app` during *Three items in order*).
 17. **Docs aligned** (v1 ARCHITECTURE §9/§10/§12/§14/§15, v1 ROADMAP, README, AGENTS.md, `.env.example`). — U/I: T12 docs consistency check · E: n/a.
 
 ### Manual checks (owner; backlog, not blockers)

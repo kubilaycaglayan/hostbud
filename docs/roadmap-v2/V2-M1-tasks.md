@@ -185,7 +185,7 @@ Scope: R T4. Additions:
 - **Tests (added to R T4):**
   - U: the token appears only in the env passed to the service, and in no log.
   - I: the first process sees the variables (the stub prints them), and the fixture `~/.claude`/`~/.codex` checksums are unchanged.
-- **E2E:** covered by T9's *Two items in order*.
+- **E2E:** covered by T9's *Three items in order*.
 
 ## T5 — Adapter interface and the Claude Code adapter
 
@@ -304,7 +304,7 @@ Scope: R T9, v2 §5. Additions:
   - U: the fake session layer fails the test on any kill or send-keys call; the same `session_start` id twice is ignored; an achieved record while paused.
   - I: a `fail` stub's session stays alive; the fixture config checksums are unchanged; duplicate hook POSTs advance the queue once; `deploytest` covers the new var.
 - **E2E:** `queue-runs.api.spec.ts` with R T9's scenarios:
-  - *Two items in order* uses `achieve:2` then `achieve:1`. It checks the session names `<project>-q1` / `-q2` and that the token is present (not its value), and ends `finished`. A variant restarts the app through ctl.
+  - *Three items in order* uses `achieve:2`, `achieve:1`, `achieve:1`. At each hand-off it checks that the next item's session appears only after the previous stub writes its achieved record, and that at most one run is active. It checks the session names `<project>-q1` / `-q2` / `-q3` and that the token is present (not its value). The queue ends `finished` with all three items `done`. A variant restarts the app through ctl during item 2.
   - *Needs attention* uses `fail`, `exit`, `silent` and `clear`.
   - *Late achieved* uses `silent-then-achieve`; after Resume, item 2 starts.
   - *Retry and skip:* after a retry, the old session still exists.
@@ -327,7 +327,7 @@ Scope: R T10. Additions:
 Scope: R T11. Additions:
 - **Layout:** touch targets of at least 44 px, and no horizontal scroll.
 - **Sheets:** the item form is a sheet. Mark done and Skip confirm through the phone confirmation sheet.
-- **E2E:** `queue.phone.spec.ts` covers R T11's scenario, reordering with the move buttons.
+- **E2E:** `queue.phone.spec.ts` covers R T11's scenario, reordering with the move buttons. It also checks the hand-off live: item 1 (`achieve:1`) turns done and item 2 (`achieve:1`) starts and turns done without a reload, and the queue shows `finished`. A separate `fail` item covers Retry.
 
 ## T12 — Docs alignment
 

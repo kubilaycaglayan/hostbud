@@ -56,7 +56,7 @@ Links: tasks in [V2-M1-tasks.md](V2-M1-tasks.md); criteria R1–R17, their base 
   - The session is named `<project>-q<pos>` (with a collision suffix), runs in the project path, has the three `HOSTBUD_*` variables, and its first process sees them.
   - The run is `starting`, with `started_at` set before creation.
   - A version check or creation failure ⇒ the run is `failed`, with an actionable `detail`.
-  - U: T4, T5, T6 · I: T4 · E: T9 *Two items in order*.
+  - U: T4, T5, T6 · I: T4 · E: T9 *Three items in order*.
 - [ ] **R7 Only a bound, structured achieved record advances the queue.**
   - The Claude and Codex rules follow v2 §5.3 and the mappings in T5 and T6.
   - The argv follows S1, and Codex never gets `notify`.
@@ -67,7 +67,7 @@ Links: tasks in [V2-M1-tasks.md](V2-M1-tasks.md); criteria R1–R17, their base 
   - The Codex reader is read-only, uses a bound parameter, and gives an actionable error if a tool is missing.
   - Too old or missing clients are refused. `client_version` is recorded.
   - An unknown agent kind is refused.
-  - U: T5, T6 (fixture matrices for each version) · I: T5, T6 (against `test/sshd`), T7 (drift test), T9 · E: T9 *Two items in order*, *Mixed clients*.
+  - U: T5, T6 (fixture matrices for each version) · I: T5, T6 (against `test/sshd`), T7 (drift test), T9 · E: T9 *Three items in order*, *Mixed clients*.
 - [ ] **R8 Decoy text never advances the queue.** Every line is parsed as JSON; text is never searched.
   - U: T5, T6 (decoy fixtures) · I: T7 (drift test with `decoy`) · E: T9 *Decoy text does not advance*.
 - [ ] **R9 Fail closed.** Each of these sets the item to `needs_attention` with a `detail` and pauses the queue, while the session keeps running:
@@ -117,7 +117,7 @@ Links: tasks in [V2-M1-tasks.md](V2-M1-tasks.md); criteria R1–R17, their base 
   - Active runs are reloaded and their timers re-armed, with one read each.
   - A goal achieved during the restart is picked up.
   - A session lost during the restart is treated as `session_end`.
-  - U: T9 · I: T9 · E: T9 *Two items in order* (restart variant).
+  - U: T9 · I: T9 · E: T9 *Three items in order* (restart variant).
 - [ ] **R17 The docs are aligned** as listed in R T12 and the T12 additions.
   - U/I: T12 docs check (env vars and routes) · E: n/a.
 - [ ] **Test harness:** the T7 stubs support every behavior, and the e2e app has the hook base URL and a short stale window.
@@ -130,14 +130,14 @@ These run on the throwaway target with stubs, on desktop and `iphone-13-pro`. Th
 - [ ] (T0) Session with start command
 - [ ] (T3) Hook endpoint
 - [ ] (T8) Queue API
-- [ ] (T9) Two items in order (with the restart variant)
+- [ ] (T9) Three items in order: each hand-off waits for the previous achieved record, ends `finished` (with the restart variant)
 - [ ] (T9) Decoy text does not advance
 - [ ] (T9) Needs attention (fail, exit, stale, clear)
 - [ ] (T9) Late achieved after stale
 - [ ] (T9) Retry and skip
 - [ ] (T9) Mixed clients
 - [ ] (T10) Queue panel
-- [ ] (T11) Queue panel (phone)
+- [ ] (T11) Queue panel (phone), including a live hand-off from item 1 to item 2 and `finished`
 - [ ] (T13) Full suite green: every v1 and v2 scenario, in both profiles, with no skips and no weakened assertions
 
 ## Manual checks (owner; backlog, not blockers)
