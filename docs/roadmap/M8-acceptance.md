@@ -8,6 +8,7 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
   - U: T1 placement/order, dialog actions, accessible names, compact styling and hit-area classes (Vitest).
   - I: n/a: frontend presentation and local dialog actions; no server contract changes.
   - E: T1 *Header actions and compact controls* (desktop and phone).
+  - Status (2026-09-27): U written and passing (`web/src/App.spec.ts`); E written and type-checked (`test/e2e/tests/header.actions.spec.ts`; M6 T13 phone/wide scenarios and helpers updated for the move), run pending (paused until M7 T13). Not ticked until the e2e run passes.
 
 ## Project and session tree
 

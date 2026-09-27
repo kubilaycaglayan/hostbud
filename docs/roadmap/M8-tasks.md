@@ -10,7 +10,7 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 
 | Task | Status |
 |---|---|
-| T1 Header action placement and compact controls | Not started |
+| T1 Header action placement and compact controls | Implemented; e2e written, not run yet |
 | T2 Compact, name-first project tree | Implemented; e2e written, not run yet |
 | T3 Compact file browser and autocomplete policy | Implemented; e2e written, not run yet |
 | T4 Drag to reorder open tabs | Implemented; e2e written, not run yet |

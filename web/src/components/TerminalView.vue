@@ -87,7 +87,14 @@ const copyMode = createCopyModeController(
   (error) => useToastsStore().error('Could not scroll terminal history', error),
 )
 const { inMode, scrollPosition, historySize, busy } = copyMode
-let touchScrollStart: { x: number; y: number } | null = null
+let touchScrollStart: {
+  x: number
+  y: number
+  totalLines: number
+  sentLines: number
+  entering: boolean
+  cancelled: boolean
+} | null = null
 
 function enterScrollMode() {
   void copyMode.action('enter')
@@ -100,29 +107,53 @@ function scrollAction(action: Parameters<typeof copyMode.action>[0], lines?: num
 function startScrollGesture(event: PointerEvent) {
   touchScrollStart = null
   if (event.pointerType !== 'touch') return
-  touchScrollStart = { x: event.clientX, y: event.clientY }
+  touchScrollStart = {
+    x: event.clientX,
+    y: event.clientY,
+    totalLines: 0,
+    sentLines: 0,
+    entering: false,
+    cancelled: false,
+  }
+}
+
+function updateScrollGesture(event: PointerEvent) {
+  const gesture = touchScrollStart
+  if (!gesture || gesture.cancelled || event.pointerType !== 'touch') return
+  const screen = term.value?.element?.querySelector('.xterm-screen')?.getBoundingClientRect()
+  const cellHeight = screen && term.value ? screen.height / term.value.rows : 16
+  const movement = swipeDelta(gesture, { x: event.clientX, y: event.clientY }, cellHeight)
+  if (!movement) return
+  gesture.totalLines = movement.lines * (movement.direction === 'up' ? 1 : -1)
+  sendTouchScroll(gesture)
+}
+
+function sendTouchScroll(gesture: NonNullable<typeof touchScrollStart>) {
+  if (copyMode.inMode.value) {
+    applyTouchScroll(gesture)
+  } else if (!gesture.entering) {
+    gesture.entering = true
+    void copyMode.action('enter').then((entered) => {
+      gesture.entering = false
+      if (entered && !gesture.cancelled) applyTouchScroll(gesture)
+    })
+  }
+}
+
+function applyTouchScroll(gesture: NonNullable<typeof touchScrollStart>) {
+  const delta = gesture.totalLines - gesture.sentLines
+  if (!delta || gesture.cancelled) return
+  gesture.sentLines = gesture.totalLines
+  copyMode.swipe(delta > 0 ? 'up' : 'down', Math.abs(delta))
 }
 
 function finishScrollGesture(event: PointerEvent) {
-  if (!touchScrollStart || event.pointerType !== 'touch') return
-  const start = touchScrollStart
+  updateScrollGesture(event)
   touchScrollStart = null
-  const screen = term.value?.element?.querySelector('.xterm-screen')?.getBoundingClientRect()
-  const cellHeight = screen && term.value ? screen.height / term.value.rows : 16
-  const movement = swipeDelta(start, { x: event.clientX, y: event.clientY }, cellHeight)
-  if (!movement) return
-  if (copyMode.inMode.value) {
-    copyMode.swipe(movement.direction, movement.lines)
-    return
-  }
-  // A vertical touch swipe is the mobile scroll gesture: enter tmux copy mode
-  // on demand, then apply this same swipe so the user can scroll immediately.
-  void copyMode.action('enter').then((entered) => {
-    if (entered) copyMode.swipe(movement.direction, movement.lines)
-  })
 }
 
 function cancelScrollGesture() {
+  if (touchScrollStart) touchScrollStart.cancelled = true
   touchScrollStart = null
 }
 
@@ -436,6 +467,7 @@ defineExpose({ refit, reconnect, showKeyboard })
           data-testid="terminal"
           class="min-h-0 flex-1 touch-none overflow-hidden bg-bg p-1"
           @pointerdown="startScrollGesture"
+          @pointermove="updateScrollGesture"
           @pointerup="finishScrollGesture"
           @pointercancel="cancelScrollGesture"
         />

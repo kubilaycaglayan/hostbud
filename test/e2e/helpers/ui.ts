@@ -106,10 +106,19 @@ export class UI {
     await expect(this.tree()).toBeVisible()
   }
 
-  /** Opens the shared file browser from the icon toolbar. */
+  /** Clicks an app-bar action (M8 T1), closing the compact tree drawer first. */
+  async headerAction(name: 'New session' | 'Browse files'): Promise<void> {
+    const drawer = this.page.getByRole('dialog', { name: 'Project tree' })
+    if (await drawer.isVisible()) {
+      await this.page.keyboard.press('Escape')
+      await expect(drawer).toBeHidden()
+    }
+    await this.page.getByRole('banner').getByRole('button', { name, exact: true }).click()
+  }
+
+  /** Opens the shared file browser from the app bar. */
   async openFileBrowser() {
-    if (!(await this.tree().isVisible())) await this.showList()
-    await this.page.getByRole('button', { name: 'Add project' }).click()
+    await this.headerAction('Browse files')
     const dialog = this.page.getByRole('dialog', { name: 'Browse files' })
     await expect(dialog).toBeVisible()
     return dialog

@@ -49,8 +49,7 @@ test('(T2) Tree drawer', async ({ page, target, ui }) => {
   await ui.waitForTerminal(second)
   await expect(drawer).toBeHidden()
 
-  await trigger.tap()
-  await drawer.getByRole('button', { name: 'New session', exact: true }).tap()
+  await page.getByRole('banner').getByRole('button', { name: 'New session', exact: true }).tap()
   const sheet = page.getByRole('dialog', { name: 'New session' })
   await expect(sheet).toBeVisible()
   const created = uniqueName('e2e-from-drawer')
@@ -145,14 +144,19 @@ test('(T13) Left bar toggle and toolbar', async ({ page, target, ui }) => {
   await close.tap()
   await expect(drawer).toBeHidden()
   await expect(toggle).toHaveAttribute('aria-label', 'Show sidebar')
+  // M8 T1: New session and Browse files moved from the drawer to the app bar.
   await toggle.tap()
-  const createButton = drawer.getByRole('button', { name: 'New session', exact: true })
-  const projectButton = drawer.getByRole('button', { name: 'Add project', exact: true })
+  await expect(drawer.getByRole('button', { name: 'New session', exact: true })).toHaveCount(0)
+  await expect(drawer.getByRole('button', { name: 'Add project', exact: true })).toHaveCount(0)
+  await drawer.getByRole('button', { name: 'Hide sidebar' }).tap()
+  const banner = page.getByRole('banner')
+  const createButton = banner.getByRole('button', { name: 'New session', exact: true })
+  const projectButton = banner.getByRole('button', { name: 'Browse files', exact: true })
   for (const button of [createButton, projectButton]) {
     const rect = await button.boundingBox()
     expect(rect?.width).toBeGreaterThanOrEqual(44)
     expect(rect?.height).toBeGreaterThanOrEqual(44)
-    await expect(button).toHaveAttribute('title', /^(New session|Add project)$/)
+    await expect(button).toHaveAttribute('title', /^(New session|Browse files)$/)
   }
   await createButton.tap()
   await expect(page.getByRole('dialog', { name: 'New session' })).toBeVisible()

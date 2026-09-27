@@ -14,6 +14,7 @@ import KillSessionDialog from '@/components/KillSessionDialog.vue'
 import HostBanner from '@/components/HostBanner.vue'
 import TabBar from '@/components/TabBar.vue'
 import TabView from '@/components/TabView.vue'
+import IconButton from '@/components/IconButton.vue'
 import { NEW_SESSION_FOR_SPLIT } from '@/components/layoutKeys'
 import type { Project } from '@/api/types'
 import { panelOrder, type SplitDir } from '@/lib/layout'
@@ -30,7 +31,7 @@ import { useWindowsStore } from '@/stores/windows'
 import { useProjectsStore } from '@/stores/projects'
 import { useToastsStore } from '@/stores/toasts'
 import { useSessionsStore } from '@/stores/sessions'
-import { PanelLeftClose, PanelLeftOpen, Search } from 'lucide-vue-next'
+import { FolderSearch, PanelLeftClose, PanelLeftOpen, Search, SquareTerminal } from 'lucide-vue-next'
 import { isEditableTarget, isTerminalTarget, isTreeTarget, matchingShortcut, shortcutLabels, shortcutPlatform, shortcuts } from '@/lib/shortcuts'
 import { projectTree, sessionKey, windowKey } from '@/lib/tree'
 import { dispatchPaletteAction } from '@/lib/paletteActions'
@@ -507,33 +508,34 @@ onUnmounted(() => {
     class="flex h-full flex-col"
   >
     <HostBanner :machine="host" />
-    <header class="flex min-h-12 items-center gap-3 border-b border-border bg-surface px-3">
-      <button
+    <header class="flex min-h-12 items-center gap-1.5 border-b border-border bg-surface px-3">
+      <IconButton
         v-if="!compact || hasTabs"
-        type="button"
-        :aria-label="sidebarExpanded ? 'Hide sidebar' : 'Show sidebar'"
-        :title="sidebarExpanded ? 'Hide sidebar' : 'Show sidebar'"
+        :label="sidebarExpanded ? 'Hide sidebar' : 'Show sidebar'"
         aria-controls="sessions-sidebar"
         :aria-expanded="sidebarExpanded"
-        class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border focus-visible:ring-2 focus-visible:ring-accent"
         @click="showTree"
       >
         <PanelLeftClose v-if="sidebarExpanded" :size="18" aria-hidden="true" />
         <PanelLeftOpen v-else :size="18" aria-hidden="true" />
-      </button>
-      <h1 class="font-bold text-accent">
+      </IconButton>
+      <h1 class="mx-1.5 font-bold text-accent">
         hostbud
       </h1>
-      <button
+      <!-- M8 T1: the app-wide actions follow the host name. -->
+      <IconButton label="New session" @click="newSession">
+        <SquareTerminal :size="18" aria-hidden="true" />
+      </IconButton>
+      <IconButton label="Browse files" @click="browseFiles">
+        <FolderSearch :size="18" aria-hidden="true" />
+      </IconButton>
+      <IconButton
         v-if="compact || coarsePointer"
-        type="button"
-        aria-label="Command palette"
-        title="Command palette"
-        class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border"
+        label="Command palette"
         @click="openPalette"
       >
         <Search :size="18" aria-hidden="true" />
-      </button>
+      </IconButton>
       <div class="ml-auto min-w-0 text-sm text-muted">
         <details class="relative">
           <summary aria-label="Account" class="flex min-h-11 cursor-pointer list-none items-center rounded border border-border px-3">Account</summary>
@@ -558,10 +560,10 @@ onUnmounted(() => {
         aria-label="Sessions"
         class="flex w-64 shrink-0 flex-col border-r border-border bg-surface p-3"
       >
-        <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @remove-project="askRemoveProject" @session-in-project="newProjectSession" @create="newSession" @browse="browseFiles" />
+        <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @remove-project="askRemoveProject" @session-in-project="newProjectSession" @create="newSession" />
       </aside>
       <main v-if="compact && !hasTabs" id="sessions-sidebar" class="min-h-0 min-w-0 flex-1 overflow-y-auto bg-surface p-3">
-        <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @remove-project="askRemoveProject" @session-in-project="newProjectSession" @create="newSession" @browse="browseFiles" />
+        <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @remove-project="askRemoveProject" @session-in-project="newProjectSession" @create="newSession" />
       </main>
       <main
         v-else
@@ -620,12 +622,14 @@ onUnmounted(() => {
         >
           <div class="mb-2 flex items-center justify-between">
             <DialogTitle class="sr-only">Project tree</DialogTitle>
-            <DialogClose aria-label="Hide sidebar" title="Hide sidebar" class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border focus-visible:ring-2 focus-visible:ring-accent">
-              <PanelLeftClose :size="18" aria-hidden="true" />
+            <DialogClose as-child>
+              <IconButton label="Hide sidebar">
+                <PanelLeftClose :size="18" aria-hidden="true" />
+              </IconButton>
             </DialogClose>
           </div>
           <DialogDescription class="sr-only">Choose a project or session.</DialogDescription>
-          <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @remove-project="askRemoveProject" @session-in-project="newProjectSession" @create="newSession" @browse="browseFiles" />
+          <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @remove-project="askRemoveProject" @session-in-project="newProjectSession" @create="newSession" />
         </DialogContent>
       </DialogPortal>
     </DialogRoot>

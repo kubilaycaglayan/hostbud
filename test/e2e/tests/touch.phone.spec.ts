@@ -33,7 +33,8 @@ test('(T3) Touch targets', async ({ page, target, ui }) => {
 
   await ui.showList()
   await assertTouchTargets(page)
-  await page.getByRole('button', { name: 'New session', exact: true }).tap()
+  await page.keyboard.press('Escape')
+  await page.getByRole('banner').getByRole('button', { name: 'New session', exact: true }).tap()
   const create = page.getByRole('dialog', { name: 'New session' })
   await expect(create).toBeVisible()
   await assertTouchTargets(page)

@@ -43,15 +43,17 @@ test('(T6) Touch swipe scrolls history directly', async ({ page, target, ui }) =
 
   const terminal = page.getByTestId('terminal')
   await terminal.dispatchEvent('pointerdown', { pointerType: 'touch', pointerId: 1, clientX: 180, clientY: 520 })
-  await terminal.dispatchEvent('pointerup', { pointerType: 'touch', pointerId: 1, clientX: 180, clientY: 200 })
+  await terminal.dispatchEvent('pointermove', { pointerType: 'touch', pointerId: 1, clientX: 180, clientY: 200 })
   await expect.poll(() => target.display(name, '#{pane_in_mode}')).toBe('1')
   await expect.poll(async () => Number(await target.display(name, '#{scroll_position}'))).toBeGreaterThan(0)
   await expect.poll(() => ui.termText(name)).toMatch(/(?:^|\n)(?:[1-9]\d?|[12]\d{2}|3[0-5]\d)(?:\n|$)/)
+  await terminal.dispatchEvent('pointerup', { pointerType: 'touch', pointerId: 1, clientX: 180, clientY: 200 })
 
   const position = Number(await target.display(name, '#{scroll_position}'))
   await terminal.dispatchEvent('pointerdown', { pointerType: 'touch', pointerId: 2, clientX: 180, clientY: 200 })
-  await terminal.dispatchEvent('pointerup', { pointerType: 'touch', pointerId: 2, clientX: 180, clientY: 360 })
+  await terminal.dispatchEvent('pointermove', { pointerType: 'touch', pointerId: 2, clientX: 180, clientY: 360 })
   await expect.poll(async () => Number(await target.display(name, '#{scroll_position}'))).toBeLessThan(position)
+  await terminal.dispatchEvent('pointerup', { pointerType: 'touch', pointerId: 2, clientX: 180, clientY: 360 })
 })
 
 test('(T5) Leave scroll mode', async ({ page, target, ui }) => {

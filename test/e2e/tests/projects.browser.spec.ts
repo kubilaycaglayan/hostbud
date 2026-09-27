@@ -180,7 +180,7 @@ test('(T4) Project persists and updates live', async ({ page, request, target, u
   // Create from the browser in another tab context; the first view receives projects.changed.
   const second = await page.context().newPage()
   await second.goto('/')
-  await second.getByRole('button', { name: 'Add project' }).click()
+  await second.getByRole('banner').getByRole('button', { name: 'Browse files', exact: true }).click()
   await second.getByLabel('Current path').fill('/home/dev')
   await second.getByRole('button', { name: 'Go' }).click()
   const row = second.getByRole('list', { name: 'Directory entries' }).getByRole('listitem').filter({ hasText: name })

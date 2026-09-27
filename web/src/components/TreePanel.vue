@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { FolderPlus, SquareTerminal } from 'lucide-vue-next'
 import SessionTree from './SessionTree.vue'
 import { ref } from 'vue'
 import type { SplitDir } from '@/lib/layout'
@@ -14,7 +13,6 @@ const emit = defineEmits<{
   removeProject: [id: string]
   sessionInProject: [project: Project]
   create: []
-  browse: []
 }>()
 const tree = ref<InstanceType<typeof SessionTree>>()
 defineExpose({
@@ -25,18 +23,10 @@ defineExpose({
 
 <template>
   <section class="flex min-h-0 flex-1 flex-col" aria-label="Sessions">
-    <div class="flex items-center gap-2">
-      <button type="button" aria-label="New session" title="New session" class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border focus-visible:ring-2 focus-visible:ring-accent" @click="emit('create')">
-        <SquareTerminal :size="18" aria-hidden="true" />
-      </button>
-      <button type="button" aria-label="Add project" title="Add project" class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border focus-visible:ring-2 focus-visible:ring-accent" @click="emit('browse')">
-        <FolderPlus :size="18" aria-hidden="true" />
-      </button>
-    </div>
-    <p v-if="connectionState === 'reconnecting' || connectionState === 'connecting'" role="status" class="mt-1 text-muted">
+    <p v-if="connectionState === 'reconnecting' || connectionState === 'connecting'" role="status" class="mb-1 text-muted">
       {{ connectionState === 'connecting' ? 'Connecting…' : 'Reconnecting…' }}
     </p>
-    <div class="mt-3 min-h-0 flex-1 overflow-y-auto">
+    <div class="min-h-0 flex-1 overflow-y-auto">
       <SessionTree
         ref="tree"
         :selected="selected"
