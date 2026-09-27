@@ -11,7 +11,7 @@ Update this table in the same commit that finishes a task.
 | Task | Status |
 |---|---|
 | T1 Limits inventory and configuration | Done |
-| T2 Exec timeouts and ControlMaster recovery | In progress |
+| T2 Exec timeouts and ControlMaster recovery | Done |
 | T3 SFTP bounds | Not started |
 | T4 WebSocket limits and stalled clients | Not started |
 | T5 HTTP, request and database limits | Not started |

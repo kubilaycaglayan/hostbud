@@ -21,7 +21,7 @@ for (const project of ['desktop-chromium', 'iphone-13-pro']) {
     await expect(dialog).toContainText("The host didn't answer within 10s")
   })
 
-  test(`(T2) a real tmux stall shows timeout and recovers on ${project}`, async ({ page, ui }, info) => {
+  test(`(T2) a real tmux stall shows timeout and recovers on ${project}`, async ({ page, ui, target }, info) => {
     test.skip(info.project.name !== project)
     const name = uniqueName('e2e-stall')
     await ui.open()
@@ -34,6 +34,7 @@ for (const project of ['desktop-chromium', 'iphone-13-pro']) {
       await dialog.getByRole('button', { name: 'Create' }).click()
       await expect(dialog).toContainText("The host didn't answer within 10s", { timeout: 15_000 })
       await expect(dialog.getByLabel('Name')).toHaveValue(name)
+      await expect(ui.banner()).toContainText('timed out', { timeout: 15_000 })
     } finally {
       await ctl.unstallTmux()
     }
@@ -42,7 +43,18 @@ for (const project of ['desktop-chromium', 'iphone-13-pro']) {
       const { machines } = await response.json() as { machines: { status: string }[] }
       return machines[0]?.status
     }, { timeout: 20_000 }).toBe('ok')
+    await expect(ui.banner()).toHaveCount(0)
     await dialog.getByRole('button', { name: 'Create' }).click()
     await expect(page.getByRole('region', { name: `Terminal: ${name}` })).toBeVisible({ timeout: 10_000 })
+
+    await ctl.stallTmux()
+    try {
+      await page.reload()
+      await expect(page.getByText(/Reconnecting…/)).toBeVisible({ timeout: 15_000 })
+    } finally {
+      await ctl.unstallTmux()
+    }
+    await expect.poll(() => target.display(name, '#{session_attached}'), { timeout: 15_000 }).toBe('1')
+    await expect(page.getByText(/Reconnecting…/)).toHaveCount(0)
   })
 }

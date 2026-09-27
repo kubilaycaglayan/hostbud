@@ -5,6 +5,8 @@ package inventory_test
 import (
 	"context"
 	"slices"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -91,4 +93,35 @@ func TestIntegrationProbeTmuxMissing(t *testing.T) {
 	if _, sessions := inv.Snapshot(); len(sessions) != 0 {
 		t.Fatalf("sessions without tmux: %+v", sessions)
 	}
+}
+
+func TestIntegrationPollerTimeoutAndRecovery(t *testing.T) {
+	testenv.Agent(t, true)
+	c := testenv.Client(t, testenv.SSHD, testenv.Options{Timeout: 500 * time.Millisecond})
+	bus := events.NewBus()
+	ch, unsub := bus.Subscribe(64)
+	defer unsub()
+	inv := inventory.New(c, bus, inventory.Options{MachineID: sshx.HostMachineID, Label: "test", Interval: interval})
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() { inv.Run(ctx); close(done) }()
+	defer func() { cancel(); <-done }()
+	await(t, ch, 5*time.Second, "machine ok", func(e events.Event) bool {
+		m, ok := e.Payload.(inventory.Machine)
+		return ok && m.Status == inventory.StatusOK
+	})
+	testenv.Sh(t, c, "mkdir -p /home/dev/.hostbud-stall && printf '%d\\n' "+strconv.FormatInt(time.Now().Add(60*time.Second).Unix(), 10)+" >/home/dev/.hostbud-stall/tmux")
+	t.Cleanup(func() { testenv.Sh(t, c, "rm -f /home/dev/.hostbud-stall/tmux") })
+	e := await(t, ch, 5*time.Second, "timed out status", func(e events.Event) bool {
+		m, ok := e.Payload.(inventory.Machine)
+		return ok && m.Status == inventory.StatusUnreachable
+	})
+	if !strings.Contains(e.Payload.(inventory.Machine).Error, "timed out") {
+		t.Fatalf("timeout machine: %+v", e.Payload)
+	}
+	testenv.Sh(t, c, "rm -f /home/dev/.hostbud-stall/tmux")
+	await(t, ch, 10*time.Second, "machine recovery", func(e events.Event) bool {
+		m, ok := e.Payload.(inventory.Machine)
+		return ok && m.Status == inventory.StatusOK
+	})
 }

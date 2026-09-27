@@ -183,6 +183,36 @@ func TestIntegrationTmuxStallTimesOutAndRecovers(t *testing.T) {
 	}
 }
 
+func TestIntegrationEveryTmuxCommandTimesOut(t *testing.T) {
+	testenv.Agent(t, true)
+	setup := testenv.Client(t, testenv.SSHD, testenv.Options{Timeout: 5 * time.Second})
+	testenv.Sh(t, setup, "tmux new-session -d -s timeout-it -c /home/dev 2>/dev/null || true")
+	testenv.Sh(t, setup, "mkdir -p /home/dev/.hostbud-stall && printf '%d\\n' "+strconv.FormatInt(time.Now().Add(60*time.Second).Unix(), 10)+" >/home/dev/.hostbud-stall/tmux")
+	c := testenv.Client(t, testenv.SSHD, testenv.Options{Timeout: 250 * time.Millisecond})
+	t.Cleanup(func() {
+		testenv.Sh(t, setup, "rm -f /home/dev/.hostbud-stall/tmux; tmux kill-session -t =timeout-it 2>/dev/null || true")
+	})
+	commands := [][]string{
+		{"tmux", "list-sessions"},
+		{"tmux", "new-session", "-d", "-s", "timeout-new", "-c", "/home/dev"},
+		{"tmux", "rename-session", "-t", "=timeout-it", "timeout-renamed"},
+		{"tmux", "kill-session", "-t", "=timeout-it"},
+		{"tmux", "copy-mode", "-e", "-u", "-t", "=timeout-it:"},
+		{"tmux", "list-windows", "-t", "=timeout-it"},
+		{"tmux", "select-window", "-t", "=timeout-it:@1"},
+	}
+	for _, args := range commands {
+		start := time.Now()
+		_, err := c.Exec(context.Background(), sshx.HostMachineID, args...)
+		if !sshx.IsKind(err, sshx.KindTimeout) || time.Since(start) > 2*time.Second {
+			t.Fatalf("%q: got %v after %v", args, err, time.Since(start))
+		}
+		if _, err := c.Exec(context.Background(), sshx.HostMachineID, "true"); err != nil {
+			t.Fatalf("success reset after %q: %v", args, err)
+		}
+	}
+}
+
 func TestIntegrationStoppedControlMasterRecovers(t *testing.T) {
 	testenv.Agent(t, true)
 	c := testenv.Client(t, testenv.SSHD, testenv.Options{Timeout: 500 * time.Millisecond})

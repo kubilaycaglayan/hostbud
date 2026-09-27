@@ -31,27 +31,27 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 
 ## Exec timeouts and recovery
 
-- [ ] Every non-interactive tmux call (poll, probe, create, rename, kill, copy-mode, windows, select) is bounded by `HOSTBUD_EXEC_TIMEOUT`. Cancelling or timing out kills the ssh process, and no child is left behind.
+- [x] Every non-interactive tmux call (poll, probe, create, rename, kill, copy-mode, windows, select) is bounded by `HOSTBUD_EXEC_TIMEOUT`. Cancelling or timing out kills the ssh process, and no child is left behind.
   - U: T2 fake runner: the deadline applies to each call; cancellation kills the process (Go).
   - I: T2 with the tmux stall on, each call returns a timeout within timeout + 2 s, and `pgrep` finds no leftover ssh child (Go, `test/sshd`).
   - E: T2 *Stalled tmux times out (API)*.
-- [ ] A timeout reaches the user as an actionable error, never a hang. The API answers 504 with `{error, hint}` naming the timeout value (no path or session name in the hint). The create dialog keeps its fields and shows the message, inline rename shows it under the field, and other actions show a toast. The client aborts any of these requests at timeout + 5 s with "hostbud didn't answer", so a stuck proxy can't hang the UI either.
+- [x] A timeout reaches the user as an actionable error, never a hang. The API answers 504 with `{error, hint}` naming the timeout value (no path or session name in the hint). The create dialog keeps its fields and shows the message, inline rename shows it under the field, and other actions show a toast. The client aborts any of these requests at timeout + 5 s with "hostbud didn't answer", so a stuck proxy can't hang the UI either.
   - U: T2 504 mapping table over every tmux-backed route (Go); dialog/rename/toast error states and the client abort (Vitest).
   - I: T2 the stall integration above asserts the error kind and message.
   - E: T2 *Stalled host shows an error, not a spinner* (desktop and `iphone-13-pro`).
-- [ ] The poller treats a timeout as unreachable: status `unreachable` with "timed out", exponential backoff up to the §15 cap, and M1's banner. It recovers without a restart once the host answers.
+- [x] The poller treats a timeout as unreachable: status `unreachable` with "timed out", exponential backoff up to the §15 cap, and M1's banner. It recovers without a restart once the host answers.
   - U: T2 poller status and backoff on `KindTimeout` (Go).
   - I: T2 stall on → unreachable; stall off → ok within the backoff cap (Go, `test/sshd`).
   - E: T2 *Stalled host shows an error, not a spinner* (the banner appears and clears).
-- [ ] A wedged ControlMaster heals itself: after two consecutive timeouts on a machine, `sshx` resets the master (`ssh -O exit`, else kill its pid and remove its socket under `/data/ssh/cm` only), and the next call opens a new one.
+- [x] A wedged ControlMaster heals itself: after two consecutive timeouts on a machine, `sshx` resets the master (`ssh -O exit`, else kill its pid and remove its socket under `/data/ssh/cm` only), and the next call opens a new one.
   - U: T2 reset logic with a fake runner (count, reset on the second timeout, a success clears it, fallback to kill + remove, path confinement) (Go).
   - I: T2 `SIGSTOP` the real master → two timeouts → reset → the third call succeeds (Go, `test/sshd`).
   - E: n/a: a frozen master inside the app container can't be produced from the runner, and the stall scenarios cover the user-visible side.
-- [ ] The generated SSH config sets `ConnectTimeout 10` in the app-defaults block (last, so user settings win later), so an unreachable host fails at connect time.
+- [x] The generated SSH config sets `ConnectTimeout 10` in the app-defaults block (last, so user settings win later), so an unreachable host fails at connect time.
   - U: T2 config generation golden file (Go).
   - I: T10 sshd down → `unreachable` within `ConnectTimeout` + the exec timeout (Go, `test/sshd`).
   - E: covered by M1's *sshd stopped* scenario (runs at T13).
-- [ ] An attach that produces no output within `HOSTBUD_EXEC_TIMEOUT` is closed with code 4408 ("host didn't answer"). The browser treats 4408 as a drop and re-attaches with M3's backoff, showing "Reconnecting… (attempt n)".
+- [x] An attach that produces no output within `HOSTBUD_EXEC_TIMEOUT` is closed with code 4408 ("host didn't answer"). The browser treats 4408 as a drop and re-attaches with M3's backoff, showing "Reconnecting… (attempt n)".
   - U: T2 watchdog with a silent fake process vs. a writing one (Go); `TermSession` retries on 4408 (Vitest).
   - I: T2 attach with the tmux stall on closes with 4408 (Go, `test/sshd`).
   - E: T2 *Stalled host shows an error, not a spinner* (an open terminal shows Reconnecting and recovers after the stall ends).
