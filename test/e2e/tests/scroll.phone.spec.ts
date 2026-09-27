@@ -33,37 +33,6 @@ test('(T5) Scroll into history', async ({ page, target, ui }) => {
   await expect.poll(async () => Number(await target.display(name, '#{scroll_position}'))).toBeGreaterThan(position)
 })
 
-test('(T8) Touch scroll stays inside the xterm viewport', async ({ page, target, ui }) => {
-  const name = uniqueName('e2e-touch-scroll')
-  await target.tmux('new-session', '-d', '-s', name, '-c', '/home/dev')
-  await ui.open()
-  await ui.openTerminal(name)
-  await target.tmux('send-keys', '-t', name, 'seq 1 400', 'Enter')
-  await expect.poll(() => ui.termText(name)).toContain('400')
-
-  const terminal = page.getByTestId('terminal')
-  const viewport = terminal.locator('.xterm-viewport')
-  const touchStyles = await terminal.evaluate((element) => {
-    const viewport = element.querySelector('.xterm-viewport')!
-    const style = getComputedStyle(viewport)
-    return {
-      terminalTouchAction: getComputedStyle(element).touchAction,
-      viewportTouchAction: style.touchAction,
-      overflowY: style.overflowY,
-      overscrollBehaviorY: style.overscrollBehaviorY,
-      pageOverflows: document.scrollingElement!.scrollHeight > document.scrollingElement!.clientHeight,
-    }
-  })
-  expect(touchStyles).toEqual({ terminalTouchAction: 'pan-y', viewportTouchAction: 'pan-y', overflowY: 'scroll', overscrollBehaviorY: 'contain', pageOverflows: false })
-  const bottom = await viewport.evaluate((element) => element.scrollTop)
-  const maxScroll = await viewport.evaluate((element) => element.scrollHeight - element.clientHeight)
-  expect(maxScroll).toBeGreaterThan(0)
-  await viewport.evaluate((element) => { element.scrollTop = Math.max(0, element.scrollHeight - element.clientHeight - 200) })
-  await expect.poll(() => viewport.evaluate((element) => element.scrollTop)).toBeLessThan(bottom)
-  await expect.poll(() => target.display(name, '#{pane_in_mode}')).toBe('0')
-  expect(await viewport.evaluate((element) => element.scrollTop)).toBeLessThan(bottom)
-})
-
 test('(T5) Leave scroll mode', async ({ page, target, ui }) => {
   const name = await session(page, target, ui, 'e2e-scroll-exit')
   await page.getByRole('button', { name: 'Scroll history' }).tap()

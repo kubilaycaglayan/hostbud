@@ -49,16 +49,16 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
 
 ## Terminal scrolling readability
 
-- [ ] Mouse-wheel scrolling remains correct in both directions and reaches the expected scrollback positions. Text is easier to track while moving through the terminal buffer, with reduced flicker or visual confusion for both distinct and repeated output. On phones, native touch scrolling stays inside xterm's viewport rather than moving the app page or entering empty tmux copy mode; terminal input and explicit Scroll history remain intact.
-  - U: T6 wheel handling/render update or scroll-step behavior (Vitest), including direction and bounded movement. T8 verifies the native touch policy and absence of custom local-scroll direction reversal.
-  - I: T6 `TestIntegrationAttachDeclaresSynchronizedOutput` (`internal/term`, against `test/sshd`): the browser's tmux client declares `sync`, redraws arrive in DEC 2026 marks, and the session keeps working. Touch swipes remain browser-only (no server request).
-  - E: T6 *Readable terminal scrolling* (desktop), with deterministic distinct/repeated target output, both directions, controlled/rapid wheel input, visible text assertions and before/after captures for visual review; T8 *Touch scroll stays inside the xterm viewport* (phone).
+- [ ] Mouse-wheel scrolling remains correct in both directions and reaches the expected scrollback positions. Text is easier to track while moving through the terminal buffer, with reduced flicker or visual confusion for both distinct and repeated output. Terminal input and explicit Scroll history remain intact.
+  - U: T6 wheel handling/render update or scroll-step behavior (Vitest), including direction and bounded movement.
+  - I: T6 `TestIntegrationAttachDeclaresSynchronizedOutput` (`internal/term`, against `test/sshd`): the browser's tmux client declares `sync`, redraws arrive in DEC 2026 marks, and the session keeps working.
+  - E: T6 *Readable terminal scrolling* (desktop), with deterministic distinct/repeated target output, both directions, controlled/rapid wheel input, visible text assertions and before/after captures for visual review.
   - Status (2026-09-27): wheel causes measured and fixed (tmux copy-mode redraws torn across network chunks → `-T sync`; xterm scrollback notches jumping 3 rows per frame → `smoothScrollDuration` 100 ms). U written and passing (`TerminalView.spec.ts`, `internal/tmux`, `internal/term`); I written and passing; E `test/e2e/tests/scroll.wheel.spec.ts` written and type-checked, run pending (paused until M7 T13). Not ticked until the e2e run passes.
 
 ## Mobile terminal input
 
-- [ ] Long-pressing a word selects it at the visible xterm buffer row and exposes Copy; successive voice dictation phrases arrive intact and do not erase, duplicate or truncate earlier input.
-  - U: T8 selection uses the absolute active-buffer row and hidden textarea clears after a committed composition (Vitest). I: n/a (browser-side xterm selection and input; no server behavior specific to these cases). E: T8 *Touch long press selects terminal text for copying* · T8 *Dictation commits clean terminal input across successive phrases* (phone projects). **Manual (owner):** verify selection/copy and dictation in the iPhone 13 Pro PWA.
+- [ ] Long-pressing a word selects it at the visible xterm buffer row and exposes Copy.
+  - U: T2 selection uses the absolute active-buffer row (Vitest). I: n/a (browser-side xterm selection and input; no server behavior specific to these cases). E: T2 *Touch long press selects terminal text for copying* (phone projects). **Manual (owner):** verify selection and copy in the iPhone 13 Pro PWA.
 
 ## Long-lived terminal theme contrast
 

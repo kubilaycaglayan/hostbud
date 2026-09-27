@@ -369,38 +369,6 @@ describe('TerminalView', () => {
     w.unmount()
   })
 
-  it('lets the xterm viewport handle local touch scrolling without entering copy mode', async () => {
-    const fetch = vi.fn()
-    vi.stubGlobal('fetch', fetch)
-    const w = await mountTerm()
-    const terminal = w.get('[data-testid="terminal"]')
-    const down = new Event('pointerdown', { bubbles: true, cancelable: true })
-    Object.defineProperties(down, { pointerType: { value: 'touch' }, clientX: { value: 80 }, clientY: { value: 180 } })
-    terminal.element.dispatchEvent(down)
-    expect(terminal.classes()).toContain('touch-pan-y')
-    expect(terminal.classes()).not.toContain('touch-none')
-    const move = new Event('pointermove', { bubbles: true, cancelable: true })
-    Object.defineProperties(move, { pointerType: { value: 'touch' }, clientX: { value: 80 }, clientY: { value: 100 } })
-    terminal.element.dispatchEvent(move)
-    expect(h.terms[0].scrollLines).not.toHaveBeenCalled()
-    expect(fetch).not.toHaveBeenCalled()
-    const up = new Event('pointerup', { bubbles: true, cancelable: true })
-    Object.defineProperties(up, { pointerType: { value: 'touch' }, clientX: { value: 80 }, clientY: { value: 100 } })
-    terminal.element.dispatchEvent(up)
-    expect(h.terms[0].scrollLines).not.toHaveBeenCalled()
-    expect(w.find('[data-testid="scroll-bar"]').exists()).toBe(false)
-
-    const downAgain = new Event('pointerdown', { bubbles: true, cancelable: true })
-    Object.defineProperties(downAgain, { pointerType: { value: 'touch' }, clientX: { value: 80 }, clientY: { value: 100 } })
-    terminal.element.dispatchEvent(downAgain)
-    const reverse = new Event('pointermove', { bubbles: true, cancelable: true })
-    Object.defineProperties(reverse, { pointerType: { value: 'touch' }, clientX: { value: 80 }, clientY: { value: 180 } })
-    terminal.element.dispatchEvent(reverse)
-    expect(h.terms[0].scrollLines).not.toHaveBeenCalled()
-    expect(fetch).not.toHaveBeenCalled()
-    w.unmount()
-  })
-
   it('selects the word under a long touch press so the mobile Copy action can use it', async () => {
     vi.useFakeTimers()
     const w = await mountTerm()
@@ -492,17 +460,6 @@ describe('TerminalView', () => {
     expect(input.getAttribute('autocapitalize')).toBe('off')
     expect(input.getAttribute('autocomplete')).toBe('off')
     expect(input.getAttribute('spellcheck')).toBe('false')
-  })
-
-  it('clears committed composition text so voice dictation cannot replace stale input', async () => {
-    vi.useFakeTimers()
-    await mountTerm()
-    const input = h.terms[0].textarea!
-    input.value = 'echo dictated phrase'
-    input.dispatchEvent(new Event('compositionend', { bubbles: true }))
-    await vi.advanceTimersByTimeAsync(0)
-    expect(input.value).toBe('')
-    vi.useRealTimers()
   })
 
   it('Show keyboard focuses the terminal (touch screens only)', async () => {

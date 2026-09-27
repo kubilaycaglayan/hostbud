@@ -17,7 +17,6 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 | T5 Reliable Option-click caret placement | Implemented; e2e written, not run yet |
 | T6 Readable terminal wheel scrolling | Implemented; e2e written, not run yet |
 | T7 Contrast in long-lived terminal clients | Implemented; e2e written, not run yet |
-| T8 Native touch scrolling, selection and dictation | Implemented; e2e written, run pending |
 
 **Progress note (T2–T4, 2026-09-27):** Vitest (447 tests), eslint, `vue-tsc` and the e2e `tsc` passed; deployed to the host from a clean checkout of `f664bb8` (a pre-deploy `pg_dump` is in `backups/`), and the stack came up healthy. Still open for these tasks:
 - **E2E runs:** the scenarios *(T2) Compact tree*, *(T3) Compact file browser*, *(T3) No browser autocomplete outside login password* and *(T4) Custom tab order* type-check but haven't run: e2e stays paused until M7 T13. The T2 commit also updated two M6 scenarios that expanded single-window sessions (*(T4) Inline rename a session*, *(T3) Window rows follow the real terminal*).
@@ -98,12 +97,11 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 
 - Improve the visual tracking of terminal content during mouse-wheel scrolling. The report is visual: scrolling currently moves in the correct direction and reaches the expected content, but characters can flicker and become difficult to follow, especially in repeated output.
 - Reproduce the issue with both distinct lines and repeated lines, scrolling up and down at typical and faster wheel input. Inspect captures/recording before and after to identify and address the source; don't change scroll semantics or direction to hide the visual issue.
-- Keep terminal input, copy-mode behavior, touch scrolling and the existing scrollback content intact. Avoid adding a setting or control unless implementation demonstrates it is necessary.
-- On touch devices, xterm's own viewport handles vertical native scrolls. It must not enter tmux copy mode for local history (which can be empty and show 0/0). Keep the Scroll history button available for tmux's older pane history.
+- Keep terminal input, copy-mode behavior and the existing scrollback content intact. Avoid adding a setting or control unless implementation demonstrates it is necessary.
 
-**Tests:** U: T6 frontend coverage for wheel-event handling/render updates or the selected scroll-step behavior (Vitest), including direction, bounded movement and no duplicated/skipped scroll requests; T8 covers the native touch-scroll policy; I: T6 `TestIntegrationAttachDeclaresSynchronizedOutput`; touch behavior is n/a because it stays in the browser; E: T6 *Readable terminal scrolling* verifies distinct and repeated output while scrolling both directions, checks expected text/position and records visual comparison at the same wheel gestures; T8 *Touch scroll stays inside the xterm viewport*.
+**Tests:** U: T6 frontend coverage for wheel-event handling/render updates or the selected scroll-step behavior (Vitest), including direction, bounded movement and no duplicated/skipped scroll requests; I: T6 `TestIntegrationAttachDeclaresSynchronizedOutput`; touch behavior is n/a because it stays in the browser; E: T6 *Readable terminal scrolling* verifies distinct and repeated output while scrolling both directions, checks expected text/position and records visual comparison at the same wheel gestures.
 
-**E2E:** Add T6 *Readable terminal scrolling* (desktop): print deterministic numbered and repeated lines in the throwaway tmux target, wheel up/down at controlled and rapid intervals, assert movement/direction and visible text, and capture before/after views to compare flicker/readability. T8 replaces the phone scenario with checks that native touch belongs to xterm's contained scroll viewport, not the document.
+**E2E:** Add T6 *Readable terminal scrolling* (desktop): print deterministic numbered and repeated lines in the throwaway tmux target, wheel up/down at controlled and rapid intervals, assert movement/direction and visible text, and capture before/after views to compare flicker/readability.
 
 ## T7 — Contrast in long-lived terminal clients
 
@@ -115,16 +113,6 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 **Tests:** U: T7 tests palette updates and contrast for foreground/background pairs across Dark/Light/System changes, including a mounted terminal that stays attached (Vitest); I: n/a: color rendering and theme state are frontend-only and do not alter SSH/tmux state; E: T7 *Long-lived terminal contrast* changes the emulated OS theme with a running representative prompt-like TUI, asserts the terminal stays attached and hostbud palette changes, and captures the prompt/text colors in both themes. Real Codex-specific colors are recorded as a manual owner check if the e2e target cannot run Codex.
 
 **E2E:** Add T7 *Long-lived terminal contrast* (desktop): run a deterministic prompt-like ANSI TUI on the throwaway target, leave the terminal mounted while switching System light/dark, assert palette and contrast tokens change without reconnecting, and capture both states. Never use the real host's tmux. Record the real Codex “Ask Codex to do anything” surface as a manual owner check if Codex itself is unavailable in the e2e target.
-
-## T8 — Native touch scrolling, selection and dictation
-
-- Let xterm's `.xterm-viewport` handle vertical touch scrolls with `touch-action: pan-y` and contained overscroll; prevent the document from becoming a competing scroll container. Touch up/down follows the finger and leaves tmux copy mode unchanged. Explicit Scroll history continues to use tmux.
-- Make long-press word selection use the active buffer's absolute row and xterm cell columns, including when the viewport is scrolled into local history. Keep the Copy action tied to xterm's selection-change event.
-- Prevent voice dictation/IME input corruption on xterm 6.0: after composition finalization sends its phrase, clear the hidden input on the next task so replacement-style dictation cannot replay or truncate stale text. Preserve the input when screen-reader mode is enabled.
-
-**Tests:** U: Vitest verifies native-touch classes/no custom local scroll, buffer-row selection beyond row zero, and hidden textarea clearing after composition end. I: n/a (xterm touch, selection and input DOM are browser-side). E: T8 *Touch scroll stays inside the xterm viewport* · T8 *Touch long press selects terminal text for copying* · T8 *Dictation commits clean terminal input across successive phrases* (phone).
-
-**E2E:** Write the three T8 phone scenarios above against the throwaway target. Dictation uses browser composition events to reproduce consecutive committed phrases; the owner checks actual iPhone dictation and copy. Don't run `make e2e` before M7 T13, and never use the real host's tmux.
 
 ## Done
 

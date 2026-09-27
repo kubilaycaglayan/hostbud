@@ -24,7 +24,7 @@ import { darkTerminalTheme, lightTerminalTheme, TERMINAL_MIN_CONTRAST } from '@/
 import type { SplitDir, Tab } from '@/lib/layout'
 import { clipboardKey, editingKey, searchKey } from '@/lib/terminalKeys'
 import { applyModifiers, createModifiers } from '@/lib/keyBar'
-import { createCopyModeController, swipeDelta } from '@/lib/copyMode'
+import { createCopyModeController } from '@/lib/copyMode'
 import { useAuthStore } from '@/stores/auth'
 import { useSessionsStore } from '@/stores/sessions'
 import { useToastsStore } from '@/stores/toasts'
@@ -91,11 +91,7 @@ const copyMode = createCopyModeController(
   (error) => useToastsStore().error('Could not scroll terminal history', error),
 )
 const { inMode, scrollPosition, historySize, busy } = copyMode
-let touchScrollStart: {
-  x: number
-  y: number
-  sentLines: number
-} | null = null
+let touchSelectStart: { x: number; y: number } | null = null
 
 function enterScrollMode() {
   void copyMode.action('enter')
@@ -105,52 +101,31 @@ function scrollAction(action: Parameters<typeof copyMode.action>[0], lines?: num
   void copyMode.action(action, lines)
 }
 
-function startScrollGesture(event: PointerEvent) {
+function startTouchSelection(event: PointerEvent) {
   clearTouchSelectTimer()
-  touchScrollStart = null
+  touchSelectStart = null
   if (event.pointerType !== 'touch') return
-  touchScrollStart = {
-    x: event.clientX,
-    y: event.clientY,
-    sentLines: 0,
-  }
-  if (copyMode.inMode.value) return
-  const gesture = touchScrollStart
+  touchSelectStart = { x: event.clientX, y: event.clientY }
+  const gesture = touchSelectStart
   touchSelectTimer = window.setTimeout(() => {
     touchSelectTimer = null
-    if (touchScrollStart !== gesture) return
-    if (selectTouchWord(gesture.x, gesture.y)) touchScrollStart = null
+    if (touchSelectStart !== gesture) return
+    if (selectTouchWord(gesture.x, gesture.y)) touchSelectStart = null
   }, 450)
 }
 
-function updateScrollGesture(event: PointerEvent) {
-  const gesture = touchScrollStart
-  if (!gesture || event.pointerType !== 'touch') return
-  if (Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) >= 8) clearTouchSelectTimer()
-  // Outside explicit tmux copy mode, let xterm's overflow viewport perform a
-  // native pan. Programmatic scrolling here competes with iOS's nested scrollers.
-  if (!copyMode.inMode.value) return
-  const screen = term.value?.element?.querySelector('.xterm-screen')?.getBoundingClientRect()
-  const cellHeight = screen && term.value ? screen.height / term.value.rows : 16
-  const movement = swipeDelta(gesture, { x: event.clientX, y: event.clientY }, cellHeight)
-  if (!movement) return
-  const totalLines = movement.lines * (movement.direction === 'up' ? 1 : -1)
-  const delta = totalLines - gesture.sentLines
-  if (!delta) return
-  gesture.sentLines = totalLines
-  if (copyMode.inMode.value) copyMode.swipe(delta > 0 ? 'up' : 'down', Math.abs(delta))
-  else term.value?.scrollLines(-delta)
+function cancelTouchSelectionOnMove(event: PointerEvent) {
+  const start = touchSelectStart
+  if (!start || event.pointerType !== 'touch') return
+  if (Math.hypot(event.clientX - start.x, event.clientY - start.y) >= 8) {
+    clearTouchSelectTimer()
+    touchSelectStart = null
+  }
 }
 
-function finishScrollGesture(event: PointerEvent) {
-  updateScrollGesture(event)
+function finishTouchSelection() {
   clearTouchSelectTimer()
-  touchScrollStart = null
-}
-
-function cancelScrollGesture() {
-  clearTouchSelectTimer()
-  touchScrollStart = null
+  touchSelectStart = null
 }
 
 function clearTouchSelectTimer() {
@@ -280,21 +255,12 @@ function refit() {
 
 /** Sets up the terminal's hidden input for on-screen keyboards: no
  * autocorrect, capitalization or suggestions rewriting what's typed. */
-function prepareInput(input: HTMLTextAreaElement | undefined, screenReaderMode: boolean) {
+function prepareInput(input: HTMLTextAreaElement | undefined) {
   if (!input) return
   input.setAttribute('autocorrect', 'off')
   input.setAttribute('autocapitalize', 'off')
   input.setAttribute('autocomplete', 'off')
   input.setAttribute('spellcheck', 'false')
-  if (!screenReaderMode) {
-    // xterm 6 leaves committed IME text in the helper textarea (xtermjs/xterm.js#6012). Voice dictation
-    // can replace that stale value and xterm then treats it as fresh input.
-    // xterm registered its compositionend handler during open(); defer ours so
-    // its final composition value has been sent before resetting the textarea.
-    input.addEventListener('compositionend', () => {
-      window.setTimeout(() => { input.value = '' }, 0)
-    })
-  }
 }
 
 /** Focuses the terminal, which brings up a phone's on-screen keyboard. */
@@ -368,7 +334,7 @@ onMounted(async () => {
   search.value = new SearchAddon()
   t.loadAddon(search.value)
   t.open(el.value!)
-  prepareInput(t.textarea, !!t.options.screenReaderMode)
+  prepareInput(t.textarea)
   try {
     const webgl = new WebglAddon()
     webgl.onContextLoss(() => webgl.dispose())
@@ -575,12 +541,12 @@ defineExpose({ refit, reconnect, showKeyboard })
         <div
           ref="el"
           data-testid="terminal"
-          :class="['min-h-0 flex-1 overflow-hidden bg-bg p-1', inMode ? 'touch-none' : 'touch-pan-y']"
+          class="min-h-0 flex-1 touch-manipulation overflow-hidden bg-bg p-1"
           @mousedown.capture="startAltClick"
-          @pointerdown="startScrollGesture"
-          @pointermove="updateScrollGesture"
-          @pointerup="finishScrollGesture"
-          @pointercancel="cancelScrollGesture"
+          @pointerdown="startTouchSelection"
+          @pointermove="cancelTouchSelectionOnMove"
+          @pointerup="finishTouchSelection"
+          @pointercancel="finishTouchSelection"
         />
         <div
           v-if="linkHover && el"
