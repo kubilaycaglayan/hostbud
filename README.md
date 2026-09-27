@@ -1,5 +1,7 @@
 # hostbud
 
+<p align="center"><img src="web/public/favicon.svg" alt="hostbud" width="128"></p>
+
 Manage the tmux sessions on your server from a web UI: browse directories, organize them as projects, and attach to sessions in a full browser terminal. Built for terminal-first and agentic-coding workflows. Self-hosted; reachable only via SSH port forward or your Tailscale tailnet. (Multi-machine support is planned.)
 
 > Status: **M5** — hostbud includes phone controls and can be installed as a home-screen app. See [docs/ROADMAP.md](docs/ROADMAP.md).
