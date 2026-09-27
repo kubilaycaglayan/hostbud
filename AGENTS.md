@@ -20,7 +20,7 @@ All such values come from environment variables. **If you need a config value th
 ## Scope (v1)
 - **Single target: the host machine** hostbud runs on, reached over SSH from the container. Multi-machine support is deferred (ROADMAP *Later*), but keep `machine_id` in the schema, API and `sshx` so it can return without a rewrite.
 - **Access paths:** (1) SSH port forward to `127.0.0.1:${HOSTBUD_LOCAL_PORT}` (plain HTTP) and (2) `https://${HOSTBUD_DOMAIN}` on the Tailscale IP. Reachability alone isn't enough: the web app requires an account (whitelisted email + password, login throttling; ARCHITECTURE §8).
-- **v2 is design-only.** Don't implement it; just keep the v1 obligations in ARCHITECTURE §10.
+- **v2** follows its own roadmap: [docs/roadmap-v2/ROADMAP.md](docs/roadmap-v2/ROADMAP.md) (V2-M1 implemented; later milestones are opt-in). Keep the v1 obligations in ARCHITECTURE §10.
 - No CI and no git remote for now; the repo will be published to GitHub later.
 
 ## Environment
@@ -56,7 +56,7 @@ All such values come from environment variables. **If you need a config value th
 - [ ] Destructive actions require UI confirmation.
 - [ ] Container runs as non-root `${HOST_UID}:${HOST_GID}`; private keys are never mounted (agent socket only).
 - [ ] No secrets or user paths in logs at info level.
-- [ ] (v2) Hook endpoints use per-run tokens (stored hashed).
+- [x] (v2) Hook endpoints use per-run tokens (stored hashed). Active since V2-M1 T3: `POST /api/hooks/{run}/{event}` only, 32-byte tokens stored as SHA-256, revoked when the run ends.
 
 ## Code conventions
 - `internal/` packages as in ARCHITECTURE §14; keep `store` the only place with SQL.

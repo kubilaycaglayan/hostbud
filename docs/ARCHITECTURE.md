@@ -258,7 +258,14 @@ auth_sessions(id_hash PK, user_id FK, expires_at, created_at, last_seen_at,
               user_agent, created_ip)
 login_rate_limits(scope_key PK, failures INT, blocked_until, last_failure_at,
                    updated_at)
+-- v2 agent queue (V2-M1, migration 0005; docs/roadmap-v2/ARCHITECTURE.md §6)
+queues(id, machine_id, project_id, name, status, created_at, updated_at)
+queue_items(id, queue_id, machine_id, position, agent, flags, instruction, status, …, UNIQUE(queue_id, position))
+runs(id ULID, item_id, machine_id, session_name, agent_session_id, transcript_path, transcript_offset,
+     client_version, token_hash (SHA-256), status, started_at, ended_at, last_signal_at, detail)
+run_events(id, run_id, machine_id, source, kind, payload_json ≤ 64 KiB, created_at)
 ```
+The queue tables have no implicit cascades: deleting a queue is one explicit transaction and is refused while a run is active, and a project with a queue can't be deleted until its queue is.
 
 Project paths are absolute POSIX paths, cleaned at the repository boundary and
 limited to 4096 bytes; project names are trimmed and limited to 255 bytes.
@@ -314,10 +321,13 @@ POST   /api/machines/:id/sessions         {name, path, startCommand?} — the co
 PATCH  /api/machines/:id/sessions/:name   rename
 DELETE /api/machines/:id/sessions/:name   kill (UI confirms)
 POST   /api/machines/:id/sessions/:name/copy-mode
-GET    /api/machines/:id/sessions/:name/windows
-POST   /api/machines/:id/sessions/:name/select  {window, pane?}
+GET    /api/machines/:id/sessions/:name/output   {output} — the session's retained tmux history as text (terminal text view)
+GET|POST /api/machines/:id/sessions/:name/windows  the window/pane listing (POST answers 405 with Allow: GET)
+POST|GET /api/machines/:id/sessions/:name/select  {window, pane?} (GET answers 405 with Allow: POST)
 GET    /api/machines/:id/fs?path=         list dir
+GET    /api/machines/:id/fs/stat?path=    one entry (+ symlink state)
 POST   /api/machines/:id/fs/mkdir
+PUT    /api/machines/:id/fs/upload?path=&name=  raw application/octet-stream photo upload (≤ 100 MiB)
 GET    /api/machines/:id/fs/home
 GET    /api/projects?machine=<id>     list projects for one machine
 POST   /api/projects                  {machineId, path, name?}
@@ -328,6 +338,20 @@ POST   /api/projects/:id/sessions     {name?, startCommand?} — creates through
 GET    /api/projects/:id/recent-commands — the project's recent start-command strings, newest first
 GET|PUT /api/ui-state/:key            the account's JSON (GET 404 before the first PUT; PUT 204)
 GET    /api/health
+
+# v2 agent queue (V2-M1; docs/roadmap-v2)
+GET    /api/queues                    {queues: [queue]} — each queue with its project and items, each item with its latest run summary
+POST   /api/queues                    {projectId, name} — 201; V2-M1 allows one queue (a second → 409 naming V2-M2)
+GET    /api/queues/:id
+PATCH  /api/queues/:id                {name}
+DELETE /api/queues/:id                204; refused (409) while a run is active; run sessions stay open
+POST   /api/queues/:id/items          {agent, flags, instruction} — appended; agent claude|codex, flags split like a shell, instruction "/goal <condition>"
+PATCH  /api/queue-items/:id           any subset of {agent, flags, instruction}; queued items only (409 otherwise)
+DELETE /api/queue-items/:id           queued items only
+PUT    /api/queues/:id/order          {itemIds} — exactly the queued items, in their new order
+POST   /api/queues/:id/start|pause|resume        an invalid transition → 409 naming the current state
+POST   /api/queue-items/:id/retry|skip|mark-done needs_attention items only (409 otherwise); an active run is cancelled first
+POST   /api/hooks/:run_id/:event      token-authenticated run hook (session_start|turn_end|session_end): 204/401/404/410/429/413/400
 
 # later (multi-machine)
 POST   /api/machines                      add custom connection
@@ -343,10 +367,12 @@ The windows endpoint returns `{windows, truncated}` with windows and panes in in
 Session records in the list endpoint and initial/live events WebSocket payload include `projectId` when the placement service matches an explicit session link or a project path. Optional `agents` lists recognized Codex/Claude foreground marks; optional `status` is `working`, `blocked`, or `ended` from pane hook metadata. Neither changes the session name. The browser uses project placement before applying the same-machine longest path-component match as a fallback. A successful project session start records its non-empty command; opening the picker or selecting a suggestion never starts a command by itself. Recent commands preserve their exact text, reject blank/NUL/oversize values, and keep the 20 newest distinct strings per project. Reusing a command moves it to the front; there is no manual clear action, and older values are pruned during an upsert.
 `/api/ui-state/:key` accepts only allowlisted keys (`layout`; M4 adds `tree` for per-account left-bar session/group order; M6 adds `theme`; others 404). A PUT body must be valid JSON (400) of at most 64 KiB (413). The server stores it without interpreting it and publishes no event (it's a per-account preference); the client validates what it reads back.
 
+Queue routes use the cookie session, the Origin check and the JSON limits like every v1 route; errors are `{error, hint}`. Every queue change publishes `queue.changed` (the queue's view, or none when deleted) and every run transition `run.changed` (`{runId, itemId, queueId, status, detail}`) on `/ws/events`; reads publish nothing. `POST /api/hooks/:run_id/:event` is the only token-authenticated route (`token_auth` in `internal/api/testdata/routes.json`): the per-run bearer token is its only credential, and it is exempt from the cookie session, the Origin allowlist, the Tailscale gate and the generic body limits (it caps its own body at 64 KiB after the token check). See docs/roadmap-v2/ARCHITECTURE.md §8.
+
 WebSockets: `/ws/events` (server → client state events), `/ws/term` (interactive). `/ws/events` also sends `{"type":"heartbeat"}` every 15 s (WebSocket pings are invisible to page scripts); the browser treats 40 s of silence as a hung connection and reconnects, and the next snapshot resyncs the list.
 
 **Security middleware (all routes):**
-- Public routes are limited to `GET /api/health`, `POST /api/auth/register` and `POST /api/auth/login`. All other routes require the server-side session cookie.
+- Public routes are limited to `GET /api/health`, `POST /api/auth/register` and `POST /api/auth/login`. `POST /api/hooks/:run_id/:event` needs a per-run bearer token instead of the cookie (v2). All other routes require the server-side session cookie.
 - Authentication cookies are opaque, HttpOnly, SameSite and Secure under HTTPS. Never put credentials, session cookies or bearer tokens in URLs, logs, WebSocket query parameters or client storage.
 - Origin allowlist: `https://${HOSTBUD_DOMAIN}` and `http://localhost:${HOSTBUD_LOCAL_PORT}`. Reject WebSocket upgrades and state-changing requests whose `Origin` is not in it. (`localhost` is a secure context, so clipboard APIs work over plain HTTP.)
 - Optional Tailscale identity allowlist (off by default): Caddy overwrites `X-Hostbud-Via` with `domain` or `local`; hostbud trusts the marker only from a configured trusted proxy. Missing or unknown markers from trusted peers count as `domain`; loopback and `/api/health` are exempt. On the domain path, hostbud resolves the client IP from trusted `X-Forwarded-For` through tailscaled LocalAPI `whois` over a unix socket (2 s timeout). Login names match case-insensitively; tagged nodes require their `tag:…` value in the list. Allowed identities cache for 60 s and rejected identities for 10 s (LRU, at most 1024 IPs). Whois errors, timeouts and unlisted users fail closed with 403 before auth, Origin or rate limiting; the SPA gets a static error page and WebSocket upgrades are refused before acceptance. Info logs include only a reason code. Changing the list needs an app restart.
@@ -361,37 +387,15 @@ WebSockets: `/ws/events` (server → client state events), `/ws/term` (interacti
 
 ---
 
-## 10. v2 readiness — orchestration
+## 10. v2 — agent task queue
 
-Not built in v1, but v1 must not block it.
+The v2 design and plan live in [roadmap-v2/ARCHITECTURE.md](roadmap-v2/ARCHITECTURE.md) and [roadmap-v2/ROADMAP.md](roadmap-v2/ROADMAP.md). V2-M1 (one sequential queue per installation: a queued item runs in its own interactive tmux session and the next starts only when the client's own `/goal` is recorded as achieved) is implemented in `internal/queue` and `internal/agents`. It replaces the earlier `tasks`/`machine_capacity` sketch that used to be here; per-machine capacity arrives with V2-M2.
 
-**Concepts**
-- **Task:** a unit of work (prompt/instructions, target project or machine constraints, agent kind e.g. `claude`/`codex`, priority).
-- **Slot:** per-machine (and optionally per-project) capacity for concurrent agent sessions.
-- **Run:** a task bound to a tmux session; has a status lifecycle.
-- **Status signals:** `running | waiting_input | blocked | completed | failed | unknown`.
-
-**Detection (decided):** **hooks are the default.** When hostbud creates a session for a run, it injects `HOSTBUD_URL`, `HOSTBUD_RUN_ID`, `HOSTBUD_RUN_TOKEN` via `tmux new-session -e`. Agent hooks (e.g. Claude Code `Stop` / `Notification` hooks; equivalent for Codex) call `POST /api/hooks/:run_id` with the per-run bearer token. The **LLM supervisor is a fallback**: for runs with no hook signal within a window, it reads `tmux capture-pane -p -t '=<name>' -S -200` and classifies.
-  - Implication: **target machines must be on the tailnet** to reach `HOSTBUD_URL`.
-  - hostbud will ship hook scripts + install instructions per agent kind.
-
-**Supervisor LLM:** provider interface `Classifier` (and later `Planner`) in `internal/llm`; **OpenAI first**, Anthropic/Ollama later. Config via `HOSTBUD_LLM_PROVIDER`, `HOSTBUD_LLM_MODEL`, `OPENAI_API_KEY`. Runs in-process (a separate container is only needed for a local model).
-
-**Dispatcher:** subscribes to the event bus; when a run completes and a slot frees up, it takes the next eligible task, creates a session with the task's start command/prompt, and records a run.
-
-**v1 obligations to keep this cheap later**
+**v1 obligations that v2 builds on (still binding)**
 1. All state changes flow through the `events` bus (typed events), not direct UI pushes.
-2. Session creation goes through one service function that already accepts env vars and a start command.
+2. Session creation goes through one service function that accepts env vars and a start command (`session.Service.Create`, with `StartArgv` for runs; env is fed to tmux through stdin).
 3. Store layer is dialect-agnostic; migrations are append-only.
 4. The API has room for token-authenticated machine-to-server endpoints (`/api/hooks/*`) that bypass the browser-origin check but require per-run tokens.
-
-**v2 schema (sketch)**
-```sql
-tasks(id, title, body, agent_kind, project_id NULL, machine_constraint NULL, priority, status, created_at, updated_at)
-runs(id, task_id, machine_id, session_name, status, token_hash, started_at, ended_at, last_signal_at)
-run_events(id, run_id, source CHECK(source IN ('hook','llm','poller','user')), status, payload_json, created_at)
-machine_capacity(machine_id PK, max_concurrent_runs)
-```
 
 ---
 
@@ -454,6 +458,12 @@ M7 also configures the exec and SFTP deadlines and terminal attachment caps:
 `HOSTBUD_MAX_TERMINALS` (128, 1–1024). See §15 for the full inventory.
 The optional domain identity gate uses `HOSTBUD_ALLOWED_TS_USERS` and
 `TAILSCALED_SOCKET` only when `deploy/compose.tailscale.yml` is enabled.
+
+v2 (V2-M1) adds two optional settings: `HOSTBUD_RUN_STALE_AFTER` (2 h,
+10 s–24 h), how long a queue run may go without a hook before it is flagged
+stale and its queue pauses, and `HOSTBUD_HOOK_BASE_URL` (empty = Caddy's
+loopback site `http://127.0.0.1:${HOSTBUD_LOCAL_PORT}`), the `HOSTBUD_URL`
+a run session's hooks call. Both reach only the `hostbud` service.
 
 ---
 
@@ -526,7 +536,8 @@ hostbud/
 ├─ internal/{api,events,inventory,sshx,tmux,fsbrowse,term,store,config}/
 ├─ internal/store/migrations/             # embedded SQL (goose), append-only
 ├─ internal/archtest/                    # import-boundary tests (SQL only in store, …)
-├─ internal/{llm,orchestrator}/          # v2
+├─ internal/{queue,agents}/              # v2: queue service, dispatcher, run hooks; agent adapters
+├─ internal/llm/                         # later: V2-M5 LLM supervisor
 ├─ web/                                  # Vue app (built into web/dist, embedded)
 ├─ deploy/caddy/{Dockerfile,Caddyfile}
 ├─ test/sshd/                            # target image (integration tests + e2e target)
@@ -564,6 +575,10 @@ Every bound is recorded here with its enforcement point and the result when it i
 | REST request duration | 30 s per `/api/*` request; photo upload uses `HOSTBUD_UPLOAD_TIMEOUT` | API request middleware | Cancels handler context and bounds request/response I/O | Request returns with a timeout error instead of hanging | Upload: yes, 30 s–10 min |
 | Database pool/query | 20 open / 5 idle; 30 min lifetime / 5 min idle; statement 5 s, lock 3 s, idle transaction 30 s, connect 5 s; startup 90 s | `store` | PostgreSQL enforces query/connection timeouts; startup fails actionably if DB does not return | Outage/timeouts are 503; health reports degraded | No |
 | Authentication | Session TTL 720 h; failures: 5 login, 10 registration, 20 per IP; blocks 30 s ×2 up to 1 h; failure window 1 h | `config`, `auth`, PostgreSQL rate-limit store | Rejects with 429 and `Retry-After` | Sign-in throttle message | Yes: existing `HOSTBUD_*` auth settings |
+| v2 run hook body | 64 KiB, JSON; checked after the token | `queue.Hooks.Receive` | 413 / 400 with no side effect | n/a (agent hooks ignore the answer) | No |
+| v2 run hook rate | Token bucket per run: 60 a minute, burst 20 | `queue.Hooks` | 429 with no side effect; logged at info with the run id only | n/a | No |
+| v2 goal-state reads | Claude transcript: SFTP, 4 MiB per read from the stored offset, `HOSTBUD_SFTP_TIMEOUT`; Codex: one `codex app-server proxy` JSON-RPC call bounded by `HOSTBUD_EXEC_TIMEOUT`; follow-up reads 2/5/15/30/60 s after a pending turn end | `agents.Claude`, `agents.Codex`, `queue.Dispatcher` | A failed read is retried on the next signal or follow-up | Run stays running; unknown formats set needs attention | Via the SFTP and exec timeouts |
+| v2 stale window | `HOSTBUD_RUN_STALE_AFTER` default 2 h, 10 s–24 h, from the last signal (or start) | `queue.Dispatcher` stale timer | One last read, then the run is `stale`, its item needs attention and the queue pauses; nothing is killed | Needs-attention badge with the reason | Yes: `HOSTBUD_RUN_STALE_AFTER` |
 | Browser layout | 16 terminals globally; 4 panes per tab; layout save debounce 500 ms; reconnect 0.5/1/2/4/8 s then 10 s cap; events backoff up to 10 s | `web/src/lib/layout.ts`, `web/src/stores/layout.ts`, `web/src/api/*` | Client rejects invalid/over-limit layout or retries network | Layout limit notice and reconnect indicator | No |
 
 **Static architecture guard:** `internal/archtest` rejects uncontextualized `exec.Command`, HTTP helpers/default clients or `http.Client` values without a timeout, and WebSocket accepts without a read limit. It also enforces the documented `context.Background()` allowlist with a reason and occurrence count.

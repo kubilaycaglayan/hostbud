@@ -22,7 +22,7 @@ Update this table in the same commit that finishes a task.
 | T9 Dispatcher and state machines | Done (e2e written and type-checked) |
 | T10 Queue panel (desktop) | Done (e2e written and type-checked) |
 | T11 Queue panel on the phone | Done (e2e written and type-checked) |
-| T12 Docs alignment | Not started |
+| T12 Docs alignment | Done |
 | T13 Milestone acceptance | Not started |
 | T14 Safe Docker cleanup | Not started |
 

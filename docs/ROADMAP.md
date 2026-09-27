@@ -165,14 +165,10 @@ Tasks: [roadmap/M8-tasks.md](roadmap/M8-tasks.md) · Checklist: [roadmap/M8-acce
 ## Later (not scheduled)
 - **Multi-machine:** discover hosts from `~/.ssh/config`, custom connections, activate/deactivate, host-key trust UI (keyscan → confirm fingerprint), Machine level in the tree.
 - **Public GitHub repo + CI** (lint, tests, gitleaks).
+- tmux control-mode push instead of polling; git status per project.
 
 ---
 
-## v2 — Orchestration (design in ARCHITECTURE §10; not implemented)
+## v2 — Agent task queue
 
-- **V2.1 Tasks:** task CRUD + queue UI (board/list), priorities, agent kind, project/machine constraints.
-- **V2.2 Runs and hooks:** create sessions for tasks with injected `HOSTBUD_*` env; `/api/hooks/:run_id` with per-run tokens; shipped hook scripts for Claude Code and Codex; run status in tree.
-- **V2.3 Capacity and dispatcher:** per-machine slots; the dispatcher starts the next task when a slot frees up; pause/resume queue.
-- **V2.4 LLM supervisor (fallback):** pluggable provider interface, OpenAI first; classifies stale runs from `capture-pane`; results recorded as `run_events` with `source='llm'`.
-- **V2.5 Notifications:** browser/push notifications on blocked/completed runs.
-- **Later:** Postgres option; tmux control-mode push instead of polling; git status per project.
+v2 has its own roadmap: [roadmap-v2/ROADMAP.md](roadmap-v2/ROADMAP.md) (design: [roadmap-v2/ARCHITECTURE.md](roadmap-v2/ARCHITECTURE.md)). It replaces the earlier V2.1–V2.5 sketch. V2-M1 (one sequential queue, Claude Code and Codex) is implemented; V2-M2–V2-M5 are opt-in and planned.

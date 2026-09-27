@@ -1,8 +1,8 @@
 # hostbud v2 — Roadmap (agent task queue)
 
-Status: **planned, not started.** No start date is set. V2-M1 breakdown: [V2-M1-tasks.md](V2-M1-tasks.md) · [V2-M1-acceptance.md](V2-M1-acceptance.md). Design source of truth: [ARCHITECTURE.md](ARCHITECTURE.md) in this directory (cited below as **v2 §N**). The v1 documents are cited as **v1 ARCHITECTURE §N** ([../ARCHITECTURE.md](../ARCHITECTURE.md)) and **v1 ROADMAP** ([../ROADMAP.md](../ROADMAP.md)).
+Status: **V2-M1 implemented** (acceptance: [V2-M1-acceptance.md](V2-M1-acceptance.md)); V2-M2–V2-M5 planned, no start date. V2-M1 breakdown: [V2-M1-tasks.md](V2-M1-tasks.md) · [V2-M1-acceptance.md](V2-M1-acceptance.md). Design source of truth: [ARCHITECTURE.md](ARCHITECTURE.md) in this directory (cited below as **v2 §N**). The v1 documents are cited as **v1 ARCHITECTURE §N** ([../ARCHITECTURE.md](../ARCHITECTURE.md)) and **v1 ROADMAP** ([../ROADMAP.md](../ROADMAP.md)).
 
-This roadmap replaces the *v2 — Orchestration* section of the v1 ROADMAP (V2.1–V2.5). That section and v1 ARCHITECTURE §10 are aligned with it in V2-M1 T12.
+This roadmap replaces the *v2 — Orchestration* section of the v1 ROADMAP (V2.1–V2.5). That section and v1 ARCHITECTURE §10 were aligned with it in V2-M1 T12 and now point here.
 
 ---
 

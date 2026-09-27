@@ -1,6 +1,6 @@
 # hostbud v2 — Agent task queue (architecture decision)
 
-Status: **design only**. Nothing here is implemented, and no start date is set. This document supersedes the v2 sketch in [ARCHITECTURE.md §10](../ARCHITECTURE.md#10-v2-readiness--orchestration) and the *v2* section of [ROADMAP.md](../ROADMAP.md). Those will be aligned with it in a follow-up. The v1 obligations in §10 still apply.
+Status: **V2-M1 implemented** (one sequential queue; `internal/queue`, `internal/agents`); V2-M2–V2-M5 are design only. This document superseded the v2 sketch in the v1 [ARCHITECTURE.md §10](../ARCHITECTURE.md#10-v2--agent-task-queue) and the *v2* section of the v1 [ROADMAP.md](../ROADMAP.md), which now point here. The v1 obligations in v1 §10 still apply. The V2-M1 spike results are in §12.
 
 ---
 

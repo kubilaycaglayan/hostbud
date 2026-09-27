@@ -52,6 +52,27 @@ for var in $example_vars; do
 	fi
 done
 
+# Every HTTP route in internal/api/testdata/routes.json (the router's own
+# inventory) is listed in ARCHITECTURE §9. Path parameters compare by
+# position ({id} and :id alike); "GET|PUT" and a last segment "a|b" expand.
+normalize_route() { sed -E 's#\{[^}]*\}#:p#g; s#:[a-z_]+#:p#g'; }
+documented_routes=$(sed -n '/^## 9\. API surface/,/^## 10\./p' docs/ARCHITECTURE.md | awk '
+	/^(GET|POST|PUT|PATCH|DELETE)(\|(GET|POST|PUT|PATCH|DELETE))*[[:space:]]+\/(api|ws)\// {
+		n = split($1, methods, "|")
+		path = $2
+		sub(/\?.*/, "", path)
+		last = path
+		sub(/.*\//, "", last)
+		base = substr(path, 1, length(path) - length(last))
+		m = split(last, tails, "|")
+		for (i = 1; i <= n; i++) for (j = 1; j <= m; j++) print methods[i] " " base tails[j]
+	}' | normalize_route | sort -u)
+router_routes=$(sed -nE 's/.*"method":"([A-Z]+)","path":"(\/api\/[^"]*)".*/\1 \2/p' internal/api/testdata/routes.json | normalize_route | sort -u)
+for route in $(printf '%s\n' "$router_routes" | tr ' ' '_'); do
+	route=$(printf '%s' "$route" | tr '_' ' ')
+	printf '%s\n' "$documented_routes" | grep -Fxq "$route" || fail "route $route (internal/api/testdata/routes.json) is missing from ARCHITECTURE §9"
+done
+
 links=$(sed -nE 's/.*\]\((docs\/[^)#]+)(#[^)]*)?\).*/\1/p' README.md)
 for link in $links; do
 	[ -f "$link" ] || fail "README links to missing file: $link"

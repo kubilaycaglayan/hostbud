@@ -154,6 +154,23 @@ PostgreSQL credentials are supplied through the local, gitignored `.env` using t
 
 PostgreSQL is initialized as a fresh application database. The previous provisional SQLite database is not migrated because this deployment has not been used; its file, if present in the existing app data volume, is left untouched and ignored.
 
+## Queues (v2)
+
+A **queue** runs coding agents one after another in one project: each item starts in its own interactive tmux session, and the next item starts only when the agent's own `/goal` evaluator has recorded the goal as achieved. Open the **Queue** panel from the app bar (or the command palette: *Open queue panel*).
+
+- **Create the queue** for a saved project (V2-M1 supports one queue). All its items run in that project's directory.
+- **Add items**: pick the agent (`claude` for Claude Code, `codex` for Codex), optional flags (split like a shell command, e.g. `--dangerously-skip-permissions`, `--yolo`, `--model 'opus 4'`), and an instruction of the form `/goal <condition>`, for example `/goal work on milestone 2 per docs/roadmap/M2-tasks.md`. Queued items can be edited, deleted and reordered (drag, the arrow buttons, or Alt+↑/↓).
+- **Start**, **Pause** and **Resume** the queue. Pausing never touches the running session: the current run carries on (and is still tracked), and no new item starts.
+- Each run's session is named `<project>-q<position>` (`-1`, `-2`, … if taken). **Open session** shows it in a terminal tab; you can watch and type into it any time. hostbud never closes run sessions: close them yourself when you're done.
+- **Needs attention** means the queue paused and needs you: the agent said the goal can't be achieved, the agent exited or its session was closed, the session was `/clear`ed or restarted, the goal state couldn't be read, or there was no hook for `HOSTBUD_RUN_STALE_AFTER` (2 h by default). The item shows the reason. Then **Retry** (a new run in a new session; the old one stays open), **Skip**, or **Mark done** (overrides the agent's verdict; asks first). The queue stays paused until you resume it.
+- Only a structured "goal achieved" record from the run's own session advances the queue; text such as "achieved" in the agent's output never does.
+
+Requirements on the host: Claude Code **2.1.283** or newer and/or Codex **0.157.1** or newer (on your login shell's `PATH`), and `curl`. hostbud installs nothing and changes no settings file: hooks are passed per run (`claude --settings`, `codex -c hooks.…`), and the run token reaches tmux through stdin, never a command line.
+
+- **Trust the project folder once** in each client (start `claude` / `codex` there by hand and accept the trust prompt). Until then the client waits at its trust prompt and the run is flagged after the stale window.
+- **Codex asks once to trust hostbud's hooks** ("Hooks need review" → *Trust all and continue*) in the first run's session. The hook command is the same for every run, so this is a one-time step.
+- Codex starts with the plain condition as its prompt, and hostbud sets the goal through Codex's own app server (`codex app-server proxy`) right after the session starts.
+
 ## Limits and timeouts
 
 One SSH command and one SFTP metadata operation each time out after 10 seconds by default. Photo uploads allow up to 100 MiB and time out after 5 minutes by default; set `HOSTBUD_UPLOAD_TIMEOUT` in `.env` to adjust it (30 seconds through 10 minutes). A timeout returns an actionable error and the app retries the host connection; repeated SSH timeouts reset the app's ControlMaster connection. Set `HOSTBUD_EXEC_TIMEOUT` or `HOSTBUD_SFTP_TIMEOUT` in `.env` to change their limits (each accepts 2 seconds through 2 minutes).
