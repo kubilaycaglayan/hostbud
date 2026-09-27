@@ -362,12 +362,14 @@ Scope: v2 §10 *V2-M3*.
 
 **Switch:** per account, off by default. Turned on in Settings, which asks for browser notification permission.
 
+Breakdown: [V2-M3-tasks.md](V2-M3-tasks.md) · [V2-M3-acceptance.md](V2-M3-acceptance.md). It adds **T0** (schema, per-account switch, VAPID config) before T1.
+
 ### Tasks
 - **T1 In-app notifications:** while the app is open, `run.changed` / `queue.changed` produce browser `Notification`s for the three events (none for intermediate states).
   - Text: project name, item position and outcome only. No instruction text, paths or pane output.
   - A click focuses the app and opens the item.
 - **T2 Web Push:** notifications while the app is closed, including the installed PWA on iOS (16.4+, home-screen install only).
-  - `push_subscriptions` table (append-only migration; per account; endpoint and keys; deleted on `410` from the push service).
+  - `push_subscriptions` table (append-only migration; per account; endpoint and keys; deleted on `404` or `410` from the push service).
   - VAPID keys from new env vars `HOSTBUD_VAPID_PUBLIC_KEY`, `HOSTBUD_VAPID_PRIVATE_KEY`, `HOSTBUD_VAPID_SUBJECT` (placeholders in `.env.example`; a `make` target generates a pair in a container).
   - The M5 service worker gets `push` and `notificationclick` handlers. Its cache rules are unchanged (never `/api/*` or `/ws/*`).
   - The CSP is reviewed so it still allows no third-party origins.
@@ -380,12 +382,17 @@ Scope: v2 §10 *V2-M3*.
 **E2E:**
 - T1 *In-app notification*: Chromium, permission granted; a stub item achieves and a notification with the expected title is shown (observed through a notification spy in E2E builds);
 - T2 *Push subscription*: subscribing stores a subscription. A stub run's completion makes the server POST an encrypted payload to a fake push endpoint (a new `hostbud-e2e-pushfake` service), and the payload decrypts to the expected title;
+- T3 *Expired subscription*: the fake endpoint answers `410`/`404` and the subscription is removed;
 - T4 settings on desktop and phone, off by default.
 
 **Accept:**
-1. Off by default; no permission prompt until the owner opts in. — U: T4 · I: n/a (frontend only) · E: T4.
+1. Off by default; no permission prompt until the owner opts in; a denied or revoked permission is shown and handled. — U: T4 · I: T0 (a fresh account reads off) · E: T4.
 2. The three events notify in-app and through push, with no sensitive content. — U: T1, T2 · I: T2/T3 (fake push endpoint) · E: T1, T2.
-3. Expired subscriptions are removed. — U: T2 · I: T3 · E: n/a (a push service `410` is simulated in I; e2e would repeat it).
+3. Expired subscriptions (`404`/`410`) are removed. — U: T3 · I: T3 · E: T3.
+4. With every account off, behavior is exactly V2-M2's. — U: T1, T2 · I: T0 · E: T1.
+5. Missing or invalid VAPID keys turn push off with an actionable message, not a startup error. — U: T0 · I: T0 · E: T0.
+6. Each device and account gets its own notifications, and duplicate signals or a restart never send one twice. — U: T2, T3 · I: T2, T3 · E: T2, T3.
+7. The docs are aligned (T5). — U/I: T5 docs check · E: n/a (documents).
 
 **Manual checks (owner):** push on the installed iPhone PWA and on a desktop browser with hostbud closed.
 
