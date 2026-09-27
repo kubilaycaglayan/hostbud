@@ -143,9 +143,29 @@ describe('CreateSessionDialog', () => {
     expect(toast.textContent).toContain('Pick an existing directory')
     expect(w.emitted('update:open')).toBeUndefined()
   })
+
+  it('shows an exec timeout in the open create dialog and keeps entered values', async () => {
+    stubFetch(() => ({ status: 504, body: { error: "The host didn't answer within 10s", hint: 'hostbud will retry' } }))
+    const w = mountOpen(CreateSessionDialog, { machine: 'host' })
+    await flushPromises()
+    await type('name', 'keep-me')
+    await click('Create')
+    expect(input('name').value).toBe('keep-me')
+    expect($('[role=dialog] [role=alert]')?.textContent).toContain("The host didn't answer within 10s")
+    expect(w.emitted('update:open')).toBeUndefined()
+  })
 })
 
 describe('KillSessionDialog', () => {
+  it('shows an exec timeout in the kill toast', async () => {
+    stubFetch(() => ({ status: 504, body: { error: "The host didn't answer within 10s", hint: 'hostbud will retry' } }))
+    mount(ToastRegion, { attachTo: document.body })
+    mountOpen(KillSessionDialog, { machine: 'host', session: 'acc-a' })
+    await flushPromises()
+    await click('Kill session')
+    expect($('section[aria-label=Notifications] [role=alert]')?.textContent).toContain("The host didn't answer within 10s")
+  })
+
   it('reports a failed kill in a toast (the dialog has closed)', async () => {
     stubFetch(() => ({ status: 503, body: { error: 'tmux not found on the host', hint: 'Install it with `sudo apt install tmux`' } }))
     mount(ToastRegion, { attachTo: document.body })

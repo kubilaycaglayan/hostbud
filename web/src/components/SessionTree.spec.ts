@@ -21,6 +21,9 @@ beforeEach(async () => {
   setActivePinia(createPinia())
   fetchMock.mockReset()
   fetchMock.mockImplementation(async (url: string) => {
+    if (String(url) === '/api/machines/host/sessions/one') {
+      return { ok: false, status: 504, headers: new Headers(), json: async () => ({ error: "The host didn't answer within 10s", hint: 'hostbud will retry' }), text: async () => '' }
+    }
     const body = String(url) === '/api/projects'
       ? { id: 'saved', machineId: 'host', path: '/outside', name: 'outside' }
       : null
@@ -215,7 +218,7 @@ describe('SessionTree', () => {
     await flushPromises()
     expect(wrapper.find('input[aria-label="Rename one"]').exists()).toBe(true)
     expect(wrapper.get('input[aria-label="Rename one"]').attributes('aria-describedby')).toBe('inline-rename-error')
-    expect(wrapper.text()).toContain('Request failed (404).')
+    expect(wrapper.text()).toContain("The host didn't answer within 10s")
     wrapper.unmount()
   })
 
