@@ -230,6 +230,8 @@ export class UI {
   }
 
   async createAccount(account: { email: string; password: string }): Promise<void> {
+    // Scenarios call this first, before any page is loaded.
+    if (!(await this.tree().isVisible())) await this.open()
     await this.signOut()
     const f = this.authForm()
     await f.tab('Create account').click()
