@@ -21,30 +21,35 @@ test('(T3) project API: auth, Origin and live project events', async ({ page, re
     expect((await mutate(request, 'POST', '/api/projects', { machineId: 'host', path, name }, FOREIGN_ORIGIN)).status()).toBe(403)
 
     await page.goto('/')
-    const eventPromise = page.evaluate(
+    // Subscribe first: the socket's snapshot arrives once it is registered,
+    // so the create below can't be published before anyone listens.
+    await page.evaluate(
       (projectName) =>
-        new Promise<{ type: string; machine: string; payload: { action: string; project: { id: string; name: string } } }>(
-          (resolve, reject) => {
-            const wsURL = new URL('/ws/events', location.href)
-            wsURL.protocol = wsURL.protocol === 'https:' ? 'wss:' : 'ws:'
-            const socket = new WebSocket(wsURL)
-            const timeout = window.setTimeout(() => {
+        new Promise<void>((resolve, reject) => {
+          const wsURL = new URL('/ws/events', location.href)
+          wsURL.protocol = wsURL.protocol === 'https:' ? 'wss:' : 'ws:'
+          const socket = new WebSocket(wsURL)
+          const w = window as Window & { __projectEvent?: unknown }
+          const timeout = window.setTimeout(() => {
+            socket.close()
+            reject(new Error('events socket timeout'))
+          }, 15_000)
+          socket.addEventListener('message', (message) => {
+            const event = JSON.parse(String(message.data))
+            window.clearTimeout(timeout)
+            resolve()
+            if (event.type === 'projects.changed' && event.payload?.project?.name === projectName) {
+              w.__projectEvent = event
               socket.close()
-              reject(new Error('project event timeout'))
-            }, 15_000)
-            socket.addEventListener('message', (message) => {
-              const event = JSON.parse(String(message.data))
-              if (event.type === 'projects.changed' && event.payload?.project?.name === projectName) {
-                window.clearTimeout(timeout)
-                socket.close()
-                resolve(event)
-              }
-            })
-            socket.addEventListener('error', () => reject(new Error('project event socket failed')))
-          },
-        ),
+            }
+          })
+          socket.addEventListener('error', () => reject(new Error('project event socket failed')))
+        }),
       name,
     )
+    const eventPromise = page
+      .waitForFunction(() => (window as Window & { __projectEvent?: unknown }).__projectEvent, undefined, { timeout: 15_000 })
+      .then((handle) => handle.jsonValue() as Promise<{ type: string; machine: string; payload: { action: string; project: { id: string; name: string } } }>)
 
     const created = await mutate(request, 'POST', '/api/projects', { machineId: 'host', path, name })
     expect(created.status(), await created.text()).toBe(201)
