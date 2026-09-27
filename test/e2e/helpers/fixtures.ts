@@ -12,10 +12,10 @@ interface Fixtures {
 
 export const EMPTY_LAYOUT = { version: 1, tabs: [], activeTab: null }
 
-// A new account has no saved layout yet: the app's first GET answers 404
-// (M3 T6), which is the API's normal answer, not a problem.
+// A new account has no saved layout, tree or theme yet: their initial GETs
+// answer 404, which is the API's normal default-state response.
 const NEW_ACCOUNT_UI_STATE =
-  /^HTTP 404: GET https?:\/\/[^/]+\/api\/ui-state\/(layout|tree)$|^console error: Failed to load resource: the server responded with a status of 404 .*@ https?:\/\/[^/]+\/api\/ui-state\/(layout|tree)$/
+  /^HTTP 404: GET https?:\/\/[^/]+\/api\/ui-state\/(layout|tree|theme)$|^console error: Failed to load resource: the server responded with a status of 404 .*@ https?:\/\/[^/]+\/api\/ui-state\/(layout|tree|theme)$/
 
 export const test = base.extend<Fixtures>({
   allowedBrowserErrors: [undefined, { option: true }],
