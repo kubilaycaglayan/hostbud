@@ -141,7 +141,7 @@ Choose **Dark**, **Light** or **System** from the Account menu or command palett
 
 ### Using hostbud on a phone
 
-Open **Show sidebar** to switch projects or sessions without detaching the terminal. On the key bar, tap Ctrl or Alt before a key or typed character; double-tap to lock a modifier. Arrow keys follow the running program's cursor mode. **Scroll history** requires tmux 2.4 or newer; its controls and swipes move the shared pane history, and Done, Bottom or typing exits copy mode.
+Open **Show sidebar** to switch projects or sessions without detaching the terminal. On the key bar, tap Ctrl or Alt before a key or typed character; double-tap to lock a modifier. Arrow keys follow the running program's cursor mode. Swipe vertically on the terminal to scroll its browser buffer; **Scroll history** opens tmux copy mode for shared pane history (tmux 2.4 or newer). Done, Bottom or typing exits copy mode. Long-press a word in terminal output to select it, then tap **Copy** in the terminal header.
 
 To install on iPhone, open `https://${HOSTBUD_DOMAIN}` in Safari and choose **Share → Add to Home Screen**. Sign in once in the installed app; iOS keeps its cookies separate from Safari. Android and desktop Chromium can install from the browser prompt. Updates take over on the next app launch. If hostbud is offline at startup, the app shell shows **Can't reach hostbud** and retries. Installation and offline launch require the HTTPS domain or `localhost`; plain-HTTP LAN addresses are not secure contexts.
 

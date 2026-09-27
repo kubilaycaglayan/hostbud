@@ -16,8 +16,14 @@ const h = vi.hoisted(() => {
     unicode = { activeVersion: '6' }
     buffer: { active: Record<string, unknown> } = { active: { length: 0, getLine: () => undefined } }
     selection = ''
+    selectionRange: [number, number, number] | null = null
     scrollLines = vi.fn()
-    select = vi.fn()
+    selectionChanged: () => void = () => {}
+    select = vi.fn((column: number, row: number, length: number) => {
+      this.selectionRange = [column, row, length]
+      this.selection = 'copy-marker'
+      this.selectionChanged()
+    })
     modes = { mouseTrackingMode: 'none', applicationCursorKeysMode: false }
     element?: HTMLElement
     writeParsed: (() => void)[] = []
@@ -66,6 +72,10 @@ const h = vi.hoisted(() => {
     keyHandler: (ev: KeyboardEvent) => boolean = () => true
     attachCustomKeyEventHandler(fn: (ev: KeyboardEvent) => boolean) {
       this.keyHandler = fn
+    }
+    onSelectionChange(fn: () => void) {
+      this.selectionChanged = fn
+      return { dispose() {} }
     }
     // Like xterm: input from the user goes out through onData.
     input(data: string) {
@@ -408,6 +418,7 @@ describe('TerminalView', () => {
     await flushPromises()
     await vi.advanceTimersByTimeAsync(500)
     expect(t.select).toHaveBeenCalledWith(5, 0, 11)
+    expect(w.find('button[aria-label="Copy selected text"]').exists()).toBe(true)
     w.unmount()
     vi.useRealTimers()
   })

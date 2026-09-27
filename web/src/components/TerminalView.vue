@@ -69,6 +69,7 @@ const el = ref<HTMLDivElement>()
 const state = ref<SessionState>('connecting')
 const attempt = ref(0)
 const linkHover = ref<LinkHover | null>(null)
+const hasSelection = ref(false)
 const term = shallowRef<Terminal>()
 const search = shallowRef<SearchAddon>()
 const searchOpen = ref(false)
@@ -78,6 +79,8 @@ const modifiers = reactive(createModifiers())
 let fit: FitAddon | null = null
 let conn: TermSession | null = null
 let observer: ResizeObserver | null = null
+let selectionChange: { dispose: () => void } | null = null
+let touchSelectTimer: ReturnType<typeof setTimeout> | null = null
 let last = { cols: 0, rows: 0 }
 const auth = useAuthStore()
 const theme = useThemeStore()
@@ -103,6 +106,7 @@ function scrollAction(action: Parameters<typeof copyMode.action>[0], lines?: num
 }
 
 function startScrollGesture(event: PointerEvent) {
+  clearTouchSelectTimer()
   touchScrollStart = null
   if (event.pointerType !== 'touch') return
   touchScrollStart = {
@@ -110,11 +114,19 @@ function startScrollGesture(event: PointerEvent) {
     y: event.clientY,
     sentLines: 0,
   }
+  if (copyMode.inMode.value) return
+  const gesture = touchScrollStart
+  touchSelectTimer = window.setTimeout(() => {
+    touchSelectTimer = null
+    if (touchScrollStart !== gesture) return
+    if (selectTouchWord(gesture.x, gesture.y)) touchScrollStart = null
+  }, 450)
 }
 
 function updateScrollGesture(event: PointerEvent) {
   const gesture = touchScrollStart
   if (!gesture || event.pointerType !== 'touch') return
+  if (Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) >= 8) clearTouchSelectTimer()
   const screen = term.value?.element?.querySelector('.xterm-screen')?.getBoundingClientRect()
   const cellHeight = screen && term.value ? screen.height / term.value.rows : 16
   const movement = swipeDelta(gesture, { x: event.clientX, y: event.clientY }, cellHeight)
@@ -129,11 +141,42 @@ function updateScrollGesture(event: PointerEvent) {
 
 function finishScrollGesture(event: PointerEvent) {
   updateScrollGesture(event)
+  clearTouchSelectTimer()
   touchScrollStart = null
 }
 
 function cancelScrollGesture() {
+  clearTouchSelectTimer()
   touchScrollStart = null
+}
+
+function clearTouchSelectTimer() {
+  if (touchSelectTimer !== null) window.clearTimeout(touchSelectTimer)
+  touchSelectTimer = null
+}
+
+/** Long-press selects the word under a touch; xterm's canvas has no DOM text
+ * for iOS to select. The context menu's Copy action can then copy it. */
+function selectTouchWord(x: number, y: number): boolean {
+  const t = term.value
+  const screen = t?.element?.querySelector('.xterm-screen')?.getBoundingClientRect()
+  if (!t || !screen || !screen.width || !screen.height) return false
+  const column = Math.max(0, Math.min(t.cols - 1, Math.floor((x - screen.left) / (screen.width / t.cols))))
+  const row = Math.max(0, Math.min(t.rows - 1, Math.floor((y - screen.top) / (screen.height / t.rows))))
+  const buffer = t.buffer.active
+  const text = buffer.getLine(buffer.viewportY + row)?.translateToString(true) ?? ''
+  const chars = Array.from(text)
+  const char = chars[column]
+  if (!char || /\s/u.test(char)) return false
+  const isWord = (value: string) => /[\p{L}\p{N}_-]/u.test(value)
+  let start = column
+  let end = column + 1
+  if (isWord(char)) {
+    while (start > 0 && isWord(chars[start - 1] ?? '')) start--
+    while (end < chars.length && isWord(chars[end] ?? '')) end++
+  }
+  t.select(start, row, end - start)
+  return true
 }
 
 // Option/Alt-click moves the program's caret to the clicked cell (M8 T5,
@@ -244,6 +287,10 @@ function openSearch() {
   searchOpen.value = true
 }
 
+function copySelectedText() {
+  if (term.value) void copySelection(term.value)
+}
+
 function closeSearch() {
   searchOpen.value = false
   term.value?.focus()
@@ -303,6 +350,7 @@ onMounted(async () => {
     // No WebGL: xterm's DOM renderer is used.
   }
   term.value = t
+  selectionChange = t.onSelectionChange(() => { hasSelection.value = t.hasSelection() })
   watch(() => theme.resolved, (value) => { t.options.theme = value === 'dark' ? darkTerminalTheme : lightTerminalTheme }, { immediate: true })
   t.onData((d) => {
     const bytes = applyModifiers(d, modifiers)
@@ -389,6 +437,8 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  clearTouchSelectTimer()
+  selectionChange?.dispose()
   window.removeEventListener('mouseup', finishAltClick, true)
   caretMove++
   copyMode.reset()
@@ -463,6 +513,15 @@ defineExpose({ refit, reconnect, showKeyboard })
         @click="openSearch"
       >
         🔍
+      </button>
+      <button
+        v-if="hasSelection"
+        type="button"
+        aria-label="Copy selected text"
+        class="touch-target rounded border border-border px-2"
+        @click="copySelectedText"
+      >
+        Copy
       </button>
       <!-- Touch screens: bring the on-screen keyboard back once dismissed. -->
       <button
