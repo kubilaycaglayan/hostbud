@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Project, Session } from '@/api/types'
-import { emptyTreeState, move, projectForSession, projectTree, validateTreeState } from './tree'
+import { canReorderProjectSections, emptyTreeState, move, projectForSession, projectTree, validateTreeState } from './tree'
 
 const project = (id: string, path: string, name = id): Project => ({ id, machineId: 'host', path, name, sortOrder: 0, pinned: false, createdAt: '', updatedAt: '' })
 const session = (name: string, path: string): Session => ({ id: `$${name}`, name, path, attached: 0, windows: 1, created: '', activity: '' })
@@ -24,9 +24,22 @@ describe('project session tree', () => {
     expect(projection.groups[1].sessions.map((s) => s.name)).toEqual(['s2', 's1', 's3'])
   })
 
+  it('projects pinned and unpinned sections in manual order', () => {
+    const order = { ...emptyTreeState(), projects: ['b', 'a', 'c'], pinned: ['a', 'b'] }
+    const projection = projectTree([project('a', '/a'), project('b', '/b'), project('c', '/c')], [], order)
+    expect(projection.pinned.map((group) => group.project.id)).toEqual(['b', 'a'])
+    expect(projection.unpinned.map((group) => group.project.id)).toEqual(['c'])
+  })
+
   it('keeps observed project order when there is no saved order', () => {
     const projection = projectTree([project('third', '/c'), project('first', '/a'), project('second', '/b')], [], emptyTreeState())
     expect(projection.groups.map((group) => group.project.id)).toEqual(['third', 'first', 'second'])
+  })
+
+  it('only permits project sorting within the same pin section', () => {
+    expect(canReorderProjectSections('pinned', 'pinned')).toBe(true)
+    expect(canReorderProjectSections('unpinned', 'unpinned')).toBe(true)
+    expect(canReorderProjectSections('pinned', 'unpinned')).toBe(false)
   })
 
   it('keeps nested projects with equal display names as distinct groups', () => {

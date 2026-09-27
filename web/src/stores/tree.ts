@@ -80,6 +80,11 @@ export const useTreeStore = defineStore('tree', () => {
       order.value.hidden.projects = order.value.hidden.projects.filter((id) => projectIds.has(id))
       order.value.collapsed = order.value.collapsed.filter((id) => id === OTHER_GROUP || projectIds.has(id))
     }
+    const pinnedIds = new Set(order.value.pinned)
+    order.value.projects = [
+      ...order.value.projects.filter((id) => pinnedIds.has(id)),
+      ...order.value.projects.filter((id) => !pinnedIds.has(id)),
+    ]
 
     const savedGroups = projectsStore.loaded
       ? Object.fromEntries(Object.entries(order.value.sessions).filter(([id]) => id === OTHER_GROUP || projectIds.has(id)))
@@ -117,6 +122,35 @@ export const useTreeStore = defineStore('tree', () => {
       order.value.projects.push(...requested.slice(index))
     } else order.value.projects = requested
     sync()
+  }
+  function reorderProjectSection(ids: string[], pinned: boolean) {
+    const pinnedSet = new Set(order.value.pinned)
+    const sectionIds = order.value.projects.filter((id) => pinnedSet.has(id) === pinned)
+    const visibleIds = new Set(ids)
+    let next = 0
+    const reordered = sectionIds.map((id) => visibleIds.has(id) ? ids[next++] : id)
+    reordered.push(...ids.slice(next))
+    const pinnedRows = pinned ? reordered : order.value.projects.filter((id) => pinnedSet.has(id))
+    const unpinnedRows = pinned ? order.value.projects.filter((id) => !pinnedSet.has(id)) : reordered
+    order.value.projects = [...pinnedRows, ...unpinnedRows]
+    sync()
+  }
+  function pinProject(id: string) {
+    if (order.value.pinned.includes(id)) return
+    const rest = order.value.projects.filter((item) => item !== id)
+    const pinned = [...order.value.pinned, id]
+    const pinnedSet = new Set(pinned)
+    order.value.pinned = pinned
+    order.value.projects = [...rest.filter((item) => pinnedSet.has(item)), id, ...rest.filter((item) => !pinnedSet.has(item))]
+  }
+  function unpinProject(id: string) {
+    if (!order.value.pinned.includes(id)) return
+    order.value.pinned = order.value.pinned.filter((item) => item !== id)
+    order.value.projects = [
+      ...order.value.projects.filter((item) => order.value.pinned.includes(item)),
+      ...order.value.projects.filter((item) => !order.value.pinned.includes(item) && item !== id),
+      id,
+    ]
   }
   function reorderSessions(group: string, names: string[]) {
     const rows = group === '__other__' ? groups.value.other : groups.value.groups.find((g) => g.project.id === group)?.sessions ?? []
@@ -192,5 +226,5 @@ export const useTreeStore = defineStore('tree', () => {
       : order.value.expanded.filter((item) => item !== key)
   }
 
-  return { order, groups, loaded, load, sync, flush, reorderProjects, reorderSessions, renameSession, hideProject, unhideProject, hideSession, unhideSession, setShowHidden, toggleShowHidden, hiddenCount, setCollapsed, toggleCollapsed, setExpanded, reset }
+  return { order, groups, loaded, load, sync, flush, reorderProjects, reorderProjectSection, pinProject, unpinProject, reorderSessions, renameSession, hideProject, unhideProject, hideSession, unhideSession, setShowHidden, toggleShowHidden, hiddenCount, setCollapsed, toggleCollapsed, setExpanded, reset }
 })

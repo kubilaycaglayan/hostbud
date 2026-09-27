@@ -4,6 +4,7 @@ import { owner } from '../helpers/db.ts'
 import { forbidInLogs, getUIState, MACHINE, mutate, ORIGIN, putUIState } from '../helpers/api.ts'
 import { ctl } from '../helpers/ctl.ts'
 import { shq, uniqueName } from '../helpers/target.ts'
+import { UI } from '../helpers/ui.ts'
 
 async function account(ui: import('../helpers/ui.ts').UI) {
   const fresh = newAccount('e2e-tree-custom')
@@ -14,8 +15,9 @@ async function account(ui: import('../helpers/ui.ts').UI) {
 
 async function addProject(request: Parameters<typeof mutate>[0], path: string, name: string) {
   const res = await mutate(request, 'POST', '/api/projects', { machineId: MACHINE, path, name }, ORIGIN)
-  expect(res.status(), await res.text()).toBe(201)
-  return await res.json() as { id: string }
+  const body = await res.text()
+  expect(res.status(), body).toBe(201)
+  return JSON.parse(body) as { id: string }
 }
 
 async function createSession(target: { run(command: string): Promise<unknown> }, name: string, path: string) {
@@ -282,4 +284,169 @@ test('(T5) Hide and unhide', async ({ page, ui, target, request }) => {
   await expect.poll(async () => (await target.sessions()).includes(hiddenSession)).toBe(false)
   await createSession(target, hiddenSession, `/home/dev/${uniqueName('outside-hidden-project')}`)
   await expect(ui.treeItem(hiddenSession)).toBeVisible()
+})
+
+test('(T6) Pin projects and keep section order', async ({ page, ui, target }) => {
+  await account(ui)
+  const api = page.context().request
+  const entries = ['pin-first', 'pin-second', 'pin-third'].map((label) => ({
+    path: `/home/dev/${uniqueName(label)}`,
+    name: uniqueName(label),
+  }))
+  const projectIDs: string[] = []
+  for (const entry of entries) {
+    await target.run(`mkdir -p ${shq(entry.path)}`)
+    projectIDs.push((await addProject(api, entry.path, entry.name)).id)
+  }
+  await putUIState(api, 'tree', { version: 2, projects: projectIDs, sessions: {}, pinned: [], hidden: { projects: [], sessions: [] }, collapsed: [], expanded: [], showHidden: false })
+  await page.reload()
+
+  for (const index of [0, 1]) {
+    await ui.treeItem(entries[index].name).getByRole('button', { name: `More actions for ${entries[index].name}` }).click()
+    await page.getByRole('menuitem', { name: 'Pin', exact: true }).click()
+  }
+  const pinned = page.getByRole('group', { name: 'Pinned projects', exact: true })
+  await expect.poll(async () => (await pinned.locator('[data-tree-kind="project"]').evaluateAll((nodes) => nodes.map((node) => node.getAttribute('aria-label')))))
+    .toEqual([entries[0].name, entries[1].name])
+
+  await ui.treeItem(entries[0].name).getByRole('button', { name: `Unpin ${entries[0].name}` }).click()
+  const unpinned = page.getByRole('group', { name: 'Projects', exact: true })
+  await expect.poll(async () => {
+    const labels = await unpinned.locator('[data-tree-kind="project"]').evaluateAll((nodes) => nodes.map((node) => node.getAttribute('aria-label')))
+    return labels.filter((name) => entries.some((entry) => entry.name === name))
+  })
+    .toEqual([entries[2].name, entries[0].name])
+  await ui.waitForSave('tree')
+  const unpinnedHandle = ui.treeItem(entries[2].name).getByRole('button', { name: `Drag to reorder project ${entries[2].name}` })
+  await unpinnedHandle.dragTo(ui.treeItem(entries[0].name), { targetPosition: { x: 20, y: 1 } })
+  await ui.waitForSave('tree')
+  const afterWithinSection = (await getUIState(api, 'tree') as { projects: string[] }).projects
+  expect(afterWithinSection.filter((id) => projectIDs.includes(id))).toEqual([projectIDs[1], projectIDs[0], projectIDs[2]])
+  await ui.treeItem(entries[1].name).getByRole('button', { name: `Drag to reorder project ${entries[1].name}` }).dragTo(ui.treeItem(entries[2].name), { targetPosition: { x: 20, y: 1 } })
+  expect((await getUIState(api, 'tree') as { projects: string[] }).projects).toEqual(afterWithinSection)
+})
+
+test('(T6) Every tree customization survives reload and restart', async ({ page, ui, target, request }) => {
+  await account(ui)
+  const api = page.context().request
+  const projectPath = `/home/dev/${uniqueName('tree-custom-project')}`
+  const secondProjectPath = `/home/dev/${uniqueName('tree-custom-project-two')}`
+  const otherPath = `/home/dev/${uniqueName('tree-custom-other')}`
+  const projectName = uniqueName('custom-project')
+  const secondProjectName = uniqueName('custom-project-two')
+  const first = uniqueName('custom-session')
+  const second = uniqueName('custom-session-two')
+  const third = uniqueName('custom-session-three')
+  const outsider = uniqueName('custom-outsider')
+  await target.run(`mkdir -p ${shq(projectPath)} ${shq(secondProjectPath)} ${shq(otherPath)}`)
+  const projectID = (await addProject(api, projectPath, projectName)).id
+  const secondProjectID = (await addProject(api, secondProjectPath, secondProjectName)).id
+  await putUIState(api, 'tree', { version: 2, projects: [projectID, secondProjectID], sessions: {}, pinned: [], hidden: { projects: [], sessions: [] }, collapsed: [], expanded: [], showHidden: false })
+  await createSession(target, first, projectPath)
+  await createSession(target, second, projectPath)
+  await createSession(target, third, projectPath)
+  await createSession(target, outsider, otherPath)
+  await target.run(`tmux new-window -t ${shq('=' + first)} -n extra && tmux split-window -t ${shq('=' + first + ':1')} -h`)
+  await page.reload()
+  await expect(ui.treeItem(first)).toBeVisible()
+
+  await ui.treeItem(projectName).focus()
+  await page.keyboard.press('Alt+ArrowDown')
+  await ui.treeItem(first).focus()
+  await page.keyboard.press('Alt+ArrowDown')
+  await ui.treeItem(third).getByRole('button', { name: `Drag to reorder session ${third}` }).dragTo(ui.treeItem(second), { targetPosition: { x: 20, y: 1 } })
+  await ui.treeItem(projectName).getByRole('button', { name: `Rename ${projectName}` }).click()
+  const renamedProject = uniqueName('custom-project-renamed')
+  let editor = page.getByRole('textbox', { name: `Rename ${projectName}` })
+  await editor.fill(renamedProject)
+  await editor.press('Enter')
+  await ui.treeItem(first).focus()
+  await page.keyboard.press('F2')
+  const renamedSession = uniqueName('custom-session-renamed')
+  editor = page.getByRole('textbox', { name: `Rename ${first}` })
+  await editor.fill(renamedSession)
+  await editor.press('Enter')
+
+  await ui.treeItem(second).getByRole('button', { name: `More actions for ${second}` }).click()
+  await page.getByRole('menuitem', { name: 'Hide', exact: true }).click()
+  await page.getByRole('button', { name: 'Show hidden (1)' }).click()
+  await ui.treeItem(third).getByRole('button', { name: `More actions for ${third}` }).click()
+  await page.getByRole('menuitem', { name: 'Hide', exact: true }).click()
+  await ui.treeItem(third).getByRole('button', { name: `More actions for ${third}` }).click()
+  await page.getByRole('menuitem', { name: 'Unhide', exact: true }).click()
+  await ui.treeItem(secondProjectName).getByRole('button', { name: `More actions for ${secondProjectName}` }).click()
+  await page.getByRole('menuitem', { name: 'Pin', exact: true }).click()
+  await ui.treeItem('Other sessions').getByRole('button', { name: 'Collapse Other sessions' }).click()
+  await ui.treeItem(renamedSession).getByRole('button', { name: `Expand ${renamedSession}` }).click()
+  await expect(page.locator(`[data-tree-key^="window:host/${renamedSession}/"]`)).toHaveCount(2)
+  await page.locator(`[data-tree-key^="window:host/${renamedSession}/"]`).filter({ hasText: 'extra' }).getByRole('button', { name: 'Expand window 2' }).click()
+  await expect(page.locator(`[data-tree-key^="pane:host/${renamedSession}/"]`)).toHaveCount(2)
+
+  await ui.waitForSave('tree')
+  await page.reload()
+  const persistedTree = await getUIState(api, 'tree') as { sessions: Record<string, string[]> }
+  const persistedGroup = Object.keys(persistedTree.sessions).find((key) => persistedTree.sessions[key]?.includes(renamedSession))
+  expect(persistedGroup).toBeTruthy()
+  expect(persistedTree.sessions[persistedGroup!]).toEqual([third, second, renamedSession])
+  await expect(ui.treeItem(renamedProject)).toBeVisible()
+  await expect(ui.treeItem(renamedSession)).toHaveAttribute('aria-expanded', 'true')
+  await expect(ui.treeItem('Other sessions')).toHaveAttribute('aria-expanded', 'false')
+  await expect(page.getByRole('button', { name: 'Show hidden (1)' })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByRole('treeitem', { name: `${second}, hidden`, exact: true })).toBeVisible()
+  await expect(ui.treeItem(third)).toBeVisible()
+  await expect(page.getByRole('group', { name: 'Pinned projects', exact: true }).getByRole('treeitem', { name: secondProjectName })).toBeVisible()
+  await expect(page.locator(`[data-tree-key^="window:host/${renamedSession}/"]`)).toHaveCount(2)
+  await expect(page.locator(`[data-tree-key^="pane:host/${renamedSession}/"]`)).toHaveCount(2)
+  await ctl.restartApp()
+  await expect.poll(async () => (await request.get('/api/health')).status(), { timeout: 20_000 }).toBe(200)
+  await page.reload()
+  await expect(ui.treeItem(renamedProject)).toBeVisible()
+  await expect(ui.treeItem(renamedSession)).toHaveAttribute('aria-expanded', 'true')
+  await expect(ui.treeItem('Other sessions')).toHaveAttribute('aria-expanded', 'false')
+  await expect(page.getByRole('button', { name: 'Show hidden (1)' })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator(`[data-tree-key^="pane:host/${renamedSession}/"]`)).toHaveCount(2)
+})
+
+test('(T6) Customizations are per account', async ({ page, browser, ui, target }) => {
+  await account(ui)
+  const api = page.context().request
+  const path = `/home/dev/${uniqueName('tree-per-account')}`
+  const secondPath = `/home/dev/${uniqueName('tree-per-account-two')}`
+  const projectName = uniqueName('per-account-project')
+  const secondProjectName = uniqueName('per-account-project-two')
+  const sessionName = uniqueName('per-account-session')
+  await target.run(`mkdir -p ${shq(path)} ${shq(secondPath)}`)
+  await addProject(api, path, projectName)
+  await addProject(api, secondPath, secondProjectName)
+  await createSession(target, sessionName, path)
+  await page.reload()
+  await ui.treeItem(secondProjectName).getByRole('button', { name: `More actions for ${secondProjectName}` }).click()
+  await page.getByRole('menuitem', { name: 'Pin', exact: true }).click()
+  await ui.treeItem(sessionName).getByRole('button', { name: `More actions for ${sessionName}` }).click()
+  await page.getByRole('menuitem', { name: 'Hide', exact: true }).click()
+  await ui.waitForSave('tree')
+
+  const context = await browser.newContext()
+  try {
+    const secondPage = await context.newPage()
+    await secondPage.goto(page.url())
+    const fresh = newAccount('e2e-tree-custom-account-b')
+    forbidInLogs(fresh.email, fresh.password)
+    await owner.allow(fresh.email)
+    const secondUI = new UI(secondPage)
+    const form = secondUI.authForm()
+    await form.tab('Create account').click()
+    await form.email.fill(fresh.email)
+    await form.password.fill(fresh.password)
+    await form.submit('Create account').click()
+    await expect(secondUI.tree()).toBeVisible()
+    await expect(secondUI.treeView().getByRole('group', { name: 'Pinned projects', exact: true })).toHaveCount(0)
+    await expect(secondPage.getByRole('button', { name: /^Show hidden/ })).toHaveCount(0)
+    await expect(secondUI.treeItem(projectName)).toHaveAttribute('aria-expanded', 'true')
+    const defaultProjects = await secondUI.treeView().locator('[data-tree-kind="project"]').evaluateAll((nodes) => nodes.map((node) => node.getAttribute('aria-label')))
+    expect(defaultProjects.filter((name) => name === projectName || name === secondProjectName)).toEqual([projectName, secondProjectName])
+    await expect(secondUI.treeItem(sessionName)).toBeVisible()
+  } finally {
+    await context.close()
+  }
 })

@@ -43,6 +43,25 @@ describe('tree order store', () => {
     expect(tree.order.sessions.a).toEqual(['three', 'two', 'one'])
   })
 
+  it('pins and unpins projects at the end of their target section', () => {
+    const tree = useTreeStore()
+    useProjectsStore().remember(project('a', '/a'))
+    useProjectsStore().remember(project('b', '/b'))
+    useProjectsStore().remember(project('c', '/c'))
+    tree.order.projects = ['a', 'b', 'c']
+    tree.pinProject('b')
+    expect(tree.order.pinned).toEqual(['b'])
+    expect(tree.order.projects).toEqual(['b', 'a', 'c'])
+    tree.pinProject('a')
+    expect(tree.order.pinned).toEqual(['b', 'a'])
+    expect(tree.order.projects).toEqual(['b', 'a', 'c'])
+    tree.unpinProject('b')
+    expect(tree.order.pinned).toEqual(['a'])
+    expect(tree.order.projects).toEqual(['a', 'c', 'b'])
+    tree.reorderProjectSection(['b', 'c'], false)
+    expect(tree.order.projects).toEqual(['a', 'b', 'c'])
+  })
+
   it('re-keys session ordering, hidden state, expansion and window keys in one update', () => {
     const tree = useTreeStore()
     tree.order.sessions = { group: ['before', 'old', 'after'], __other__: ['old'] }

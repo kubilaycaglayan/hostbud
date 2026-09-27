@@ -13,7 +13,7 @@ export interface TreeState {
 }
 export type TreeOrder = TreeState
 export interface ProjectGroup { project: Project; sessions: Session[] }
-export interface TreeProjection { groups: ProjectGroup[]; other: Session[] }
+export interface TreeProjection { groups: ProjectGroup[]; pinned: ProjectGroup[]; unpinned: ProjectGroup[]; other: Session[] }
 
 export function emptyTreeState(): TreeState {
   return { version: 2, projects: [], sessions: {}, pinned: [], hidden: { projects: [], sessions: [] }, collapsed: [], expanded: [], showHidden: false }
@@ -88,6 +88,10 @@ export function move<T>(items: T[], from: number, to: number): T[] {
   return next
 }
 
+export function canReorderProjectSections(from: string, to: string): boolean {
+  return from === to
+}
+
 function belongs(sessionPath: string, projectPath: string): boolean {
   const root = projectPath === '/' ? '/' : projectPath.replace(/\/+$/, '')
   return root === '/' ? sessionPath.startsWith('/') : sessionPath === root || sessionPath.startsWith(`${root}/`)
@@ -112,5 +116,11 @@ export function projectTree(projects: Project[], sessions: Session[], order: Tre
   })
   const matched = new Set(groups.flatMap((group) => group.sessions.map((s) => s.name)))
   const otherRows = sessions.filter((s) => !matched.has(s.name))
-  return { groups, other: ordered(otherRows, order.sessions[OTHER_GROUP] ?? [], (s) => s.name) }
+  const pinned = new Set(order.pinned)
+  return {
+    groups,
+    pinned: groups.filter((group) => pinned.has(group.project.id)),
+    unpinned: groups.filter((group) => !pinned.has(group.project.id)),
+    other: ordered(otherRows, order.sessions[OTHER_GROUP] ?? [], (s) => s.name),
+  }
 }

@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { VueDraggable } from 'vue-draggable-plus'
-import { DropdownMenuContent, DropdownMenuItem, DropdownMenuPortal, DropdownMenuRoot, DropdownMenuTrigger } from 'reka-ui'
-import { ChevronRight, Folder, List } from 'lucide-vue-next'
+import { ChevronRight, List } from 'lucide-vue-next'
 import type { Project, Session } from '@/api/types'
 import { projectsApi, sessionsApi } from '@/api/client'
 import { useMachinesStore } from '@/stores/machines'
@@ -14,9 +13,9 @@ import { projectNameError, sessionNameError } from '@/lib/names'
 import { useLayoutStore } from '@/stores/layout'
 import type { SplitDir } from '@/lib/layout'
 import type { ProjectGroup } from '@/lib/tree'
-import { sessionKey, windowKey } from '@/lib/tree'
+import { canReorderProjectSections, sessionKey, windowKey } from '@/lib/tree'
 import SessionList from './SessionList.vue'
-import InlineRename from './InlineRename.vue'
+import ProjectTreeRow from './ProjectTreeRow.vue'
 
 const props = defineProps<{ selected?: string }>()
 const emit = defineEmits<{
@@ -43,15 +42,20 @@ const projectMenuId = ref('')
 const longPressedProjectId = ref('')
 const projectPointerStart = ref<{ x: number; y: number; id: string } | null>(null)
 let projectLongPressTimer: ReturnType<typeof setTimeout> | undefined
-const projectRows = computed({
-  get: () => tree.groups.groups
+const projectRows = computed(() => tree.groups.groups
     .filter((group) => tree.order.showHidden || !tree.order.hidden.projects.includes(group.project.id))
     .map((group) => ({
       ...group,
       id: group.project.id,
       sessions: tree.order.showHidden ? group.sessions : group.sessions.filter((session) => !tree.order.hidden.sessions.includes(sessionKey('host', session.name))),
-    })),
-  set: (groups: (ProjectGroup & { id: string })[]) => tree.reorderProjects(groups.map((group) => group.project.id)),
+    })))
+const pinnedProjectRows = computed({
+  get: () => projectRows.value.filter((group) => tree.order.pinned.includes(group.project.id)),
+  set: (groups: (ProjectGroup & { id: string })[]) => tree.reorderProjectSection(groups.map((group) => group.project.id), true),
+})
+const unpinnedProjectRows = computed({
+  get: () => projectRows.value.filter((group) => !tree.order.pinned.includes(group.project.id)),
+  set: (groups: (ProjectGroup & { id: string })[]) => tree.reorderProjectSection(groups.map((group) => group.project.id), false),
 })
 const otherRows = computed(() => tree.order.showHidden
   ? tree.groups.other
@@ -89,6 +93,10 @@ const visibleKeys = computed(() => {
 const activeFocusKey = computed(() => visibleKeys.value.includes(focusedKey.value) ? focusedKey.value : (visibleKeys.value[0] ?? ''))
 onUnmounted(endProjectLongPress)
 
+function canMoveProject(event: { from: HTMLElement; to: HTMLElement }) {
+  return canReorderProjectSections(event.from.dataset.projectSection ?? '', event.to.dataset.projectSection ?? '')
+}
+
 watch(visibleKeys, (keys) => {
   if (deferredFocusKey.value && keys.includes(deferredFocusKey.value)) {
     const pending = deferredFocusKey.value
@@ -109,12 +117,6 @@ watch(visibleKeys, (keys) => {
     if (fallback) focusKey(fallback)
   }
 }, { flush: 'post' })
-
-function shortPath(path: string): string {
-  if (!home.value) return path
-  if (path === home.value) return '~'
-  return path.startsWith(home.value + '/') ? '~' + path.slice(home.value.length) : path
-}
 
 function focusKey(key: string) {
   focusedKey.value = key
@@ -190,10 +192,6 @@ function focusAfterHide(index: number) {
 function startRename(key: string) {
   editingKey.value = key
   editError.value = ''
-}
-
-function startRenameOnFinePointer(key: string) {
-  if (window.matchMedia('(pointer: fine)').matches) startRename(key)
 }
 
 function cancelRename(key: string) {
@@ -281,6 +279,14 @@ function onTreeKeydown(event: KeyboardEvent) {
     }
     return
   }
+  if ((event.key === 'p' || event.key === 'P') && kind === 'project') {
+    event.preventDefault()
+    const id = key.slice('project:'.length)
+    if (tree.order.pinned.includes(id)) tree.unpinProject(id)
+    else tree.pinProject(id)
+    focusKey(key)
+    return
+  }
   if (event.type === 'dblclick' && (kind === 'project' || kind === 'session') && window.matchMedia('(pointer: fine)').matches) {
     startRename(key)
     return
@@ -316,12 +322,15 @@ function onTreeKeydown(event: KeyboardEvent) {
     event.preventDefault()
     const offset = event.key === 'ArrowUp' ? -1 : 1
     if (kind === 'project') {
-      const ids = projectRows.value.map((group) => group.project.id)
-      const from = ids.indexOf(key.slice('project:'.length))
+      const id = key.slice('project:'.length)
+      const pinned = tree.order.pinned.includes(id)
+      const rows = pinned ? pinnedProjectRows.value : unpinnedProjectRows.value
+      const ids = rows.map((group) => group.project.id)
+      const from = ids.indexOf(id)
       const to = from + offset
       if (to >= 0 && to < ids.length) {
         ids.splice(to, 0, ids.splice(from, 1)[0])
-        tree.reorderProjects(ids)
+        tree.reorderProjectSection(ids, pinned)
         focusKey(key)
       }
     } else if (kind === 'session') {
@@ -419,112 +428,18 @@ async function saveAsProject(session: Session) {
     <p v-if="error" role="alert" class="text-danger">
       {{ error.message }}
     </p>
-    <VueDraggable
-      v-model="projectRows"
-      tag="ul"
-      role="group"
-      aria-label="Projects"
-      item-key="id"
-      handle=".project-drag-handle"
-      class="flex flex-col gap-1"
-      :animation="150"
-      :delay-on-touch-only="true"
-      :touch-start-threshold="3"
-    >
-      <li
-        v-for="group in projectRows"
-        :key="group.id"
-        :role="'treeitem'"
-        :aria-level="1"
-        :aria-expanded="!tree.order.collapsed.includes(group.project.id)"
-        :tabindex="activeFocusKey === ('project:' + group.project.id) ? 0 : -1"
-        :aria-label="group.project.name + (tree.order.hidden.projects.includes(group.project.id) ? ', hidden' : '')"
-        :data-tree-key="'project:' + group.project.id"
-        data-tree-kind="project"
-        class="rounded bg-tree-header px-1"
-        :class="tree.order.hidden.projects.includes(group.project.id) ? 'opacity-50' : ''"
-      >
-        <div class="flex min-h-12 items-center gap-1" @click="projectHeaderClick(group.project.id)" @pointerdown="startProjectLongPress($event, group.project.id)" @pointermove="moveProjectLongPress" @pointerup="endProjectLongPress" @pointercancel="endProjectLongPress" @pointerleave="endProjectLongPress">
-          <button
-            type="button"
-            class="touch-target project-drag-handle min-h-11 min-w-8 cursor-grab rounded text-muted"
-            :aria-label="'Drag to reorder project ' + group.project.name"
-            title="Drag to reorder projects"
-            tabindex="-1"
-            @click.stop
-          >
-            ⠿
-          </button>
-          <button
-            type="button"
-            class="touch-target inline-flex min-h-11 min-w-8 items-center justify-center rounded text-muted"
-            :aria-label="(tree.order.collapsed.includes(group.project.id) ? 'Expand ' : 'Collapse ') + group.project.name"
-            :aria-expanded="!tree.order.collapsed.includes(group.project.id)"
-            :title="(tree.order.collapsed.includes(group.project.id) ? 'Expand ' : 'Collapse ') + group.project.name"
-            tabindex="-1"
-            @click.stop="tree.toggleCollapsed(group.project.id)"
-          >
-            <ChevronRight :size="16" class="transition-transform" :class="!tree.order.collapsed.includes(group.project.id) ? 'rotate-90' : ''" aria-hidden="true" />
-          </button>
-          <Folder :size="16" class="shrink-0 text-muted" aria-hidden="true" />
-          <InlineRename
-            v-if="editingKey === 'project:' + group.project.id"
-            :name="group.project.name"
-            :error="editError"
-            :commit="(value) => renameProject(group.project.id, value)"
-            @cancel="cancelRename('project:' + group.project.id)"
-          />
-          <span v-else class="min-w-0 flex-1" @dblclick.stop="startRenameOnFinePointer('project:' + group.project.id)">
-            <span class="block truncate font-semibold">{{ group.project.name }}</span>
-            <span class="block truncate text-xs text-muted" :title="group.project.path">{{ shortPath(group.project.path) }}</span>
-          </span>
-          <button type="button" class="touch-target min-h-11 rounded px-2" :aria-label="'Rename ' + group.project.name" title="Rename" tabindex="-1" @click.stop="startRename('project:' + group.project.id)">✎</button>
-          <DropdownMenuRoot :open="projectMenuId === group.project.id" @update:open="(open) => projectMenuId = open ? group.project.id : ''">
-            <DropdownMenuTrigger type="button" class="touch-target min-h-11 rounded px-2 text-muted" :aria-label="'More actions for ' + group.project.name" title="More" tabindex="-1" @click.stop>⋯</DropdownMenuTrigger>
-            <DropdownMenuPortal>
-              <DropdownMenuContent align="end" :side-offset="4" class="z-30 min-w-48 rounded border border-border bg-surface p-1 text-fg shadow-lg">
-                <DropdownMenuItem class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 outline-none data-highlighted:bg-bg" @select="startRename('project:' + group.project.id)">Rename</DropdownMenuItem>
-                <DropdownMenuItem class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 outline-none data-highlighted:bg-bg" @select="hideProject(group.project.id)">{{ tree.order.hidden.projects.includes(group.project.id) ? 'Unhide' : 'Hide' }}</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenuPortal>
-          </DropdownMenuRoot>
-          <button
-            type="button"
-            class="touch-target min-h-11 rounded px-2"
-            :aria-label="'New session in ' + group.project.name"
-            :title="'New session in ' + group.project.name"
-            tabindex="-1"
-            @click.stop="emit('sessionInProject', group.project)"
-          >
-            ＋
-          </button>
-        </div>
-        <div v-if="!tree.order.collapsed.includes(group.project.id)" role="group" class="ml-3 border-l border-border py-1 pl-3">
-          <SessionList
-            :sessions="group.sessions"
-            :selected="props.selected"
-            :tree-view="true"
-            :level="2"
-            :focused-key="activeFocusKey"
-            :group-key="group.project.id"
-            :editing-name="editingKey.startsWith('session:') ? editingKey.slice(8) : ''"
-            :edit-error="editError"
-            :commit-edit="renameSession"
-            :hidden-group="tree.order.hidden.projects.includes(group.project.id)"
-            sortable
-            :list-label="'Sessions in ' + group.project.name"
-            @select="emit('select', $event)"
-            @select-window="(name, window, pane) => emit('selectWindow', name, window, pane)"
-            @split="(name, dir) => emit('split', name, dir)"
-            @rename="startRename('session:' + $event)"
-            @edit-cancel="cancelRename('session:' + $event)"
-            @hide="hideSession"
-            @kill="emit('kill', $event)"
-            @reorder="tree.reorderSessions(group.project.id, $event)"
-          />
-        </div>
-      </li>
-    </VueDraggable>
+    <section v-if="pinnedProjectRows.length" role="group" aria-label="Pinned projects">
+      <h3 class="px-2 py-1 text-xs font-semibold text-muted">Pinned</h3>
+      <VueDraggable v-model="pinnedProjectRows" tag="ul" role="group" aria-label="Pinned projects list" data-project-section="pinned" item-key="id" handle=".project-drag-handle" class="flex flex-col gap-1" :animation="150" :delay-on-touch-only="true" :touch-start-threshold="3" :group="{ name: 'project-sections', pull: true, put: true }" :on-move="canMoveProject">
+        <ProjectTreeRow v-for="group in pinnedProjectRows" :key="group.id" :group="group" :selected="props.selected" :focused-key="activeFocusKey" :editing-key="editingKey" :edit-error="editError" :menu-open="projectMenuId === group.id" :hidden="tree.order.hidden.projects.includes(group.id)" :pinned="true" :collapsed="tree.order.collapsed.includes(group.id)" :home="home" :rename-project="renameProject" :rename-session="renameSession" @header-click="projectHeaderClick" @long-press-start="startProjectLongPress" @long-press-move="moveProjectLongPress" @long-press-end="endProjectLongPress" @menu-open="(open, id) => projectMenuId = open ? id : ''" @start-rename="startRename" @cancel-rename="cancelRename" @hide-project="hideProject" @toggle-pin="tree.unpinProject" @select="emit('select', $event)" @select-window="(name, window, pane) => emit('selectWindow', name, window, pane)" @split="(name, dir) => emit('split', name, dir)" @hide-session="hideSession" @kill="emit('kill', $event)" @session-in-project="emit('sessionInProject', $event)" @reorder-sessions="tree.reorderSessions" />
+      </VueDraggable>
+    </section>
+    <section v-if="unpinnedProjectRows.length" role="group" aria-label="Projects">
+      <h3 v-if="pinnedProjectRows.length" class="px-2 py-1 text-xs font-semibold text-muted">Projects</h3>
+      <VueDraggable v-model="unpinnedProjectRows" tag="ul" role="group" aria-label="Projects list" data-project-section="unpinned" item-key="id" handle=".project-drag-handle" class="flex flex-col gap-1" :animation="150" :delay-on-touch-only="true" :touch-start-threshold="3" :group="{ name: 'project-sections', pull: true, put: true }" :on-move="canMoveProject">
+        <ProjectTreeRow v-for="group in unpinnedProjectRows" :key="group.id" :group="group" :selected="props.selected" :focused-key="activeFocusKey" :editing-key="editingKey" :edit-error="editError" :menu-open="projectMenuId === group.id" :hidden="tree.order.hidden.projects.includes(group.id)" :pinned="false" :collapsed="tree.order.collapsed.includes(group.id)" :home="home" :rename-project="renameProject" :rename-session="renameSession" @header-click="projectHeaderClick" @long-press-start="startProjectLongPress" @long-press-move="moveProjectLongPress" @long-press-end="endProjectLongPress" @menu-open="(open, id) => projectMenuId = open ? id : ''" @start-rename="startRename" @cancel-rename="cancelRename" @hide-project="hideProject" @toggle-pin="tree.pinProject" @select="emit('select', $event)" @select-window="(name, window, pane) => emit('selectWindow', name, window, pane)" @split="(name, dir) => emit('split', name, dir)" @hide-session="hideSession" @kill="emit('kill', $event)" @session-in-project="emit('sessionInProject', $event)" @reorder-sessions="tree.reorderSessions" />
+      </VueDraggable>
+    </section>
     <li
       v-if="otherRows.length"
       role="treeitem"

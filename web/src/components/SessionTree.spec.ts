@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { flushPromises, mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import type { Project, Session } from '@/api/types'
+import { VueDraggable } from 'vue-draggable-plus'
 import { useProjectsStore } from '@/stores/projects'
 import { useSessionsStore } from '@/stores/sessions'
 import { useMachinesStore } from '@/stores/machines'
@@ -49,6 +50,43 @@ describe('SessionTree', () => {
     expect(useTreeStore().groups.groups.map((g) => g.project.id)).toEqual(['b', 'a'])
     useTreeStore().reorderSessions('a', ['two', 'one'])
     expect(useTreeStore().groups.groups.find((g) => g.project.id === 'a')?.sessions.map((s) => s.name)).toEqual(['two', 'one'])
+  })
+
+  it('pins from the project menu, unpins with P, and keeps reordering inside a section', async () => {
+    const tree = useTreeStore()
+    const wrapper = mount(SessionTree, { attachTo: document.body })
+    await wrapper.get('[data-tree-key="project:b"] button[aria-label="More actions for b"]').trigger('keydown', { key: 'Enter' })
+    const pinAction = [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((node) => node.textContent?.trim() === 'Pin')
+    expect(pinAction).toBeTruthy()
+    expect(pinAction?.classList.contains('touch-target')).toBe(true)
+    pinAction!.click()
+    await flushPromises()
+    expect(tree.order.pinned).toEqual(['b'])
+    expect(wrapper.get('[role="group"][aria-label="Pinned projects"]').text()).toContain('Pinned')
+    expect(wrapper.get('[data-tree-key="project:b"] button[aria-label="Unpin b"]').classes()).toContain('touch-target')
+    expect([...wrapper.findAll('[data-tree-kind="project"]')].map((row) => row.attributes('data-tree-key'))).toEqual(['project:b', 'project:a'])
+    const lists = wrapper.findAllComponents(VueDraggable)
+    const onMove = lists[0].props('onMove') as (event: { from: HTMLElement; to: HTMLElement }, originalEvent: Event) => boolean
+    expect(onMove({ from: lists[0].element as HTMLElement, to: lists[0].element as HTMLElement }, new Event('move'))).toBe(true)
+    expect(onMove({ from: lists[0].element as HTMLElement, to: lists[1].element as HTMLElement }, new Event('move'))).toBe(false)
+
+    const pinnedRow = wrapper.get('[data-tree-key="project:b"]')
+    await pinnedRow.trigger('keydown', { key: 'ArrowDown', altKey: true })
+    expect(tree.order.projects).toEqual(['b', 'a'])
+    await wrapper.get('[data-tree-key="project:a"]').trigger('keydown', { key: 'p' })
+    expect(tree.order.pinned).toEqual(['b', 'a'])
+    expect(tree.order.projects).toEqual(['b', 'a'])
+    await wrapper.get('[data-tree-key="project:a"]').trigger('keydown', { key: 'ArrowUp', altKey: true })
+    await wrapper.get('[data-tree-key="project:b"]').trigger('keydown', { key: 'ArrowDown', altKey: true })
+    expect(tree.order.projects).toEqual(['a', 'b'])
+    await wrapper.get('[data-tree-key="project:a"] button[aria-label="Unpin a"]').trigger('click')
+    expect(tree.order.pinned).toEqual(['b'])
+    expect(tree.order.projects).toEqual(['b', 'a'])
+    await wrapper.get('[data-tree-key="project:b"]').trigger('keydown', { key: 'p' })
+    expect(tree.order.pinned).toEqual([])
+    expect(tree.order.projects).toEqual(['a', 'b'])
+    expect(wrapper.get('[data-tree-key="project:b"]').find('button[aria-label="Unpin b"]').exists()).toBe(false)
+    wrapper.unmount()
   })
 
   it('renders the accessible tree hierarchy and keeps one roving tab stop', async () => {
@@ -278,7 +316,7 @@ describe('SessionTree', () => {
     expect(wrapper.find('[data-tree-key="session:late"]').exists()).toBe(false)
 
     await wrapper.get('button[aria-pressed="false"]').trigger('click')
-    expect(wrapper.get('button[aria-pressed="true"]').exists()).toBe(true)
+    expect(wrapper.get('button[aria-pressed="true"]')).toBeTruthy()
     expect(wrapper.get('[data-tree-key="project:a"]').attributes('aria-label')).toBe('a, hidden')
     expect(wrapper.get('[data-tree-key="project:a"]').classes()).toContain('opacity-50')
     expect(wrapper.get('[data-tree-key="session:one"]').attributes('aria-label')).toBe('one, hidden')

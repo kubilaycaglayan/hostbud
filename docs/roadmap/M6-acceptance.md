@@ -131,15 +131,15 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 
 ## Pinned projects
 
-- [ ] Projects can be pinned and unpinned from their ⋯ menu (and with `P` on the focused project). Pinned projects show first in a **Pinned** section in their manual order, then the other projects in theirs, then Other sessions. Pinning and unpinning move a project to the end of the target section and change nothing else.
+- [x] Projects can be pinned and unpinned from their ⋯ menu (and with `P` on the focused project). Pinned projects show first in a **Pinned** section in their manual order, then the other projects in theirs, then Other sessions. Pinning and unpinning move a project to the end of the target section and change nothing else.
   - U: T6 `projectTree` sections; pin/unpin placement; stale pinned ids pruned only after projects load (Vitest); `PATCH /api/projects/:id` with a `pinned` field doesn't change `projects.pinned` (Go).
   - I: n/a (per-account presentation stored through the existing UI-state route; T2's I test covers the round-trip).
   - E: T6 *Pin projects* (desktop and `iphone-13-pro`).
-- [ ] Drag-to-sort (M4) and Alt+↑/↓ (T2) reorder within a section only; dropping across the Pinned boundary snaps back without changing order. The pin icon (**Pinned**) is visible on pinned rows and meets M5's touch target on coarse pointers.
+- [x] Drag-to-sort (M4) and Alt+↑/↓ (T2) reorder within a section only; dropping across the Pinned boundary snaps back without changing order. The pin icon (**Pinned**) is visible on pinned rows and meets M5's touch target on coarse pointers.
   - U: T6 drag between sections is rejected; keyboard move stops at the boundary; icon label (Vitest).
   - I: n/a (frontend only).
   - E: T6 *Pin projects* (a drag across the boundary leaves the order unchanged).
-- [ ] Every tree customization survives reload and container restart together: order, collapse, expanded sessions/windows, renames, hidden rows, the Show hidden toggle and pins.
+- [x] Every tree customization survives reload and container restart together: order, collapse, expanded sessions/windows, renames, hidden rows, the Show hidden toggle and pins.
   - U: covered by the T2–T6 criteria above.
   - I: T2 PostgreSQL round-trip.
   - E: T6 *Every customization survives reload and restart* (desktop and `iphone-13-pro`): the ROADMAP's combined scenario.
@@ -296,9 +296,9 @@ Profiles: `desktop-chromium`, `iphone-13-pro` (`http://localhost:9055`) and `iph
 - [x] **(T4) Inline rename a project:** pencil → type → Enter; a second page sees the name without reload; Escape cancels another edit; reload and restart keep the name; its sessions stay under it (desktop and `iphone-13-pro`).
 - [x] **(T4) Inline rename a session:** F2 (desktop) / ⋯ → Rename (phone); the target has the new name, the open terminal's client PID is unchanged, the row keeps its position and its expanded state; a taken name shows the inline error and keeps the old name (desktop and `iphone-13-pro`).
 - [x] **(T5) Hide and unhide:** hide a session and a project; they leave the tree, their terminal stays attached and the target still has them; Show hidden shows them dimmed; Unhide restores the saved position; reload and restart keep all of it; a hidden session that ends and is recreated with the same name is visible (desktop and `iphone-13-pro`).
-- [ ] **(T6) Pin projects:** pin two projects → a Pinned section in their manual order; unpin → back at the end of the unpinned section; a drag across the boundary changes nothing (desktop and `iphone-13-pro`).
-- [ ] **(T6) Every customization survives reload and restart:** drag to reorder, rename, hide/unhide, pin, collapse and expand, then reload **and** restart → everything is as the user left it (desktop and `iphone-13-pro`).
-- [ ] **(T6) Customizations are per account:** account B, signed in on the same stack, sees none of account A's pins, hidden rows, collapse state or order (desktop).
+- [x] **(T6) Pin projects:** pin two projects → a Pinned section in their manual order; unpin → back at the end of the unpinned section; a drag across the boundary changes nothing (desktop and `iphone-13-pro`).
+- [x] **(T6) Every customization survives reload and restart:** drag to reorder, rename, hide/unhide, pin, collapse and expand, then reload **and** restart → everything is as the user left it (desktop and `iphone-13-pro`).
+- [x] **(T6) Customizations are per account:** account B, signed in on the same stack, sees none of account A's pins, hidden rows, collapse state or order (desktop).
 - [ ] **(T7) Pick Dark and Light:** each choice applies at once to `<html data-theme>`, the background token, `theme-color` and the terminal's theme (`__hostbud.termTheme()`), with the terminal still attached (desktop and `iphone-13-pro`).
 - [ ] **(T7) Theme persists:** Light survives reload and restart; a second account still starts in System; a foreign-Origin `PUT /api/ui-state/theme` → 403 (desktop).
 - [ ] **(T7) System follows the OS:** in System mode, `page.emulateMedia({colorScheme: 'light'})` then `'dark'` flips the UI and terminal without a reload; in Dark mode it doesn't (desktop and `iphone-13-pro`).

@@ -86,6 +86,9 @@ func TestProjectAPICreateListRenameAndValidation(t *testing.T) {
 	if rec := e.do(t, http.MethodPatch, "/api/projects/project-a", `{"name":"renamed"}`, nil); rec.Code != http.StatusOK || f.name != "renamed" {
 		t.Fatalf("rename = %d %s", rec.Code, rec.Body)
 	}
+	if rec := e.do(t, http.MethodPatch, "/api/projects/project-a", `{"name":"renamed","pinned":true}`, nil); rec.Code != http.StatusBadRequest || f.name != "renamed" {
+		t.Fatalf("pinned project field must be rejected without changing the project: %d %s", rec.Code, rec.Body)
+	}
 	if rec := e.do(t, http.MethodPost, "/api/projects/project-a/sessions", `{"name":"my-session","startCommand":"make run"}`, nil); rec.Code != http.StatusCreated || f.sessionSpec.Name != "my-session" || f.sessionSpec.StartCommand != "make run" {
 		t.Fatalf("project session = %d %s, spec=%+v", rec.Code, rec.Body, f.sessionSpec)
 	}

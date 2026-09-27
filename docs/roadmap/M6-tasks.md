@@ -15,7 +15,7 @@ Update this table in the same commit that finishes a task.
 | T3 Windows and panes in the tree | Done |
 | T4 Inline rename | Done |
 | T5 Hide and unhide | Done |
-| T6 Pinned projects | Not started |
+| T6 Pinned projects | Done |
 | T7 Theme setting | Not started |
 | T8 Keyboard shortcuts | Not started |
 | T9 Command palette | Not started |
@@ -33,6 +33,8 @@ T3 completed with lazy window/pane loading, event-driven refresh, window selecti
 T4 completed with inline project/session rename, validation and server errors in place, preserved session layout/tree state, menu and long-press entry points, and T4 E2E scenarios type-checked only. `make lint test` passed CP2; browser E2E remains paused until M7.
 
 T5 completed with per-account hide/unhide controls, hidden-row presentation and focus handling, plus desktop and phone scenarios. `make web-test`, `make web-lint`, `make e2e-lint` and `make gitleaks` passed; browser E2E remains paused until M7.
+
+T6 completed with per-account pinning, separate ordered sections, section-bounded drag and keyboard moves, and desktop/phone persistence and account-isolation scenarios. The Go handler rejects attempts to set the global `pinned` field. CP3 passed with `make lint test`; E2E scenarios were type-checked only, as required.
 
 ## Rules for this milestone
 
@@ -53,7 +55,7 @@ T5 completed with per-account hide/unhide controls, hidden-row presentation and 
 |---|---|---|---|
 | CP1 | T1 + T2 (windows API, tree state and tree view) | `make lint test` | Passed |
 | CP2 | T3 + T4 (windows in the tree, inline rename) | `make lint test` | Passed |
-| CP3 | T5 + T6 (hide/unhide, pins) | `make lint test` | Not run |
+| CP3 | T5 + T6 (hide/unhide, pins) | `make lint test` | Passed |
 | CP4 | T7 + T8 + T9 (theme, shortcuts, palette) | `make lint test`, plus `make build` so `check-dist` sees the real theme boot script | Not run |
 | CP5 | T10 + T11 + T12 + T13 + T14 (taken names, remove project, add current directory, left bar toolbar, audit) | `make lint test`, `make gitleaks`, e2e `tsc` | Not run |
 
