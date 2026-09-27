@@ -39,7 +39,9 @@ stall)
 		off) rm -f "$stall_file" ;;
 		*[!0-9]*|'') echo "usage: sshd-ctl.sh stall tmux|sftp <seconds>|off" >&2; exit 2 ;;
 		*) seconds=$3; if [ "$seconds" -gt 60 ]; then seconds=60; fi
-		   deadline=$(($(date +%s) + seconds)); printf '%s\n' "$deadline" >"$stall_file"; chown dev:dev "$stall_file" ;;
+		   deadline=$(($(date +%s) + seconds)); printf '%s\n' "$deadline" >"$stall_file"; chown dev:dev "$stall_file"
+		   # An open SFTP connection would bypass the switch: drop it, like a hung host.
+		   if [ "$kind" = sftp ]; then pkill -x sftp-server || true; fi ;;
 	esac
 	;;
 *)

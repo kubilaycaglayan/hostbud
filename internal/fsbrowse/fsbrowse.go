@@ -203,6 +203,32 @@ func (s *Service) withClient(ctx context.Context, op string, fn func(*sftp.Clien
 		return &Error{Op: op, Err: err, Timeout: timeout}
 	}
 	defer s.releaseSlot()
+	// A pooled connection can be dead (the host dropped it while idle): the
+	// first failure closes it, and one retry on a fresh connection keeps the
+	// user from seeing that as an error.
+	// Creating a directory isn't retried: it may have happened before the
+	// connection broke.
+	for {
+		reused, err := s.attempt(opCtx, op, fn)
+		var e *Error
+		if !reused || op == opMkdir || !errors.As(err, &e) || !brokenConnection(e.Err) || opCtx.Err() != nil {
+			return err
+		}
+	}
+}
+
+const opMkdir = "create directory"
+
+// brokenConnection reports errors that close the SFTP connection itself
+// (not an SFTP status such as permission denied, nor a timeout).
+func brokenConnection(err error) bool {
+	var statusErr *sftp.StatusError
+	return !errors.As(err, &statusErr) && !errors.Is(err, ErrNotDirectory) &&
+		!errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled)
+}
+
+// attempt runs fn once; reused reports whether it ran on an existing connection.
+func (s *Service) attempt(opCtx context.Context, op string, fn func(*sftp.Client) error) (bool, error) {
 	s.mu.Lock()
 	if err := opCtx.Err(); err != nil {
 		s.mu.Unlock()
@@ -210,14 +236,15 @@ func (s *Service) withClient(ctx context.Context, op string, fn func(*sftp.Clien
 		if errors.Is(err, context.DeadlineExceeded) {
 			timeout = s.timeout
 		}
-		return &Error{Op: op, Err: err, Timeout: timeout}
+		return false, &Error{Op: op, Err: err, Timeout: timeout}
 	}
+	reused := s.client != nil
 	if err := s.ensureLocked(opCtx); err != nil {
 		s.mu.Unlock()
 		if opCtx.Err() != nil {
-			return &Error{Op: op, Err: opCtx.Err(), Timeout: s.timeout}
+			return false, &Error{Op: op, Err: opCtx.Err(), Timeout: s.timeout}
 		}
-		return &Error{Op: op, Err: err}
+		return false, &Error{Op: op, Err: err}
 	}
 	client, pipe := s.client, s.pipe
 	s.active++
@@ -251,12 +278,12 @@ func (s *Service) withClient(ctx context.Context, op string, fn func(*sftp.Clien
 		if errors.Is(err, context.DeadlineExceeded) {
 			timeout = s.timeout
 		}
-		return &Error{Op: op, Err: err, Timeout: timeout}
+		return reused, &Error{Op: op, Err: err, Timeout: timeout}
 	}
 	s.lastUsed = time.Now()
 	s.touchLocked()
 	s.mu.Unlock()
-	return nil
+	return reused, nil
 }
 
 func (s *Service) acquireSlot(ctx context.Context) error {
@@ -542,7 +569,7 @@ func (s *Service) Mkdir(ctx context.Context, parent, name string) (string, error
 	if child == dir || !strings.HasPrefix(child, strings.TrimSuffix(dir, "/")+"/") {
 		return "", ErrInvalidName
 	}
-	err = s.withClient(ctx, "create directory", func(c *sftp.Client) error {
+	err = s.withClient(ctx, opMkdir, func(c *sftp.Client) error {
 		parentInfo, err := c.Stat(dir)
 		if err != nil {
 			return err
