@@ -1,5 +1,6 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
+import { VueDraggable } from 'vue-draggable-plus'
 import type { Tab } from '@/lib/layout'
 import TabBar from './TabBar.vue'
 
@@ -51,6 +52,35 @@ describe('TabBar', () => {
     expect(w.emitted('activate')).toEqual([['3'], ['1'], ['3'], ['1'], ['3']])
     await t()[1].trigger('keydown', { key: 'Delete' })
     expect(w.emitted('close')).toEqual([['2']])
+    w.unmount()
+  })
+
+  it('tabs themselves drag to a new order (no handle); a drop reorders without activating (M8 T4)', async () => {
+    const w = bar()
+    const list = w.getComponent(VueDraggable)
+    expect(list.props('handle')).toBeUndefined()
+    expect(list.props('forceFallback')).toBe(true)
+    expect(list.props('delayOnTouchOnly')).toBe(true)
+    expect(w.find('.drag-handle, [class*="drag-handle"], [aria-label*="Drag"]').exists()).toBe(false)
+    const classes = w.findAll('[role=tab]').map((t) => t.classes().join(' '))
+
+    list.vm.$emit('update:modelValue', [tabs[2], tabs[0], tabs[1]])
+    await w.vm.$nextTick()
+    expect(w.emitted('reorder')).toEqual([[['3', '1', '2']]])
+    expect(w.emitted('activate')).toBeUndefined()
+    expect(w.emitted('close')).toBeUndefined()
+    // Appearance is unchanged: same classes, same selected tab.
+    expect(w.findAll('[role=tab]').map((t) => t.classes().join(' '))).toEqual(classes)
+    expect(w.findAll('[role=tab]').map((t) => t.attributes('aria-selected'))).toEqual(['false', 'true', 'false'])
+    w.unmount()
+  })
+
+  it('shows and navigates tabs in the order it is given, compact too', async () => {
+    const w = mount(TabBar, { props: { tabs: [tabs[2], tabs[0], tabs[1]], active: '1', compact: true }, attachTo: document.body })
+    expect(w.findAll('[role=tab]').map((x) => x.text())).toEqual(['c', 'a', 'b'])
+    await w.findAll('[role=tab]')[1].trigger('keydown', { key: 'ArrowRight' })
+    await w.findAll('[role=tab]')[1].trigger('keydown', { key: 'Home' })
+    expect(w.emitted('activate')).toEqual([['2'], ['3']])
     w.unmount()
   })
 })

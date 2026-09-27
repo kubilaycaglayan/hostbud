@@ -326,6 +326,28 @@ describe('tabs', () => {
     expect(tabs().map((t) => t.attributes('aria-selected'))).toEqual(['true'])
   })
 
+  it('reordering tabs keeps the active tab and every mounted terminal in place (M8 T4)', async () => {
+    const { wrapper, release, feed } = await signedInWith(null)
+    release()
+    await flushPromises()
+    feed()
+    await wrapper.vm.$nextTick()
+    await wrapper.get('button[aria-label="acc-a"]').trigger('click')
+    await wrapper.get('button[aria-label="acc-b"]').trigger('click')
+    const panels = wrapper.findAll('main [role=tabpanel]').map((p) => p.element)
+    const sockets = IdleSocket.instances.length
+    const layout = useLayoutStore()
+    const ids = layout.tabs.map((t) => t.id)
+    layout.reorderTabs([ids[1], ids[0]])
+    await wrapper.vm.$nextTick()
+    expect(wrapper.findAll('[role=tab]').map((t) => t.text())).toEqual(['acc-b', 'acc-a'])
+    expect(wrapper.findAll('[role=tab]').map((t) => t.attributes('aria-selected'))).toEqual(['true', 'false'])
+    // Same panel elements, same DOM order, no new connections.
+    expect(wrapper.findAll('main [role=tabpanel]').map((p) => p.element)).toEqual(panels)
+    expect(terms(wrapper)).toEqual(['acc-a', 'acc-b'])
+    expect(IdleSocket.instances).toHaveLength(sockets)
+  })
+
   it("a row menu's Open in split puts the session beside the focused pane", async () => {
     const { wrapper, release, feed } = await signedInWith(null)
     release()

@@ -16,6 +16,8 @@ import {
   MAX_PANES,
   missingPanes,
   openSession,
+  panelOrder,
+  reorderTabs,
   removePanes,
   renameSession,
   validateLayout,
@@ -91,6 +93,47 @@ describe('activate and close', () => {
     const next = closeTab(l, l.tabs[0].id)
     expect(sessions(next)).toEqual(['b', 'c'])
     expect(active(next)).toBe('c')
+  })
+})
+
+describe('reorder tabs (M8 T4)', () => {
+  it('moves tabs to the given order and keeps the same tab objects and active tab', () => {
+    const l = withTabs('a', 'b', 'c')
+    const [a, b, c] = l.tabs
+    const next = reorderTabs(activate(l, b.id), [c.id, a.id, b.id])
+    expect(sessions(next)).toEqual(['c', 'a', 'b'])
+    expect(next.tabs[0]).toBe(c)
+    expect(next.activeTab).toBe(b.id)
+    expect(active(next)).toBe('b')
+  })
+
+  it('ignores anything but a permutation of the open tabs, and an unchanged order', () => {
+    const l = withTabs('a', 'b', 'c')
+    const [a, b, c] = l.tabs.map((t) => t.id)
+    expect(reorderTabs(l, [a, b])).toBe(l)
+    expect(reorderTabs(l, [a, b, 'nope'])).toBe(l)
+    expect(reorderTabs(l, [a, a, b])).toBe(l)
+    expect(reorderTabs(l, [a, b, c])).toBe(l)
+  })
+
+  it('a session opened after a custom order goes at the end', () => {
+    const l = withTabs('a', 'b', 'c')
+    const [a, b, c] = l.tabs.map((t) => t.id)
+    const next = openSession(reorderTabs(l, [c, b, a]), 'host', 'd').layout
+    expect(sessions(next)).toEqual(['c', 'b', 'a', 'd'])
+    expect(active(next)).toBe('d')
+  })
+
+  it('panel order follows opening, drops closed tabs and ignores reordering', () => {
+    let l = withTabs('a', 'b', 'c')
+    const [a, b, c] = l.tabs.map((t) => t.id)
+    let order = panelOrder([], l.tabs)
+    expect(order).toEqual([a, b, c])
+    l = reorderTabs(l, [c, a, b])
+    expect(panelOrder(order, l.tabs)).toEqual([a, b, c])
+    l = openSession(closeTab(l, a), 'host', 'd').layout
+    order = panelOrder(order, l.tabs)
+    expect(order).toEqual([b, c, l.tabs[2].id])
   })
 })
 

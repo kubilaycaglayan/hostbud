@@ -60,6 +60,7 @@ const emit = defineEmits<{
   cyclePane: []
   activateTab: [id: string]
   closeTab: [id: string]
+  reorderTabs: [ids: string[]]
 }>()
 const takesInput = () => props.active && props.focused
 
@@ -363,6 +364,7 @@ defineExpose({ refit, reconnect, showKeyboard })
         compact
         @activate="emit('activateTab', $event)"
         @close="emit('closeTab', $event)"
+        @reorder="emit('reorderTabs', $event)"
       />
       <!-- Narrow screens show one pane of a split at a time. -->
       <button

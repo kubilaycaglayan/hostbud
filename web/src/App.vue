@@ -16,7 +16,7 @@ import TabBar from '@/components/TabBar.vue'
 import TabView from '@/components/TabView.vue'
 import { NEW_SESSION_FOR_SPLIT } from '@/components/layoutKeys'
 import type { Project } from '@/api/types'
-import type { SplitDir } from '@/lib/layout'
+import { panelOrder, type SplitDir } from '@/lib/layout'
 import { useMediaQuery, COMPACT_QUERY } from '@/lib/media'
 import ToastRegion from '@/components/ToastRegion.vue'
 import { useAppStore } from '@/stores/app'
@@ -423,6 +423,14 @@ function onShortcutKeydown(event: KeyboardEvent) {
 
 const compact = useMediaQuery(COMPACT_QUERY)
 const hasTabs = computed(() => layout.loaded && layout.tabs.length > 0)
+// Tab panels stay in the order their tabs opened, so reordering tabs (M8 T4)
+// never moves a mounted terminal's element: it keeps its focus and size.
+let panelIds: string[] = []
+const tabPanels = computed(() => {
+  panelIds = panelOrder(panelIds, layout.tabs)
+  const byId = new Map(layout.tabs.map((t) => [t.id, t]))
+  return panelIds.map((id) => byId.get(id)!)
+})
 const sidebarExpanded = computed(() => compact.value && hasTabs.value ? drawerOpen.value : app.sidebarOpen)
 
 function closeTab(id: string) {
@@ -566,11 +574,12 @@ onUnmounted(() => {
             :active="layout.layout.activeTab"
             @activate="layout.activate"
             @close="closeTab"
+            @reorder="layout.reorderTabs"
           />
           <!-- Inactive tabs stay mounted and attached (instant switching, and
                their scrollback keeps filling). -->
           <div
-            v-for="t in layout.tabs"
+            v-for="t in tabPanels"
             v-show="t.id === layout.layout.activeTab"
             :id="`tabpanel-${t.id}`"
             :key="t.id"
@@ -586,6 +595,7 @@ onUnmounted(() => {
               :active-tab="layout.layout.activeTab"
               @activate-tab="layout.activate"
               @close-tab="closeTab"
+              @reorder-tabs="layout.reorderTabs"
             />
           </div>
         </template>

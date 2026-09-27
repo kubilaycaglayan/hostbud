@@ -169,6 +169,11 @@ export const useLayoutStore = defineStore('layout', () => {
     rememberActive()
   }
 
+  /** Custom tab order from a drag (M8 T4); saved like any other change. */
+  function reorderTabs(ids: readonly string[]) {
+    layout.value = L.reorderTabs(layout.value, ids)
+  }
+
   function cycleTab(offset: number) {
     const current = activeTab.value
     if (!current || tabs.value.length < 2) return false
@@ -257,6 +262,7 @@ export const useLayoutStore = defineStore('layout', () => {
     cycleFocus,
     setSizes,
     activate,
+    reorderTabs,
     cycleTab,
     toggleLastTab,
     closeTab,

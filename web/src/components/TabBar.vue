@@ -1,11 +1,19 @@
 <script setup lang="ts">
-import { nextTick, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
+import { VueDraggable } from 'vue-draggable-plus'
 import { panesOf, type Tab } from '@/lib/layout'
 
 const props = defineProps<{ tabs: Tab[]; active: string | null; compact?: boolean }>()
-const emit = defineEmits<{ activate: [id: string]; close: [id: string] }>()
+const emit = defineEmits<{ activate: [id: string]; close: [id: string]; reorder: [ids: string[]] }>()
 
-const list = ref<HTMLElement>()
+const list = ref<InstanceType<typeof VueDraggable>>()
+
+/** The tabs themselves drag to a new position (M8 T4): no handle, no
+ * restyling. Only the order is emitted; the active tab stays as it is. */
+const sortableTabs = computed({
+  get: () => props.tabs,
+  set: (items: Tab[]) => emit('reorder', items.map((t) => t.id)),
+})
 
 /** A tab's label: its focused pane's session (then "+n" for more panes). */
 function label(t: Tab): string {
@@ -29,7 +37,8 @@ async function onKey(ev: KeyboardEvent, i: number) {
   const tab = props.tabs[(to + n) % n]
   emit('activate', tab.id)
   await nextTick()
-  list.value?.querySelector<HTMLElement>(`[data-tab="${tab.id}"]`)?.focus()
+  const el = list.value?.$el as HTMLElement | undefined
+  el?.querySelector<HTMLElement>(`[data-tab="${tab.id}"]`)?.focus()
 }
 
 function onAuxClick(ev: MouseEvent, id: string) {
@@ -40,16 +49,30 @@ function onAuxClick(ev: MouseEvent, id: string) {
 </script>
 
 <template>
-  <div
+  <!-- Fallback dragging (Sortable's own pointer handling) behaves the same
+       in every browser, lets a click through below the tolerance and
+       swallows the click that ends a drag. On touch, a short hold starts a
+       drag so a swipe still scrolls the bar. -->
+  <VueDraggable
     ref="list"
+    v-model="sortableTabs"
+    tag="div"
     role="tablist"
     aria-label="Open terminals"
     class="flex shrink-0 overflow-x-auto bg-surface"
     :class="props.compact ? 'min-w-0 flex-1 border-0' : 'border-b border-border'"
+    :animation="150"
+    :force-fallback="true"
+    :fallback-tolerance="4"
+    :delay="250"
+    :delay-on-touch-only="true"
+    :touch-start-threshold="4"
+    direction="horizontal"
   >
     <div
-      v-for="(t, i) in props.tabs"
+      v-for="(t, i) in sortableTabs"
       :key="t.id"
+      :data-tab-item="t.id"
       class="flex min-w-0 shrink-0 items-center border-r border-border"
       :class="t.id === props.active ? 'bg-bg' : ''"
       @auxclick="onAuxClick($event, t.id)"
@@ -82,5 +105,5 @@ function onAuxClick(ev: MouseEvent, id: string) {
         ×
       </button>
     </div>
-  </div>
+  </VueDraggable>
 </template>

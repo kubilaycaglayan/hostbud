@@ -141,6 +141,27 @@ export function activate(l: Layout, tabId: string): Layout {
   return l.tabs.some((t) => t.id === tabId) ? { ...l, activeTab: tabId } : l
 }
 
+/** Puts the tabs in the order of `ids` (M8 T4). Only the order changes: the
+ * same tab objects, the same active tab. Anything but a permutation of the
+ * open tabs is ignored. */
+export function reorderTabs(l: Layout, ids: readonly string[]): Layout {
+  if (ids.length !== l.tabs.length) return l
+  const byId = new Map(l.tabs.map((t) => [t.id, t]))
+  const tabs = ids.map((id) => byId.get(id))
+  if (new Set(ids).size !== ids.length || tabs.some((t) => t === undefined)) return l
+  if (tabs.every((t, i) => t === l.tabs[i])) return l
+  return { ...l, tabs: tabs as Tab[] }
+}
+
+/** A stable order for the tabs' panels: `previous` minus closed tabs, then
+ * newly opened ones. Reordering tabs leaves it unchanged. */
+export function panelOrder(previous: readonly string[], tabs: readonly Tab[]): string[] {
+  const open = new Set(tabs.map((t) => t.id))
+  const kept = previous.filter((id) => open.has(id))
+  const known = new Set(kept)
+  return [...kept, ...tabs.map((t) => t.id).filter((id) => !known.has(id))]
+}
+
 /** Closes a tab (its views detach; the sessions keep running). Closing the
  * active tab activates its right neighbor, or the left one at the end. */
 export function closeTab(l: Layout, tabId: string): Layout {

@@ -235,3 +235,57 @@ describe('sessions that end', () => {
     expect(open()).toEqual([])
   })
 })
+
+describe('custom tab order (M8 T4)', () => {
+  it('reorders without changing the active tab or panes, saves, and restores after a reload', async () => {
+    vi.useFakeTimers()
+    const puts: unknown[] = []
+    stubFetch((method, _path, body) => {
+      if (method === 'PUT') {
+        puts.push(body)
+        return { status: 204 }
+      }
+      return { status: 200, body: saved([{ session: 'a' }, { session: 'b' }, { session: 'c' }], 1) }
+    })
+    const layout = useLayoutStore()
+    await layout.load()
+    const panes = layout.tabs.map((t) => t.root)
+    layout.reorderTabs(['t2', 't0', 't1'])
+    expect(open()).toEqual(['c', 'a', 'b'])
+    expect(layout.layout.activeTab).toBe('t1')
+    expect(layout.focused?.session).toBe('b')
+    expect(layout.tabs.map((t) => t.root)).toEqual([panes[2], panes[0], panes[1]])
+    expect(layout.tabs[0].root).toBe(panes[2])
+    layout.open('host', 'd')
+    expect(open()).toEqual(['c', 'a', 'b', 'd'])
+    vi.advanceTimersByTime(SAVE_DEBOUNCE_MS)
+    await vi.runAllTimersAsync()
+    expect(puts).toHaveLength(1)
+    const stored = puts[0] as { tabs: { id: string }[] }
+    expect(stored.tabs.slice(0, 3).map((t) => t.id)).toEqual(['t2', 't0', 't1'])
+
+    // A reload (or an app restart) restores the saved order.
+    setActivePinia(createPinia())
+    stubFetch(() => ({ status: 200, body: stored }))
+    const reloaded = useLayoutStore()
+    await reloaded.load()
+    expect(reloaded.tabs.map((t) => panesOf(t.root)[0].session)).toEqual(['c', 'a', 'b', 'd'])
+  })
+
+  it('an invalid order changes nothing and saves nothing', async () => {
+    vi.useFakeTimers()
+    let puts = 0
+    stubFetch((method) => {
+      if (method === 'PUT') puts++
+      return method === 'GET' ? { status: 200, body: saved([{ session: 'a' }, { session: 'b' }]) } : { status: 204 }
+    })
+    const layout = useLayoutStore()
+    await layout.load()
+    const before = layout.layout
+    layout.reorderTabs(['t1'])
+    layout.reorderTabs(['t0', 't1'])
+    expect(layout.layout).toBe(before)
+    await vi.runAllTimersAsync()
+    expect(puts).toBe(0)
+  })
+})
