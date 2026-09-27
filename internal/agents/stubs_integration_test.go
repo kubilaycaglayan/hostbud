@@ -149,6 +149,7 @@ func claudeCases() map[string]stubCase {
 		"silent":                {"silent", has(EventSessionStart, 1), Pending},
 		"silent-then-achieve:1": {"silent-then-achieve:1", has(EventSessionStart, 1), Achieved},
 		"pending":               {"pending", has(EventTurnEnd, 1), Pending},
+		"slow:1":                {"slow:1", has(EventTurnEnd, 1), Achieved},
 	}
 }
 
@@ -226,6 +227,7 @@ func TestIntegrationStubsAgainstAdapters(t *testing.T) {
 			"decoy":                 {"decoy", func(c []sinkCall) bool { return count(c, EventTurnEnd) >= 1 }, Pending},
 			"pending":               {"pending", func(c []sinkCall) bool { return count(c, EventTurnEnd) >= 1 }, Pending},
 			"silent-then-achieve:1": {"silent-then-achieve:1", func(c []sinkCall) bool { return count(c, EventSessionStart) >= 1 }, Achieved},
+			"slow:1":                {"slow:1", func(c []sinkCall) bool { return count(c, EventTurnEnd) >= 1 }, Achieved},
 		}
 		var wg sync.WaitGroup
 		for name, tc := range cases {

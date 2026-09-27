@@ -364,15 +364,18 @@ func TestHardeningLimitsOnlyReachHostbud(t *testing.T) {
 	}
 }
 
-// V2-M1: the run hook base URL override reaches only hostbud (empty by default).
-func TestHookBaseURLOnlyReachesHostbud(t *testing.T) {
+// V2-M1: the run hook base URL override and the stale window reach only
+// hostbud (empty and 2h by default).
+func TestQueueSettingsOnlyReachHostbud(t *testing.T) {
 	c := load(t)
-	if got, ok := env(c.Services["hostbud"], "HOSTBUD_HOOK_BASE_URL"); !ok || got != "" {
-		t.Errorf("hostbud HOSTBUD_HOOK_BASE_URL = %q, present=%v; want an empty default", got, ok)
-	}
-	for name, svc := range c.Services {
-		if _, ok := env(svc, "HOSTBUD_HOOK_BASE_URL"); ok && name != "hostbud" {
-			t.Errorf("%s unexpectedly receives HOSTBUD_HOOK_BASE_URL", name)
+	for key, want := range map[string]string{"HOSTBUD_HOOK_BASE_URL": "", "HOSTBUD_RUN_STALE_AFTER": "2h"} {
+		if got, ok := env(c.Services["hostbud"], key); !ok || got != want {
+			t.Errorf("hostbud %s = %q, present=%v; want %q", key, got, ok, want)
+		}
+		for name, svc := range c.Services {
+			if _, ok := env(svc, key); ok && name != "hostbud" {
+				t.Errorf("%s unexpectedly receives %s", name, key)
+			}
 		}
 	}
 }

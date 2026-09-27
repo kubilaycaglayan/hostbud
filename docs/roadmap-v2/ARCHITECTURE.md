@@ -167,8 +167,11 @@ run:     starting ► running ► achieved | failed | exited | stale | cancelled
 ```
 - Only `achieved` advances the queue.
 - Every other terminal run state sets the item to `needs_attention` and the queue to `paused`.
-- Pausing a queue never touches the running session: the current run continues, and no new item starts.
+- Pausing a queue never touches the running session: the current run continues and is still tracked (an `achieved` marks its item done), and no new item starts.
+- Owner overrides (Retry, Skip, Mark done) apply only to `needs_attention` items. An item whose run is still active (a `stale` run) has that run ended as `cancelled` first: its token is revoked and its session stays open. The queue stays paused until Resume; a retried item gets a new run, token and collision-suffixed session.
+- Restart safety: on start the dispatcher reloads active runs, re-arms their stale timers from `last_signal_at` (or `started_at`), reads each bound run once, and advances running queues that have no active run. A run whose session is missing from the first inventory is handled like a `SessionEnd`.
 - An `achieved` record that arrives after a run went `stale` still marks the item `done`, but the queue stays paused until the owner resumes it.
+- A stale run sends no more hooks until its turn ends, so the owner's **Start or Resume reads each stale run of the queue once** before advancing: a goal it achieved without a hook is picked up then.
 - A run hostbud can no longer track ends as **`exited`** with a `detail`, and its session stays open: a second `SessionStart` with a different id, a `/clear`, or an `unknown` goal-state format.
 
 ---

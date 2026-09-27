@@ -59,10 +59,10 @@ type ItemValidator interface {
 	ValidateItem(agent, flags, instruction string) error
 }
 
-// Dispatcher is what the service hands work to (T9): Kick looks for the
-// next item of a running queue; EndActiveRun cancels an item's active run
-// before an owner override (its session stays open).
-type Dispatcher interface {
+// Control is what the service hands work to (the Dispatcher): Kick looks
+// for the next item of a running queue; EndActiveRun cancels an item's
+// active run before an owner override (its session stays open).
+type Control interface {
 	Kick(queueID string)
 	EndActiveRun(ctx context.Context, item store.QueueItem, action string) error
 }
@@ -106,7 +106,7 @@ type Service struct {
 	store     Store
 	validator ItemValidator
 	bus       *events.Bus
-	dispatch  Dispatcher
+	dispatch  Control
 	machine   string
 }
 
@@ -116,7 +116,7 @@ func NewService(st Store, validator ItemValidator, bus *events.Bus) *Service {
 }
 
 // SetDispatcher connects the dispatcher (T9).
-func (s *Service) SetDispatcher(d Dispatcher) { s.dispatch = d }
+func (s *Service) SetDispatcher(d Control) { s.dispatch = d }
 
 // List returns the machine's queues with their items.
 func (s *Service) List(ctx context.Context) ([]View, error) {

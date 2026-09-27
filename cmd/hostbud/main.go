@@ -160,7 +160,12 @@ func run() error {
 		agents.NewCodex(ssh, cfg.ExecTimeout),
 	)
 	queues := queue.NewService(st, adapters, bus)
-	hooks := queue.NewHooks(st, nil, log)
+	starter := queue.NewStarter(st, sessions, cfg.HookURL(), log)
+	dispatcher := queue.NewDispatcher(st, adapters, starter, queues, bus, cfg.RunStaleAfter, log)
+	dispatchDone := make(chan struct{})
+	go func() { dispatcher.Run(ctx); close(dispatchDone) }()
+	defer func() { <-dispatchDone }()
+	hooks := queue.NewHooks(st, dispatcher, log)
 	srv := &http.Server{
 		Addr: cfg.Listen,
 		Handler: api.New(api.Config{

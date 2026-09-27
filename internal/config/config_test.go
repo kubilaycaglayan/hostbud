@@ -23,6 +23,7 @@ func TestLoadDefaults(t *testing.T) {
 		ExecTimeout:         10 * time.Second,
 		SFTPTimeout:         10 * time.Second,
 		UploadTimeout:       5 * time.Minute,
+		RunStaleAfter:       2 * time.Hour,
 		MaxTerminalsPerUser: 32,
 		MaxTerminals:        128,
 		LogLevel:            slog.LevelInfo,
@@ -221,6 +222,18 @@ func TestLoadHookBaseURL(t *testing.T) {
 		_, err := Load(envFrom(map[string]string{"HOST_SSH_USER": "dev", "HOSTBUD_HOOK_BASE_URL": raw}))
 		if err == nil || !strings.Contains(err.Error(), "HOSTBUD_HOOK_BASE_URL") {
 			t.Errorf("%q accepted: %v", raw, err)
+		}
+	}
+}
+
+func TestLoadRunStaleAfter(t *testing.T) {
+	cfg, err := Load(envFrom(map[string]string{"HOST_SSH_USER": "dev", "HOSTBUD_RUN_STALE_AFTER": "90m"}))
+	if err != nil || cfg.RunStaleAfter != 90*time.Minute {
+		t.Fatalf("90m: %v, %v", cfg.RunStaleAfter, err)
+	}
+	for _, bad := range []string{"5s", "25h", "soon", "-1h"} {
+		if _, err := Load(envFrom(map[string]string{"HOST_SSH_USER": "dev", "HOSTBUD_RUN_STALE_AFTER": bad})); err == nil || !strings.Contains(err.Error(), "HOSTBUD_RUN_STALE_AFTER") {
+			t.Errorf("%q accepted: %v", bad, err)
 		}
 	}
 }

@@ -14,6 +14,7 @@ export type StubBehavior =
   | `silent-then-achieve:${number}`
   | 'clear'
   | 'pending'
+  | `slow:${number}`
 
 export interface StubLog {
   client: 'claude' | 'codex'

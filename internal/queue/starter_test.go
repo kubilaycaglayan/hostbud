@@ -114,7 +114,7 @@ func TestStartFailuresFailTheRunWithADetail(t *testing.T) {
 		if run.Status != store.RunFailed || run.Detail != c.detail || run.EndedAt == nil {
 			t.Errorf("%s: run %+v", c.name, run)
 		}
-		if got := st.eventKinds(run.ID); !slices.Equal(got, []string{"user:failed"}) {
+		if got := st.eventKinds(run.ID); !slices.Equal(got, []string{"user:starting", "user:failed"}) {
 			t.Errorf("%s: events %v", c.name, got)
 		}
 		wantCreate := c.sessErr != nil

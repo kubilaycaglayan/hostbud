@@ -86,6 +86,9 @@ func (s *Starter) Start(ctx context.Context, source string, project store.Projec
 		return store.Run{}, err
 	}
 	s.log.Info("run starting", "run", run.ID)
+	if _, err := s.store.AppendRunEvent(ctx, run.ID, source, store.RunStarting, detailPayload("")); err != nil {
+		return run, err
+	}
 	if agent == nil {
 		return s.fail(ctx, source, run, "unknown agent "+strconv.Quote(item.Agent)+" — edit the item and pick claude or codex")
 	}

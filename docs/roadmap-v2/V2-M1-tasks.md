@@ -19,7 +19,7 @@ Update this table in the same commit that finishes a task.
 | T6 Codex adapter | Done (its integration test runs the T7 stub `codex`, committed with T7) |
 | T7 Stub clients on the throwaway target | Done (stubs in `test/sshd/stubs`; drift test in `internal/agents`) |
 | T8 Queue service and REST API | Done (e2e written and type-checked) |
-| T9 Dispatcher and state machines | Not started |
+| T9 Dispatcher and state machines | Done (e2e written and type-checked) |
 | T10 Queue panel (desktop) | Not started |
 | T11 Queue panel on the phone | Not started |
 | T12 Docs alignment | Not started |

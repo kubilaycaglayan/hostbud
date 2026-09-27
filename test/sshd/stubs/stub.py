@@ -20,6 +20,7 @@ behavior file holds one line, e.g. "achieve:2 delay=0.5":
   silent-then-achieve:S    writes an achieved record after S seconds, no hook
   clear                    after one turn, a new session id (/clear)
   pending                  keeps answering not met (Claude) / active (Codex)
+  slow:S                   one long turn of S seconds, then achieved (with its Stop hook)
 Switches: ~/.hostbud-stubs/old-version (report an old version),
 ~/.hostbud-stubs/missing-<client> (behave as not installed: exit 127).
 Every start logs argv, cwd and the HOSTBUD_* env (the token only as a
@@ -191,6 +192,13 @@ def claude(argv):
         fire("SessionEnd", {"reason": "clear"})
         new_session("clear")
         say("(stub) /clear: new session " + state["sid"])
+    elif name == "slow":
+        time.sleep(float(arg or "10"))
+        turn(1, "finished a long turn")
+        fire("Stop")
+        time.sleep(verdict_delay)
+        goal({"met": True, "reason": "stub achieved after a long turn", "iterations": 1, "durationMs": 1, "tokens": 0})
+        say("✔ Goal achieved")
     elif name == "pending":
         for n in range(1, 10_000):
             turn(n, "still working")
@@ -324,6 +332,11 @@ def codex(argv):
         turn(1, "about to start a new thread")
         fire("SessionEnd", {"reason": "clear"})
         new_thread("clear")
+    elif name == "slow":
+        armed()
+        time.sleep(float(arg or "10"))
+        set_status("complete")
+        turn(1, "finished a long turn")
     elif name == "pending":
         armed()
         for n in range(1, 10_000):
