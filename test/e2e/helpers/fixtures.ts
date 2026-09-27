@@ -56,7 +56,7 @@ const SIGNED_OUT_ME =
 // While the app restarts (ctl.restartApp), an open page's reconnects fail
 // with 502s from Caddy. Ignored only in tests that restarted the app.
 const RESTART_NOISE =
-  /^HTTP 502: |status of 502 \(Bad Gateway\)|WebSocket connection to 'wss?:\/\/[^/]+\/ws\/events' failed/
+  /^HTTP 502: |status of 502 \(Bad Gateway\)|WebSocket connection to 'wss?:\/\/[^/]+\/ws\/(events|term)[^']*' failed/
 
 export const test = base.extend<Fixtures>({
   allowedBrowserErrors: [undefined, { option: true }],

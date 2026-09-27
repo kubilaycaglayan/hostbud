@@ -175,7 +175,10 @@ export class UI {
 
   /** Splits a pane through its terminal action menu. */
   async split(from: string, dir: 'right' | 'down', to: string): Promise<void> {
-    await this.terminalAction(from, `Split ${dir} with ${to}`)
+    await this.pane(from).getByRole('button', { name: 'Terminal actions' }).click()
+    await this.page.getByRole('menuitem', { name: 'Split pane…', exact: true }).click()
+    await this.page.getByRole('menuitem', { name: `Split ${dir}`, exact: true }).click()
+    await this.page.getByRole('menuitem', { name: to, exact: true }).click()
     await this.waitForTerminal(to)
   }
 

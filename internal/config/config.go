@@ -19,6 +19,7 @@ type Config struct {
 	PollInterval        time.Duration // HOSTBUD_POLL_INTERVAL
 	ExecTimeout         time.Duration // HOSTBUD_EXEC_TIMEOUT
 	SFTPTimeout         time.Duration // HOSTBUD_SFTP_TIMEOUT
+	UploadTimeout       time.Duration // HOSTBUD_UPLOAD_TIMEOUT
 	MaxTerminalsPerUser int           // HOSTBUD_MAX_TERMINALS_PER_USER
 	MaxTerminals        int           // HOSTBUD_MAX_TERMINALS
 	LogLevel            slog.Level    // HOSTBUD_LOG_LEVEL
@@ -112,6 +113,7 @@ func Load(getenv func(string) string) (Config, error) {
 	}
 	cfg.ExecTimeout = durationRange("HOSTBUD_EXEC_TIMEOUT", "10s", 2*time.Second, 2*time.Minute)
 	cfg.SFTPTimeout = durationRange("HOSTBUD_SFTP_TIMEOUT", "10s", 2*time.Second, 2*time.Minute)
+	cfg.UploadTimeout = durationRange("HOSTBUD_UPLOAD_TIMEOUT", "5m", 30*time.Second, 10*time.Minute)
 	cfg.MaxTerminalsPerUser = countRange("HOSTBUD_MAX_TERMINALS_PER_USER", "32", 1, 256)
 	cfg.MaxTerminals = countRange("HOSTBUD_MAX_TERMINALS", "128", 1, 1024)
 	cfg.SessionTTL = duration("HOSTBUD_SESSION_TTL", "720h", time.Minute)

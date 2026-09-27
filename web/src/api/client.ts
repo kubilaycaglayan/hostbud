@@ -17,6 +17,7 @@ export class ApiError extends Error {
 
 let execTimeoutMs = 10_000
 let sftpTimeoutMs = 10_000
+let uploadTimeoutMs = 300_000
 
 /** Applies the authenticated server's configured exec deadline to remote API requests. */
 export function setExecTimeoutMs(value: number) {
@@ -27,12 +28,20 @@ export function setSftpTimeoutMs(value: number) {
   if (Number.isFinite(value) && value >= 2_000 && value <= 120_000) sftpTimeoutMs = value
 }
 
+export function setUploadTimeoutMs(value: number) {
+  if (Number.isFinite(value) && value >= 30_000 && value <= 600_000) uploadTimeoutMs = value
+}
+
 function execSignal(): AbortSignal {
   return AbortSignal.timeout(execTimeoutMs + 5_000)
 }
 
 function sftpSignal(): AbortSignal {
   return AbortSignal.timeout(sftpTimeoutMs + 5_000)
+}
+
+function uploadSignal(): AbortSignal {
+  return AbortSignal.timeout(uploadTimeoutMs + 5_000)
 }
 
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
@@ -88,9 +97,10 @@ export const authApi = {
 export const runtimeApi = {
   async configureExecTimeout() {
     try {
-      const { execTimeoutMs: value, sftpTimeoutMs: sftpValue } = await request<{ execTimeoutMs: number; sftpTimeoutMs: number }>('GET', '/api/runtime/limits')
+      const { execTimeoutMs: value, sftpTimeoutMs: sftpValue, uploadTimeoutMs: uploadValue } = await request<{ execTimeoutMs: number; sftpTimeoutMs: number; uploadTimeoutMs: number }>('GET', '/api/runtime/limits')
       setExecTimeoutMs(value)
       setSftpTimeoutMs(sftpValue)
+      setUploadTimeoutMs(uploadValue)
     } catch {
       // Keep the shipped default if configuration discovery is unavailable.
     }
@@ -169,6 +179,57 @@ export const filesystemApi = {
   mkdir: (machine: string, path: string, name: string) => request<{ path: string }>(
     'POST', `/api/machines/${encodeURIComponent(machine)}/fs/mkdir`, { path, name }, { signal: sftpSignal() },
   ),
+  uploadPhoto: async (machine: string, directory: string, file: File, name = file.name) => {
+    const url = `/api/machines/${encodeURIComponent(machine)}/fs/upload?directory=${encodeURIComponent(directory)}&name=${encodeURIComponent(name)}`
+    let response: Response
+    try {
+      response = await fetch(url, {
+        method: 'PUT',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        // Pass the selected File itself. No canvas, decoder, FormData wrapper,
+        // or re-encoding touches its bytes.
+        body: file,
+        signal: uploadSignal(),
+      })
+    } catch (error) {
+      if (error instanceof DOMException && ['AbortError', 'TimeoutError'].includes(error.name)) {
+        throw new ApiError(504, "hostbud didn't answer", 'The photo upload timed out; retry with the original photo.')
+      }
+      throw error
+    }
+    if (!response.ok) {
+      let message = `request failed (${response.status})`
+      let hint: string | undefined
+      try {
+        const data = await response.json() as { error?: string; hint?: string }
+        message = data.error || message
+        hint = data.hint || undefined
+      } catch { /* keep generic error */ }
+      throw new ApiError(response.status, message, hint)
+    }
+    return await response.json() as { path: string; size: number }
+  },
+  /** Upload with the first available numbered filename, preserving the File bytes. */
+  async uploadPhotoUnique(machine: string, directory: string, file: File) {
+    for (let suffix = 0; suffix <= 100; suffix++) {
+      const name = suffix === 0 ? file.name : numberedFilename(file.name, suffix)
+      try {
+        return await this.uploadPhoto(machine, directory, file, name)
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.status !== 409 || !error.message.includes('already exists') || suffix === 100) throw error
+      }
+    }
+    throw new Error('No available filename for this photo.')
+  },
+}
+
+function numberedFilename(name: string, suffix: number): string {
+  const dot = name.lastIndexOf('.')
+  const hasExtension = dot > 0
+  const stem = hasExtension ? name.slice(0, dot) : name
+  const extension = hasExtension ? name.slice(dot) : ''
+  return `${stem}-${suffix}${extension}`
 }
 
 export const projectsApi = {

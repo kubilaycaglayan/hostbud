@@ -75,6 +75,21 @@ describe('tree order store', () => {
     expect(tree.order.expanded).toEqual(['host/new', 'host/new/@2'])
   })
 
+  it('restores a renamed session position if an inventory sync already appended the new name', () => {
+    const tree = useTreeStore()
+    // A poll can observe the remote rename before PATCH resolves, causing sync
+    // to prune the old key and append the newly observed name.
+    tree.order.sessions = { group: ['first', 'last', 'renamed'] }
+    tree.renameSession('host', 'old', 'renamed', {
+      group: 'group', index: 1,
+      hiddenKeys: ['host/old'],
+      expandedKeys: ['host/old', 'host/old/@2'],
+    })
+    expect(tree.order.sessions.group).toEqual(['first', 'renamed', 'last'])
+    expect(tree.order.hidden.sessions).toEqual(['host/renamed'])
+    expect(tree.order.expanded).toEqual(['host/renamed', 'host/renamed/@2'])
+  })
+
   it('keeps saved session order before the host has a reachable session snapshot', async () => {
     stubFetch((method, path) => path === '/api/ui-state/tree' && method === 'GET'
       ? { status: 200, body: { version: 1, projects: [], sessions: { __other__: ['saved-session'] } } }

@@ -10,25 +10,12 @@ defineProps<{ agent: 'codex' | 'claude' }>()
     class="inline-flex size-3.5 shrink-0 items-center justify-center"
     aria-hidden="true"
   >
-    <svg
+    <img
       v-if="agent === 'codex'"
-      viewBox="0 0 16 16"
+      src="/agents/codex.svg"
+      alt=""
       class="size-full"
-      fill="none"
-    >
-      <path
-        d="M8 1.45 13.65 4.7v6.6L8 14.55 2.35 11.3V4.7L8 1.45Z"
-        stroke="#10A37F"
-        stroke-width="1.4"
-        stroke-linejoin="round"
-      />
-      <path
-        d="m5.05 5.05 5.9 5.9m0-5.9-5.9 5.9"
-        stroke="#6B75E8"
-        stroke-width="1.25"
-        stroke-linecap="round"
-      />
-    </svg>
+    />
     <svg
       v-else
       viewBox="0 0 16 16"

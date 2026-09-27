@@ -58,6 +58,26 @@ async function savedRoot(page: Page): Promise<unknown> {
 test.describe('desktop', () => {
   test.skip(({ isMobile }) => isMobile, 'desktop scenarios')
 
+  test('(T11) Terminal menu asks for split position before listing sessions', async ({ ui, target }) => {
+    const [a, b, other] = await newSessions(target, 'menu-split-a', 'menu-split-b', 'menu-split-c')
+    await ui.open()
+    await ui.openTerminal(a)
+    const menu = ui.pane(a).getByRole('button', { name: 'Terminal actions' })
+    await menu.click()
+    await expect(ui.page.getByRole('menuitem', { name: 'Split pane…' })).toBeVisible()
+    await expect(ui.page.getByRole('menuitem', { name: b, exact: true })).toHaveCount(0)
+    await ui.page.getByRole('menuitem', { name: 'Split pane…' }).click()
+    await ui.page.getByRole('menuitem', { name: 'Split down', exact: true }).click()
+    await expect(ui.page.getByRole('menuitem', { name: b, exact: true })).toBeVisible()
+    await ui.page.getByRole('menuitem', { name: b, exact: true }).click()
+    await ui.waitForTerminal(b)
+    await expect(ui.pane(other)).toHaveCount(0)
+    const [upper, lower] = [await box(ui, a), await box(ui, b)]
+    expect(Math.abs(upper.x - lower.x)).toBeLessThan(2)
+    expect(upper.y + upper.height).toBeLessThanOrEqual(lower.y + 2)
+    await expect.poll(() => attached(target, b), { timeout: 15_000 }).toBe('1')
+  })
+
   // Split and type (T8)
   test('split and type: a nested split of three panes; input lands in each', async ({ ui, target }) => {
     const [a, b, c] = await threePanes(ui, target)

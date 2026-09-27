@@ -193,8 +193,9 @@ type env struct {
 }
 
 type fakeFileBrowser struct {
-	calls []string
-	err   error
+	calls    []string
+	err      error
+	uploaded []byte
 }
 
 func (f *fakeFileBrowser) Home(context.Context) (string, error) {
@@ -212,6 +213,80 @@ func (f *fakeFileBrowser) Stat(_ context.Context, p string) (fsbrowse.StatResult
 func (f *fakeFileBrowser) Mkdir(_ context.Context, p, name string) (string, error) {
 	f.calls = append(f.calls, "mkdir "+p+" "+name)
 	return p + "/" + name, f.err
+}
+func (f *fakeFileBrowser) Upload(_ context.Context, dir, name string, source io.Reader, size int64) (string, error) {
+	data, _ := io.ReadAll(source)
+	f.uploaded = append([]byte(nil), data...)
+	f.calls = append(f.calls, "upload "+dir+" "+name+" "+strconv.FormatInt(int64(len(data)), 10))
+	return dir + "/" + name, f.err
+}
+
+func TestPhotoUploadAcceptsRawBytesAndRequiresAllowedOrigin(t *testing.T) {
+	e := newEnv(t)
+	photoBytes := []byte{0, 255, 216, 0, 128, 10}
+	path := "/api/machines/host/fs/upload?directory=%2Fhome%2Fdev%2Frepo&name=IMG_1234.HEIC"
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, path, bytes.NewReader(photoBytes))
+	req.Header.Set("Origin", origin)
+	req.Header.Set("Content-Type", "application/octet-stream")
+	req.AddCookie(&http.Cookie{Name: SessionCookie, Value: testToken})
+	rec := httptest.NewRecorder()
+	e.h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated || !bytes.Equal(e.fs.uploaded, photoBytes) {
+		t.Fatalf("upload = %d %s, received bytes %v", rec.Code, rec.Body, e.fs.uploaded)
+	}
+	if !strings.Contains(rec.Body.String(), `"size":6`) || !slices.Contains(e.fs.calls, "upload /home/dev/repo IMG_1234.HEIC 6") {
+		t.Fatalf("upload response/call mismatch: %s; %v", rec.Body, e.fs.calls)
+	}
+	badOrigin := httptest.NewRequestWithContext(t.Context(), http.MethodPut, path, bytes.NewReader(photoBytes))
+	badOrigin.Header.Set("Origin", "http://evil.example.com")
+	badOrigin.Header.Set("Content-Type", "application/octet-stream")
+	badOrigin.AddCookie(&http.Cookie{Name: SessionCookie, Value: testToken})
+	denied := httptest.NewRecorder()
+	e.h.ServeHTTP(denied, badOrigin)
+	if denied.Code != http.StatusForbidden {
+		t.Fatalf("foreign-origin upload = %d, want 403", denied.Code)
+	}
+	for _, tc := range []struct {
+		name        string
+		contentType string
+		length      int64
+		status      int
+	}{
+		{name: "wrong content type", contentType: "image/heic", length: 1, status: http.StatusUnsupportedMediaType},
+		{name: "too large", contentType: "application/octet-stream", length: fsbrowse.MaxUploadBytes + 1, status: http.StatusRequestEntityTooLarge},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, path, strings.NewReader("x"))
+			req.ContentLength = tc.length
+			req.Header.Set("Origin", origin)
+			req.Header.Set("Content-Type", tc.contentType)
+			req.AddCookie(&http.Cookie{Name: SessionCookie, Value: testToken})
+			rec := httptest.NewRecorder()
+			e.h.ServeHTTP(rec, req)
+			if rec.Code != tc.status {
+				t.Fatalf("upload status = %d %s, want %d", rec.Code, rec.Body, tc.status)
+			}
+		})
+	}
+	invalidDestination := httptest.NewRequestWithContext(t.Context(), http.MethodPut, "/api/machines/host/fs/upload?directory=&name=x.heic", strings.NewReader("x"))
+	invalidDestination.Header.Set("Origin", origin)
+	invalidDestination.Header.Set("Content-Type", "application/octet-stream")
+	invalidDestination.AddCookie(&http.Cookie{Name: SessionCookie, Value: testToken})
+	invalid := httptest.NewRecorder()
+	e.h.ServeHTTP(invalid, invalidDestination)
+	if invalid.Code != http.StatusBadRequest {
+		t.Fatalf("empty upload directory = %d, want 400", invalid.Code)
+	}
+	e.fs.err = fsbrowse.ErrAlreadyExists
+	collision := httptest.NewRequestWithContext(t.Context(), http.MethodPut, path, bytes.NewReader(photoBytes))
+	collision.Header.Set("Origin", origin)
+	collision.Header.Set("Content-Type", "application/octet-stream")
+	collision.AddCookie(&http.Cookie{Name: SessionCookie, Value: testToken})
+	conflict := httptest.NewRecorder()
+	e.h.ServeHTTP(conflict, collision)
+	if conflict.Code != http.StatusConflict || !strings.Contains(conflict.Body.String(), "already exists") {
+		t.Fatalf("existing photo name = %d %s, want actionable 409", conflict.Code, conflict.Body)
+	}
 }
 
 func newEnv(t *testing.T) *env {
@@ -357,7 +432,7 @@ func TestHTTPServerRejectsHeadersOver32KiB(t *testing.T) {
 
 func TestRuntimeLimitsIsAuthenticatedAndReportsExecDeadline(t *testing.T) {
 	e := newEnv(t)
-	if rec := e.do(t, http.MethodGet, "/api/runtime/limits", "", nil); rec.Code != http.StatusOK || strings.TrimSpace(rec.Body.String()) != `{"execTimeoutMs":10000,"sftpTimeoutMs":10000}` {
+	if rec := e.do(t, http.MethodGet, "/api/runtime/limits", "", nil); rec.Code != http.StatusOK || strings.TrimSpace(rec.Body.String()) != `{"execTimeoutMs":10000,"sftpTimeoutMs":10000,"uploadTimeoutMs":300000}` {
 		t.Fatalf("runtime limits: %d %s", rec.Code, rec.Body)
 	}
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/runtime/limits", nil)

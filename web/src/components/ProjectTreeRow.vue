@@ -54,6 +54,19 @@ function shortPath(path: string): string {
 function renameOnFinePointer() {
   if (window.matchMedia('(pointer: fine)').matches) emit('startRename', 'project:' + props.group.project.id)
 }
+
+let restoringMenuFocus = true
+function startProjectRename() {
+  // Closing this menu normally focuses its trigger. That would immediately
+  // blur (and cancel) the inline editor that replaces the project label.
+  restoringMenuFocus = false
+  emit('startRename', 'project:' + props.group.project.id)
+}
+function onMenuCloseAutoFocus(event: Event) {
+  if (restoringMenuFocus) return
+  restoringMenuFocus = true
+  event.preventDefault()
+}
 </script>
 
 <template>
@@ -93,8 +106,8 @@ function renameOnFinePointer() {
       <DropdownMenuRoot :open="props.menuOpen" @update:open="(open) => emit('menuOpen', open, props.group.project.id)">
         <DropdownMenuTrigger type="button" class="touch-target min-h-7 min-w-6 rounded px-1 text-muted" :aria-label="'More actions for ' + props.group.project.name" title="More" tabindex="-1" @click.stop>⋯</DropdownMenuTrigger>
         <DropdownMenuPortal>
-          <DropdownMenuContent align="end" :side-offset="4" class="z-[60] min-w-48 rounded border border-border bg-surface p-1 text-fg shadow-lg">
-            <DropdownMenuItem class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 outline-none data-highlighted:bg-bg" @select="emit('startRename', 'project:' + props.group.project.id)">Rename</DropdownMenuItem>
+          <DropdownMenuContent align="end" :side-offset="4" class="z-[60] min-w-48 rounded border border-border bg-surface p-1 text-fg shadow-lg" @close-auto-focus="onMenuCloseAutoFocus">
+            <DropdownMenuItem class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 outline-none data-highlighted:bg-bg" @select="startProjectRename">Rename</DropdownMenuItem>
             <DropdownMenuItem class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 outline-none data-highlighted:bg-bg" @select="emit('hideProject', props.group.project.id)">{{ props.hidden ? 'Unhide' : 'Hide' }}</DropdownMenuItem>
             <DropdownMenuItem class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 outline-none data-highlighted:bg-bg" @select="emit('togglePin', props.group.project.id)">{{ props.pinned ? 'Unpin' : 'Pin' }}</DropdownMenuItem>
             <DropdownMenuItem class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 text-danger outline-none data-highlighted:bg-bg" @select="emit('removeProject', props.group.project.id)">Remove project…</DropdownMenuItem>

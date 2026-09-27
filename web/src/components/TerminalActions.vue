@@ -1,15 +1,34 @@
 <script setup lang="ts">
-import { DropdownMenuContent, DropdownMenuItem, DropdownMenuPortal, DropdownMenuRoot, DropdownMenuTrigger } from 'reka-ui'
+import { DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuPortal, DropdownMenuRoot, DropdownMenuTrigger } from 'reka-ui'
+import { ref, watch } from 'vue'
 const props = defineProps<{ hasSelection: boolean; canSplit: boolean; sessions: string[] }>()
 const emit = defineEmits<{
   action: [name: 'search' | 'copy' | 'keyboard' | 'dictation' | 'snapshot' | 'photos' | 'close']
   split: [direction: 'row' | 'column', session: string | null]
 }>()
 const item = 'touch-target flex min-h-11 cursor-pointer items-center rounded px-3 py-1 outline-none data-disabled:text-muted data-highlighted:bg-bg'
+const open = ref(false)
+const splitStep = ref<'start' | 'position' | 'session'>('start')
+const splitDirection = ref<'row' | 'column'>('row')
+
+watch(open, (isOpen) => {
+  if (!isOpen) splitStep.value = 'start'
+})
+
+function choosePosition(direction: 'row' | 'column', event: Event) {
+  splitDirection.value = direction
+  splitStep.value = 'session'
+  event.preventDefault()
+}
+
+function chooseSession(session: string | null) {
+  open.value = false
+  emit('split', splitDirection.value, session)
+}
 </script>
 
 <template>
-  <DropdownMenuRoot>
+  <DropdownMenuRoot v-model:open="open">
     <DropdownMenuTrigger type="button" aria-label="Terminal actions" title="Terminal actions" class="touch-target rounded border border-border px-2">⋮</DropdownMenuTrigger>
     <DropdownMenuPortal>
       <DropdownMenuContent align="end" :side-offset="4" aria-label="Terminal actions" class="z-50 max-h-[min(80dvh,36rem)] min-w-48 overflow-y-auto rounded border border-border bg-surface p-1 text-fg shadow-lg">
@@ -20,10 +39,17 @@ const item = 'touch-target flex min-h-11 cursor-pointer items-center rounded px-
         <DropdownMenuItem :class="item" @select="emit('action', 'snapshot')">View terminal text</DropdownMenuItem>
         <DropdownMenuItem :class="item" @select="emit('action', 'photos')">Send photos to this repo</DropdownMenuItem>
         <template v-if="props.canSplit">
-          <DropdownMenuItem v-for="session in props.sessions" :key="'right-' + session" :class="item" @select="emit('split', 'row', session)">Split right with {{ session }}</DropdownMenuItem>
-          <DropdownMenuItem :class="item" @select="emit('split', 'row', null)">Split right with new session</DropdownMenuItem>
-          <DropdownMenuItem v-for="session in props.sessions" :key="'down-' + session" :class="item" @select="emit('split', 'column', session)">Split down with {{ session }}</DropdownMenuItem>
-          <DropdownMenuItem :class="item" @select="emit('split', 'column', null)">Split down with new session</DropdownMenuItem>
+          <DropdownMenuItem v-if="splitStep === 'start'" :class="item" @select.prevent="splitStep = 'position'">Split pane…</DropdownMenuItem>
+          <template v-else-if="splitStep === 'position'">
+            <DropdownMenuLabel class="px-3 py-2 text-xs text-muted">Choose split position</DropdownMenuLabel>
+            <DropdownMenuItem :class="item" @select="choosePosition('row', $event)">Split right</DropdownMenuItem>
+            <DropdownMenuItem :class="item" @select="choosePosition('column', $event)">Split down</DropdownMenuItem>
+          </template>
+          <template v-else>
+            <DropdownMenuItem :class="item" @select.prevent="splitStep = 'position'">← Position: {{ splitDirection === 'row' ? 'right' : 'down' }}</DropdownMenuItem>
+            <DropdownMenuItem v-for="session in props.sessions" :key="session" :class="item" @select="chooseSession(session)">{{ session }}</DropdownMenuItem>
+            <DropdownMenuItem :class="item" @select="chooseSession(null)">New session…</DropdownMenuItem>
+          </template>
         </template>
         <DropdownMenuItem :class="item" @select="emit('action', 'close')">Close pane</DropdownMenuItem>
       </DropdownMenuContent>

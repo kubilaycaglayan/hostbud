@@ -64,6 +64,10 @@ body {
   overscroll-behavior: none;
 }
 
+:root:not([data-theme='light']) [data-agent='codex'] img {
+  filter: invert(1);
+}
+
 /* The app fills the visual viewport (lib/appHeight.ts), so a phone's
    on-screen keyboard shrinks it instead of covering the terminal. */
 #app {

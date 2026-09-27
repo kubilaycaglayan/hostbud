@@ -8,6 +8,12 @@ import { useMachinesStore } from './machines'
 import { whenOnline } from './whenOnline'
 
 const SAVE_RETRY_MS = 2000
+type SessionRenamePosition = {
+  group: string
+  index: number
+  hiddenKeys: string[]
+  expandedKeys: string[]
+}
 
 export const useTreeStore = defineStore('tree', () => {
   const order = ref<TreeState>(emptyTreeState())
@@ -236,19 +242,35 @@ export const useTreeStore = defineStore('tree', () => {
   }
 
   /** Re-key a session's saved position and expansion state as one tree update. */
-  function renameSession(machine: string, from: string, to: string) {
+  function renameSession(machine: string, from: string, to: string, position?: SessionRenamePosition) {
     const oldKey = `${machine}/${from}`
     const newKey = `${machine}/${to}`
     const replacePrefix = (key: string) => key === oldKey || key.startsWith(oldKey + '/')
       ? newKey + key.slice(oldKey.length)
       : key
+    const sessions = Object.fromEntries(Object.entries(order.value.sessions).map(([group, names]) => {
+      const renamed = names.map((name) => name === from ? to : name)
+      // The inventory can report the new name before the rename request
+      // resolves. A sync in that window may prune `from` and append `to`;
+      // restore the position captured when editing began in that case.
+      if (position?.group === group && !names.includes(from) && names.includes(to)) {
+        const without = renamed.filter((name) => name !== to)
+        without.splice(Math.min(position.index, without.length), 0, to)
+        return [group, without]
+      }
+      return [group, renamed]
+    }))
+    const hidden = order.value.hidden.sessions.map(replacePrefix)
+    const expanded = order.value.expanded.map(replacePrefix)
+    if (position) {
+      for (const key of position.hiddenKeys.map(replacePrefix)) if (!hidden.includes(key)) hidden.push(key)
+      for (const key of position.expandedKeys.map(replacePrefix)) if (!expanded.includes(key)) expanded.push(key)
+    }
     const next: TreeState = {
       ...order.value,
-      sessions: Object.fromEntries(Object.entries(order.value.sessions).map(([group, names]) => [
-        group, names.map((name) => name === from ? to : name),
-      ])),
-      hidden: { ...order.value.hidden, sessions: order.value.hidden.sessions.map(replacePrefix) },
-      expanded: order.value.expanded.map(replacePrefix),
+      sessions,
+      hidden: { ...order.value.hidden, sessions: hidden },
+      expanded,
     }
     order.value = next
   }

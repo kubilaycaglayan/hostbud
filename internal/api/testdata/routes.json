@@ -25,6 +25,7 @@
   {"method":"GET","path":"/api/machines/{machine}/fs","stateChanging":false,"authRequired":true,"websocket":false,"jsonBody":false},
   {"method":"GET","path":"/api/machines/{machine}/fs/stat","stateChanging":false,"authRequired":true,"websocket":false,"jsonBody":false},
   {"method":"POST","path":"/api/machines/{machine}/fs/mkdir","stateChanging":true,"authRequired":true,"websocket":false,"jsonBody":true},
+  {"method":"PUT","path":"/api/machines/{machine}/fs/upload","stateChanging":true,"authRequired":true,"websocket":false,"jsonBody":false},
   {"method":"GET","path":"/api/projects","stateChanging":false,"authRequired":true,"websocket":false,"jsonBody":false},
   {"method":"POST","path":"/api/projects","stateChanging":true,"authRequired":true,"websocket":false,"jsonBody":true},
   {"method":"GET","path":"/api/projects/{id}","stateChanging":false,"authRequired":true,"websocket":false,"jsonBody":false},

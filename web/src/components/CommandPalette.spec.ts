@@ -68,6 +68,18 @@ describe('CommandPalette', () => {
     expect(wrapper.emitted('select')?.[0]).toEqual(['action:new-session'])
   })
 
+  it('runs the highlighted match on Enter', async () => {
+    wrapper = mount(CommandPalette, { props: { open: true, items }, attachTo: document.body })
+    await flushPromises()
+    const input = document.querySelector<HTMLInputElement>('input[aria-label="Command palette"]')!
+    document.querySelectorAll('[role="option"][data-highlighted]').forEach((item) => item.removeAttribute('data-highlighted'))
+    const option = document.querySelector<HTMLElement>('[role="option"][data-palette-id="project:p1"]')!
+    option.setAttribute('data-highlighted', '')
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    await flushPromises()
+    expect(wrapper.emitted('select')?.[0]).toEqual(['project:p1'])
+  })
+
   it('closes on Escape and emits the closed state', async () => {
     wrapper = mount(CommandPalette, { props: { open: true, items }, attachTo: document.body })
     await flushPromises()

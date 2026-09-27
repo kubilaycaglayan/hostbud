@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"hostbud/internal/events"
+	"hostbud/internal/fsbrowse"
 	"hostbud/internal/inventory"
 	"hostbud/internal/tmux"
 )
@@ -53,6 +54,7 @@ type Config struct {
 	Heartbeat             time.Duration
 	ExecTimeout           time.Duration
 	SFTPTimeout           time.Duration
+	UploadTimeout         time.Duration
 	RequestTimeout        time.Duration
 	DBPing                func(context.Context) error
 	ContentSecurityPolicy string
@@ -126,6 +128,9 @@ func New(cfg Config) http.Handler {
 	if cfg.RequestTimeout <= 0 {
 		cfg.RequestTimeout = 30 * time.Second
 	}
+	if cfg.UploadTimeout <= 0 {
+		cfg.UploadTimeout = 5 * time.Minute
+	}
 	s := &server{cfg: cfg, machines: map[string]Snapshotter{}, eventUsers: map[string]int{}}
 	for _, m := range cfg.Machines {
 		info, _ := m.Snapshot()
@@ -197,6 +202,7 @@ func mountRoutes(s *server, mux *http.ServeMux) {
 		addFunc("GET /api/machines/{machine}/fs", s.fsList)
 		addFunc("GET /api/machines/{machine}/fs/stat", s.fsStat)
 		addFunc("POST /api/machines/{machine}/fs/mkdir", s.fsMkdir)
+		addFunc("PUT /api/machines/{machine}/fs/upload", s.fsUpload)
 	}
 	if cfg.Projects != nil {
 		addFunc("GET /api/projects", s.listProjects)
@@ -215,7 +221,19 @@ func requestLimits(cfg Config, next http.Handler) http.Handler {
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			w.Header().Set("Cache-Control", "no-store")
 		}
-		if isStateChanging(r.Method) && hasRequestBody(r) {
+		isUpload := r.Method == http.MethodPut && strings.HasSuffix(r.URL.Path, "/fs/upload")
+		if isUpload {
+			mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+			if err != nil || mediaType != "application/octet-stream" {
+				writeError(w, http.StatusUnsupportedMediaType, "content type must be application/octet-stream", "Send the original photo bytes directly.")
+				return
+			}
+			if r.ContentLength < 0 || r.ContentLength > fsbrowse.MaxUploadBytes {
+				writeError(w, http.StatusRequestEntityTooLarge, "photo exceeds the 100 MiB upload limit", "Choose a smaller original photo.")
+				return
+			}
+			r.Body = http.MaxBytesReader(w, r.Body, fsbrowse.MaxUploadBytes)
+		} else if isStateChanging(r.Method) && hasRequestBody(r) {
 			// The media type first: a non-JSON body is refused whatever its size.
 			mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 			if err != nil || mediaType != "application/json" {
@@ -229,9 +247,17 @@ func requestLimits(cfg Config, next http.Handler) http.Handler {
 			r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
 		}
 		if strings.HasPrefix(r.URL.Path, "/api/") {
-			ctx, cancel := context.WithTimeout(r.Context(), cfg.RequestTimeout)
+			deadline := cfg.RequestTimeout
+			if isUpload {
+				deadline = cfg.UploadTimeout
+			}
+			ctx, cancel := context.WithTimeout(r.Context(), deadline)
 			defer cancel()
-			_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(cfg.RequestTimeout))
+			controller := http.NewResponseController(w)
+			_ = controller.SetWriteDeadline(time.Now().Add(deadline))
+			if isUpload {
+				_ = controller.SetReadDeadline(time.Now().Add(deadline))
+			}
 			r = r.WithContext(ctx)
 		}
 		next.ServeHTTP(w, r)
@@ -282,7 +308,11 @@ func (s *server) terminalSlots(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) runtimeLimits(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]int64{"execTimeoutMs": s.cfg.ExecTimeout.Milliseconds(), "sftpTimeoutMs": s.cfg.SFTPTimeout.Milliseconds()})
+	writeJSON(w, http.StatusOK, map[string]int64{
+		"execTimeoutMs":   s.cfg.ExecTimeout.Milliseconds(),
+		"sftpTimeoutMs":   s.cfg.SFTPTimeout.Milliseconds(),
+		"uploadTimeoutMs": s.cfg.UploadTimeout.Milliseconds(),
+	})
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

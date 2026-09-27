@@ -2,6 +2,8 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Session } from '@/api/types'
+import { filesystemApi } from '@/api/client'
+import { useProjectsStore } from '@/stores/projects'
 import { useSessionsStore } from '@/stores/sessions'
 import { useToastsStore } from '@/stores/toasts'
 import { useThemeStore } from '@/stores/theme'
@@ -435,10 +437,16 @@ describe('TerminalView', () => {
     await w.setProps({ canSplit: true })
     await w.get('button[aria-label="Terminal actions"]').trigger('click')
     await flushPromises()
-    await clickMenuItem('Split right with acc-b')
+    await clickMenuItem('Split pane…')
+    expect([...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].some((el) => el.textContent?.trim() === 'acc-b')).toBe(false)
+    await clickMenuItem('Split right')
+    expect([...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].map((el) => el.textContent?.trim())).toContain('acc-b')
+    await clickMenuItem('acc-b')
     await w.get('button[aria-label="Terminal actions"]').trigger('click')
     await flushPromises()
-    await clickMenuItem('Split down with new session')
+    await clickMenuItem('Split pane…')
+    await clickMenuItem('Split down')
+    await clickMenuItem('New session…')
     expect(w.emitted('split')).toEqual([['row', 'acc-b'], ['column', null]])
     // Narrow screens split from the list's row menu instead.
     await w.setProps({ narrow: true })
@@ -508,6 +516,39 @@ describe('TerminalView', () => {
     expect(fetchOutput).toHaveBeenCalledWith('/api/machines/host/sessions/acc-a/output', expect.objectContaining({ method: 'GET' }))
     expect(snapshot.closest('[role="dialog"]')?.querySelectorAll('button[aria-label="Close terminal view"]')).toHaveLength(1)
     expect(snapshot.closest('[role="dialog"]')?.querySelector('textarea')).toBeNull()
+  })
+
+  it('opens photo sending for the active session folder from the terminal menu', async () => {
+    useProjectsStore().remember({ id: 'photo-project', machineId: 'host', path: '/home/dev/photo-repo', name: 'Photo repo', sortOrder: 0, pinned: false, createdAt: '', updatedAt: '' })
+    useSessionsStore().$patch({ byMachine: { host: [{ id: '$1', name: 'acc-a', path: '/home/dev/photo-repo/subdir', projectId: 'photo-project', attached: 0, windows: 1, created: '', activity: '' }] } })
+    const w = await mountTerm()
+    await w.get('button[aria-label="Terminal actions"]').trigger('click')
+    await flushPromises()
+    await clickMenuItem('Send photos to this repo')
+    const input = document.querySelector<HTMLInputElement>('input[type="file"][accept="image/*,.heic,.heif,.dng"]')!
+    const dialog = input.closest('[role="dialog"]')!
+    expect(dialog.textContent).toContain('Send photos to this repo')
+    expect(dialog.textContent).toContain('/home/dev/photo-repo')
+    expect(input.getAttribute('accept')).toContain('image/*')
+    w.unmount()
+  })
+
+  it('Cmd-V image paste uploads the original image to the active repo and never pastes binary data into tmux', async () => {
+    useProjectsStore().remember({ id: 'photo-project', machineId: 'host', path: '/home/dev/photo-repo', name: 'Photo repo', sortOrder: 0, pinned: false, createdAt: '', updatedAt: '' })
+    useSessionsStore().$patch({ byMachine: { host: [{ id: '$1', name: 'acc-a', path: '/home/dev/photo-repo/subdir', projectId: 'photo-project', attached: 0, windows: 1, created: '', activity: '' }] } })
+    const upload = vi.spyOn(filesystemApi, 'uploadPhotoUnique').mockResolvedValue({ path: '/home/dev/photo-repo/pasted.png', size: 5 })
+    const w = await mountTerm()
+    const photo = new File([new Uint8Array([0, 255, 1, 2, 3])], 'pasted.png', { type: 'image/png' })
+    const event = new Event('paste', { bubbles: true, cancelable: true }) as ClipboardEvent
+    Object.defineProperty(event, 'clipboardData', { value: { items: [{ kind: 'file', type: 'image/png', getAsFile: () => photo }], files: [photo] } })
+    h.terms[0].textarea!.dispatchEvent(event)
+    await flushPromises()
+    expect(event.defaultPrevented).toBe(true)
+    expect(upload).toHaveBeenCalledWith('host', '/home/dev/photo-repo', photo)
+    expect(h.terms[0].paste).toHaveBeenCalledOnce()
+    expect(h.terms[0].paste).toHaveBeenCalledWith('../pasted.png')
+    expect(useToastsStore().toasts[0]).toMatchObject({ title: 'Photo added to repo', message: '../pasted.png · 5 bytes; path pasted into terminal', tone: 'success', placement: 'top-right' })
+    w.unmount()
   })
 
   it('backgrounding blurs the active terminal field and hidden tabs do not refocus', async () => {

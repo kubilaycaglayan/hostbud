@@ -33,7 +33,16 @@ watch(() => props.placeholder, () => { query.value = '' })
 // match instead of doing nothing.
 function onEnter(event: KeyboardEvent) {
   const list = (event.target as HTMLElement).closest('[role="dialog"]')
-  if (event.isComposing || list?.querySelector('[role="option"][data-highlighted]')) return
+  if (event.isComposing) return
+  const highlighted = list?.querySelector<HTMLElement>('[role="option"][data-highlighted]')
+  if (highlighted) {
+    const id = highlighted.dataset.paletteId
+    if (id) {
+      event.preventDefault()
+      select(id)
+    }
+    return
+  }
   const first = groups.flatMap((group) => filteredByGroup.value[group])[0]
   if (!first) return
   event.preventDefault()
@@ -88,6 +97,7 @@ function onCloseAutoFocus(event: Event) {
                 <ComboboxItem
                   v-for="item in filteredByGroup[group]"
                   :key="item.id"
+                  :data-palette-id="item.id"
                   :value="item.id"
                   :text-value="[item.label, item.secondary].filter(Boolean).join(' ')"
                   class="flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded px-2 text-sm outline-none data-[highlighted]:bg-bg data-[highlighted]:ring-2 data-[highlighted]:ring-accent"

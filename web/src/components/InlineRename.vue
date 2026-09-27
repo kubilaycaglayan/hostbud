@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 
 const props = defineProps<{
   name: string
@@ -11,11 +11,23 @@ const input = ref<HTMLInputElement>()
 const value = ref(props.name)
 const pending = ref(false)
 const finished = ref(false)
+let focusFrame = 0
 
 onMounted(() => {
-  input.value?.focus()
-  input.value?.select()
+  // Menus that launch rename restore focus to their trigger as they close.
+  // Wait until that click/focus sequence finishes, then focus the newly
+  // rendered editor and select the name.
+  focusFrame = requestAnimationFrame(() => {
+    input.value?.focus()
+    input.value?.setSelectionRange(0, input.value.value.length)
+  })
 })
+
+onBeforeUnmount(() => cancelAnimationFrame(focusFrame))
+
+function selectName(event: FocusEvent) {
+  ;(event.currentTarget as HTMLInputElement).select()
+}
 
 async function save() {
   if (pending.value || finished.value) return
@@ -48,6 +60,7 @@ function cancel() {
     <input
       ref="input"
       v-model="value"
+      @focus="selectName"
       :aria-label="`Rename ${name}`"
       :aria-describedby="error ? 'inline-rename-error' : undefined"
       :aria-invalid="error ? 'true' : undefined"

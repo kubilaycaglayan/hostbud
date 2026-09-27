@@ -50,6 +50,20 @@ func TestValidChildName(t *testing.T) {
 	}
 }
 
+func TestUploadRejectsInvalidNameAndOversizeBeforeOpeningSFTP(t *testing.T) {
+	opener := &unusedOpener{}
+	svc := New(opener, "host", time.Minute, time.Second)
+	if _, err := svc.Upload(context.Background(), "/home/dev", "../bad.heic", strings.NewReader("x"), 1); !errors.Is(err, ErrInvalidName) {
+		t.Fatalf("invalid upload name error = %v, want ErrInvalidName", err)
+	}
+	if _, err := svc.Upload(context.Background(), "/home/dev", "large.heic", strings.NewReader("x"), MaxUploadBytes+1); !errors.Is(err, ErrUploadTooLarge) {
+		t.Fatalf("oversize upload error = %v, want ErrUploadTooLarge", err)
+	}
+	if opener.opened != 0 {
+		t.Fatalf("invalid upload opened SFTP %d times", opener.opened)
+	}
+}
+
 func TestSortEntriesDirectoryFirstThenName(t *testing.T) {
 	rows := []Entry{
 		{Name: "z-file", Kind: "file"},

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, copyModeApi, filesystemApi, getUIState, projectsApi, putUIState, request, runtimeApi, sessionsApi, setExecTimeoutMs, setSftpTimeoutMs, windowsApi } from './client'
+import { ApiError, copyModeApi, filesystemApi, getUIState, projectsApi, putUIState, request, runtimeApi, sessionsApi, setExecTimeoutMs, setSftpTimeoutMs, setUploadTimeoutMs, windowsApi } from './client'
 import { stubFetch } from '@/test-utils'
 
 afterEach(() => {
@@ -7,6 +7,7 @@ afterEach(() => {
   vi.restoreAllMocks()
   setExecTimeoutMs(10_000)
   setSftpTimeoutMs(10_000)
+  setUploadTimeoutMs(300_000)
 })
 
 describe('request', () => {
@@ -43,13 +44,48 @@ describe('request', () => {
 describe('runtime limits', () => {
   it('uses the server exec timeout plus five seconds for tmux-backed requests', async () => {
     const timeout = vi.spyOn(AbortSignal, 'timeout')
-    stubFetch((_method, path) => ({ status: 200, body: path === '/api/runtime/limits' ? { execTimeoutMs: 25_000, sftpTimeoutMs: 15_000 } : { name: 'work' } }))
+    stubFetch((_method, path) => ({ status: 200, body: path === '/api/runtime/limits' ? { execTimeoutMs: 25_000, sftpTimeoutMs: 15_000, uploadTimeoutMs: 45_000 } : { name: 'work' } }))
     await runtimeApi.configureExecTimeout()
     await sessionsApi.create('host', { name: 'work' })
     expect(timeout).toHaveBeenCalledWith(30_000)
     timeout.mockClear()
     await filesystemApi.list('host', '/home/dev', false)
     expect(timeout).toHaveBeenCalledWith(20_000)
+    timeout.mockClear()
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ path: '/home/dev/a.heic', size: 1 }), { status: 201 })))
+    await filesystemApi.uploadPhoto('host', '/home/dev/repo', new File([new Uint8Array([255])], 'a.heic'))
+    expect(timeout).toHaveBeenCalledWith(50_000)
+  })
+
+  it('uploads the selected File directly as opaque octet-stream bytes', async () => {
+    const bytes = new Uint8Array([0, 255, 216, 0, 128, 10])
+    const file = new File([bytes], 'IMG 1234.HEIC', { type: 'image/heic', lastModified: 7 })
+    let uploadRequest: { url: string; init?: RequestInit } | undefined
+    vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      uploadRequest = { url: String(url), init }
+      return new Response(JSON.stringify({ path: '/home/dev/repo/IMG 1234.HEIC', size: bytes.length }), { status: 201 })
+    }))
+    expect(await filesystemApi.uploadPhoto('host', '/home/dev/repo', file)).toEqual({ path: '/home/dev/repo/IMG 1234.HEIC', size: bytes.length })
+    expect(uploadRequest?.url).toBe('/api/machines/host/fs/upload?directory=%2Fhome%2Fdev%2Frepo&name=IMG%201234.HEIC')
+    expect(uploadRequest?.init).toMatchObject({ method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/octet-stream' }, body: file })
+    expect([...new Uint8Array(await (uploadRequest?.init?.body as Blob).arrayBuffer())]).toEqual([...bytes])
+  })
+
+  it('adds the next number on a filename conflict without changing photo bytes', async () => {
+    const file = new File([new Uint8Array([0, 255, 9])], 'IMG_1234.HEIC', { type: 'image/heic' })
+    const requests: { url: string; body: BodyInit | null | undefined }[] = []
+    vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      requests.push({ url: String(url), body: init?.body })
+      if (requests.length === 1) return new Response(JSON.stringify({ error: 'a file or directory with that name already exists' }), { status: 409 })
+      return new Response(JSON.stringify({ path: '/home/dev/repo/IMG_1234-1.HEIC', size: file.size }), { status: 201 })
+    }))
+    const result = await filesystemApi.uploadPhotoUnique('host', '/home/dev/repo', file)
+    expect(result.path).toBe('/home/dev/repo/IMG_1234-1.HEIC')
+    expect(requests.map((request) => request.url)).toEqual([
+      '/api/machines/host/fs/upload?directory=%2Fhome%2Fdev%2Frepo&name=IMG_1234.HEIC',
+      '/api/machines/host/fs/upload?directory=%2Fhome%2Fdev%2Frepo&name=IMG_1234-1.HEIC',
+    ])
+    expect(requests.map((request) => request.body)).toEqual([file, file])
   })
 })
 

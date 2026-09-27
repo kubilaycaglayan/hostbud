@@ -7,7 +7,8 @@ export interface Toast {
   title: string
   message: string
   hint?: string
-  tone?: 'error' | 'info'
+  tone?: 'error' | 'info' | 'success'
+  placement?: 'top-right' | 'bottom-right'
 }
 
 let next = 1

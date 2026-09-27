@@ -2,8 +2,10 @@
 import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
 import { ref, watch } from 'vue'
 import { ApiError, filesystemApi } from '@/api/client'
+import { useToastsStore } from '@/stores/toasts'
 
 const props = defineProps<{ machine: string; directory: string }>()
+const emit = defineEmits<{ uploaded: [absolutePath: string] }>()
 const open = defineModel<boolean>('open', { default: false })
 const files = ref<File[]>([])
 const busy = ref(false)
@@ -28,17 +30,32 @@ function selectFiles(event: Event) {
   results.value = []
 }
 
+function preventDismissDuringUpload(event: Event) {
+  if (busy.value) event.preventDefault()
+}
+
 async function send() {
   if (!files.value.length || !props.directory || busy.value) return
   busy.value = true
   error.value = ''
   results.value = []
   try {
-    for (let index = 0; index < files.value.length; index++) {
-      const file = files.value[index]
-      progress.value = `Sending ${index + 1} of ${files.value.length}: ${file.name}`
-      const result = await filesystemApi.uploadPhoto(props.machine, props.directory, file)
-      results.value.push(`${file.name} · ${result.size.toLocaleString()} bytes`)
+    const batch = [...files.value]
+    for (let index = 0; index < batch.length; index++) {
+      const file = batch[index]
+      progress.value = `Sending ${index + 1} of ${batch.length}: ${file.name}`
+      const result = await filesystemApi.uploadPhotoUnique(props.machine, props.directory, file)
+      const uploadedName = result.path.split('/').pop() || file.name
+      results.value.push(`${uploadedName} · ${result.size.toLocaleString()} bytes`)
+      emit('uploaded', result.path)
+      useToastsStore().push({
+        title: 'Photo added to repo',
+        message: `${uploadedName} · ${result.size.toLocaleString()} bytes; path pasted into terminal`,
+        tone: 'success',
+        placement: 'top-right',
+      }, 5_000)
+      const pendingIndex = files.value.indexOf(file)
+      if (pendingIndex >= 0) files.value.splice(pendingIndex, 1)
     }
     files.value = []
   } catch (cause) {
@@ -56,7 +73,7 @@ async function send() {
   <DialogRoot v-model:open="open">
     <DialogPortal>
       <DialogOverlay class="fixed inset-0 z-40 bg-overlay" />
-      <DialogContent class="fixed left-1/2 top-1/2 z-40 flex max-h-[min(88dvh,42rem)] w-[min(92vw,32rem)] -translate-x-1/2 -translate-y-1/2 flex-col gap-3 overflow-y-auto rounded border border-border bg-surface p-4 text-fg shadow-xl">
+      <DialogContent class="fixed left-1/2 top-1/2 z-40 flex max-h-[min(88dvh,42rem)] w-[min(92vw,32rem)] -translate-x-1/2 -translate-y-1/2 flex-col gap-3 overflow-y-auto rounded border border-border bg-surface p-4 text-fg shadow-xl" @interact-outside="preventDismissDuringUpload" @escape-key-down="preventDismissDuringUpload">
         <div class="flex items-start justify-between gap-3">
           <div>
             <DialogTitle class="font-bold">Send photos to this repo</DialogTitle>
@@ -77,13 +94,13 @@ async function send() {
             @change="selectFiles"
           >
         </label>
-        <ul v-if="files.length" class="max-h-32 overflow-y-auto rounded bg-bg p-2 text-sm">
+        <ul v-if="files.length" aria-label="Selected photos" class="max-h-32 overflow-y-auto rounded bg-bg p-2 text-sm">
           <li v-for="file in files" :key="`${file.name}-${file.lastModified}-${file.size}`" class="truncate">{{ file.name }} · {{ file.size.toLocaleString() }} bytes</li>
         </ul>
         <p class="text-xs text-muted">Each photo is limited to 100 MiB. Existing files are kept; rename a photo if its name is already in use.</p>
         <p v-if="busy" role="status" class="text-sm">{{ progress }}</p>
-        <p v-if="error" role="alert" class="text-sm text-error">{{ error }}</p>
-        <ul v-if="results.length" aria-label="Sent photos" class="text-sm text-success">
+        <p v-if="error" role="alert" class="text-sm text-danger">{{ error }}</p>
+        <ul v-if="results.length" aria-label="Sent photos" class="text-sm text-ok">
           <li v-for="result in results" :key="result">Sent {{ result }}</li>
         </ul>
         <div class="flex justify-end gap-2">

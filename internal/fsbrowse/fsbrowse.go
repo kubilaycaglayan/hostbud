@@ -4,6 +4,8 @@ package fsbrowse
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,6 +30,7 @@ const (
 	MaxResponseBytes   = 1 << 20
 	MaxResponseName    = 1024
 	MaxConcurrentOps   = 4
+	MaxUploadBytes     = 100 << 20
 )
 
 var ErrInvalidPath = errors.New("invalid filesystem path")
@@ -35,6 +38,8 @@ var ErrInvalidName = errors.New("invalid directory name")
 var ErrTooManyEntries = errors.New("directory contains too many entries")
 var ErrNotDirectory = errors.New("path is not a directory")
 var ErrAlreadyExists = errors.New("path already exists")
+var ErrUploadTooLarge = errors.New("upload exceeds the file size limit")
+var ErrFileSizeMismatch = errors.New("uploaded byte count does not match the selected file")
 
 // SubsystemOpener starts a protocol subsystem over the configured system ssh
 // client. sshx.Client implements it with `ssh -F ... -s sftp`.
@@ -62,12 +67,13 @@ type StatResult struct {
 
 // Service keeps one lazy SFTP client and closes it after an idle period.
 type Service struct {
-	opener  SubsystemOpener
-	machine string
-	idle    time.Duration
-	timeout time.Duration
-	ctx     context.Context
-	cancel  context.CancelFunc
+	opener        SubsystemOpener
+	machine       string
+	idle          time.Duration
+	timeout       time.Duration
+	uploadTimeout time.Duration
+	ctx           context.Context
+	cancel        context.CancelFunc
 
 	mu         sync.Mutex
 	client     *sftp.Client
@@ -82,7 +88,7 @@ type Service struct {
 
 // New creates the SFTP browser for machine. Timeouts use safe defaults when
 // options are non-positive. machine remains explicit for future multi-host use.
-func New(opener SubsystemOpener, machine string, idleTimeout, operationTimeout time.Duration) *Service {
+func New(opener SubsystemOpener, machine string, idleTimeout, operationTimeout time.Duration, uploadTimeout ...time.Duration) *Service {
 	if idleTimeout <= 0 {
 		idleTimeout = DefaultIdleTimeout
 	}
@@ -90,11 +96,18 @@ func New(opener SubsystemOpener, machine string, idleTimeout, operationTimeout t
 		operationTimeout = DefaultOpTimeout
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Service{opener: opener, machine: machine, idle: idleTimeout, timeout: operationTimeout, ctx: ctx, cancel: cancel, slots: make(chan struct{}, MaxConcurrentOps)}
+	uploadDeadline := 5 * time.Minute
+	if len(uploadTimeout) > 0 && uploadTimeout[0] > 0 {
+		uploadDeadline = uploadTimeout[0]
+	}
+	return &Service{opener: opener, machine: machine, idle: idleTimeout, timeout: operationTimeout, uploadTimeout: uploadDeadline, ctx: ctx, cancel: cancel, slots: make(chan struct{}, MaxConcurrentOps)}
 }
 
 // OperationTimeout reports the per-operation deadline configured for this service.
 func (s *Service) OperationTimeout() time.Duration { return s.timeout }
+
+// UploadTimeout reports the byte-transfer deadline configured for this service.
+func (s *Service) UploadTimeout() time.Duration { return s.uploadTimeout }
 
 // Close releases the SFTP subsystem and its ssh process.
 func (s *Service) Close() error {
@@ -190,17 +203,21 @@ func (s *Service) touchLocked() {
 // withClient bounds each operation. Cancellation closes the subsystem stream,
 // which interrupts an in-flight SFTP packet and lets the next request reconnect.
 func (s *Service) withClient(ctx context.Context, op string, fn func(*sftp.Client) error) error {
+	return s.withClientTimeout(ctx, op, s.timeout, fn)
+}
+
+func (s *Service) withClientTimeout(ctx context.Context, op string, timeout time.Duration, fn func(*sftp.Client) error) error {
 	if ctx == nil {
 		ctx = s.ctx
 	}
-	opCtx, cancel := context.WithTimeout(ctx, s.timeout)
+	opCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	if err := s.acquireSlot(opCtx); err != nil {
-		var timeout time.Duration
+		var timeoutDuration time.Duration
 		if errors.Is(err, context.DeadlineExceeded) {
-			timeout = s.timeout
+			timeoutDuration = timeout
 		}
-		return &Error{Op: op, Err: err, Timeout: timeout}
+		return &Error{Op: op, Err: err, Timeout: timeoutDuration}
 	}
 	defer s.releaseSlot()
 	// A pooled connection can be dead (the host dropped it while idle): the
@@ -209,15 +226,111 @@ func (s *Service) withClient(ctx context.Context, op string, fn func(*sftp.Clien
 	// Creating a directory isn't retried: it may have happened before the
 	// connection broke.
 	for {
-		reused, err := s.attempt(opCtx, op, fn)
+		reused, err := s.attempt(opCtx, op, timeout, fn)
 		var e *Error
-		if !reused || op == opMkdir || !errors.As(err, &e) || !brokenConnection(e.Err) || opCtx.Err() != nil {
+		if !reused || op == opMkdir || op == opUpload || !errors.As(err, &e) || !brokenConnection(e.Err) || opCtx.Err() != nil {
 			return err
 		}
 	}
 }
 
+// Upload writes the exact supplied bytes to one new file in an existing
+// directory. It stages beside the destination and renames only after the
+// complete byte count is written, so interrupted uploads don't leave a partial
+// file with the requested name. Existing names are never overwritten.
+func (s *Service) Upload(ctx context.Context, directory, name string, source io.Reader, size int64) (string, error) {
+	if ctx == nil {
+		ctx = s.ctx
+	}
+	if err := validChildName(name); err != nil {
+		return "", err
+	}
+	if source == nil || size < 0 || size > MaxUploadBytes {
+		return "", ErrUploadTooLarge
+	}
+	home, err := s.Home(ctx)
+	if err != nil {
+		return "", err
+	}
+	dir, err := Normalize(directory, home)
+	if err != nil {
+		return "", err
+	}
+	target := path.Join(dir, name)
+	var temp string
+	err = s.withClientTimeout(ctx, opUpload, s.uploadTimeout, func(c *sftp.Client) error {
+		info, err := c.Stat(dir)
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			return ErrNotDirectory
+		}
+		if _, err := c.Lstat(target); err == nil {
+			return ErrAlreadyExists
+		} else if !IsNotExist(err) {
+			return err
+		}
+		random := make([]byte, 16)
+		if _, err := rand.Read(random); err != nil {
+			return err
+		}
+		temp = path.Join(dir, ".hostbud-upload-"+hex.EncodeToString(random))
+		remote, err := c.OpenFile(temp, os.O_WRONLY|os.O_CREATE|os.O_EXCL)
+		if err != nil {
+			return err
+		}
+		written, copyErr := io.Copy(remote, io.LimitReader(source, MaxUploadBytes+1))
+		closeErr := remote.Close()
+		if copyErr != nil {
+			return copyErr
+		}
+		if written > MaxUploadBytes {
+			return ErrUploadTooLarge
+		}
+		if written != size {
+			return ErrFileSizeMismatch
+		}
+		if closeErr != nil {
+			return closeErr
+		}
+		if _, err := c.Lstat(target); err == nil {
+			return ErrAlreadyExists
+		} else if !IsNotExist(err) {
+			return err
+		}
+		if err := c.Rename(temp, target); err != nil {
+			// SFTP servers commonly report a generic failure when a concurrent
+			// rename finds that another upload has already created the target.
+			// Translate that race to the same conflict returned by the preflight
+			// checks instead of exposing an opaque transfer error.
+			if _, statErr := c.Lstat(target); statErr == nil {
+				return ErrAlreadyExists
+			}
+			return err
+		}
+		return nil
+	})
+	if temp != "" {
+		if err != nil {
+			cleanupCtx := context.WithoutCancel(ctx)
+			_ = s.withClientTimeout(cleanupCtx, "remove incomplete upload", s.uploadTimeout, func(c *sftp.Client) error {
+				removeErr := c.Remove(temp)
+				if IsNotExist(removeErr) {
+					return nil
+				}
+				return removeErr
+			})
+		}
+	}
+	if err != nil {
+		return "", err
+	}
+	return target, nil
+}
+
 const opMkdir = "create directory"
+const opUpload = "upload file"
 
 // brokenConnection reports errors that close the SFTP connection itself
 // (not an SFTP status such as permission denied, nor a timeout).
@@ -228,13 +341,13 @@ func brokenConnection(err error) bool {
 }
 
 // attempt runs fn once; reused reports whether it ran on an existing connection.
-func (s *Service) attempt(opCtx context.Context, op string, fn func(*sftp.Client) error) (bool, error) {
+func (s *Service) attempt(opCtx context.Context, op string, timeoutBound time.Duration, fn func(*sftp.Client) error) (bool, error) {
 	s.mu.Lock()
 	if err := opCtx.Err(); err != nil {
 		s.mu.Unlock()
 		var timeout time.Duration
 		if errors.Is(err, context.DeadlineExceeded) {
-			timeout = s.timeout
+			timeout = timeoutBound
 		}
 		return false, &Error{Op: op, Err: err, Timeout: timeout}
 	}
@@ -242,7 +355,7 @@ func (s *Service) attempt(opCtx context.Context, op string, fn func(*sftp.Client
 	if err := s.ensureLocked(opCtx); err != nil {
 		s.mu.Unlock()
 		if opCtx.Err() != nil {
-			return false, &Error{Op: op, Err: opCtx.Err(), Timeout: s.timeout}
+			return false, &Error{Op: op, Err: opCtx.Err(), Timeout: timeoutBound}
 		}
 		return false, &Error{Op: op, Err: err}
 	}
@@ -276,7 +389,7 @@ func (s *Service) attempt(opCtx context.Context, op string, fn func(*sftp.Client
 		s.mu.Unlock()
 		var timeout time.Duration
 		if errors.Is(err, context.DeadlineExceeded) {
-			timeout = s.timeout
+			timeout = timeoutBound
 		}
 		return reused, &Error{Op: op, Err: err, Timeout: timeout}
 	}

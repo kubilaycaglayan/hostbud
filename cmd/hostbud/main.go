@@ -156,6 +156,7 @@ func run() error {
 			Log: log, Dist: web.Dist(),
 			ExecTimeout:           cfg.ExecTimeout,
 			SFTPTimeout:           cfg.SFTPTimeout,
+			UploadTimeout:         cfg.UploadTimeout,
 			DBPing:                st.Ping,
 			Origins:               origins,
 			ContentSecurityPolicy: csp,
@@ -237,7 +238,7 @@ func buildDepsAt(cfg config.Config, keysDir string) (runtimeDeps, error) {
 	if err != nil {
 		return runtimeDeps{}, err
 	}
-	filesystem := fsbrowse.New(client, store.HostMachineID, fsbrowse.DefaultIdleTimeout, cfg.SFTPTimeout)
+	filesystem := fsbrowse.New(client, store.HostMachineID, fsbrowse.DefaultIdleTimeout, cfg.SFTPTimeout, cfg.UploadTimeout)
 	return runtimeDeps{ssh: client, filesystem: filesystem}, nil
 }
 

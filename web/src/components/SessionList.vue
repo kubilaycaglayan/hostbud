@@ -42,6 +42,7 @@ const emit = defineEmits<{
 
 const item = 'touch-target flex min-h-11 items-center cursor-pointer rounded px-2 py-1 outline-none data-highlighted:bg-bg'
 const openMenuName = ref('')
+let skipMenuCloseFocus = false
 const tree = props.treeView ? useTreeStore() : undefined
 const windowsStore = props.treeView ? useWindowsStore() : undefined
 
@@ -132,6 +133,17 @@ function selectSession(name: string) {
 
 function commitRename(name: string, value: string) {
   return props.commitEdit ? props.commitEdit(name, value) : Promise.resolve()
+}
+
+function startRenameFromMenu(name: string) {
+  skipMenuCloseFocus = true
+  emit('rename', name)
+}
+
+function onMenuCloseAutoFocus(event: Event) {
+  if (!skipMenuCloseFocus) return
+  skipMenuCloseFocus = false
+  event.preventDefault()
 }
 
 function renameOnDoubleClick(name: string) {
@@ -255,6 +267,7 @@ const sortableSessions = computed({
               align="end"
               :side-offset="4"
               class="z-[60] min-w-48 rounded border border-border bg-surface p-1 text-fg shadow-lg"
+              @close-auto-focus="onMenuCloseAutoFocus"
             >
               <DropdownMenuItem
                 v-if="props.treeView"
@@ -265,7 +278,7 @@ const sortableSessions = computed({
               </DropdownMenuItem>
               <DropdownMenuItem
                 :class="item"
-                @select="emit('rename', s.name)"
+                @select="startRenameFromMenu(s.name)"
               >
                 Rename
               </DropdownMenuItem>

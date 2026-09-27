@@ -14,10 +14,12 @@ test('(T12) Agent logos appear on collapsed session rows', async ({ page, ui, ta
     await ui.createAccount(fresh)
     await target.run([
       'mkdir -p /home/dev/.hostbud-test-bin',
+      'ln -sf /bin/sleep /home/dev/.hostbud-test-bin/coy',
+      'ln -sf /bin/sleep /home/dev/.hostbud-test-bin/cly',
+      'ln -sf /bin/sleep /home/dev/.hostbud-test-bin/node',
       'ln -sf /bin/sleep /home/dev/.hostbud-test-bin/codex',
-      'ln -sf /bin/sleep /home/dev/.hostbud-test-bin/claude',
-      `tmux new-session -d -s ${shq(session)} -c /home/dev /home/dev/.hostbud-test-bin/codex 60`,
-      `tmux split-window -t ${shq('=' + session + ':')} -c /home/dev /home/dev/.hostbud-test-bin/claude 60`,
+      `tmux new-session -d -s ${shq(session)} -c /home/dev ${shq(`sh -c '/home/dev/.hostbud-test-bin/codex 60 & exec /home/dev/.hostbud-test-bin/node 60'`)}`,
+      `tmux split-window -t ${shq('=' + session + ':')} -c /home/dev /home/dev/.hostbud-test-bin/cly 60`,
     ].join(' && '))
 
     await ui.showList()
@@ -34,6 +36,6 @@ test('(T12) Agent logos appear on collapsed session rows', async ({ page, ui, ta
     await expect(ui.treeItem(ordinary).locator('[data-agent-mark]')).toHaveCount(0)
   } finally {
     await target.exec(`tmux kill-session -t ${shq('=' + session)} 2>/dev/null || true; tmux kill-session -t ${shq('=' + ordinary)} 2>/dev/null || true`)
-    await target.exec('rm -f /home/dev/.hostbud-test-bin/codex /home/dev/.hostbud-test-bin/claude')
+    await target.exec('rm -f /home/dev/.hostbud-test-bin/coy /home/dev/.hostbud-test-bin/cly /home/dev/.hostbud-test-bin/node /home/dev/.hostbud-test-bin/codex')
   }
 })

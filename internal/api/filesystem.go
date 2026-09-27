@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -17,6 +18,7 @@ type FileBrowser interface {
 	List(ctx context.Context, path string, hidden bool) (string, []fsbrowse.Entry, error)
 	Stat(ctx context.Context, path string) (fsbrowse.StatResult, error)
 	Mkdir(ctx context.Context, parent, name string) (string, error)
+	Upload(ctx context.Context, directory, name string, source io.Reader, size int64) (string, error)
 }
 
 const maxFSPathQuery = fsbrowse.MaxPathBytes
@@ -166,6 +168,32 @@ func (s *server) fsMkdir(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, map[string]string{"path": full})
 }
 
+func (s *server) fsUpload(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.machine(w, r); !ok {
+		return
+	}
+	if !onlyFSQueryKeys(r, []string{"directory", "name"}) {
+		writeError(w, http.StatusBadRequest, "unexpected query parameter", "Use only directory and name.")
+		return
+	}
+	directory, directoryOK := fsQuery(r, "directory")
+	name, nameOK := fsQuery(r, "name")
+	if !directoryOK || !nameOK || directory == "" || name == "" {
+		writeError(w, http.StatusBadRequest, "invalid upload destination", "Provide one target directory and file name.")
+		return
+	}
+	if r.ContentLength < 0 || r.ContentLength > fsbrowse.MaxUploadBytes {
+		writeError(w, http.StatusRequestEntityTooLarge, "photo exceeds the 100 MiB upload limit", "Choose a smaller original photo.")
+		return
+	}
+	full, err := s.cfg.FileSystem.Upload(r.Context(), directory, name, r.Body, r.ContentLength)
+	if err != nil {
+		s.writeFilesystemError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"path": full, "size": r.ContentLength})
+}
+
 func (s *server) writeFilesystemError(w http.ResponseWriter, err error) {
 	var operation *fsbrowse.Error
 	if errors.As(err, &operation) && operation.Timeout > 0 {
@@ -192,7 +220,15 @@ func (s *server) writeFilesystemError(w http.ResponseWriter, err error) {
 	case errors.Is(err, fsbrowse.ErrNotDirectory):
 		writeError(w, http.StatusBadRequest, "path is not a directory", "Choose an existing directory.")
 	case errors.Is(err, fsbrowse.ErrAlreadyExists):
-		writeError(w, http.StatusConflict, "directory already exists", "Choose another name or open the existing directory.")
+		if operation != nil && operation.Op == "create directory" {
+			writeError(w, http.StatusConflict, "directory already exists", "Choose another name or open the existing directory.")
+		} else {
+			writeError(w, http.StatusConflict, "a file or directory with that name already exists", "Rename the photo before sending it.")
+		}
+	case errors.Is(err, fsbrowse.ErrUploadTooLarge):
+		writeError(w, http.StatusRequestEntityTooLarge, "photo exceeds the 100 MiB upload limit", "Choose a smaller original photo.")
+	case errors.Is(err, fsbrowse.ErrFileSizeMismatch):
+		writeError(w, http.StatusBadRequest, "photo upload was incomplete", "Retry sending the original photo.")
 	case fsbrowse.IsPermission(err):
 		writeError(w, http.StatusForbidden, "permission denied", "The target user cannot access this path.")
 	default:

@@ -19,7 +19,7 @@ func TestBuildDepsWiresRemoteTimeouts(t *testing.T) {
 	}
 	deps, err := buildDepsAt(config.Config{
 		DataDir: dataDir, HostAddr: "server-a", HostSSHUser: "dev",
-		ExecTimeout: 17 * time.Second, SFTPTimeout: 23 * time.Second,
+		ExecTimeout: 17 * time.Second, SFTPTimeout: 23 * time.Second, UploadTimeout: 37 * time.Second,
 	}, keysDir)
 	if err != nil {
 		t.Fatal(err)
@@ -30,6 +30,9 @@ func TestBuildDepsWiresRemoteTimeouts(t *testing.T) {
 	}
 	if got := deps.filesystem.OperationTimeout(); got != 23*time.Second {
 		t.Errorf("SFTP timeout = %s, want 23s", got)
+	}
+	if got := deps.filesystem.UploadTimeout(); got != 37*time.Second {
+		t.Errorf("upload timeout = %s, want 37s", got)
 	}
 }
 

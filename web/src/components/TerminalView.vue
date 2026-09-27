@@ -8,7 +8,7 @@ import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
 import { TermSession, termURL, type SessionState } from '@/api/term'
-import { copyModeApi, terminalOutputApi } from '@/api/client'
+import { ApiError, copyModeApi, filesystemApi, terminalOutputApi } from '@/api/client'
 import { blurActiveFieldOnHide } from '@/lib/pageFocus'
 import TerminalMenu from '@/components/TerminalMenu.vue'
 import TerminalActions from '@/components/TerminalActions.vue'
@@ -19,6 +19,7 @@ import TabBar from '@/components/TabBar.vue'
 import KeyBar from '@/components/KeyBar.vue'
 import ScrollBar from '@/components/ScrollBar.vue'
 import { copySelection, installOsc52 } from '@/lib/clipboard'
+import { clipboardImages } from '@/lib/clipboardImages'
 import { registerPane, unregisterPane } from '@/lib/e2eHooks'
 import { hyperlinkHandler, openLink, type LinkHover } from '@/lib/links'
 import { keepScrollback, WHEEL_SMOOTH_SCROLL_MS } from '@/lib/scrollback'
@@ -29,6 +30,7 @@ import { clipboardKey, editingKey, searchKey } from '@/lib/terminalKeys'
 import { applyModifiers, createModifiers } from '@/lib/keyBar'
 import { createCopyModeController } from '@/lib/copyMode'
 import { useAuthStore } from '@/stores/auth'
+import { useProjectsStore } from '@/stores/projects'
 import { useSessionsStore } from '@/stores/sessions'
 import { useToastsStore } from '@/stores/toasts'
 import { useThemeStore } from '@/stores/theme'
@@ -93,13 +95,19 @@ let observer: ResizeObserver | null = null
 let selectionChange: { dispose: () => void } | null = null
 let disposeBackgroundBlur = () => {}
 let disposeTouchScroll = () => {}
+let disposeClipboardImagePaste = () => {}
 let touchSelectTimer: ReturnType<typeof setTimeout> | null = null
 let last = { cols: 0, rows: 0 }
 const auth = useAuthStore()
 const theme = useThemeStore()
+const projects = useProjectsStore()
 const sessions = useSessionsStore()
 const splitTargets = computed(() => sessions.list(props.machine).map((x) => x.name))
-const uploadDirectory = computed(() => sessions.list(props.machine).find((x) => x.name === props.session)?.path ?? '')
+const uploadDirectory = computed(() => {
+  const session = sessions.list(props.machine).find((x) => x.name === props.session)
+  if (!session) return ''
+  return projects.items.find((project) => project.id === session.projectId)?.path ?? session.path ?? ''
+})
 const copyMode = createCopyModeController(
   (action, lines) => copyModeApi.action(props.machine, props.session, action, lines),
   (error) => useToastsStore().error('Could not scroll terminal history', error),
@@ -338,6 +346,39 @@ function sendDictation(text: string) {
   term.value?.paste(text)
 }
 
+function relativePhotoPath(absolutePath: string) {
+  const sessionPath = sessions.list(props.machine).find((session) => session.name === props.session)?.path ?? uploadDirectory.value
+  const from = sessionPath.split('/').filter(Boolean)
+  const to = absolutePath.split('/').filter(Boolean)
+  let common = 0
+  while (common < from.length && common < to.length && from[common] === to[common]) common++
+  const relative = [...Array(from.length - common).fill('..'), ...to.slice(common)].join('/')
+  return relative.startsWith('..') ? relative : `./${relative}`
+}
+
+async function uploadPastedPhotos(files: File[]) {
+  if (!uploadDirectory.value) {
+    useToastsStore().push({ title: 'Could not send photo', message: 'The active session repository folder is unavailable.', tone: 'error' })
+    return
+  }
+  for (const file of files) {
+    try {
+      const result = await filesystemApi.uploadPhotoUnique(props.machine, uploadDirectory.value, file)
+      const relativePath = relativePhotoPath(result.path)
+      useToastsStore().push({ title: 'Photo added to repo', message: `${relativePath} · ${result.size.toLocaleString()} bytes; path pasted into terminal`, tone: 'success', placement: 'top-right' }, 5_000)
+      term.value?.paste(relativePath)
+    } catch (cause) {
+      if (cause instanceof ApiError) useToastsStore().error(`Could not send ${file.name}`, cause)
+      else useToastsStore().push({ title: `Could not send ${file.name}`, message: cause instanceof Error ? cause.message : 'Try pasting the photo again.', tone: 'error' })
+      return
+    }
+  }
+}
+
+function pasteUploadedPhotoPath(absolutePath: string) {
+  term.value?.paste(relativePhotoPath(absolutePath))
+}
+
 function closeSearch() {
   searchOpen.value = false
   term.value?.focus()
@@ -387,6 +428,17 @@ onMounted(async () => {
   search.value = new SearchAddon()
   t.loadAddon(search.value)
   t.open(el.value!)
+  // Image paste is a file transfer to the active repo. Plain text paste is
+  // left to xterm so bracketed-paste behavior remains unchanged.
+  const pasteImage = (event: ClipboardEvent) => {
+    const files = clipboardImages(event)
+    if (!files.length) return
+    event.preventDefault()
+    event.stopImmediatePropagation()
+    void uploadPastedPhotos(files)
+  }
+  t.textarea?.addEventListener('paste', pasteImage, true)
+  disposeClipboardImagePaste = () => t.textarea?.removeEventListener('paste', pasteImage, true)
   disposeTouchScroll = attachTouchScroll(el.value!, cellHeight, (direction, lines) => copyMode.swipe(direction, lines))
   prepareInput(t.textarea)
   try {
@@ -487,6 +539,7 @@ onBeforeUnmount(() => {
   clearTouchSelectTimer()
   disposeBackgroundBlur()
   disposeTouchScroll()
+  disposeClipboardImagePaste()
   snapshotRequest++
   selectionChange?.dispose()
   window.removeEventListener('mouseup', finishAltClick, true)
@@ -598,7 +651,7 @@ defineExpose({ refit, reconnect, showKeyboard })
     </TerminalMenu>
     <TerminalTextDialog v-model:open="dictationOpen" mode="dictation" @send="sendDictation" />
     <TerminalTextDialog v-model:open="snapshotOpen" mode="snapshot" :snapshot="terminalSnapshot" :loading="snapshotLoading" :error="snapshotError" @retry="openSnapshot" />
-    <PhotoUploadDialog v-model:open="photoUploadOpen" :machine="props.machine" :directory="uploadDirectory" />
+    <PhotoUploadDialog v-model:open="photoUploadOpen" :machine="props.machine" :directory="uploadDirectory" @uploaded="pasteUploadedPhotoPath" />
     <KeyBar
       v-if="!inMode"
       :term="term"

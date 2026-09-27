@@ -228,10 +228,20 @@ async function renameSession(from: string, raw: string) {
   const invalid = sessionNameError(to, true)
   if (invalid) { editError.value = invalid; throw new Error(invalid) }
   if (to === from) { cancelRename('session:' + from); return }
+  const position = tree.groups.groups
+    .map((group) => ({ group: group.project.id, index: group.sessions.findIndex((session) => session.name === from) }))
+    .concat([{ group: '__other__', index: tree.groups.other.findIndex((session) => session.name === from) }])
+    .find((entry) => entry.index >= 0)
+  const renamedKeyPrefix = `host/${from}`
+  const renameState = position ? {
+    ...position,
+    hiddenKeys: tree.order.hidden.sessions.filter((key) => key === renamedKeyPrefix || key.startsWith(renamedKeyPrefix + '/')),
+    expandedKeys: tree.order.expanded.filter((key) => key === renamedKeyPrefix || key.startsWith(renamedKeyPrefix + '/')),
+  } : undefined
   layout.expectRename('host', from, to)
   try {
     await sessionsApi.rename('host', from, to)
-    tree.renameSession('host', from, to)
+    tree.renameSession('host', from, to, renameState)
     if (windows.bySession[`host/${from}`]) {
       windows.bySession[`host/${to}`] = windows.bySession[`host/${from}`]
       delete windows.bySession[`host/${from}`]

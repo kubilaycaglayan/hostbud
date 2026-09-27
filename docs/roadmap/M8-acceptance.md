@@ -94,6 +94,22 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
   - Status (2026-09-27): U coverage is written and passing (`terminalOutput.spec.ts`, `TerminalTextDialog.spec.ts`, `TerminalView.spec.ts`, Go capture/API tests); E `test/e2e/tests/dictation.spec.ts` is written and type-checked, run pending (on demand).
   - **Manual (owner, open):** verify two consecutive dictations with native iOS dictation in the iPhone 13 Pro PWA; Playwright cannot invoke iOS system dictation.
 
+## Sending photos to a session repository
+
+- [ ] From the terminal's three-dot menu, the user can select one or more iPhone photos and send them to the active session's repository directory; Cmd-V/Ctrl-Shift-V with an image clipboard also uploads it. The selected file bytes arrive unchanged, including HEIC/HEIF and DNG when provided by iOS. Filename conflicts use the next available `-1`, `-2`, etc. suffix without overwriting. After each successful upload, the relative path is pasted at the active terminal cursor. Size and transfer failures are actionable.
+  - U: T10 API tests raw byte preservation, size/content/path validation and conflict errors; Vitest checks direct `File` body identity, numbered conflict retry, path insertion, menu action, destination display, photo selections and partial-upload retry, image clipboard extraction/upload, and text-only paste pass-through.
+  - I: T10 `TestIntegrationSFTPUploadPreservesBytesWithoutOverwriting` (`test/sshd`) compares source and remote SHA-256 and verifies the existing target remains intact after raw API conflict; `TestIntegrationSFTPConcurrentUploadsDoNotOverwriteExistingName` verifies simultaneous raw uploads cannot overwrite the winner. Numbered retry is covered at the API client layer.
+  - E: T10 *Send original photo bytes to the active session repo* (desktop and iPhone 13 Pro), verifies target size and SHA-256 against selected and clipboard-pasted image files, confirms numbered naming preserves the original and pastes the relative path into tmux, and retains existing text-paste coverage.
+  - Status (2026-09-27): U passed (`client.spec.ts`, `PhotoUploadDialog.spec.ts`, `TerminalView.spec.ts`, API byte/content/size/path/origin/conflict checks); I passed (`test/sshd` SHA-256 and filename-collision checks). E is written and type-checked; full e2e run is on demand.
+
+## Terminal split menu
+
+- [ ] The terminal top-right three-dot menu stays compact when many sessions are active: the user chooses split right/down first, then sees and chooses a session or **New session…**. The existing session-row split actions continue to work.
+  - U: T11 `TerminalView.spec.ts` verifies the staged menu and split event values (Vitest).
+  - I: n/a: presentation-only client flow; the existing split API and layout integration remain unchanged.
+  - E: T11 *Terminal menu chooses split position before listing sessions* (desktop), verifies the staged choices and the resulting pane position/session attachment.
+  - Status (2026-09-27): U written; E written and type-check pending; full e2e run is on demand.
+
 ## Agent marks in the left session list
 
 - [ ] Collapsed session rows show tiny colored Codex and Claude Code marks when any pane's foreground command is recognized. A session with both harnesses shows both marks in stable order; ordinary commands show none. Marks appear without opening window/pane details, stay in the left gutter only, and are exposed accessibly without changing the session name or row actions.
@@ -117,5 +133,8 @@ Manual check (owner): if Codex cannot run in the throwaway E2E target, verify th
 T8 output reader correction: switched from the browser screen snapshot to on-demand tmux history capture. No new environment variables or host configuration changes. E2E remains written/type-checked; run on demand. Manual (owner, open): confirm native selection and vertical scrolling in the installed iPhone PWA.
 
 T8 full-screen apps: while a pane is on the alternate screen (vim, Claude Code, Codex), the view shows tmux's shell history, the saved normal screen and the app's current screen. An app's own internal scrollback isn't held by tmux and can't be shown. tmux keeps `history-limit` lines (default 2000); hostbud doesn't change it.
+
+T10 (open): on an iPhone 13 Pro PWA, choose a known photo from Photos and compare its original library SHA-256/size with the uploaded target file. The app submits the selected `File` unchanged. WebKit fixed its earlier unconditional HEIC-to-JPEG conversion for file inputs (WebKit bug 267277), and Safari 17 added HEIC support, but this does not prove which file representation the iPhone Photos picker supplies for a specific library item or iCloud state. Verify the actual selected item against its original.
+T10 (open): on macOS, copy an image from Preview or Finder and Cmd-V in the terminal; confirm it appears in the active repo and text-only Cmd-V still pastes into the terminal. Clipboard image exposure can vary by browser and source application.
 
 T8 verification: native reader checked at 390px in Chromium and WebKit (358px content width and scroll width; full text selection; 6,220px vertical history). Capture integration passed. Full Go suite encountered the existing `TestIntegrationSlowTerminalClientDropped` timeout on two runs; tracked separately from the reader fix.

@@ -88,9 +88,9 @@ func TestIntegrationPollerReportsForegroundAgentCommand(t *testing.T) {
 	inv, _, c := run(t, testenv.SSHD)
 	testenv.Sh(t, c, "tmux kill-session -t =inventory-agent-it 2>/dev/null; true")
 	t.Cleanup(func() { testenv.Sh(t, c, "tmux kill-session -t =inventory-agent-it 2>/dev/null; true") })
-	testenv.Sh(t, c, "ln -sf /bin/sleep /home/dev/codex")
+	testenv.Sh(t, c, "ln -sf /bin/sleep /home/dev/coy")
 	testenv.Sh(t, c, "tmux new-session -d -s inventory-agent-it -c /home/dev")
-	testenv.Sh(t, c, "tmux send-keys -t =inventory-agent-it: '/home/dev/codex 60' Enter")
+	testenv.Sh(t, c, "tmux send-keys -t =inventory-agent-it: '/home/dev/coy 60' Enter")
 	if err := inv.Refresh(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -110,8 +110,6 @@ func TestIntegrationPollerReportsForegroundAgentCommand(t *testing.T) {
 	}
 }
 
-	testenv.Sh(t, c, "ln -sf /bin/sleep /home/dev/coy")
-	testenv.Sh(t, c, "tmux send-keys -t =inventory-agent-it: '/home/dev/coy 60' Enter")
 func TestIntegrationPollerReportsProviderHookStatus(t *testing.T) {
 	inv, _, c := run(t, testenv.SSHD)
 	testenv.Sh(t, c, "tmux kill-session -t =inventory-hook-status-it 2>/dev/null; true")
@@ -145,6 +143,28 @@ func TestIntegrationPollerReportsProviderHookStatus(t *testing.T) {
 	got, ok = findSession(sessions, "inventory-hook-status-it")
 	if !ok || got.Status != tmux.AgentEnded {
 		t.Fatalf("ended status after shell resumes = %+v (found %v)", got, ok)
+	}
+}
+
+func TestIntegrationPollerFindsCodexProcessBehindNodeForeground(t *testing.T) {
+	inv, _, c := run(t, testenv.SSHD)
+	testenv.Sh(t, c, "tmux kill-session -t =inventory-agent-node-it 2>/dev/null; true")
+	testenv.Sh(t, c, "ln -sf /bin/sleep /home/dev/codex; ln -sf /bin/sleep /home/dev/node")
+	t.Cleanup(func() {
+		testenv.Sh(t, c, "tmux kill-session -t =inventory-agent-node-it 2>/dev/null; true")
+		testenv.Sh(t, c, "rm -f /home/dev/codex /home/dev/node")
+	})
+	testenv.Sh(t, c, `tmux new-session -d -s inventory-agent-node-it -c /home/dev "sh -c '/home/dev/codex 60 & exec /home/dev/node 60'"`)
+	if got := strings.TrimSpace(testenv.Sh(t, c, "tmux display-message -p -t =inventory-agent-node-it: '#{pane_current_command}'")); got != "node" {
+		t.Fatalf("foreground command = %q, want node for the Codex launcher fixture", got)
+	}
+	if err := inv.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	_, sessions := inv.Snapshot()
+	agent, ok := findSession(sessions, "inventory-agent-node-it")
+	if !ok || !slices.Equal(agent.Agents, []string{"codex"}) {
+		t.Fatalf("Codex child process metadata = %+v (found %v)", agent, ok)
 	}
 }
 

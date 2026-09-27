@@ -141,10 +141,31 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 
 **E2E:** Add the two T9 phone scenarios above on the throwaway target, never the real host's tmux. Type-check only; runs on demand. Momentum feel is a manual owner check on the iPhone PWA.
 
+## T10 — Send original photos to the active session repo
+
+- Add **Send photos to this repo** to the terminal's existing three-dot menu. The iPhone PWA can select one or more Photos-library items, including HEIC/HEIF and DNG when exposed by iOS, and send them to the active session's recorded repository path.
+- When Cmd-V or Ctrl-Shift-V receives image file data from the clipboard, intercept the browser paste event and upload those original image files directly to the active session repo. Plain text paste must continue through xterm unchanged; clipboard files that are not images are ignored.
+- Pass each selected browser `File` as a raw `application/octet-stream` request body. Do not decode, resize, convert, recompress or otherwise alter its bytes. The server writes through the existing SFTP subsystem to a unique temporary sibling, checks the exact byte count, and renames it into place only when complete. On a filename conflict, retry as `name-1.ext`, `name-2.ext`, etc.; never overwrite an existing file.
+- Cap a file at 100 MiB and bound transfers with `HOSTBUD_UPLOAD_TIMEOUT` (5 min default, 30 s–10 min), distinct from the short metadata/listing timeout. Show actionable size, timeout and transfer errors in the dialog; report the actual destination and byte count on success. After upload, paste the file path relative to the session's recorded directory at the active terminal cursor.
+- **E2E policy:** write the desktop and phone scenarios now and type-check only; `make e2e` runs only when the owner asks.
+
+**Tests:** U: T10 tests the terminal menu dispatch/destination, raw `File` identity and bytes, numbered conflict retry, path insertion after upload, photo selection and partial-upload retry, clipboard image extraction and upload routing, ordinary text paste behavior, and API destination/content/collision/size handling (Vitest/Go); I: T10 `TestIntegrationSFTPUploadPreservesBytesWithoutOverwriting` transfers an opaque binary fixture through `test/sshd` and verifies its SHA-256 and collision behavior, while `TestIntegrationSFTPConcurrentUploadsDoNotOverwriteExistingName` verifies simultaneous same-name uploads cannot replace the winning file; E: T10 *Send original photo bytes to the active session repo* on desktop and iPhone 13 Pro, including Cmd-V image paste, actual relative path insertion, and ordinary text paste.
+
+**E2E:** Add T10 *Send original photo bytes to the active session repo* (desktop and phone): create a linked project with the active session inside a nested folder, select a file named and typed as a HEIC photo with non-UTF8 bytes through the three-dot menu, verify the dialog targets the project root, then compare the target file size and SHA-256 with the exact selected fixture. Paste an image file with Cmd-V/Ctrl-Shift-V and verify its SHA-256 in the same repo. Upload a same-name photo and verify it is saved under the next numbered filename, the original remains unchanged, and its correct path relative to the nested session directory is pasted into tmux. Existing text-paste E2E coverage continues to verify terminal input.
+
+## T11 — Choose split position before session
+
+- Keep the terminal's top-right three-dot menu a fixed size as the number of live sessions grows. Replace the per-session split entries with a **Split pane…** action, then ask whether to split right or down, and only then show the available sessions plus **New session…**.
+- Preserve the selected split direction and session in the existing split event/layout flow. Keep the session list menu's **Open in split right/down** actions unchanged.
+
+**Tests:** U: T11 `TerminalView.spec.ts` covers the fixed-size first step, direction selection, session list and new-session path; I: n/a because this changes only frontend menu flow and uses the existing split API/layout behavior; E: T11 *Terminal menu chooses split position before listing sessions* on desktop, verifies no session fan-out before direction choice, then performs a real split with the selected direction/session.
+
+**E2E:** Add T11 *Terminal menu chooses split position before listing sessions* to `test/e2e/tests/splits.spec.ts`: create several throwaway sessions, open the pane menu, verify session names are absent until a split position is chosen, select down and a specific session, then verify pane geometry and target attachment. Type-check only; runs on demand.
+
 ## T12 — Agent marks on session rows
 
-- Show tiny colored Codex and Claude Code logos before the session name in the left gutter. A mark appears when any pane reports a recognized foreground command (`codex`, `claude` or `claude-code`); show both in stable order when a session has both. Keep logos out of terminal tabs and other session lists.
-- Add only recognized agent names to session metadata by reading pane foreground commands during the regular inventory poll. Discard other command names and all arguments. Detection is best-effort and must not change tmux configuration.
+- Show tiny colored Codex and Claude Code logos before the session name in the left gutter. A mark appears when any pane reports a recognized foreground command (`codex`, `coy`, `claude`, `cly` or `claude-code`); show both in stable order when a session has both. Show the correct mark for the owner's `coy` and `cly` launch aliases. Keep logos out of terminal tabs and other session lists.
+- Add only recognized agent names to session metadata by reading pane foreground commands and recognized agent process names on the same pane TTY during the regular inventory poll. This covers Codex launchers whose foreground command is `node`. Discard other process names and all arguments. Detection is best-effort and must not change tmux configuration.
 - Include the metadata in session snapshots/events so the mark appears on collapsed session rows without fetching window/pane details. Re-evaluate it on each poll and publish changes when marks appear or disappear.
 
 **Tests:** U: T12 Go parsing/inventory tests cover canonical command names, the owner's `coy`/`cly` aliases, recognized agent processes behind `node`, unknown commands and agent appearance/disappearance; Vitest covers small colored logos before the name, stable order, accessible labeling and left-gutter-only display. I: T12 `TestIntegrationPollerReportsForegroundAgentCommand` covers the `coy` alias and disappearance; `TestIntegrationPollerFindsCodexProcessBehindNodeForeground` covers the Codex process behind a `node` foreground command on `test/sshd`. E: T12 *Agent logos appear on collapsed session rows* (desktop and iPhone 13 Pro), using a fake Codex process behind `node` and fake `cly` on the throwaway target.
@@ -159,11 +180,11 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 
 **Tests:** U: T13 Python hook mapping/target validation, Go pane metadata parsing and session status aggregation/change events, Vitest agent-logo/status order, accessible status text, unchanged session name and gutter-only rendering, and service-worker network-first shell refresh with offline fallback. I: T13 `TestIntegrationPollerReportsProviderHookStatus` sets pane options on `test/sshd`, checks working/blocked states and ended inference after the foreground process exits. E: T13 *Agent logos appear before provider hook status on collapsed session rows* (desktop and iPhone 13 Pro), covering all three marks, multi-pane aggregation, and status persistence across an ordinary refresh with a stale cached shell.
 
-**E2E:** Add T12 *Agent logos appear on collapsed session rows* (desktop and iPhone 13 Pro): run fake `codex` and `claude` foreground commands in separate panes, verify both compact colored marks appear on the session row without expanding it, and verify an ordinary shell session has no mark. Type-check only; runs on demand.
+**E2E:** Add T13 *Agent logos appear before provider hook status on collapsed session rows* to `test/e2e/tests/agent.status.spec.ts`; drive fixed pane options on the throwaway target, assert agent logos precede status, status changes and priority without expanding the row, verify the session name remains unchanged, and ensure an ordinary refresh replaces a stale cached app shell while retaining the status. Type-check only; runs on demand.
 
 ## Done
 
 - [ ] M8 acceptance criteria and their U/I/E coverage are complete.
 - [ ] `make lint test` and `make gitleaks` are green; E2E scenarios pass under the post-M7 run policy.
 - [ ] Desktop and phone screenshots were inspected during implementation; README/ARCHITECTURE updated only if user-facing behavior or design changes warrant it. T5's affected inputs were reproduced and checked in the running app; T6's scroll behavior was recorded and compared before/after; T7's long-lived terminal theme change and contrast were inspected and the palette-vs-client color ownership was recorded.
-- [ ] Summary lists changes, any environment variables (expected none), host steps (expected none), and any open owner items.
+- [ ] Summary lists changes, any environment variables (`HOSTBUD_UPLOAD_TIMEOUT`, default 5m), host steps, and any open owner items.

@@ -314,6 +314,7 @@ func TestHardeningLimitsOnlyReachHostbud(t *testing.T) {
 	want := map[string]string{
 		"HOSTBUD_EXEC_TIMEOUT":           "10s",
 		"HOSTBUD_SFTP_TIMEOUT":           "10s",
+		"HOSTBUD_UPLOAD_TIMEOUT":         "5m",
 		"HOSTBUD_MAX_TERMINALS_PER_USER": "32",
 		"HOSTBUD_MAX_TERMINALS":          "128",
 	}

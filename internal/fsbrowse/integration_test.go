@@ -3,7 +3,10 @@
 package fsbrowse_test
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"io"
 	"os"
@@ -19,6 +22,90 @@ import (
 	"hostbud/internal/sshx"
 	"hostbud/internal/testenv"
 )
+
+func TestIntegrationSFTPUploadPreservesBytesWithoutOverwriting(t *testing.T) {
+	c := testenv.Connected(t, testenv.SSHD)
+	root := "/home/dev/fsbrowse-upload-it"
+	testenv.Sh(t, c, "rm -rf "+sshx.Quote(root)+"; mkdir -p "+sshx.Quote(root))
+	t.Cleanup(func() { testenv.Sh(t, c, "rm -rf "+sshx.Quote(root)) })
+	svc := fsbrowse.New(c, sshx.HostMachineID, time.Minute, 5*time.Second, 30*time.Second)
+	t.Cleanup(func() { _ = svc.Close() })
+	payload := []byte{0, 255, 216, 255, 0, 128, 10, 13, 255, 217}
+	path, err := svc.Upload(context.Background(), root, "IMG_1234.HEIC", bytes.NewReader(payload), int64(len(payload)))
+	if err != nil || path != root+"/IMG_1234.HEIC" {
+		t.Fatalf("Upload() = %q, %v", path, err)
+	}
+	want := sha256.Sum256(payload)
+	out, err := c.Exec(context.Background(), sshx.HostMachineID, "sha256sum", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Fields(string(out))[0]; got != hex.EncodeToString(want[:]) {
+		t.Fatalf("remote SHA-256 = %s, want %s", got, hex.EncodeToString(want[:]))
+	}
+	if _, err := svc.Upload(context.Background(), root, "IMG_1234.HEIC", bytes.NewReader(payload), int64(len(payload))); !errors.Is(err, fsbrowse.ErrAlreadyExists) {
+		t.Fatalf("upload existing filename = %v, want ErrAlreadyExists", err)
+	}
+	if _, err := c.Exec(context.Background(), sshx.HostMachineID, "stat", "-c", "%s", path); err != nil {
+		t.Fatal("existing target file was lost after collision:", err)
+	}
+}
+
+func TestIntegrationSFTPConcurrentUploadsDoNotOverwriteExistingName(t *testing.T) {
+	c := testenv.Connected(t, testenv.SSHD)
+	root := "/home/dev/fsbrowse-upload-race-it"
+	testenv.Sh(t, c, "rm -rf "+sshx.Quote(root)+"; mkdir -p "+sshx.Quote(root))
+	t.Cleanup(func() { testenv.Sh(t, c, "rm -rf "+sshx.Quote(root)) })
+	svc := fsbrowse.New(c, sshx.HostMachineID, time.Minute, 5*time.Second, 30*time.Second)
+	t.Cleanup(func() { _ = svc.Close() })
+
+	payloads := [][]byte{
+		bytes.Repeat([]byte{0xa1}, 1<<20),
+		bytes.Repeat([]byte{0xb2}, 1<<20),
+	}
+	start := make(chan struct{})
+	results := make(chan error, len(payloads))
+	for _, payload := range payloads {
+		payload := payload
+		go func() {
+			<-start
+			_, err := svc.Upload(context.Background(), root, "same-name.HEIC", bytes.NewReader(payload), int64(len(payload)))
+			results <- err
+		}()
+	}
+	close(start)
+
+	succeeded := 0
+	conflicted := 0
+	for range payloads {
+		err := <-results
+		switch {
+		case err == nil:
+			succeeded++
+		case errors.Is(err, fsbrowse.ErrAlreadyExists):
+			conflicted++
+		default:
+			t.Fatalf("concurrent upload error = %v, want nil or ErrAlreadyExists", err)
+		}
+	}
+	if succeeded != 1 || conflicted != 1 {
+		t.Fatalf("concurrent uploads: succeeded=%d conflicted=%d, want one each", succeeded, conflicted)
+	}
+
+	name := root + "/same-name.HEIC"
+	out, err := c.Exec(context.Background(), sshx.HostMachineID, "sha256sum", name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := strings.Fields(string(out))[0]
+	for _, payload := range payloads {
+		want := sha256.Sum256(payload)
+		if got == hex.EncodeToString(want[:]) {
+			return
+		}
+	}
+	t.Fatalf("remote SHA-256 = %s, not either complete upload payload", got)
+}
 
 func TestIntegrationSFTPHomeListStatAndMkdir(t *testing.T) {
 	c := testenv.Connected(t, testenv.SSHD)
