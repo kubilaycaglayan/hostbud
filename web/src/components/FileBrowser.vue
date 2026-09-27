@@ -28,10 +28,42 @@ const busy = ref(false)
 let navigationController: AbortController | undefined
 const sessionProject = ref<Project | null>(null)
 const selectedProject = ref<Project | null>(null)
+// Autocomplete: the directories of the typed path's parent whose names
+// start with its last segment (`/a/b/ch` → `/a/b/child`).
+const typedParent = computed(() => {
+  const query = pathInput.value.trim()
+  const slash = query.lastIndexOf('/')
+  if (!query || query === path.value || slash < 0) return null
+  return { parent: slash === 0 ? '/' : query.slice(0, slash), prefix: query.slice(slash + 1).toLowerCase() }
+})
+const parentEntries = ref<{ path: string; entries: FileEntry[] } | null>(null)
+let suggestController: AbortController | undefined
+let suggestTimer: ReturnType<typeof setTimeout> | undefined
+watch(typedParent, (typed) => {
+  clearTimeout(suggestTimer)
+  suggestController?.abort()
+  if (!typed || typed.parent === path.value || typed.parent === parentEntries.value?.path) return
+  suggestTimer = setTimeout(async () => {
+    const controller = new AbortController()
+    suggestController = controller
+    try {
+      const result = await filesystemApi.list(props.machine, typed.parent, hidden.value, controller.signal)
+      if (!controller.signal.aborted) parentEntries.value = { path: typed.parent, entries: result.entries }
+    } catch {
+      // No suggestions for a parent that can't be listed; Go explains why.
+    }
+  }, 150)
+})
 const suggestions = computed(() => {
   const query = pathInput.value.trim()
   if (!query || query === path.value) return []
-  return entries.value.filter((entry) => entry.kind === 'directory' && entry.path.toLowerCase().includes(query.toLowerCase())).slice(0, 8)
+  // Directories here whose path contains the text, then the typed parent's.
+  const here = entries.value.filter((entry) => entry.kind === 'directory' && entry.path.toLowerCase().includes(query.toLowerCase()))
+  const typed = typedParent.value
+  const candidates = !typed ? [] : typed.parent === path.value ? entries.value
+    : typed.parent === parentEntries.value?.path ? parentEntries.value.entries : []
+  const below = candidates.filter((entry) => entry.kind === 'directory' && entry.name.toLowerCase().startsWith(typed!.prefix))
+  return [...new Map([...here, ...below].map((entry) => [entry.path, entry])).values()].slice(0, 8)
 })
 const crumbs = computed(() => {
   const parts = path.value.split('/').filter(Boolean)
@@ -62,7 +94,11 @@ async function initialize() {
 }
 watch(hidden, () => { if (path.value) void navigate(path.value) })
 onMounted(() => { void initialize() })
-onBeforeUnmount(() => navigationController?.abort())
+onBeforeUnmount(() => {
+  navigationController?.abort()
+  suggestController?.abort()
+  clearTimeout(suggestTimer)
+})
 
 async function createFolder() {
   const name = folderName.value.trim()
