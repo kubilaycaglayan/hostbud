@@ -50,10 +50,9 @@ export class UI {
 
   async openAccountMenu(): Promise<void> {
     const account = this.page.locator('summary[aria-label="Account"]')
-    if (await account.isVisible()) {
-      const isOpen = await account.evaluate((el) => el.parentElement instanceof HTMLDetailsElement && el.parentElement.open)
-      if (!isOpen) await account.click()
-    }
+    await account.waitFor({ state: 'visible' })
+    const isOpen = await account.evaluate((el) => el.parentElement instanceof HTMLDetailsElement && el.parentElement.open)
+    if (!isOpen) await account.click()
   }
 
   async signOut(): Promise<void> {
