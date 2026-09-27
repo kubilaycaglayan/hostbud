@@ -16,6 +16,7 @@ const h = vi.hoisted(() => {
     unicode = { activeVersion: '6' }
     buffer: { active: Record<string, unknown> } = { active: { length: 0, getLine: () => undefined } }
     selection = ''
+    scrollLines = vi.fn()
     modes = { mouseTrackingMode: 'none', applicationCursorKeysMode: false }
     element?: HTMLElement
     writeParsed: (() => void)[] = []
@@ -335,15 +336,8 @@ describe('TerminalView', () => {
   })
 
   it('enters scrollback and applies a vertical touch swipe directly', async () => {
-    const requests: { action: string; lines?: number }[] = []
-    vi.stubGlobal('fetch', vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
-      const body = JSON.parse(String(init?.body)) as { action: string; lines?: number }
-      requests.push(body)
-      const state = body.action === 'enter'
-        ? { inMode: true, scrollPosition: 0, historySize: 150 }
-        : { inMode: true, scrollPosition: 12, historySize: 150 }
-      return new Response(JSON.stringify(state), { status: 200, headers: { 'Content-Type': 'application/json' } })
-    }))
+    const fetch = vi.fn()
+    vi.stubGlobal('fetch', fetch)
     const w = await mountTerm()
     const terminal = w.get('[data-testid="terminal"]')
     const down = new Event('pointerdown', { bubbles: true, cancelable: true })
@@ -353,13 +347,13 @@ describe('TerminalView', () => {
     const move = new Event('pointermove', { bubbles: true, cancelable: true })
     Object.defineProperties(move, { pointerType: { value: 'touch' }, clientX: { value: 80 }, clientY: { value: 100 } })
     terminal.element.dispatchEvent(move)
-    await vi.waitFor(() => expect(requests.map((request) => request.action)).toEqual(['enter', 'scroll-up']))
-    expect(requests[1].lines).toBe(5)
+    expect(h.terms[0].scrollLines).toHaveBeenCalledWith(-5)
+    expect(fetch).not.toHaveBeenCalled()
     const up = new Event('pointerup', { bubbles: true, cancelable: true })
     Object.defineProperties(up, { pointerType: { value: 'touch' }, clientX: { value: 80 }, clientY: { value: 100 } })
     terminal.element.dispatchEvent(up)
-    expect(requests.map((request) => request.action)).toEqual(['enter', 'scroll-up'])
-    expect(w.find('[data-testid="scroll-bar"]').exists()).toBe(true)
+    expect(h.terms[0].scrollLines).toHaveBeenCalledTimes(1)
+    expect(w.find('[data-testid="scroll-bar"]').exists()).toBe(false)
     w.unmount()
   })
 
