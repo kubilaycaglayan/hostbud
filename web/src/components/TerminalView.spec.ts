@@ -14,9 +14,15 @@ const h = vi.hoisted(() => {
     written: string[] = []
     onDataFn: (d: string) => void = () => {}
     unicode = { activeVersion: '6' }
-    buffer = { active: { length: 0, getLine: () => undefined } }
+    buffer: { active: Record<string, unknown> } = { active: { length: 0, getLine: () => undefined } }
     selection = ''
-    modes = { mouseTrackingMode: 'none' }
+    modes = { mouseTrackingMode: 'none', applicationCursorKeysMode: false }
+    element?: HTMLElement
+    writeParsed: (() => void)[] = []
+    onWriteParsed(fn: () => void) {
+      this.writeParsed.push(fn)
+      return { dispose: () => this.writeParsed.splice(this.writeParsed.indexOf(fn), 1) }
+    }
     oscHandlers: number[] = []
     parser = {
       registerOscHandler: (id: number) => this.oscHandlers.push(id),
@@ -40,6 +46,7 @@ const h = vi.hoisted(() => {
     open(el: HTMLElement) {
       this.textarea = document.createElement('textarea')
       el.appendChild(this.textarea)
+      this.element = el
     }
     focus() {
       this.focused++
@@ -460,6 +467,65 @@ describe('TerminalView', () => {
     expect(h.terms[0].options.macOptionClickForcesSelection).toBe(true)
     // The addon's handler, then the query guard registered after it.
     expect(h.terms[0].oscHandlers).toEqual([52, 52])
+  })
+
+  describe('Option-click caret placement (M8 T5)', () => {
+    // "$ hello world" on row 0 of a 100x30 terminal drawn 800x300 px (8x10
+    // cells); the shell echoes each arrow by moving its cursor within the text.
+    async function prompt() {
+      const w = await mountTerm()
+      const t = h.terms[0]
+      const ws = FakeWS.all[0]
+      ws.onopen?.({} as Event)
+      const text = '$ hello world'
+      const buffer = { cursorX: 13, cursorY: 0, baseY: 0, viewportY: 0, length: 1, getLine: (y: number) => (y === 0 ? { translateToString: () => text } : undefined) }
+      t.buffer.active = buffer
+      const screen = document.createElement('div')
+      screen.className = 'xterm-screen'
+      screen.getBoundingClientRect = () => ({ left: 0, top: 0, width: 800, height: 300 }) as DOMRect
+      t.element!.appendChild(screen)
+      const arrows: string[] = []
+      ws.send = (d: string | Uint8Array) => {
+        const data = typeof d === 'string' ? d : new TextDecoder().decode(d)
+        arrows.push(data)
+        for (const m of data.matchAll(/\x1b\[([CD])/g)) buffer.cursorX = Math.max(2, Math.min(13, buffer.cursorX + (m[1] === 'C' ? 1 : -1)))
+        queueMicrotask(() => t.writeParsed.forEach((fn) => fn()))
+      }
+      const click = (col: number, init: MouseEventInit = {}, moveTo = col) => {
+        w.get('[data-testid="terminal"]').element.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, altKey: true, clientX: col * 8 + 3, clientY: 5, ...init }))
+        window.dispatchEvent(new MouseEvent('mouseup', { button: 0, altKey: true, clientX: moveTo * 8 + 3, clientY: 5, ...init }))
+      }
+      return { w, t, buffer, arrows, click }
+    }
+
+    it("replaces xterm's one-shot move and lands on the clicked character", async () => {
+      const { w, t, buffer, arrows, click } = await prompt()
+      expect(t.options.altClickMovesCursor).toBe(false)
+      click(4) // the first "l"
+      await vi.waitFor(() => expect(buffer.cursorX).toBe(4))
+      expect(arrows.join('')).toBe('\x1b[D'.repeat(9))
+      click(12) // the "d"
+      await vi.waitFor(() => expect(buffer.cursorX).toBe(12))
+      click(0) // on the prompt: stops at the start of the text
+      await vi.waitFor(() => expect(buffer.cursorX).toBe(2))
+      expect(arrows.join('')).not.toMatch(/\x1b\[[AB]/)
+      w.unmount()
+    })
+
+    it('leaves ordinary clicks, Option+drag selection and scrolled-back views alone', async () => {
+      const { w, t, buffer, arrows, click } = await prompt()
+      click(4, { altKey: false })
+      click(4, {}, 9) // a drag
+      t.selection = 'hello'
+      click(4)
+      t.selection = ''
+      buffer.viewportY = -5
+      click(4)
+      await flushPromises()
+      expect(arrows).toEqual([])
+      expect(buffer.cursorX).toBe(13)
+      w.unmount()
+    })
   })
 
   it('copy keys write the selection, send no bytes and keep the selection', async () => {

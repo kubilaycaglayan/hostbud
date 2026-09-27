@@ -19,6 +19,7 @@ import { copySelection, installOsc52 } from '@/lib/clipboard'
 import { registerPane, unregisterPane } from '@/lib/e2eHooks'
 import { hyperlinkHandler, openLink, type LinkHover } from '@/lib/links'
 import { keepScrollback } from '@/lib/scrollback'
+import { cellAt, moveCaret, settleAfterWrites } from '@/lib/altClick'
 import { darkTerminalTheme, lightTerminalTheme } from '@/lib/theme'
 import type { SplitDir, Tab } from '@/lib/layout'
 import { clipboardKey, editingKey, searchKey } from '@/lib/terminalKeys'
@@ -157,6 +158,42 @@ function cancelScrollGesture() {
   touchScrollStart = null
 }
 
+// Option/Alt-click moves the program's caret to the clicked cell (M8 T5,
+// lib/altClick.ts). A new click or key press cancels a move in progress.
+let altClickStart: { x: number; y: number; time: number } | null = null
+let caretMove = 0
+
+function startAltClick(event: MouseEvent) {
+  caretMove++
+  altClickStart = event.button === 0 && event.altKey ? { x: event.clientX, y: event.clientY, time: event.timeStamp } : null
+}
+
+function finishAltClick(event: MouseEvent) {
+  const start = altClickStart
+  altClickStart = null
+  const t = term.value
+  if (!start || !t || !conn || event.button !== 0 || !event.altKey) return
+  // A drag or a long press selects (Option+drag), it doesn't move the caret.
+  if (event.timeStamp - start.time > 500 || Math.hypot(event.clientX - start.x, event.clientY - start.y) > 4) return
+  if (copyMode.inMode.value || t.getSelection().length > 1) return
+  const buffer = t.buffer.active
+  if (buffer.viewportY !== buffer.baseY) return // scrolled back: not the prompt
+  // With the mouse captured, Alt+click belongs to the program (Option+click
+  // is forced to local selection on macOS).
+  if (t.modes.mouseTrackingMode !== 'none' && shortcutPlatform() !== 'mac') return
+  const screen = t.element?.querySelector('.xterm-screen')?.getBoundingClientRect()
+  if (!screen || !screen.width || !screen.height) return
+  const target = cellAt(event, screen, t.cols, t.rows)
+  const generation = ++caretMove
+  void moveCaret({
+    cursor: () => ({ x: t.buffer.active.cursorX, y: t.buffer.active.cursorY }),
+    rowText: (y) => t.buffer.active.getLine(t.buffer.active.baseY + y)?.translateToString(true) ?? '',
+    send: (data) => conn?.send(data),
+    settle: () => settleAfterWrites(t),
+    cancelled: () => generation !== caretMove || term.value !== t,
+  }, target, t.modes.applicationCursorKeysMode)
+}
+
 /** Attaches, and keeps re-attaching after drops (api/term.ts TermSession). */
 function connect() {
   const t = term.value
@@ -258,6 +295,8 @@ onMounted(async () => {
     // Option+drag selects even when the program captures the mouse (Shift+drag
     // does on other platforms).
     macOptionClickForcesSelection: true,
+    // Replaced by finishAltClick: xterm's version miscounts multiline prompts.
+    altClickMovesCursor: false,
     // OSC 8 hyperlinks: http(s) only; hovering shows the real target.
     linkHandler: hyperlinkHandler((h) => (linkHover.value = h)),
     scrollback: 5000,
@@ -293,6 +332,7 @@ onMounted(async () => {
   // terminal sends, once per keydown, instead of xterm's or the browser's
   // default (Cmd+← would navigate back).
   t.attachCustomKeyEventHandler((ev) => {
+    if (ev.type === 'keydown') caretMove++ // typing stops an Option-click move
     if (ev.type === 'keydown' && shouldInterceptGlobalShortcut(ev, shortcutPlatform())) return false
     const bytes = editingKey(ev)
     if (bytes !== undefined) {
@@ -324,6 +364,7 @@ onMounted(async () => {
   connect()
   observer = new ResizeObserver(() => refit())
   observer.observe(el.value!)
+  window.addEventListener('mouseup', finishAltClick, true)
   // Test hook, e2e builds only (a constant condition: dropped otherwise).
   if (import.meta.env.VITE_E2E === '1')
     registerPane(props.paneId, {
@@ -367,6 +408,8 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('mouseup', finishAltClick, true)
+  caretMove++
   copyMode.reset()
   observer?.disconnect()
   conn?.close()
@@ -466,6 +509,7 @@ defineExpose({ refit, reconnect, showKeyboard })
           ref="el"
           data-testid="terminal"
           class="min-h-0 flex-1 touch-none overflow-hidden bg-bg p-1"
+          @mousedown.capture="startAltClick"
           @pointerdown="startScrollGesture"
           @pointermove="updateScrollGesture"
           @pointerup="finishScrollGesture"

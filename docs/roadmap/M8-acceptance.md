@@ -45,6 +45,7 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
   - U: T5 pointer-to-caret regression coverage across positions/line boundaries and ordinary-click behavior (Vitest).
   - I: n/a: caret positioning is browser-side input behavior and makes no server request.
   - E: T5 *Option-click caret placement* (desktop), asserts caret coordinates and text insertion at the clicked location in representative single-line and multiline app inputs.
+  - Status (2026-09-27): cause identified (xterm 6 `altClickMovesCursor` miscounts in the normal buffer; the app's own `<input>`s are unaffected and there are no `<textarea>`s). U written and passing (`web/src/lib/altClick.spec.ts`, including a reproduction of xterm's miscount on a bordered multiline prompt; `TerminalView.spec.ts`); E written and type-checked (`test/e2e/tests/caret.spec.ts`: bash single-line and soft-wrapped, a deterministic bordered multiline prompt on the throwaway target, and the New session Name input), run pending (paused until M7 T13), which is also the first live check in a browser. Not ticked until the e2e run passes.
 
 ## Terminal scrolling readability
 

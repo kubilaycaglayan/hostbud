@@ -14,7 +14,7 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 | T2 Compact, name-first project tree | Implemented; e2e written, not run yet |
 | T3 Compact file browser and autocomplete policy | Implemented; e2e written, not run yet |
 | T4 Drag to reorder open tabs | Implemented; e2e written, not run yet |
-| T5 Reliable Option-click caret placement | Not started |
+| T5 Reliable Option-click caret placement | Implemented; e2e written, not run yet |
 | T6 Readable terminal wheel scrolling | In progress (direct touch scrolling implemented; wheel readability work remains) |
 | T7 Contrast in long-lived terminal clients | Not started |
 
