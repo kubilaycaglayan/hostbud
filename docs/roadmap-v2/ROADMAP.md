@@ -1,6 +1,6 @@
 # hostbud v2 — Roadmap (agent task queue)
 
-Status: **planned, not started.** No start date is set. Design source of truth: [ARCHITECTURE.md](ARCHITECTURE.md) in this directory (cited below as **v2 §N**). The v1 documents are cited as **v1 ARCHITECTURE §N** ([../ARCHITECTURE.md](../ARCHITECTURE.md)) and **v1 ROADMAP** ([../ROADMAP.md](../ROADMAP.md)).
+Status: **planned, not started.** No start date is set. V2-M1 breakdown: [V2-M1-tasks.md](V2-M1-tasks.md) · [V2-M1-acceptance.md](V2-M1-acceptance.md). Design source of truth: [ARCHITECTURE.md](ARCHITECTURE.md) in this directory (cited below as **v2 §N**). The v1 documents are cited as **v1 ARCHITECTURE §N** ([../ARCHITECTURE.md](../ARCHITECTURE.md)) and **v1 ROADMAP** ([../ROADMAP.md](../ROADMAP.md)).
 
 This roadmap replaces the *v2 — Orchestration* section of the v1 ROADMAP (V2.1–V2.5). That section and v1 ARCHITECTURE §10 are aligned with it in V2-M1 T12.
 
@@ -18,6 +18,11 @@ This roadmap replaces the *v2 — Orchestration* section of the v1 ROADMAP (V2.1
   - the full suite (both profiles, all v1 and v2 scenarios) runs in the **last task of each milestone**, before the milestone's goal is marked complete. Every failure is fixed there (regression tests for bugs, test fixes for stale scenarios), and the suite is rerun until green;
   - a milestone is not done until that run is green. Until then, E items in its checklist count as written, not yet passed;
   - this replaces, for v2 milestones, the post-M7 rule in AGENTS.md and v1 ARCHITECTURE §13.1 ("required again before every commit").
+- **Docker cleanup at the end of every milestone** (owner's request, 2026-09-27). Each v2 milestone's **last task** is a *Safe Docker cleanup*, after the milestone's e2e run and deploy. It follows v1 M7 T15's procedure ([../roadmap/M7-tasks.md](../roadmap/M7-tasks.md#t15--safe-docker-cleanup)):
+  - first check nothing is in use (a `make`/e2e/build/restore run from any session, a busy toolbox container). If something is, skip, record "cleanup skipped: <reason>" in Progress and the summary, and don't force it;
+  - clean only with the repo's own `make docker-clean` (without `CACHE=1`): the e2e stack and its images, the toolbox containers, dangling `hostbud.image=1` images, plus the milestone's own clean worktrees and restore-check leftovers. When a milestone adds e2e services or images (stubs, `hostbud-e2e-pushfake`, `hostbud-e2e-llmfake`), the recipe is extended to remove them;
+  - never prune globally (`docker system/volume/network/builder prune`), never touch the production containers, their images, the volumes `hostbud-data`, `hostbud-postgres-data`, `hostbud-caddy-data`, `hostbud-caddy-config`, `backups/`, other projects' objects, the toolbox images or the warm `test/sshd` targets, and never close a tmux session;
+  - verify afterwards that the production stack is healthy (`/api/health`) and the volumes are intact, and report the reclaimed space in the summary.
 - **No real agents in automated tests.** e2e and integration use **stub `claude` / `codex` executables** on the throwaway target (v2 §10). Real Claude Code and Codex runs are owner checks.
 - **Host safety** (v1 rules, still binding):
   - hostbud never kills a run's session (v2 §3.7); closing one goes through the existing confirmation dialog;
@@ -262,6 +267,11 @@ Run each check with **both** real clients, in a scratch directory the owner does
 - The real-client check is the owner's (see *Manual checks*).
 - **E2E:** full suite run (both profiles), no new scenarios.
 
+#### T14 — Safe Docker cleanup
+- The milestone's last step, after T13's deploy (see *Rules*, Docker cleanup): check nothing is in use, `make docker-clean` without `CACHE=1` (recipe read first; extended for any new e2e images), remove only this milestone's clean worktrees and restore-check leftovers, never prune globally or touch production, volumes, backups, other projects or tmux sessions; verify the stack is healthy and report reclaimed space.
+- **Tests:** n/a (operations only); the post-cleanup health check is the verification.
+- **E2E:** n/a (nothing reachable changes; must not start a new run).
+
 ### Acceptance criteria (V2-M1)
 Each line: criterion — coverage.
 
@@ -320,6 +330,7 @@ Scope: v2 §10 *V2-M2*, v2 §3.3 and §3.9.
   - desktop and phone.
 - **T6 Docs:** v1 ARCHITECTURE §9/§12, README "Queues" (parallel runs, cap), this roadmap's status.
 - **T7 Milestone acceptance:** the milestone's single e2e run: `make e2e` (full suite, both profiles), fix every failure and rerun until green; then `make lint test`, gitleaks, `make deploy`, and tick the criteria below.
+- **T8 Safe Docker cleanup:** as in *Rules* (after T7's deploy; `make docker-clean` without `CACHE=1`; production, volumes and backups untouched; reclaimed space reported).
 
 **E2E** (per task, stubs):
 - T2/T5 *Two queues in parallel*: both queues' first items run at once, and each queue stays sequential;
@@ -358,6 +369,7 @@ Scope: v2 §10 *V2-M3*.
 - **T4 Settings UI:** per-account toggle, a per-event choice (done / needs attention / queue finished), "send test notification". Desktop and phone.
 - **T5 Docs:** README (enabling, iOS requirements), v1 ARCHITECTURE §11/§12/§15.
 - **T6 Milestone acceptance:** the milestone's single e2e run: `make e2e` (full suite, both profiles), fix every failure and rerun until green; then `make lint test`, gitleaks, `make deploy`, and tick the criteria below.
+- **T7 Safe Docker cleanup:** as in *Rules*; the `docker-clean` recipe also removes the `hostbud-e2e-pushfake` image.
 
 **E2E:**
 - T1 *In-app notification*: Chromium, permission granted; a stub item achieves and a notification with the expected title is shown (observed through a notification spy in E2E builds);
@@ -399,6 +411,7 @@ Scope: v2 §10 *V2-M4*, and the "evaluator talked into met" risk in v2 §2.
 - **T5 Panel:** gate fields on the item form, gate status and verify output in the item view, Approve/Reject buttons. Desktop and phone.
 - **T6 Docs:** README (writing verify commands, what runs where), v1 ARCHITECTURE §12/§15.
 - **T7 Milestone acceptance:** the milestone's single e2e run: `make e2e` (full suite, both profiles), fix every failure and rerun until green; then `make lint test`, gitleaks, `make deploy`, and tick the criteria below.
+- **T8 Safe Docker cleanup:** as in *Rules*.
 
 **E2E** (stubs):
 - T2 *Verify fails then passes*: verify `test -f done.flag` fails ⇒ needs attention, and the output is shown; the runner creates the file on the target; Re-run verify ⇒ done and the queue advances;
@@ -441,6 +454,7 @@ Scope: v2 §10 *V2-M5*, v2 §2 option 6, v1 ARCHITECTURE §10 *Supervisor LLM*.
 - **T5 Panel:** a flag badge with the label, reason and time on the item. Desktop and phone. Integrates with V2-M3 when notifications are on ("needs your input").
 - **T6 Docs:** README, v1 ARCHITECTURE §10/§12/§14/§15 (package `internal/llm`).
 - **T7 Milestone acceptance:** the milestone's single e2e run: `make e2e` (full suite, both profiles), fix every failure and rerun until green; then `make lint test`, gitleaks, `make deploy`, and tick the criteria below.
+- **T8 Safe Docker cleanup:** as in *Rules*; the `docker-clean` recipe also removes the `hostbud-e2e-llmfake` image.
 
 **E2E:**
 - T2/T3 *Quiet run is flagged*: a new `hostbud-e2e-llmfake` service answers with a fixed label; a stub run goes silent and gets flagged `waiting_input` in the panel, and the queue does **not** advance;
