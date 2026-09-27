@@ -14,6 +14,8 @@ const buttons: { label: string; text: string; action: CopyModeAction; lines?: nu
 </script>
 
 <template>
+  <!-- Buttons don't take focus (mousedown.prevent): the terminal keeps the
+       keyboard, so typing after Done reaches the shell, as with the key bar. -->
   <section
     aria-label="Scroll history controls"
     class="flex shrink-0 items-center gap-1 overflow-x-auto border-t border-border bg-surface px-1"
@@ -26,6 +28,7 @@ const buttons: { label: string; text: string; action: CopyModeAction; lines?: nu
       class="touch-target shrink-0 rounded border border-border px-2"
       :aria-label="button.label"
       :disabled="props.busy"
+      @mousedown.prevent
       @click="emit('action', button.action, button.lines)"
     >
       {{ button.text }}
@@ -38,6 +41,7 @@ const buttons: { label: string; text: string; action: CopyModeAction; lines?: nu
       class="touch-target ml-auto shrink-0 rounded bg-accent px-3 font-bold text-bg"
       aria-label="Done"
       :disabled="props.busy"
+      @mousedown.prevent
       @click="emit('action', 'exit')"
     >
       Done
