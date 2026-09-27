@@ -16,7 +16,7 @@ const fixtureDir = "testdata/claude/2.1.283/"
 
 func fixture(t *testing.T, name string) []byte {
 	t.Helper()
-	b, err := os.ReadFile(fixtureDir + name)
+	b, err := os.ReadFile(fixtureDir + name) //nolint:gosec // fixed test fixture directory
 	if err != nil {
 		t.Fatal(err)
 	}

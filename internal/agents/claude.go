@@ -93,7 +93,7 @@ func parseHookBody(body []byte) (Binding, error) {
 	if strings.TrimSpace(h.SessionID) == "" {
 		return Binding{}, errors.New("hook body has no session_id")
 	}
-	return Binding{SessionID: h.SessionID, TranscriptPath: h.TranscriptPath, Source: h.Source, Reason: h.Reason}, nil
+	return Binding(h), nil
 }
 
 // Arm is a no-op: Claude runs /goal from its initial prompt.

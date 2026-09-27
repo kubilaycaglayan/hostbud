@@ -153,14 +153,14 @@ func SplitFlags(flags string) ([]string, error) {
 	inWord := false
 	for i := 0; i < len(flags); i++ {
 		c := flags[i]
-		switch {
-		case c == ' ' || c == '\t':
+		switch c {
+		case ' ', '\t':
 			if inWord {
 				out = append(out, cur.String())
 				cur.Reset()
 				inWord = false
 			}
-		case c == '\'':
+		case '\'':
 			inWord = true
 			end := strings.IndexByte(flags[i+1:], '\'')
 			if end < 0 {
@@ -168,7 +168,7 @@ func SplitFlags(flags string) ([]string, error) {
 			}
 			cur.WriteString(flags[i+1 : i+1+end])
 			i += end + 1
-		case c == '"':
+		case '"':
 			inWord = true
 			closed := false
 			for i++; i < len(flags); i++ {
@@ -186,14 +186,14 @@ func SplitFlags(flags string) ([]string, error) {
 			if !closed {
 				return nil, errors.New("flags: unbalanced double quote")
 			}
-		case c == '\\':
+		case '\\':
 			inWord = true
 			if i+1 >= len(flags) {
 				return nil, errors.New("flags: trailing backslash")
 			}
 			i++
 			cur.WriteByte(flags[i])
-		case c == '\n' || c == '\r' || c == 0:
+		case '\n', '\r', 0:
 			return nil, errors.New("flags must be one line")
 		default:
 			inWord = true

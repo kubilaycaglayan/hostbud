@@ -24,7 +24,7 @@ const codexFixtures = "testdata/codex/0.157.1/"
 
 func codexFixture(t *testing.T, name string) []byte {
 	t.Helper()
-	b, err := os.ReadFile(codexFixtures + name)
+	b, err := os.ReadFile(codexFixtures + name) //nolint:gosec // fixed test fixture directory
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +47,7 @@ func (f *fakeAppServer) Stream(ctx context.Context, _ string, args ...string) (i
 	f.calls = append(f.calls, strings.Join(args, " "))
 	f.mu.Unlock()
 	// A loopback TCP pair: buffered like the real ssh pipes (net.Pipe isn't).
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	ln, err := (&net.ListenConfig{}).Listen(ctx, "tcp", "127.0.0.1:0")
 	if err != nil {
 		return nil, err
 	}
@@ -165,11 +165,12 @@ func readClientFrame(r *bufio.Reader) ([]byte, error) {
 		return nil, err
 	}
 	n := uint64(h[1] & 0x7f)
-	if n == 126 {
+	switch n {
+	case 126:
 		var b [2]byte
 		_, _ = io.ReadFull(r, b[:])
 		n = uint64(binary.BigEndian.Uint16(b[:]))
-	} else if n == 127 {
+	case 127:
 		var b [8]byte
 		_, _ = io.ReadFull(r, b[:])
 		n = binary.BigEndian.Uint64(b[:])
@@ -194,10 +195,10 @@ func readClientFrame(r *bufio.Reader) ([]byte, error) {
 
 func writeServerFrame(w io.Writer, opcode byte, p []byte) {
 	hdr := []byte{0x80 | opcode}
-	if len(p) < 126 {
-		hdr = append(hdr, byte(len(p)))
+	if n := len(p); n < 126 {
+		hdr = append(hdr, byte(n)) //nolint:gosec // n < 126
 	} else {
-		hdr = append(hdr, 126, byte(len(p)>>8), byte(len(p)))
+		hdr = binary.BigEndian.AppendUint16(append(hdr, 126), uint16(n)) //nolint:gosec // test frames stay under 64 KiB
 	}
 	_, _ = w.Write(append(hdr, p...))
 }

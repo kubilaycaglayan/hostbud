@@ -92,9 +92,9 @@ func (c *rpcConn) writeFrame(opcode byte, payload []byte) error {
 	hdr := []byte{0x80 | opcode}
 	switch n := len(payload); {
 	case n < 126:
-		hdr = append(hdr, 0x80|byte(n))
+		hdr = append(hdr, 0x80|byte(n)) //nolint:gosec // n < 126 here
 	case n <= 0xffff:
-		hdr = append(hdr, 0x80|126, byte(n>>8), byte(n))
+		hdr = binary.BigEndian.AppendUint16(append(hdr, 0x80|126), uint16(n)) //nolint:gosec // n ≤ 0xffff here
 	default:
 		hdr = append(hdr, 0x80|127)
 		hdr = binary.BigEndian.AppendUint64(hdr, uint64(n))

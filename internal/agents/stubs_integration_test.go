@@ -48,7 +48,7 @@ func newHookSink(t *testing.T, token string) *hookSink {
 	if ip == "" {
 		t.Skip("no non-loopback address for the hook sink")
 	}
-	ln, err := net.Listen("tcp", ip+":0")
+	ln, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", ip+":0")
 	if err != nil {
 		t.Fatal(err)
 	}
