@@ -11,7 +11,7 @@ Update this table in the same commit that finishes a task.
 | Task | Status |
 |---|---|
 | T0 Prerequisite: start-command bug | Done (e2e written and type-checked; run on demand) |
-| T1 Spike on this host | Not started |
+| T1 Spike on this host | Done (results in v2 ARCHITECTURE §12; no client dropped) |
 | T2 Schema migration and store | Not started |
 | T3 Run tokens and the hook endpoint | Not started |
 | T4 Session creation for runs | Not started |
@@ -61,7 +61,7 @@ The v2 ROADMAP *Rules* and AGENTS.md apply in full. That covers: e2e runs only o
 
 | Checkpoint | After | Runs | Status |
 |---|---|---|---|
-| CP1 | T0 | `make lint test` | Not run |
+| CP1 | T0 | `make lint test` | Green (2026-09-27, after aligning two stale session race tests) |
 | CP2 | T2–T4 | `make lint test`, `scripts/compose-config.sh` | Not run |
 | CP3 | T5–T7 | `make lint test`, e2e `tsc` | Not run |
 | CP4 | T8–T9 | `make lint test` **three times in a row** (timers and concurrent signals), e2e `tsc` | Not run |
@@ -72,6 +72,7 @@ The v2 ROADMAP *Rules* and AGENTS.md apply in full. That covers: e2e runs only o
 - **P1** (2026-09-27): v1 M1–M7 done; M7 T13's full e2e run is on demand, M7 T15 cleanup and M8 are still open (allowed).
 - **P2** (2026-09-27): `internal/events` has typed `sessions.changed` / `projects.changed`; `session.Service.Create(ctx, Spec{Machine, Name, Path, Env, StartCommand})` is the only creation path (the sessions API and `projects.Service.CreateSession` both call it); `internal/store/migrations` is numbered 0001–0004 and append-only.
 - **P3 / T0** (2026-09-27): reproduced on the e2e target and on the host through hostbud's own `ssh`. Symptom: the session is created and then gone. Root cause: a tmux server started over SSH has the bare non-interactive `PATH` (`/usr/local/bin:/usr/bin:…`), so `default-shell -c <command>` couldn't find tools installed under `~/.local/bin` or an npm prefix (`claude`, `codex`); the command exited 127 and took the session with it. Quoting, `-c <dir>`, `ready()` and the name logic were ruled out (a plain `sh -c '…'` works; the path and name tests pass). Fix: `tmux.StartShell` runs the command as `"$SHELL" -lic '<command>'; exec "$SHELL" -l`, so it gets the login shell's `PATH` and the session stays open on a shell after the command ends (output visible, never a silent vanish). Verified on the host with the real `claude --version` / `codex --version`.
+- **T1** (2026-09-27): spike done, results in v2 ARCHITECTURE §12. Design changes: Codex gets the plain condition as its prompt and hostbud arms the goal with `thread/goal/set` (new `Adapter.Arm`); the Codex reader is `thread/goal/get` over `codex app-server proxy`; follow-up reads after a pending `turn_end` and one read before `stale`; run sessions are created with `tmux source-file -` on stdin; host commands run through the login shell; stale default 2 h; e2e hook base URL `http://hostbud-e2e-caddy:9055`. User config checksums: see §12.
 
 **What e2e reaches:**
 - Every run uses the T7 stubs.

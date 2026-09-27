@@ -128,25 +128,27 @@ Both clients the owner uses have a native `/goal` command. It keeps the agent wo
    - `env`: `HOSTBUD_URL`, `HOSTBUD_RUN_ID`, `HOSTBUD_RUN_TOKEN`;
    - `startCommand`: `adapter.BuildCommand(item, run)`.
 4. The run is `starting` until the `SessionStart` hook arrives. hostbud records that hook's `session_id` / thread id as the run's **binding**, and the run becomes `running`.
+5. The adapter **arms** the goal if the client needs it (§7, `Arm`). Codex doesn't run a slash command passed as its initial prompt (§12 S2), so hostbud sets the goal through Codex's app-server `thread/goal/set` right after binding. Claude needs nothing: its `/goal` runs from the argument.
 
 ### 5.2 Signals
 | Signal | Effect |
 |---|---|
 | `SessionStart` hook | Bind the agent session id; the run becomes `running`. A second `SessionStart` for the same run with a different id (for example a `/clear`) leads to `needs_attention`. |
-| `Stop` hook (every turn end) | Update `last_signal_at`, then `adapter.ReadGoalState(binding)`: `achieved` ⇒ `achieved`; `failed` ⇒ `failed`; `pending` ⇒ still running; `unknown` ⇒ `needs_attention`. |
-| `SessionEnd` hook | Read the goal state once more. If not achieved, the run is `exited`. |
+| `Stop` hook (every turn end) | Update `last_signal_at`, then `adapter.ReadGoalState(binding)`: `achieved` ⇒ `achieved`; `failed` ⇒ `failed`; `pending` ⇒ still running; `unknown` ⇒ `needs_attention`. A `pending` read is **followed up** at +2 s, +5 s, +15 s, +30 s and +60 s after the hook (cancelled by the next signal or a terminal state): Claude's `/goal` evaluator is itself a `Stop` hook running in parallel, and writes its verdict about 2 s *after* hostbud's hook fires (§12 S5). |
+| `SessionEnd` hook | Read the goal state once more. If not achieved, the run is `exited`. A `SessionEnd` with `reason: "clear"` (Claude `/clear`, §12 S4) gets the detail "the agent session was cleared (/clear) — the goal can't be tracked". |
 | Session missing from `sessions.changed` | Same as `SessionEnd`. |
-| No signal for `HOSTBUD_RUN_STALE_AFTER` (default 90 min) | `stale`. It only flags the run; nothing is killed. |
+| No signal for `HOSTBUD_RUN_STALE_AFTER` (default 2 h, §12 S9) | One last `ReadGoalState` (an `achieved` record is taken as usual), otherwise `stale`. It only flags the run; nothing is killed. |
 
 ### 5.3 Binding: what counts as "achieved"
 A goal record is accepted only if **all** of these hold:
 - **Claude:**
   - it is a top-level record with `type == "attachment"`, `attachment.type == "goal_status"` and `attachment.met == true`;
   - it comes from the transcript of the bound `session_id`;
-  - its timestamp is after `run.started_at`;
+  - its top-level `timestamp` is after `run.started_at` (every record carries an ISO-8601 `timestamp` and `sessionId`, §12 S5);
   - `attachment.condition` equals the queued condition (the instruction text after `/goal `, whitespace-normalized).
-- **Codex:** the `thread_goals` row for the bound `thread_id` has `status == 'complete'`, `updated_at_ms` after `run.started_at`, and `objective` equal to the queued condition.
-- `failed` means Claude's `met == false` "impossible" record, or Codex's `blocked`. `paused`, `usage_limited` and `budget_limited` stay `pending`. Codex usage limits resume on their own; a long pause then surfaces as `stale`.
+- **Codex:** the goal of the bound thread, read with `thread/goal/get`, has `status == 'complete'`, `createdAt` (seconds) not before `run.started_at` (hostbud set it in this run), and `objective` equal to the queued condition.
+- Claude writes `{"met":false,"sentinel":true,…}` when a goal is set; that is `pending`.
+- `failed` means Claude's `{"met":false,"failed":true,…}` "impossible" record, or Codex's `blocked`. `paused`, `usage_limited` and `budget_limited` stay `pending`. Codex usage limits resume on their own; a long pause then surfaces as `stale`.
 
 ### 5.4 State machines
 ```
@@ -167,6 +169,7 @@ run:     starting ► running ► achieved | failed | exited | stale | cancelled
 - Every other terminal run state sets the item to `needs_attention` and the queue to `paused`.
 - Pausing a queue never touches the running session: the current run continues, and no new item starts.
 - An `achieved` record that arrives after a run went `stale` still marks the item `done`, but the queue stays paused until the owner resumes it.
+- A run hostbud can no longer track ends as **`exited`** with a `detail`, and its session stays open: a second `SessionStart` with a different id, a `/clear`, or an `unknown` goal-state format.
 
 ---
 
@@ -198,6 +201,7 @@ type Adapter interface {
     MinVersion() string
     BuildCommand(item Item, run Run) ([]string, error) // argv: client, user flags, hook injection, initial prompt
     ParseHook(event string, body []byte) (Binding, error) // session/thread id, transcript path
+    Arm(ctx context.Context, m Machine, b Binding, run Run, condition string) error // after binding; Claude: no-op
     ReadGoalState(ctx context.Context, m Machine, b Binding, run Run) (GoalState, error)
 }
 type GoalState struct {
@@ -217,9 +221,13 @@ claude <flags> --settings '{"hooks":{"SessionStart":[…],"Stop":[…],"SessionE
 
 **Codex**
 ```
-codex <flags> -c 'hooks.SessionStart=[…]' -c 'hooks.Stop=[…]' -c 'hooks.SessionEnd=[…]' '/goal <condition>'
+codex <flags> -c 'hooks.SessionStart=[{hooks=[{type="command",command="…"}]}]' -c 'hooks.Stop=[…]' -c 'hooks.SessionEnd=[…]' '<condition>'
 ```
-- `ReadGoalState` does a read-only query of `thread_goals` by the bound thread id. Whether that happens through the host's `sqlite3`/`python3` or through the rollout JSONL at `transcript_path` is decided in the V2-M1 spike.
+- The initial prompt is the **plain condition**, not `/goal …`: Codex sends an argument prompt to the model as a user message and never runs it as a slash command (§12 S2).
+- `Arm` sets the goal on the bound thread with the app-server JSON-RPC call `thread/goal/set {threadId, objective}`, through `codex app-server proxy` (the CLI already on the host relays stdio to the running daemon's control socket; hostbud speaks WebSocket-framed JSON-RPC over that pipe). Codex's own goal loop then continues the thread at turn end until the model calls `update_goal` with `complete`. If the first turn ends before the goal is set, the run stays `pending` and surfaces as `stale`.
+- `ReadGoalState` calls `thread/goal/get {threadId}` the same way (§12 S7): no `sqlite3`/`python3` dependency on the host, and it's the daemon's authoritative state. Read-only.
+
+**Host commands** (version checks, the Codex proxy) run through the user's login shell, like start commands (`"$SHELL" -lic '<argv>'`): the clients live on the login `PATH` (`~/.local/bin`, an npm prefix), not on the bare SSH `PATH`. Output before the expected data (rc-file noise) is skipped.
 
 **Hook command** (identical for all events and clients; no file is installed on the host):
 ```sh
@@ -227,7 +235,8 @@ curl -fsS --max-time 5 -o /dev/null -X POST \
   -H "Authorization: Bearer $HOSTBUD_RUN_TOKEN" -H 'Content-Type: application/json' \
   --data-binary @- "$HOSTBUD_URL/api/hooks/$HOSTBUD_RUN_ID/<event>" || true
 ```
-- It always exits 0 and prints nothing, so it can never block or steer the agent.
+- It always exits 0 and prints nothing, so it can never block or steer the agent. It needs `curl` on the host.
+- The command text is the same for every run (only env references), so Codex's one-time hook trust (§12 S3) covers all later runs.
 - The token is referenced as an env var. It never appears literally in the command line or the settings JSON.
 
 ---
@@ -252,7 +261,9 @@ Any agent client can join the queue if it can (a) be started with an initial pro
   - `401` for a bad token;
   - `404` for an unknown run;
   - `410` if the run has ended;
-  - `413` if the body is too large.
+  - `413` if the body is too large;
+  - `400` if the body isn't JSON;
+  - `429` if the run's hook rate limit is exceeded (a token bucket per run; nothing is recorded).
 - The browser Origin check and the cookie session do not apply here. The bearer token is the only credential.
 
 **Goal-state contract:** the adapter must be able to answer, for a bound session, "is the goal with this exact condition achieved, and when?" from **structured state** written by the client (a typed transcript record, a database row or a status file). Printed text must never be matched.
@@ -269,7 +280,7 @@ Fallback for clients without a readable goal state: an explicit `session_end` / 
 - The hook endpoint is exempt from browser-Origin and cookie auth, so it is rate-limited per run and body-capped. It only writes `run_events` and triggers adapter reads; it cannot run commands.
 - `transcript_path` from a hook body is untrusted. It must be absolute, cleaned, and under the client's data directory of the remote user. It is opened read-only through SFTP.
 - Commands are built from argv via the single `sshx` helper (shell-quoted). User flags are split and quoted, never interpolated.
-- Known limitation: `tmux new-session -e HOSTBUD_RUN_TOKEN=…` briefly shows the token in the host's process list. This is acceptable on a single-user host. The spike checks whether `set-environment` fed through stdin avoids it.
+- The token never appears in a process's argv: hostbud creates run sessions with `tmux source-file -`, feeding the `new-session … -e HOSTBUD_RUN_TOKEN=…` command line through **stdin** (§12 S8). With `-e` on the command line it was visible in the `ssh` client's argv (container processes show in the host's process list) for the length of the call.
 - The existing rule holds: no destructive tmux action without owner confirmation. The dispatcher only ever *creates* sessions.
 
 ---
@@ -311,11 +322,37 @@ Fallback for clients without a readable goal state: an explicit `session_end` / 
 
 ---
 
-## 11. Open questions (settle in the V2-M1 spike)
+## 11. Open questions (answered by the V2-M1 spike, see §12)
 
-1. Does Codex accept inline hooks through `-c hooks.<Event>=[…]` in interactive mode, and do they merge with the user's `~/.codex` hooks?
-2. Do both TUIs execute a slash command passed as the initial prompt argument?
-3. Do per-invocation `--settings` hooks run in a workspace Claude Code hasn't trusted yet? If not, the owner must trust the project once; hostbud reports that as an actionable error.
-4. Codex reader: host `sqlite3`/`python3` (a dependency on the host) or the rollout JSONL (a format to verify)?
-5. Does Claude's transcript record carry a timestamp, or must hostbud use line order plus hook arrival time?
-6. Stale window default: is 90 minutes right for long goal turns with background work?
+1. Does Codex accept inline hooks through `-c hooks.<Event>=[…]` in interactive mode, and do they merge with the user's `~/.codex` hooks? **Answer (S1):** yes, `-c 'hooks.<Event>=[{hooks=[{type="command",command="…"}]}]'`, and they merge with `hooks.json` (both run). They need a one-time trust (S3).
+2. Do both TUIs execute a slash command passed as the initial prompt argument? **Answer (S2):** Claude yes; Codex no. Codex gets the plain condition as its prompt and hostbud sets the goal with `thread/goal/set` (§7).
+3. Do per-invocation `--settings` hooks run in a workspace Claude Code hasn't trusted yet? If not, the owner must trust the project once; hostbud reports that as an actionable error. **Answer (S3):** no: until the folder is trusted, Claude shows its trust dialog and fires no hook. A trusted parent folder counts. Codex also asks to trust the folder and, once, hostbud's hooks.
+4. Codex reader: host `sqlite3`/`python3` (a dependency on the host) or the rollout JSONL (a format to verify)? **Answer (S7):** neither: `thread/goal/get` through `codex app-server proxy`.
+5. Does Claude's transcript record carry a timestamp, or must hostbud use line order plus hook arrival time? **Answer (S5):** yes, a top-level ISO-8601 `timestamp` on every record.
+6. Stale window default: is 90 minutes right for long goal turns with background work? **Answer (S9):** 2 h (the longest gap between stop attempts in real goal sessions was 75 min).
+
+---
+
+## 12. Spike results (V2-M1 T1, 2026-09-27)
+
+Tested on the host with **Claude Code 2.1.283** and **Codex 0.157.1** (these become the adapters' `MinVersion()`), tmux 3.6, bash as the login shell. Runs used throwaway folders under an already-trusted parent (`/home/dev/dev/…`); Codex ran with a scratch `CODEX_HOME` holding a copy of the login, a harmless user hook, and a daemon started from a separate session first, like the real shared daemon. Paths and ids below are redacted or made up.
+
+**User config.** Checksums of `~/.claude/settings.json` and `~/.codex/hooks.json` were unchanged. `~/.codex/config.toml` changed once during the spike, when the owner started a Codex session on the real `CODEX_HOME`; it was unchanged from that re-baseline to the end. No spike session touched the real Codex home (reads were read-only). No session was killed; the leftovers are listed in the V2-M1 summary.
+
+| Check | Result |
+|---|---|
+| **S1** hook injection | **Claude:** `claude --settings '{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"…"}]}],"Stop":[…],"SessionEnd":[…]}}' …` works; the user's `settings.json` hooks still run too (4 hooks on one stop: user, hostbud, `/goal`). **Codex:** `-c 'hooks.SessionStart=[{hooks=[{type="command",command="…"}]}]'` (TOML inline table, the command as a basic string) works in the TUI and **merges** with the user's `hooks.json` (both ran on every `Stop`). The session's environment (`HOSTBUD_*`) reaches the hook commands of both clients, also for Codex, whose hooks run in its shared app-server daemon. |
+| **S2** slash command as the prompt | **Claude:** `claude … '/goal <condition>'` runs `/goal` ("Goal set: …", a sentinel record) and works on it. **Codex:** `codex … '/goal <condition>'` is sent to the model as a plain user message; no goal row is created. **Alternative (keeps §3):** the prompt is the plain condition, and on `SessionStart` hostbud calls `thread/goal/set {threadId, objective}` over `codex app-server proxy`. Verified: the goal became `active`, Codex continued the thread in a second turn by itself, and the model marked it `complete`. Setting a goal on an **idle** thread does not start a turn. |
+| **S3** workspace trust | **Claude:** in an untrusted folder the TUI shows "Quick safety check: … trust this folder?" and fires **no** hook, not even `SessionStart`; choosing "No, exit" fires none either. A folder under a trusted parent is trusted. hostbud can't see the dialog (no `capture-pane`), so a run stuck there stays `starting` until the stale timer, whose detail says: "No SessionStart hook arrived — the client may be waiting for you to trust the folder (or, for Codex, hostbud's hooks). Open the session to check." **Codex:** asks to trust the folder, then "Hooks need review: 3 hooks are new or changed" (Review / Trust all / Continue without trusting). Trust is saved by Codex in `config.toml` as `hooks.state."/<session-flags>/config.toml:<event>:0:0".trusted_hash`, keyed by event and command hash; hostbud's hook command is identical for every run, so the owner trusts it once. Hostbud never writes it. (`--dangerously-bypass-hook-trust` in the item's flags is the owner's alternative.) |
+| **S4** `SessionStart` ids | **Claude** stdin: `session_id`, `transcript_path` (`/home/dev/.claude/projects/<cwd with / → ->/<session_id>.jsonl`), `cwd`, `hook_event_name`, `source` (`startup`), `model`; `Stop` adds `permission_mode`, `stop_hook_active`, `last_assistant_message`. `/clear` sends `SessionEnd` with `reason: "clear"` for the old id, then `SessionStart` with `source: "clear"` and a **new** id and transcript file. **Codex** stdin: `session_id` (equal to the goal's `threadId`), `transcript_path` (the rollout file under `$CODEX_HOME/sessions/YYYY/MM/DD/`), `cwd`, `hook_event_name`, `model`, `permission_mode`, `source`; `Stop` adds `turn_id`, `stop_hook_active`, `last_assistant_message`. Compaction was not exercised (owner check). |
+| **S5** goal records | **Claude** writes one top-level record per verdict, each with `timestamp`, `sessionId`, `uuid`: goal set `{"type":"goal_status","met":false,"sentinel":true,"condition":…}`; achieved `{"met":true,"condition":…,"reason":…,"iterations":1,"durationMs":…,"tokens":…}`; impossible `{"met":false,"failed":true,"condition":…,"reason":…}` (the `failed` field tells it apart from not met). **Timing:** the verdict record is written about 1.7–2.1 s **after** hostbud's `Stop` hook fires (the evaluator is a parallel `Stop` hook), and after an achieved goal no further hook fires — hence the follow-up reads in §5.2. **Codex** goal (`thread/goal/get` or the `thread_goals` row): `status` went `active` → `complete`; `createdAt`/`updatedAt` are seconds over RPC (`*_at_ms` in SQLite). The row was `complete` before Codex's last `Stop` hook. Samples are the fixtures in `internal/agents/testdata/`. |
+| **S6** decoy text | The agent printed and wrote `{"type":"attachment","attachment":{"type":"goal_status","met":true,…}} achieved`. It appeared only **nested** (inside `user`/`assistant` message content and tool results), never as a top-level record. The real achieved record of that goal carried the marker text inside its `condition`, which the condition-equality rule handles. |
+| **S7** Codex reader | Chosen: **`thread/goal/get` over `codex app-server proxy`** (WebSocket-framed JSON-RPC: `initialize`, `initialized`, then the call). It needs nothing on the host besides Codex itself and reads the daemon's own state; a read-only call against the real daemon worked and changed nothing. Rejected: `sqlite3` (not on the host's standard `PATH`; only a copy from an SDK) and `python3` (a pyenv shim). A `sqlite3 'file:…?mode=ro'` read did see committed WAL rows while the daemon was writing, as a fallback note. |
+| **S8** token exposure | With `tmux new-session -e HOSTBUD_RUN_TOKEN=…` on the command line, a `ps` sampler saw the token in the `ssh` client's argv (the container's processes are visible from the host) for the length of the call. With the same `new-session` line fed to **`tmux source-file -` on stdin**, the sampler never saw it, and the session's first process had the variable. hostbud uses the stdin method (§9). |
+| **S9** stale window | Real Claude goal sessions: gaps between consecutive stop attempts p50 1.2 min, max 75 min; single turns up to 4 h exist, but a goal loop fires `Stop` at every stop attempt. Default **2 h**. |
+| **S10** hook reachability | From a tmux session on the host, `curl http://127.0.0.1:9055/api/health` answered 200 through Caddy's loopback site (`/api/hooks/*` answered 403 before T3's exemption). `curl` is on the host. E2E: the target and Caddy share the `hostbud-e2e` network and the loopback site listens on all container interfaces, so `HOSTBUD_HOOK_BASE_URL=http://hostbud-e2e-caddy:9055`. |
+
+**Other findings.**
+- Over plain SSH, `claude`, `codex` and `node` aren't on the `PATH`. Start commands therefore run in the login shell (V2-M1 T0), and so do the adapters' host commands (§7).
+- Claude's hook `transcript_path` is under the remote user's `~/.claude/projects/`; Codex's is under `$CODEX_HOME/sessions/`, but hostbud doesn't read it (S7).
+- No client was dropped.
