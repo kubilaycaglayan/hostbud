@@ -49,7 +49,7 @@ export class UI {
   }
 
   async openAccountMenu(): Promise<void> {
-    const account = this.page.getByRole('button', { name: 'Account' })
+    const account = this.page.getByRole('button', { name: 'Account', exact: true })
     if (await account.isVisible()) {
       const isOpen = await account.evaluate((el) => el.parentElement instanceof HTMLDetailsElement && el.parentElement.open)
       if (!isOpen) await account.click()
