@@ -12,7 +12,12 @@ This roadmap replaces the *v2 — Orchestration* section of the v1 ROADMAP (V2.1
 - **Owner items never block.** Real-agent checks on the host, approvals and decisions are the owner's backlog. Take the safe default the docs name, record the item as **open** under the milestone's *Manual checks (owner)* and in the summary, and continue.
 - **Breakdown files.** When a milestone is started, its tasks and checklist are written to `docs/roadmap-v2/V2-M<n>-tasks.md` and `docs/roadmap-v2/V2-M<n>-acceptance.md`, in the same format as `docs/roadmap/M*-tasks.md` / `M*-acceptance.md`. The task lists and criteria below are the starting point for those files.
 - **Three test layers per criterion.** Every acceptance criterion has a coverage line with **U** (unit: Go with fakes, Vitest), **I** (integration: against `test/sshd` or the real deploy config) and **E** (e2e), each naming the task that writes it. **n/a** needs a one-line reason; "manual" only for what automation can't observe.
-- **E2E is never deferred.** Every task has an **E2E:** line. Scenarios are written in the same commit as the behavior (API-level before the UI exists). v2 starts after M7's full e2e run, so the normal policy applies: `make e2e` runs before every commit that changes e2e-reachable behavior, and for every milestone's definition of done.
+- **E2E scenarios are never deferred.** Every task has an **E2E:** line. Scenarios are written in the same commit as the behavior (API-level before the UI exists).
+- **E2E runs once per milestone** (owner's decision, 2026-09-27, to use resources better). This is the default for every v2 planning file and every `V2-M*-tasks.md` / `V2-M*-acceptance.md`:
+  - `make e2e` (and `e2e-up` / `e2e-run`) is **not** run per commit, per task or at checkpoints. The only e2e check per commit is that the suite type-checks (`tsc`);
+  - the full suite (both profiles, all v1 and v2 scenarios) runs in the **last task of each milestone**, before the milestone's goal is marked complete. Every failure is fixed there (regression tests for bugs, test fixes for stale scenarios), and the suite is rerun until green;
+  - a milestone is not done until that run is green. Until then, E items in its checklist count as written, not yet passed;
+  - this replaces, for v2 milestones, the post-M7 rule in AGENTS.md and v1 ARCHITECTURE §13.1 ("required again before every commit").
 - **No real agents in automated tests.** e2e and integration use **stub `claude` / `codex` executables** on the throwaway target (v2 §10). Real Claude Code and Codex runs are owner checks.
 - **Host safety** (v1 rules, still binding):
   - hostbud never kills a run's session (v2 §3.7); closing one goes through the existing confirmation dialog;
@@ -252,7 +257,7 @@ Run each check with **both** real clients, in a scratch directory the owner does
 - **E2E:** none (docs only).
 
 #### T13 — Milestone acceptance
-- `make lint test` and `make e2e` green; gitleaks clean; deploy with `make deploy`.
+- **The milestone's e2e run:** `make e2e` (full suite, both profiles) for the first time in V2-M1; fix every failure and rerun until green. Then `make lint test` green, gitleaks clean, deploy with `make deploy`.
 - Walk the criteria below and tick each one whose tests pass.
 - The real-client check is the owner's (see *Manual checks*).
 - **E2E:** full suite run (both profiles), no new scenarios.
@@ -314,6 +319,7 @@ Scope: v2 §10 *V2-M2*, v2 §3.3 and §3.9.
   - a "waiting for slot" state on items;
   - desktop and phone.
 - **T6 Docs:** v1 ARCHITECTURE §9/§12, README "Queues" (parallel runs, cap), this roadmap's status.
+- **T7 Milestone acceptance:** the milestone's single e2e run: `make e2e` (full suite, both profiles), fix every failure and rerun until green; then `make lint test`, gitleaks, `make deploy`, and tick the criteria below.
 
 **E2E** (per task, stubs):
 - T2/T5 *Two queues in parallel*: both queues' first items run at once, and each queue stays sequential;
@@ -351,6 +357,7 @@ Scope: v2 §10 *V2-M3*.
 - **T3 Outbound delivery:** push is sent from the server with a timeout and retries (bounded). A failure is logged without the endpoint URL at info. This needs outbound HTTPS from the container, documented in README.
 - **T4 Settings UI:** per-account toggle, a per-event choice (done / needs attention / queue finished), "send test notification". Desktop and phone.
 - **T5 Docs:** README (enabling, iOS requirements), v1 ARCHITECTURE §11/§12/§15.
+- **T6 Milestone acceptance:** the milestone's single e2e run: `make e2e` (full suite, both profiles), fix every failure and rerun until green; then `make lint test`, gitleaks, `make deploy`, and tick the criteria below.
 
 **E2E:**
 - T1 *In-app notification*: Chromium, permission granted; a stub item achieves and a notification with the expected title is shown (observed through a notification spy in E2E builds);
@@ -391,6 +398,7 @@ Scope: v2 §10 *V2-M4*, and the "evaluator talked into met" risk in v2 §2.
   - Mark done still overrides.
 - **T5 Panel:** gate fields on the item form, gate status and verify output in the item view, Approve/Reject buttons. Desktop and phone.
 - **T6 Docs:** README (writing verify commands, what runs where), v1 ARCHITECTURE §12/§15.
+- **T7 Milestone acceptance:** the milestone's single e2e run: `make e2e` (full suite, both profiles), fix every failure and rerun until green; then `make lint test`, gitleaks, `make deploy`, and tick the criteria below.
 
 **E2E** (stubs):
 - T2 *Verify fails then passes*: verify `test -f done.flag` fails ⇒ needs attention, and the output is shown; the runner creates the file on the target; Re-run verify ⇒ done and the queue advances;
@@ -432,6 +440,7 @@ Scope: v2 §10 *V2-M5*, v2 §2 option 6, v1 ARCHITECTURE §10 *Supervisor LLM*.
   - The supervisor is off until the provider is configured.
 - **T5 Panel:** a flag badge with the label, reason and time on the item. Desktop and phone. Integrates with V2-M3 when notifications are on ("needs your input").
 - **T6 Docs:** README, v1 ARCHITECTURE §10/§12/§14/§15 (package `internal/llm`).
+- **T7 Milestone acceptance:** the milestone's single e2e run: `make e2e` (full suite, both profiles), fix every failure and rerun until green; then `make lint test`, gitleaks, `make deploy`, and tick the criteria below.
 
 **E2E:**
 - T2/T3 *Quiet run is flagged*: a new `hostbud-e2e-llmfake` service answers with a fixed label; a stub run goes silent and gets flagged `waiting_input` in the panel, and the queue does **not** advance;
