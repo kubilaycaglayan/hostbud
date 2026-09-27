@@ -15,20 +15,21 @@ GOLANGCI = scripts/tool.sh lint $(LINT_IMAGE) .
 # pnpm comes from corepack (version pinned by each package.json "packageManager").
 PNPM     = scripts/tool.sh node $(NODE_IMAGE) web corepack pnpm
 PNPM_E2E = scripts/tool.sh node $(NODE_IMAGE) test/e2e corepack pnpm
+SHELL_TOOL = scripts/tool.sh shell debian:bookworm-slim .
 GITLEAKS = scripts/tool.sh gitleaks $(GITLEAKS_IMAGE) . gitleaks
 
 .PHONY: help build test lint fmt tidy icons gitleaks gitleaks-staged hooks \
 	go-build go-test go-unit test-env test-down go-lint web-install web-build web-test web-lint e2e e2e-up e2e-run e2e-down e2e-install e2e-lint \
-	deploy logs backup restore restore-check tools-down docker-clean
+	deploy logs backup restore restore-check tools-down docker-clean docs-lint shell-test doctor
 
 help: ## List targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-16s %s\n", $$1, $$2}'
 
 build: web-build go-build ## Build the SPA and the hostbud binary (SPA embedded) into ./bin
 
-test: go-test web-test ## Go unit + integration tests (against test/sshd) and Vitest
+test: go-test web-test shell-test ## Go unit + integration tests (against test/sshd), Vitest and shell checks
 
-lint: go-lint web-lint e2e-lint ## Run golangci-lint, eslint and vue-tsc (app and e2e suite)
+lint: go-lint web-lint e2e-lint docs-lint ## Run golangci-lint, eslint, vue-tsc and docs consistency checks
 
 go-build: ## Build only the Go binary (embeds whatever is in web/dist)
 	$(GO) env CGO_ENABLED=0 go build -o bin/hostbud ./cmd/hostbud
@@ -85,6 +86,16 @@ e2e-install: ## Install the e2e suite's dependencies from the lockfile
 
 e2e-lint: e2e-install ## Lint (eslint) and type-check (tsc) the e2e suite
 	$(PNPM_E2E) run lint
+
+docs-lint: ## Check README targets, env docs and documentation links
+	scripts/check-docs.sh
+
+shell-test: ## Run shell script fixture tests in a container
+	$(SHELL_TOOL) sh scripts/test-doctor.sh
+	$(SHELL_TOOL) sh scripts/test-docs.sh
+
+doctor: ## Read-only checks for a fresh hostbud installation
+	sh scripts/doctor.sh
 
 fmt: ## Format Go code
 	$(GOLANGCI) golangci-lint fmt ./...

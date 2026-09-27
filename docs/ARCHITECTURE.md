@@ -95,6 +95,8 @@ The runtime container's root filesystem is read-only; `/tmp` is a tmpfs and the 
 
 **Dockerized toolchain:** everything that can run in Docker does. `make build`, `test`, `lint` (golangci-lint, eslint/vue-tsc) and `gitleaks` run in containers, so the host needs only Docker. The gitleaks pre-commit hook also runs via Docker. Tools run in long-lived toolbox containers (`hostbud-tools-<tool>`, `scripts/tool.sh`) that `make` reaches with `docker exec`: creating a container costs seconds per call on a busy daemon, while an exec is near-instant. No CI for now.
 
+`make doctor` is a read-only host-side prerequisite check. It verifies Docker/Compose access, private and complete `.env` settings, the current UID/GID, the SSH agent and host SSH/tmux prerequisites, pinned public keys, Tailscale address/DNS, published ports, subnet conflicts and the optional LocalAPI socket. It prints a check and a fix without printing configured values.
+
 ---
 
 ## 4. SSH layer (`sshx`)

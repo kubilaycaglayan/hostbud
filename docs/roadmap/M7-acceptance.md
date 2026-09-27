@@ -202,15 +202,15 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 
 ## Fresh-host install
 
-- [ ] `make doctor` checks every prerequisite read-only and prints a fix for each failure: Docker/Compose; `.env` present, mode ≤ 600, no placeholders left; UID/GID; the agent socket has a key; sshd and tmux on the host; the host public keys; `TAILSCALE_IP` assigned and the domain resolving to it (warning only); ports free or held by hostbud; the subnet inside 172.16.0.0/12 without overlap; the tailscaled socket when the override is on. It never prints secret values.
+- [x] `make doctor` checks every prerequisite read-only and prints a fix for each failure: Docker/Compose; `.env` present, mode ≤ 600, no placeholders left; UID/GID; the agent socket has a key; sshd and tmux on the host; the host public keys; `TAILSCALE_IP` assigned and the domain resolving to it (warning only when host DNS returns no result); ports free or held by hostbud; the subnet inside 172.16.0.0/12 without overlap; the tailscaled socket when the override is on. It never prints secret values.
   - U: T11 `doctor.sh` checks against fixture `.env` files and stubbed commands (shell).
   - I: T11 *(host)* `make doctor` runs on the real host (output recorded, values redacted); `doctor.sh` bugs are fixed, and host-setup failures are recorded as open owner items.
   - E: n/a: host tooling outside the UI and API.
-- [ ] Docs and config can't drift: `make lint` runs `check-docs.sh` (README `make` targets exist, every config var is in `.env.example` and the compose `environment:`, every `.env.example` var is used or marked, README links resolve). A clone with only `.env.example` renders a valid Compose config.
+- [x] Docs and config can't drift: `make lint` runs `check-docs.sh` (README `make` targets exist, every config var is in `.env.example` and the compose `environment:`, every `.env.example` var is used or marked, README links resolve). A clone with only `.env.example` renders a valid Compose config.
   - U: T11 `check-docs.sh` fails on fixtures (unknown target, undocumented var, dangling link) (shell).
   - I: T11 `check-docs.sh` on the repo; `internal/deploytest` renders from `.env.example` alone (Go).
   - E: n/a: documentation checks.
-- [ ] The README Quick start is a numbered, copy-pasteable path for a fresh Debian/Ubuntu host (key and agent unit, `authorized_keys` restriction, sshd/tmux, Tailscale and DNS, `.env`, `make doctor`, `make deploy`, first account via the whitelist, port-forward and domain checks, optional allowlist, first backup), each step with how to verify it, plus a Troubleshooting section. Placeholders only.
+- [x] The README Quick start is a numbered, copy-pasteable path for a fresh Debian/Ubuntu host (key and agent unit, `authorized_keys` restriction, sshd/tmux, Tailscale and DNS, `.env`, `make doctor`, `make deploy`, first account via the whitelist, port-forward and domain checks, optional allowlist, first backup), each step with how to verify it, plus a Troubleshooting section. Placeholders only.
   - U: n/a: documentation.
   - I: T11 `check-docs.sh`.
   - E: n/a: documentation. **Manual (T14, owner backlog, doesn't block M7):** the owner follows the README verbatim on a separate fresh machine or VM up to a working port-forward login and a terminal; every deviation is fixed in the README and re-checked. The ROADMAP's *fresh-host install* acceptance.
@@ -268,6 +268,7 @@ These are the owner's backlog, not blockers: they don't hold back M7's done stat
 
 Agents add items here when they hit something only the owner can do or decide (a host-setup failure from `make doctor`, a scenario moved out of e2e, the `v1.0.0` tag) and keep going.
 
+- [ ] T11, 2026-09-27: the real-host `make doctor` run reported four unresolved setup checks: `.env` privacy/completeness (copy `.env.example`, fill required values, then `chmod 600 .env`); SSH authentication for the configured user over localhost (enable sshd and verify the non-interactive SSH command); both configured ports are not free or held by hostbud (stop the process or choose unused loopback ports); and the Docker subnet is invalid or overlaps another Docker network (choose an unused subnet inside `172.16.0.0/12`). Output was reviewed without recording configured values.
 - [ ] Fresh-host install: the README Quick start followed verbatim on a separate fresh machine or VM reaches a port-forward sign-in and a working terminal; deviations were fixed in the README.
 - [ ] `make backup` then `make restore-check` on the production data before the M7 deploy: counts look right, and no temporary database remains.
 - [ ] After `make deploy`: `ss -ltnp` shows no `0.0.0.0` listener from hostbud's containers; `docker inspect hostbud` shows the read-only root filesystem and dropped capabilities; `make doctor` passes (fix any host-setup failure T11/T14 recorded).

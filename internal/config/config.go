@@ -33,7 +33,7 @@ type Config struct {
 	DBUser              string        // HOSTBUD_DB_USER
 	DBPassword          string        // HOSTBUD_DB_PASSWORD
 	DBSSLMode           string        // HOSTBUD_DB_SSLMODE
-	DBLocalPort         int           // HOSTBUD_DB_LOCAL_PORT (Compose only)
+	DBLocalPort         int           // HOSTBUD_DB_LOCAL_PORT
 
 	// Authentication (docs/ARCHITECTURE.md §8).
 	SessionTTL          time.Duration // HOSTBUD_SESSION_TTL

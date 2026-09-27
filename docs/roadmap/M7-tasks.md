@@ -20,7 +20,7 @@ Update this table in the same commit that finishes a task.
 | T8 Tailscale identity allowlist | Done |
 | T9 Backup and restore | Done |
 | T10 Integration suite completion and log hygiene | In progress |
-| T11 Fresh-host install and `make doctor` | Not started |
+| T11 Fresh-host install and `make doctor` | Done |
 | T12 Docs and security audit | Not started |
 | T13 Full e2e run | Not started |
 | T14 Release | Not started |
@@ -53,6 +53,8 @@ Update this table in the same commit that finishes a task.
 **Progress note (CP3):** `make lint test`, `make build` and `scripts/compose-config.sh` passed. The hardened `hostbud-e2e-app` started healthy, `hostbud healthcheck` returned success, and the throwaway e2e stack and volumes were removed.
 
 **Progress note (CP4):** `make lint test` and `make build` passed after T9. Go integration coverage exercised backup/restore round-trip, older-dump migration, and restore-check cleanup after both a complete dump and a sanity failure. The real-tailnet check and production backup/restore-check remain open owner items for T14.
+
+**Progress note (T11):** `make fmt`, `make lint test`, `make shell-test`, `make docs-lint`, and `scripts/compose-config.sh` passed. `make doctor` ran read-only on the development host; its redacted output and four unresolved setup checks are in the owner backlog in M7-acceptance.md.
 
 **What e2e can and can't reach.**
 - **Stalls** use the `test/sshd` stall switches through new `hostbud-e2e-ctl` actions: `/stall/tmux/on|off` (T2) and `/stall/sftp/on|off` (T3). While a switch is on, every `tmux` or `sftp-server` process started on the target sleeps until the switch expires (60 s TTL), so hostbud's call hangs exactly as it would against a wedged host. The suite runs serially (`workers: 1`), so a target-wide switch can't disturb another scenario, as long as every scenario turns it off in `finally`.

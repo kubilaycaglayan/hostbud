@@ -4,7 +4,7 @@
 
 Manage the tmux sessions on your server from a web UI: browse directories, organize them as projects, and attach to sessions in a full browser terminal. Built for terminal-first and agentic-coding workflows. Self-hosted; reachable only via SSH port forward or your Tailscale tailnet. (Multi-machine support is planned.)
 
-> Status: **M5** — hostbud includes phone controls and can be installed as a home-screen app. See [docs/ROADMAP.md](docs/ROADMAP.md).
+> Status: **v1** — hostbud is a single-host, self-hosted tmux web client. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 Choose **Dark**, **Light** or **System** from the Account menu. System follows the device appearance, and the selected theme applies to the interface and open terminals.
 
@@ -15,14 +15,17 @@ Choose **Dark**, **Light** or **System** from the Account menu. System follows t
 - Stores accounts and UI metadata in PostgreSQL; tmux sessions live on the host.
 
 ## Quick start
-1. **Prerequisites on the host:** Docker + Compose (nothing else — build, tests and lint run in containers), `sshd` running (hostbud reaches the host over SSH: `sudo apt install openssh-server`), tmux, a systemd user session, and [Tailscale](#domain-access-over-tailscale) for the domain.
-2. **A dedicated SSH key for hostbud**, allowed only from Docker networks and without forwarding:
+
+Follow these steps on a fresh Debian or Ubuntu host. Replace only the example values shown; don't put real host details in tracked files.
+
+1. **Install the host prerequisites.** Install [Docker Engine and Compose v2 on Debian](https://docs.docker.com/engine/install/debian/) or [Ubuntu](https://docs.docker.com/engine/install/ubuntu/), then install `make`, OpenSSH server/client, and tmux with `sudo apt update && sudo apt install -y make openssh-server openssh-client tmux`. Install Tailscale using its [Linux instructions](https://tailscale.com/docs/install/linux), run `sudo tailscale up`, and sign this host and the devices that will use hostbud into the same tailnet. Confirm `docker compose version`, `make --version`, `systemctl is-active ssh`, `tmux -V`, and `tailscale ip -4` work. Ensure `/etc/ssh/ssh_host_ed25519_key.pub`, `/etc/ssh/ssh_host_ecdsa_key.pub`, and `/etc/ssh/ssh_host_rsa_key.pub` exist; hostbud pins these public keys.
+2. **Create a dedicated SSH key**, restricted to the Docker subnet and without forwarding:
    ```sh
    ssh-keygen -t ed25519 -N '' -C hostbud -f ~/.ssh/hostbud_ed25519
    echo "from=\"172.16.0.0/12\",no-agent-forwarding,no-port-forwarding,no-X11-forwarding $(cat ~/.ssh/hostbud_ed25519.pub)" >> ~/.ssh/authorized_keys
    ```
-   The Compose network uses a fixed subnet inside `172.16.0.0/12` (`HOSTBUD_SUBNET`), so the `from=` restriction matches only hostbud.
-3. **Load the key into a stable agent socket at boot.** With systemd's user `ssh-agent.socket` the socket is `/run/user/<uid>/openssh_agent`. Create `~/.config/systemd/user/hostbud-ssh-add.service`:
+   The default Compose subnet is `172.29.55.0/24`, inside the restricted range. If you change `HOSTBUD_SUBNET`, keep it inside `172.16.0.0/12` and update this restriction to the same range.
+3. **Load the key into a stable agent socket at boot.** With systemd's user `ssh-agent.socket`, the socket is `/run/user/<uid>/openssh_agent`. Create `~/.config/systemd/user/hostbud-ssh-add.service`:
    ```ini
    [Unit]
    Description=Load the hostbud SSH key into the ssh-agent
@@ -38,15 +41,29 @@ Choose **Dark**, **Light** or **System** from the Account menu. System follows t
    [Install]
    WantedBy=default.target
    ```
-   then `systemctl --user daemon-reload && systemctl --user enable --now ssh-agent.socket hostbud-ssh-add.service`, and `sudo loginctl enable-linger "$USER"` so both start at boot without a login.
-4. **Configure:** `cp .env.example .env` and set at least `HOST_UID` / `HOST_GID` (`id -u` / `id -g`), `HOST_SSH_USER`, `HOST_SSH_AUTH_SOCK` (the socket above) a new random `HOSTBUD_DB_PASSWORD`, and the domain settings `HOSTBUD_DOMAIN`, `TAILSCALE_IP` and `CLOUDFLARE_API_TOKEN` ([below](#domain-access-over-tailscale)). Check that `HOSTBUD_LOCAL_PORT` (9055) and the uncommon `HOSTBUD_DB_LOCAL_PORT` are free with `ss -ltn`; both bind to loopback only. Keep `.env` private: `chmod 600 .env`.
-5. **Deploy:** `make deploy`. The host's `/etc/ssh/ssh_host_{ed25519,ecdsa,rsa}_key.pub` must exist (drop the mount in `docker-compose.yml` for a key type your sshd doesn't have). Compose waits for PostgreSQL-backed app health before starting Caddy; the app runs with a read-only root filesystem. `curl http://localhost:9055/api/health` answers `{"status":"ok"}`; within a minute Caddy has the domain's certificate (`make logs` shows `certificate obtained successfully`).
-6. **Allow your address** (there is deliberately no web admin for this):
+   ```sh
+   systemctl --user daemon-reload
+   systemctl --user enable --now ssh-agent.socket hostbud-ssh-add.service
+   sudo loginctl enable-linger "$USER"
+   SSH_AUTH_SOCK="/run/user/$(id -u)/openssh_agent" ssh-add -l
+   ```
+   The final command should list the dedicated key. Set `HOST_SSH_AUTH_SOCK` to this socket in `.env`.
+4. **Configure tailnet DNS.** Create a DNS-only A record in Cloudflare for the chosen subdomain, pointing to the host's Tailscale IPv4 (`tailscale ip -4`). The record must resolve to that address on your clients. See [Domain access over Tailscale](#domain-access-over-tailscale) for certificate and split DNS details.
+5. **Configure hostbud.** From the repository, run `cp .env.example .env`. Set `HOST_UID` and `HOST_GID` to `id -u` / `id -g`, `HOST_HOME`, `HOST_SSH_USER`, `HOST_SSH_AUTH_SOCK`, `HOSTBUD_DOMAIN`, `TAILSCALE_IP`, `CLOUDFLARE_API_TOKEN`, and a new random `HOSTBUD_DB_PASSWORD`. Check that `HOSTBUD_LOCAL_PORT` and `HOSTBUD_DB_LOCAL_PORT` are unused. Protect the file and check the setup:
+   ```sh
+   chmod 600 .env
+   make doctor
+   ```
+   The doctor prints check names and fixes, never secret values. Resolve failed checks before deploying.
+6. **Deploy and verify health.** `make deploy` builds and starts hostbud, PostgreSQL, and Caddy. With the default port, run `curl http://localhost:9055/api/health`; it should return `{"status":"ok"}`. Check `make logs` if the containers don't become healthy.
+7. **Allow the first account** (there is deliberately no web admin):
    ```sh
    docker compose exec hostbud-postgres psql -U hostbud -d hostbud \
      -c "INSERT INTO email_allowlist (email_normalized) VALUES ('you@example.com');"
    ```
-7. **Open it** from any machine with SSH access to the host: `ssh -L 9055:localhost:9055 <host>`, then browse to `http://localhost:9055` (use `localhost`, not `127.0.0.1`: requests are checked against that origin), choose **Create account**, and you're signed in. Or, from any device on your tailnet, open `https://<HOSTBUD_DOMAIN>`.
+8. **Verify both access paths.** From a client with SSH access, run `ssh -L 9055:localhost:9055 server-a` and open `http://localhost:9055` (use `localhost`, not `127.0.0.1`). Choose **Create account** with the allowlisted address. From another tailnet device, open `https://hostbud.example.com` and sign in. Check that the terminal can attach to a session.
+9. **Optional identity gate.** If you want Tailscale identity allowlisting, follow [the optional allowlist setup](#tailscale-identity-allowlist-optional), restart Compose, and verify your login still works on the domain.
+10. **Take the first backup.** Run `make backup`, confirm it reports a dump file, and copy that file to storage outside this host.
 
 ## Domain access over Tailscale
 The domain works only inside your tailnet: its DNS record points at the host's Tailscale address, and Caddy listens for it on that address only. Nothing is exposed to the internet.
@@ -63,6 +80,12 @@ The domain works only inside your tailnet: its DNS record points at the host's T
 
 **Troubleshooting**
 - *No certificate:* `make logs`. `could not determine zone` or `403` errors point at the token (permission or zone); certificates are kept in the `hostbud-caddy-data` volume, so restarts don't re-issue.
+- *`make doctor` says the SSH agent has no key:* check `systemctl --user status hostbud-ssh-add.service`, confirm `HOST_SSH_AUTH_SOCK` names the live socket, then run `SSH_AUTH_SOCK=<socket> ssh-add ~/.ssh/hostbud_ed25519` and `make doctor` again.
+- *The host's SSH key changed:* verify the host's key rotation before updating anything. If it was expected, run `make deploy` to repin the mounted public keys; if it was unexpected, investigate the host before reconnecting.
+- *"host didn't answer" or SFTP timeout:* check that sshd is running and reachable, tmux is installed, and the agent has the hostbud key. The app retries terminal attachments; use **Retry now** after fixing the host.
+- *Sign-in says "too many attempts":* wait for the displayed block interval before retrying. Repeated failures increase the delay; don't keep submitting passwords.
+- *"Too many open terminals":* close unused tabs or split panes. Each attached terminal uses an SSH process on the host.
+- *Tailscale returns 403:* confirm the device's Tailscale login or `tag:…` value is in `HOSTBUD_ALLOWED_TS_USERS` and that the LocalAPI socket is mounted when the optional gate is enabled.
 - *The name doesn't resolve on a device:* check that device's DNS (`dig +short <domain> @1.1.1.1` returns the Tailscale IP). With Tailscale's MagicDNS on, a broken MagicDNS resolver on that device also breaks public names.
 - *The name doesn't resolve on tailnet devices, but public DNS answers:* check Tailscale's admin console → DNS for a Split DNS (custom nameserver) entry for the domain and delete it. Such an entry names a DNS server to ask, not an address, and nothing on the host answers DNS. The Cloudflare record is all hostbud needs.
 - *"request origin not allowed":* open hostbud exactly as `https://<HOSTBUD_DOMAIN>` or `http://localhost:<HOSTBUD_LOCAL_PORT>`.
