@@ -352,7 +352,7 @@ func TestCreateExpandsTildeAndPassesCommandAndEnv(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"tmux", "new-session", "-d", "-s", "web", "-c", "/home/dev/some/dir", "-e", "K=v", "htop"}
+	want := []string{"tmux", "new-session", "-d", "-s", "web", "-c", "/home/dev/some/dir", "-e", "K=v", tmux.StartShell("htop")}
 	if got := f.tmuxCalls(); !slices.Equal(got[0], want) {
 		t.Fatalf("got %q", got[0])
 	}
@@ -401,7 +401,8 @@ func TestCreateTypedTakenNamesAreNumbered(t *testing.T) {
 	}
 }
 
-func TestCreateTypedNameReturnsConflictAfterTmuxRace(t *testing.T) {
+// Every numbered retry racing too ends in a conflict after 20 retries.
+func TestCreateTypedNameReturnsConflictWhenEveryRetryRaces(t *testing.T) {
 	var created []string
 	f := &fakeExec{handler: func(args []string) error {
 		if args[0] != "tmux" {
@@ -412,7 +413,7 @@ func TestCreateTypedNameReturnsConflictAfterTmuxRace(t *testing.T) {
 		return remote(1, "duplicate session: "+name)
 	}}
 	name, err := newSvc(f, okHost()).Create(context.Background(), Spec{Machine: "host", Name: "work-1", Path: "~"})
-	if name != "" || code(err) != CodeDuplicate || !slices.Equal(created, []string{"work-1"}) {
+	if name != "" || code(err) != CodeDuplicate || len(created) != 21 || created[0] != "work-1" || created[1] != "work-1-1" || created[20] != "work-1-20" {
 		t.Fatalf("Create() = %q, %v; attempts %q", name, err, created)
 	}
 }

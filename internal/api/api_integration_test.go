@@ -4,6 +4,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -44,7 +45,9 @@ func (e *createBarrierExecutor) Exec(ctx context.Context, machine string, args .
 	return e.inner.Exec(ctx, machine, args...)
 }
 
-func TestIntegrationConcurrentTypedSessionCreateReturnsConflict(t *testing.T) {
+// Two creates racing for one typed name both succeed: tmux refuses the
+// second, and the session service retries it as name-1 (M8 T10 rule).
+func TestIntegrationConcurrentTypedSessionCreateNumbersTheLoser(t *testing.T) {
 	client := testenv.Connected(t, testenv.SSHD)
 	_, _ = client.Exec(context.Background(), sshx.HostMachineID, "tmux", "kill-server")
 	t.Cleanup(func() { _, _ = client.Exec(context.Background(), sshx.HostMachineID, "tmux", "kill-server") })
@@ -59,12 +62,16 @@ func TestIntegrationConcurrentTypedSessionCreateReturnsConflict(t *testing.T) {
 	server := httptest.NewServer(handler)
 	defer server.Close()
 
-	statuses := make(chan int, 2)
+	type result struct {
+		status int
+		name   string
+	}
+	results := make(chan result, 2)
 	for range 2 {
 		go func() {
 			req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, server.URL+"/api/machines/host/sessions", strings.NewReader(`{"name":"`+name+`","path":"/home/dev"}`))
 			if err != nil {
-				statuses <- 0
+				results <- result{}
 				return
 			}
 			req.Header.Set("Origin", origin)
@@ -72,16 +79,21 @@ func TestIntegrationConcurrentTypedSessionCreateReturnsConflict(t *testing.T) {
 			req.AddCookie(&http.Cookie{Name: SessionCookie, Value: testToken})
 			response, err := server.Client().Do(req)
 			if err != nil {
-				statuses <- 0
+				results <- result{}
 				return
 			}
-			_ = response.Body.Close()
-			statuses <- response.StatusCode
+			defer func() { _ = response.Body.Close() }()
+			var body struct {
+				Name string `json:"name"`
+			}
+			_ = json.NewDecoder(response.Body).Decode(&body)
+			results <- result{response.StatusCode, body.Name}
 		}()
 	}
-	got := []int{<-statuses, <-statuses}
-	slices.Sort(got)
-	if got[0] != http.StatusCreated || got[1] != http.StatusConflict {
-		t.Fatalf("concurrent create statuses = %v, want [%d %d]", got, http.StatusCreated, http.StatusConflict)
+	a, b := <-results, <-results
+	names := []string{a.name, b.name}
+	slices.Sort(names)
+	if a.status != http.StatusCreated || b.status != http.StatusCreated || !slices.Equal(names, []string{name, name + "-1"}) {
+		t.Fatalf("concurrent creates = %+v, %+v; want 201 for %q and %q", a, b, name, name+"-1")
 	}
 }
