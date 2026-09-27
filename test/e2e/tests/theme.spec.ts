@@ -14,10 +14,13 @@ async function account(ui: import('../helpers/ui.ts').UI, label = 'e2e-theme') {
 }
 
 async function chooseTheme(page: import('@playwright/test').Page, mode: 'Dark' | 'Light' | 'System') {
-  const save = page.waitForResponse((response) => response.request().method() === 'PUT' && new URL(response.url()).pathname === '/api/ui-state/theme')
-  const menu = page.getByRole('button', { name: 'Account' })
+  const menu = page.getByRole('button', { name: 'Account', exact: true })
   if (!(await menu.evaluate((el) => el.parentElement instanceof HTMLDetailsElement && el.parentElement.open))) await menu.click()
-  await page.getByRole('radio', { name: mode, exact: true }).check()
+  const radio = page.getByRole('radio', { name: mode, exact: true })
+  // Choosing the current mode changes nothing and saves nothing.
+  if (await radio.isChecked()) return
+  const save = page.waitForResponse((response) => response.request().method() === 'PUT' && new URL(response.url()).pathname === '/api/ui-state/theme')
+  await radio.check()
   await save
 }
 
