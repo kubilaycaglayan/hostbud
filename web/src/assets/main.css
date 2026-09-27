@@ -120,3 +120,11 @@ body {
 .splitpanes--horizontal > .splitpanes__splitter {
   height: 6px;
 }
+
+/* On touch screens a swipe scrolls tmux or the app in it (lib/touchScroll).
+ * xterm's own scrollbar would only move its partial local buffer. */
+@media (pointer: coarse) {
+  .terminal-touch .xterm .xterm-scrollable-element > .scrollbar {
+    display: none;
+  }
+}

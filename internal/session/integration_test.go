@@ -191,6 +191,63 @@ func TestIntegrationCopyModeActions(t *testing.T) {
 	}
 }
 
+func TestIntegrationWheelScrollsAppOrTmuxHistory(t *testing.T) {
+	svc, c := setup(t)
+	ctx := context.Background()
+	if _, err := svc.Create(ctx, session.Spec{Machine: sshx.HostMachineID, Name: "wheel-it", Path: "~/sess-it"}); err != nil {
+		t.Fatal(err)
+	}
+	send := func(keys string) {
+		if _, err := c.Exec(ctx, sshx.HostMachineID, "tmux", "send-keys", "-t", "=wheel-it:", keys, "Enter"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	waitFor := func(format, want string) {
+		deadline := time.Now().Add(5 * time.Second)
+		for display(t, c, "wheel-it", format) != want {
+			if time.Now().After(deadline) {
+				t.Fatalf("%s never became %q", format, want)
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+	}
+	// Shell: the wheel scrolls tmux's own history in copy mode.
+	send("seq 1 300")
+	waitFor("#{?#{e|>:#{history_size},100},full,}", "full")
+	state, err := svc.CopyMode(ctx, sshx.HostMachineID, "wheel-it", "wheel-up", 30)
+	if err != nil || !state.InMode || state.ScrollPosition != 30 {
+		t.Fatalf("wheel-up in shell: %+v %v", state, err)
+	}
+	state, err = svc.CopyMode(ctx, sshx.HostMachineID, "wheel-it", "wheel-down", 500)
+	if err != nil || state.InMode {
+		t.Fatalf("wheel-down to bottom: %+v %v", state, err)
+	}
+	// Mouse-aware app (SGR reporting, like Claude Code): it receives wheel reports.
+	send("clear; printf '\\033[?1000h\\033[?1006h'; stty -icanon -echo; cat -v")
+	waitFor("#{mouse_any_flag}", "1")
+	state, err = svc.CopyMode(ctx, sshx.HostMachineID, "wheel-it", "wheel-up", 3)
+	if err != nil || state.InMode {
+		t.Fatalf("wheel-up to app: %+v %v", state, err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		out, err := c.Exec(ctx, sshx.HostMachineID, "tmux", "capture-pane", "-p", "-t", "=wheel-it:")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(out), "^[[<64;") {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("app did not receive a wheel report: %q", out)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if display(t, c, "wheel-it", "#{pane_in_mode}") != "0" {
+		t.Fatal("wheel over a mouse-aware app entered copy mode")
+	}
+}
+
 func TestIntegrationCopyModeTmuxMissing(t *testing.T) {
 	c := testenv.Connected(t, testenv.SSHDNoTmux)
 	inv := inventory.New(c, events.NewBus(), inventory.Options{MachineID: sshx.HostMachineID, Interval: time.Second})

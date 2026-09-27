@@ -68,3 +68,43 @@ test('(T5) Scroll works with a full-screen program', async ({ page, target, ui }
   await expect.poll(() => target.display(name, '#{pane_in_mode}')).toBe('0')
   await expect.poll(() => target.display(name, '#{pane_current_command}')).toBe('htop')
 })
+
+/** A one-finger vertical swipe over the terminal (dy > 0: finger moves down). */
+async function swipe(page: import('@playwright/test').Page, dy: number) {
+  await page.getByTestId('terminal').evaluate((host, dy) => {
+    const target = host.querySelector('.xterm-screen') ?? host
+    const box = target.getBoundingClientRect()
+    const x = box.left + box.width / 2
+    const y = box.top + box.height / 2 - dy / 2
+    const fire = (type: string, points: number[]) => {
+      const event = new Event(type, { bubbles: true, cancelable: true })
+      Object.defineProperty(event, 'touches', { value: points.map((py) => ({ clientX: x, clientY: py })) })
+      target.dispatchEvent(event)
+    }
+    fire('touchstart', [y])
+    for (let step = 1; step <= 10; step++) fire('touchmove', [y + (dy * step) / 10])
+    fire('touchend', [])
+  }, dy)
+}
+
+test('(T9) Touch swipe scrolls the full tmux history', async ({ page, target, ui }) => {
+  const name = await session(page, target, ui, 'e2e-touch-history')
+  await ui.type('seq 1 400', true)
+  await expect.poll(() => target.capture(name)).toContain('400')
+  await expect(page.locator('.terminal-touch .xterm-scrollable-element > .scrollbar')).toBeHidden()
+  await swipe(page, 300)
+  await expect.poll(() => target.display(name, '#{pane_in_mode}')).toBe('1')
+  await expect.poll(async () => Number(await target.display(name, '#{scroll_position}'))).toBeGreaterThan(5)
+  await expect(page.getByTestId('scroll-bar')).toBeVisible()
+  await swipe(page, -2000)
+  await expect.poll(() => target.display(name, '#{pane_in_mode}')).toBe('0')
+})
+
+test('(T9) Touch swipe scrolls a mouse-aware full-screen app', async ({ page, target, ui }) => {
+  const name = await session(page, target, ui, 'e2e-touch-app')
+  await ui.type("printf '\\033[?1049h\\033[?1000h\\033[?1006h'; stty -icanon -echo; cat -v", true)
+  await expect.poll(() => target.display(name, '#{mouse_any_flag}')).toBe('1')
+  await swipe(page, 200)
+  await expect.poll(() => target.capture(name)).toContain('^[[<64;')
+  expect(await target.display(name, '#{pane_in_mode}')).toBe('0')
+})

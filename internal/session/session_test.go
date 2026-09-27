@@ -159,6 +159,38 @@ func TestCopyModeAndAlreadyExited(t *testing.T) {
 	}
 }
 
+func TestCopyModeWheelFollowsTmuxWheelRule(t *testing.T) {
+	for _, c := range []struct {
+		state, want string
+	}{
+		{"0 1 1 80 24", "send-keys"}, // mouse-aware app gets wheel reports
+		{"1 1 1 80 24", "copy-mode"}, // pane already in a mode
+		{"0 0 0 80 24", "copy-mode"}, // shell: tmux history
+	} {
+		f, tracker := &fakeExec{}, okHost("work")
+		f.handler = func(args []string) error {
+			if slices.Contains(args, tmux.WheelStateFormat) {
+				f.output = []byte(c.state + "\n")
+			} else {
+				f.output = []byte("0\t0\t10\n")
+			}
+			return nil
+		}
+		if _, err := newSvc(f, tracker).CopyMode(context.Background(), "host", "work", tmux.CopyWheelUp, 3); err != nil {
+			t.Fatal(err)
+		}
+		calls := f.tmuxCalls()
+		if len(calls) != 2 || calls[1][1] != c.want || (c.want == "send-keys" && !slices.Contains(calls[1], "-H")) {
+			t.Fatalf("state %q: calls %q", c.state, calls)
+		}
+	}
+	f, tracker := &fakeExec{output: []byte("0\t0\t10\n")}, okHost("old")
+	tracker.machine.TmuxVersion = "tmux 3.0"
+	if _, err := newSvc(f, tracker).CopyMode(context.Background(), "host", "old", tmux.CopyWheelUp, 3); err != nil || len(f.calls) != 1 || f.calls[0][1] != "copy-mode" {
+		t.Fatalf("tmux without send-keys -H scrolls copy mode: %v %q", err, f.calls)
+	}
+}
+
 func TestCopyModeRejectsMissingSessionAndOldTmux(t *testing.T) {
 	f, tracker := &fakeExec{}, okHost()
 	if _, err := newSvc(f, tracker).CopyMode(context.Background(), "host", "unsafe.name", tmux.CopyEnter, 0); code(err) != CodeInvalid || len(f.calls) != 0 {

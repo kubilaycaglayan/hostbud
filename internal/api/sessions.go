@@ -188,8 +188,9 @@ func (s *server) copyMode(w http.ResponseWriter, r *http.Request) {
 	if req.Lines != nil {
 		lines = *req.Lines
 	}
-	if (req.Action != tmux.CopyScrollUp && req.Action != tmux.CopyScrollDown && req.Lines != nil) || (req.Lines != nil && (lines < 1 || lines > 500)) {
-		writeError(w, http.StatusBadRequest, "invalid copy-mode request", "Lines is only accepted for scroll-up or scroll-down and must be between 1 and 500.")
+	scroll := req.Action == tmux.CopyScrollUp || req.Action == tmux.CopyScrollDown || req.Action == tmux.CopyWheelUp || req.Action == tmux.CopyWheelDown
+	if (!scroll && req.Lines != nil) || (req.Lines != nil && (lines < 1 || lines > 500)) {
+		writeError(w, http.StatusBadRequest, "invalid copy-mode request", "Lines is only accepted for scroll-up, scroll-down, wheel-up or wheel-down and must be between 1 and 500.")
 		return
 	}
 	if _, err := tmux.CopyModeArgs(name, req.Action, lines); err != nil {

@@ -17,6 +17,7 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 | T5 Reliable Option-click caret placement | Implemented; e2e written, not run yet |
 | T6 Readable terminal wheel scrolling | Implemented; e2e written, not run yet |
 | T7 Contrast in long-lived terminal clients | Implemented; e2e written, not run yet |
+| T9 Touch scrolling through tmux | Implemented; e2e written, not run yet |
 
 **Progress note (T2–T4, 2026-09-27):** Vitest (447 tests), eslint, `vue-tsc` and the e2e `tsc` passed; deployed to the host from a clean checkout of `f664bb8` (a pre-deploy `pg_dump` is in `backups/`), and the stack came up healthy. Still open for these tasks:
 - **E2E runs:** the scenarios *(T2) Compact tree*, *(T3) Compact file browser*, *(T3) No browser autocomplete outside login password* and *(T4) Custom tab order* type-check but haven't run: e2e stays paused until M7 T13. The T2 commit also updated two M6 scenarios that expanded single-window sessions (*(T4) Inline rename a session*, *(T3) Window rows follow the real terminal*).
@@ -113,6 +114,16 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 **Tests:** U: T7 tests palette updates and contrast for foreground/background pairs across Dark/Light/System changes, including a mounted terminal that stays attached (Vitest); I: n/a: color rendering and theme state are frontend-only and do not alter SSH/tmux state; E: T7 *Long-lived terminal contrast* changes the emulated OS theme with a running representative prompt-like TUI, asserts the terminal stays attached and hostbud palette changes, and captures the prompt/text colors in both themes. Real Codex-specific colors are recorded as a manual owner check if the e2e target cannot run Codex.
 
 **E2E:** Add T7 *Long-lived terminal contrast* (desktop): run a deterministic prompt-like ANSI TUI on the throwaway target, leave the terminal mounted while switching System light/dark, assert palette and contrast tokens change without reconnecting, and capture both states. Never use the real host's tmux. Record the real Codex “Ask Codex to do anything” surface as a manual owner check if Codex itself is unavailable in the e2e target.
+
+## T9 — Touch scrolling through tmux
+
+- On touch screens, a vertical swipe over the terminal scrolls like a mouse wheel through the copy-mode API's `wheel-up`/`wheel-down` actions, following tmux's default wheel rule: a mouse-aware app outside a mode (Claude Code, Codex) receives wheel reports written into the pane (`send-keys -H`, tmux ≥ 3.1; one report per 3 lines, at most 20 per request); otherwise tmux copy mode scrolls its full history, including output before the browser attached. The user's tmux `mouse` option is neither needed nor changed.
+- Hide xterm's local scrollbar on touch screens: xterm only holds what reached the browser since attaching, with gaps where tmux or a full-screen app redrew in place.
+- Experimental momentum: a flick coasts with friction (325 ms time constant), same-direction flicks stack up to a speed cap, and a touch stops it. Slow drags stay 1:1.
+
+**Tests:** U: T9 `touchScroll.spec.ts` (swipe to lines, direction, threshold, multi-finger, momentum, stacking, speed cap), `copyMode.spec.ts` wheel actions, `TerminalView.spec.ts` swipe sends `wheel-up`; Go `TestWheelState`, `TestAppWheelArgs`, `TestCopyModeArgs` wheel cases, `TestCopyModeWheelFollowsTmuxWheelRule`, `TestCopyModeAPIValidationAndAccess` wheel cases. I: T9 `TestIntegrationWheelScrollsAppOrTmuxHistory` (`test/sshd`): in a shell the wheel enters copy mode and scrolls; a mouse-reporting app receives SGR wheel reports and the pane stays out of copy mode. E: T9 *Touch swipe scrolls the full tmux history* and *Touch swipe scrolls a mouse-aware full-screen app* (phone projects).
+
+**E2E:** Add the two T9 phone scenarios above on the throwaway target, never the real host's tmux. Type-check only until M7 T13's scheduled full e2e run. Momentum feel is a manual owner check on the iPhone PWA.
 
 ## Done
 

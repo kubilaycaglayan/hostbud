@@ -211,6 +211,8 @@ func TestCopyModeArgs(t *testing.T) {
 		{CopyTop, 0, []string{"tmux", "send-keys", "-X", "-t", "=work:", "history-top"}},
 		{CopyBottom, 0, []string{"tmux", "send-keys", "-X", "-t", "=work:", "history-bottom"}},
 		{CopyExit, 0, []string{"tmux", "send-keys", "-X", "-t", "=work:", "cancel"}},
+		{CopyWheelUp, 4, []string{"tmux", "copy-mode", "-e", "-t", "=work:", ";", "send-keys", "-X", "-N", "4", "-t", "=work:", "scroll-up"}},
+		{CopyWheelDown, 4, []string{"tmux", "send-keys", "-X", "-N", "4", "-t", "=work:", "scroll-down"}},
 	}
 	for _, c := range cases {
 		got, err := CopyModeArgs("work", c.action, c.lines)
@@ -313,5 +315,57 @@ func TestParseVersion(t *testing.T) {
 	}
 	if !v(3, 2).AtLeast(3, 2) || !v(4, 0).AtLeast(3, 2) || v(3, 1).AtLeast(3, 2) || v(2, 9).AtLeast(3, 2) {
 		t.Error("AtLeast wrong")
+	}
+}
+
+func TestWheelState(t *testing.T) {
+	st, err := ParseWheelState("0 1 1 91 30\n")
+	if err != nil || st != (WheelState{AppMouse: true, SGR: true, Width: 91, Height: 30}) || !st.ForwardToApp() {
+		t.Fatalf("parse: %+v %v", st, err)
+	}
+	if st, _ := ParseWheelState("1 1 1 91 30"); st.ForwardToApp() {
+		t.Fatal("pane in a mode keeps the wheel in tmux")
+	}
+	for _, bad := range []string{"", "0 1 1 91", "0 x 1 91 30", "0 1 1 0 30", "0 -1 1 91 30"} {
+		if _, err := ParseWheelState(bad); err == nil {
+			t.Errorf("accepted %q", bad)
+		}
+	}
+	if _, err := WheelStateArgs("bad.name"); !errors.Is(err, ErrInvalidName) {
+		t.Errorf("invalid name: %v", err)
+	}
+}
+
+func TestAppWheelArgs(t *testing.T) {
+	tail := []string{";", "display-message", "-p", "-t", "=work:", "#{pane_in_mode}\t#{scroll_position}\t#{history_size}"}
+	hex := func(s string) []string {
+		var out []string
+		for _, b := range []byte(s) {
+			out = append(out, fmt.Sprintf("%02x", b))
+		}
+		return out
+	}
+	got, err := AppWheelArgs("work", CopyWheelUp, 6, WheelState{AppMouse: true, SGR: true, Width: 91, Height: 30})
+	want := slices.Concat([]string{"tmux", "send-keys", "-t", "=work:", "-H"}, hex("\x1b[<64;46;16M\x1b[<64;46;16M"), tail)
+	if err != nil || !slices.Equal(got, want) {
+		t.Fatalf("sgr: %q %v", got, err)
+	}
+	got, _ = AppWheelArgs("work", CopyWheelDown, 1, WheelState{AppMouse: true, Width: 460, Height: 30})
+	want = slices.Concat([]string{"tmux", "send-keys", "-t", "=work:", "-H"}, hex("\x1b[M"+string([]byte{32 + 65, 32 + 223, 32 + 16})), tail)
+	if !slices.Equal(got, want) {
+		t.Fatalf("x10: %q", got)
+	}
+	got, _ = AppWheelArgs("work", CopyWheelUp, 500, WheelState{AppMouse: true, SGR: true, Width: 10, Height: 10})
+	if n := len(got) - 5 - len(tail); n != maxWheelEvents*len("\x1b[<64;6;6M") {
+		t.Fatalf("events not capped: %d bytes", n)
+	}
+	for _, c := range []struct {
+		name   string
+		action CopyAction
+		lines  int
+	}{{"bad.name", CopyWheelUp, 1}, {"work", CopyScrollUp, 1}, {"work", CopyWheelUp, 0}, {"work", CopyWheelUp, 501}} {
+		if _, err := AppWheelArgs(c.name, c.action, c.lines, WheelState{Width: 1, Height: 1}); err == nil {
+			t.Errorf("accepted %+v", c)
+		}
 	}
 }

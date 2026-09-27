@@ -126,7 +126,7 @@ export const windowsApi = {
   ),
 }
 
-export type CopyModeAction = 'enter' | 'scroll-up' | 'scroll-down' | 'page-up' | 'page-down' | 'top' | 'bottom' | 'exit'
+export type CopyModeAction = 'enter' | 'scroll-up' | 'scroll-down' | 'wheel-up' | 'wheel-down' | 'page-up' | 'page-down' | 'top' | 'bottom' | 'exit'
 export interface CopyModeState {
   inMode: boolean
   scrollPosition: number

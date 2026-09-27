@@ -525,6 +525,10 @@ func TestCopyModeAPIValidationAndAccess(t *testing.T) {
 	if got := e.svc.calls[len(e.svc.calls)-1]; got != "copy host a page-up 0" {
 		t.Fatalf("service call %q", got)
 	}
+	res = e.do(t, http.MethodPost, "/api/machines/host/sessions/a/copy-mode", `{"action":"wheel-up","lines":30}`, nil)
+	if got := e.svc.calls[len(e.svc.calls)-1]; res.Code != 200 || got != "copy host a wheel-up 30" {
+		t.Fatalf("wheel: %d %q", res.Code, got)
+	}
 	for _, c := range []struct {
 		path, body string
 		status     int
@@ -533,6 +537,8 @@ func TestCopyModeAPIValidationAndAccess(t *testing.T) {
 		{"/api/machines/host/sessions/a/copy-mode", `{"action":"wat"}`, 400},
 		{"/api/machines/host/sessions/a/copy-mode", `{"action":"enter","lines":2}`, 400},
 		{"/api/machines/host/sessions/a/copy-mode", `{"action":"scroll-up","lines":501}`, 400},
+		{"/api/machines/host/sessions/a/copy-mode", `{"action":"wheel-down","lines":501}`, 400},
+		{"/api/machines/host/sessions/a/copy-mode", `{"action":"wheel-up","lines":0}`, 400},
 		{"/api/machines/nope/sessions/a/copy-mode", `{"action":"enter"}`, 404},
 	} {
 		if got := e.do(t, http.MethodPost, c.path, c.body, nil).Code; got != c.status {

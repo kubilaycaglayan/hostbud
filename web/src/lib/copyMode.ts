@@ -29,7 +29,9 @@ const realTimers: CopyModeTimers = {
 }
 
 /** One copy-mode controller per mounted terminal pane. Swipe movement is
- * coalesced to one pending signed line count and sent at no more than 20/s. */
+ * coalesced to one pending signed line count and sent at no more than 20/s as
+ * wheel actions: the server forwards them to a mouse-aware app (Claude Code,
+ * Codex) or scrolls tmux's history in copy mode, like tmux's own wheel. */
 export function createCopyModeController(
   call: CopyModeCall,
   onError: (error: unknown) => void,
@@ -51,7 +53,6 @@ export function createCopyModeController(
     inMode.value = state.inMode
     scrollPosition.value = state.scrollPosition
     historySize.value = state.historySize
-    if (!state.inMode) clearPending()
   }
 
   function clearPending() {
@@ -62,7 +63,7 @@ export function createCopyModeController(
   }
 
   function scheduleFrame() {
-    if (frame !== null || pendingDelta === 0 || !inMode.value) return
+    if (frame !== null || pendingDelta === 0) return
     frame = timers.requestAnimationFrame(() => {
       frame = null
       flushSwipe()
@@ -113,7 +114,7 @@ export function createCopyModeController(
   }
 
   function flushSwipe() {
-    if (busy.value || pendingDelta === 0 || !inMode.value) return
+    if (busy.value || pendingDelta === 0) return
     const now = timers.now()
     if (lastStarted !== null && now - lastStarted < 50) {
       throttle = timers.setTimeout(() => {
@@ -123,14 +124,15 @@ export function createCopyModeController(
       return
     }
     const lines = Math.min(500, Math.abs(pendingDelta))
-    const direction = pendingDelta > 0 ? 'scroll-up' : 'scroll-down'
+    const direction = pendingDelta > 0 ? 'wheel-up' : 'wheel-down'
     pendingDelta += pendingDelta > 0 ? -lines : lines
     lastStarted = now
     void perform(direction, lines)
   }
 
+  /** Scrolls toward older ('up') or newer ('down') output. */
   function swipe(direction: 'up' | 'down', lines: number) {
-    if (!inMode.value || lines < 1) return
+    if (lines < 1) return
     const delta = Math.max(1, Math.min(500, Math.floor(lines))) * (direction === 'up' ? 1 : -1)
     pendingDelta = Math.max(-500, Math.min(500, pendingDelta + delta))
     scheduleFrame()

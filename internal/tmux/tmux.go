@@ -312,6 +312,11 @@ const (
 	CopyTop        CopyAction = "top"
 	CopyBottom     CopyAction = "bottom"
 	CopyExit       CopyAction = "exit"
+	// CopyWheelUp and CopyWheelDown scroll like a mouse wheel over the pane
+	// (touch swipes): see WheelArgs. Without a mouse-aware app they scroll
+	// tmux copy mode, entering it on the way up.
+	CopyWheelUp   CopyAction = "wheel-up"
+	CopyWheelDown CopyAction = "wheel-down"
 )
 
 // CopyModeArgs builds an allowlisted copy-mode action followed by a state query.
@@ -324,7 +329,7 @@ func CopyModeArgs(name string, action CopyAction, lines int) ([]string, error) {
 	switch action {
 	case CopyEnter:
 		args = []string{"tmux", "copy-mode", "-e", "-u", "-t", t}
-	case CopyScrollUp, CopyScrollDown:
+	case CopyScrollUp, CopyScrollDown, CopyWheelUp, CopyWheelDown:
 		if lines == 0 {
 			lines = 1
 		}
@@ -332,10 +337,14 @@ func CopyModeArgs(name string, action CopyAction, lines int) ([]string, error) {
 			return nil, errors.New("lines must be between 1 and 500")
 		}
 		direction := "scroll-up"
-		if action == CopyScrollDown {
+		if action == CopyScrollDown || action == CopyWheelDown {
 			direction = "scroll-down"
 		}
 		args = []string{"tmux", "send-keys", "-X", "-N", strconv.Itoa(lines), "-t", t, direction}
+		if action == CopyWheelUp {
+			// Without -u: entering doesn't jump a page, only the swipe's lines.
+			args = append([]string{"tmux", "copy-mode", "-e", "-t", t, ";"}, args[1:]...)
+		}
 	case CopyPageUp, CopyPageDown, CopyTop, CopyBottom, CopyExit:
 		key := map[CopyAction]string{CopyPageUp: "page-up", CopyPageDown: "page-down", CopyTop: "history-top", CopyBottom: "history-bottom", CopyExit: "cancel"}[action]
 		args = []string{"tmux", "send-keys", "-X", "-t", t, key}
@@ -420,3 +429,85 @@ func ParseVersion(out string) (Version, error) {
 func (v Version) AtLeast(major, minor int) bool {
 	return v.Major > major || v.Major == major && v.Minor >= minor
 }
+
+// WheelStateFormat reads what a wheel event over the pane should do: tmux's
+// default WheelUpPane binding forwards it to an app that enabled mouse
+// reporting (Claude Code, Codex, vim with mouse) unless the pane is in a mode.
+const WheelStateFormat = "#{pane_in_mode} #{mouse_any_flag} #{mouse_sgr_flag} #{pane_width} #{pane_height}"
+
+// WheelState is the parsed WheelStateFormat.
+type WheelState struct {
+	InMode, AppMouse, SGR bool
+	Width, Height         int
+}
+
+// ForwardToApp reports whether wheel events belong to the pane's app.
+func (w WheelState) ForwardToApp() bool { return w.AppMouse && !w.InMode }
+
+// WheelStateArgs reads WheelStateFormat for the session's active pane.
+func WheelStateArgs(name string) ([]string, error) {
+	if err := ValidateName(name); err != nil {
+		return nil, err
+	}
+	return []string{"tmux", "display-message", "-p", "-t", "=" + name + ":", WheelStateFormat}, nil
+}
+
+// ParseWheelState parses the WheelStateArgs response.
+func ParseWheelState(out string) (WheelState, error) {
+	f := strings.Fields(out)
+	if len(f) != 5 {
+		return WheelState{}, fmt.Errorf("unexpected wheel state")
+	}
+	n := make([]int, len(f))
+	for i, v := range f {
+		var err error
+		if n[i], err = strconv.Atoi(v); err != nil || n[i] < 0 {
+			return WheelState{}, fmt.Errorf("unexpected wheel state")
+		}
+	}
+	if n[3] < 1 || n[4] < 1 {
+		return WheelState{}, fmt.Errorf("unexpected wheel state")
+	}
+	return WheelState{InMode: n[0] != 0, AppMouse: n[1] != 0, SGR: n[2] != 0, Width: n[3], Height: n[4]}, nil
+}
+
+// LinesPerWheelEvent approximates one wheel notch, as terminals scroll it.
+const LinesPerWheelEvent = 3
+
+const maxWheelEvents = 20
+
+// AppWheelArgs writes mouse-wheel reports straight into the pane's input
+// (send-keys -H, tmux 3.1+), encoded as the app requested, at the pane's
+// centre. It works whatever the user's tmux `mouse` option is.
+func AppWheelArgs(name string, action CopyAction, lines int, st WheelState) ([]string, error) {
+	if err := ValidateName(name); err != nil {
+		return nil, err
+	}
+	if (action != CopyWheelUp && action != CopyWheelDown) || lines < 1 || lines > 500 {
+		return nil, fmt.Errorf("invalid wheel action")
+	}
+	button := 64
+	if action == CopyWheelDown {
+		button = 65
+	}
+	x, y := st.Width/2+1, st.Height/2+1
+	var report []byte
+	if st.SGR {
+		report = fmt.Appendf(nil, "\x1b[<%d;%d;%dM", button, x, y)
+	} else {
+		// X10 encoding can't address beyond column/row 223.
+		report = []byte{0x1b, '[', 'M', x10(button), x10(min(x, 223)), x10(min(y, 223))}
+	}
+	events := min(maxWheelEvents, (lines+LinesPerWheelEvent-1)/LinesPerWheelEvent)
+	t := "=" + name + ":"
+	args := []string{"tmux", "send-keys", "-t", t, "-H"}
+	for range events {
+		for _, b := range report {
+			args = append(args, fmt.Sprintf("%02x", b))
+		}
+	}
+	return append(args, ";", "display-message", "-p", "-t", t, "#{pane_in_mode}\t#{scroll_position}\t#{history_size}"), nil
+}
+
+// x10 encodes a value (0–223) as an X10 mouse byte.
+func x10(v int) byte { return byte(32 + max(0, min(v, 223))) } //nolint:gosec // clamped to 32–255

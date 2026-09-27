@@ -290,6 +290,11 @@ func (s *Service) CopyMode(ctx context.Context, machine, name string, action tmu
 	if err != nil {
 		return CopyModeState{}, errorf(CodeInvalid, "Use a supported copy-mode action and 1–500 lines.", "%s", err)
 	}
+	if (action == tmux.CopyWheelUp || action == tmux.CopyWheelDown) && version.AtLeast(3, 1) {
+		if args, err = s.wheelArgs(ctx, machine, name, action, lines, args); err != nil {
+			return CopyModeState{}, err
+		}
+	}
 	out, err := s.exec.Exec(ctx, machine, args...)
 	if err != nil {
 		var remote *sshx.Error
@@ -493,4 +498,26 @@ func uniqueName(base string, sessions []tmux.Session) string {
 			return name
 		}
 	}
+}
+
+// wheelArgs follows tmux's default wheel binding: a mouse-aware app outside a
+// mode (Claude Code, Codex) gets wheel reports and scrolls its own history;
+// otherwise copyArgs scrolls tmux's history in copy mode.
+func (s *Service) wheelArgs(ctx context.Context, machine, name string, action tmux.CopyAction, lines int, copyArgs []string) ([]string, error) {
+	stateArgs, _ := tmux.WheelStateArgs(name)
+	out, err := s.exec.Exec(ctx, machine, stateArgs...)
+	if err != nil {
+		if isNotFound(err) {
+			return nil, errorf(CodeNotFound, "It may have been closed; the list refreshes automatically.", "no session named %q", name)
+		}
+		return nil, s.remoteError(err)
+	}
+	state, err := tmux.ParseWheelState(string(out))
+	if err != nil {
+		return nil, errorf(CodeInternal, "Try again; if this continues, check the host's tmux version.", "could not read terminal state")
+	}
+	if !state.ForwardToApp() {
+		return copyArgs, nil
+	}
+	return tmux.AppWheelArgs(name, action, lines, state)
 }

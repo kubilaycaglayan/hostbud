@@ -516,6 +516,32 @@ describe('TerminalView', () => {
     w.unmount()
   })
 
+  it('scrolls tmux or the app through wheel actions on a touch swipe (M8 T9)', async () => {
+    const w = await mountTerm()
+    const fetchSpy = vi.fn(async () => new Response(JSON.stringify({ inMode: true, scrollPosition: 3, historySize: 50 }), {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    }))
+    vi.stubGlobal('fetch', fetchSpy)
+    const el = w.get('[data-testid="terminal"]').element
+    const touch = (type: string, ys: number[]) => {
+      const event = new Event(type, { bubbles: true, cancelable: true })
+      Object.defineProperty(event, 'touches', { value: ys.map((y) => ({ clientX: 10, clientY: y })) })
+      el.dispatchEvent(event)
+      return event
+    }
+    touch('touchstart', [100])
+    touch('touchmove', [110])
+    const move = touch('touchmove', [158]) // 48 px at the 16 px fallback cell height
+    expect(move.defaultPrevented).toBe(true)
+    await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalled())
+    const [url, init] = fetchSpy.mock.calls[0] as unknown as [string, RequestInit]
+    expect(url).toContain('/sessions/acc-a/copy-mode')
+    expect(JSON.parse(String(init.body))).toEqual({ action: 'wheel-up', lines: 3 })
+    expect(FakeWS.all[0].sent).toEqual([])
+    touch('touchcancel', [])
+    w.unmount()
+  })
+
   it('Option+click forces selection on macOS; OSC 52 is loaded', async () => {
     await mountTerm()
     expect(h.terms[0].options.macOptionClickForcesSelection).toBe(true)

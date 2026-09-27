@@ -62,7 +62,7 @@ describe('copy mode controller', () => {
     controller.swipe('up', 8)
     clock.frame()
     expect(call).toHaveBeenCalledTimes(2)
-    expect(call.mock.calls[1]).toEqual(['scroll-up', 20])
+    expect(call.mock.calls[1]).toEqual(['wheel-up', 20])
 
     controller.swipe('up', 400)
     controller.swipe('up', 400)
@@ -76,7 +76,18 @@ describe('copy mode controller', () => {
     clock.frame()
     await Promise.resolve()
     expect(call).toHaveBeenCalledTimes(3)
-    expect(call.mock.calls[2]).toEqual(['scroll-up', 500])
+    expect(call.mock.calls[2]).toEqual(['wheel-up', 500])
+  })
+
+  it('sends swipes as wheel actions without entering copy mode first', async () => {
+    const clock = frameClock()
+    const call = vi.fn(async () => inactive)
+    const controller = createCopyModeController(call, vi.fn(), clock.timers)
+    controller.swipe('up', 3)
+    clock.frame()
+    await Promise.resolve()
+    expect(call).toHaveBeenCalledWith('wheel-up', 3)
+    expect(controller.inMode.value).toBe(false)
   })
 
   it('leaves scroll mode before sending typed input and resets on pane changes', async () => {

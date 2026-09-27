@@ -30,6 +30,7 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useToastsStore } from '@/stores/toasts'
 import { useThemeStore } from '@/stores/theme'
 import { shouldInterceptGlobalShortcut, shortcutPlatform } from '@/lib/shortcuts'
+import { attachTouchScroll } from '@/lib/touchScroll'
 
 const props = withDefaults(
   defineProps<{
@@ -80,6 +81,7 @@ let fit: FitAddon | null = null
 let conn: TermSession | null = null
 let observer: ResizeObserver | null = null
 let selectionChange: { dispose: () => void } | null = null
+let disposeTouchScroll = () => {}
 let touchSelectTimer: ReturnType<typeof setTimeout> | null = null
 let last = { cols: 0, rows: 0 }
 const auth = useAuthStore()
@@ -126,6 +128,11 @@ function cancelTouchSelectionOnMove(event: PointerEvent) {
 function finishTouchSelection() {
   clearTouchSelectTimer()
   touchSelectStart = null
+}
+
+function cellHeight() {
+  const screen = term.value?.element?.querySelector('.xterm-screen')?.getBoundingClientRect()
+  return screen && term.value ? screen.height / term.value.rows : 16
 }
 
 function clearTouchSelectTimer() {
@@ -334,6 +341,7 @@ onMounted(async () => {
   search.value = new SearchAddon()
   t.loadAddon(search.value)
   t.open(el.value!)
+  disposeTouchScroll = attachTouchScroll(el.value!, cellHeight, (direction, lines) => copyMode.swipe(direction, lines))
   prepareInput(t.textarea)
   try {
     const webgl = new WebglAddon()
@@ -431,6 +439,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   clearTouchSelectTimer()
+  disposeTouchScroll()
   selectionChange?.dispose()
   window.removeEventListener('mouseup', finishAltClick, true)
   caretMove++
@@ -541,7 +550,7 @@ defineExpose({ refit, reconnect, showKeyboard })
         <div
           ref="el"
           data-testid="terminal"
-          class="min-h-0 flex-1 touch-manipulation overflow-hidden bg-bg p-1"
+          class="terminal-touch min-h-0 flex-1 touch-none overflow-hidden bg-bg p-1"
           @mousedown.capture="startAltClick"
           @pointerdown="startTouchSelection"
           @pointermove="cancelTouchSelectionOnMove"
