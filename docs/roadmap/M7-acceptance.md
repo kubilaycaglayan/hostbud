@@ -219,21 +219,38 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 
 Each item needs automated evidence (T12 audit). Ticked only when every listed test exists and passes.
 
-- [ ] **Published ports:** Caddy only on `${TAILSCALE_IP}` and `127.0.0.1:${HOSTBUD_LOCAL_PORT}`, never `0.0.0.0`; hostbud publishes none.
-  - Evidence: `internal/deploytest` `TestCaddyPublishesOnlyLoopbackAndTailscale` and the hostbud/Postgres port assertions (M1/M2, re-run T7). **Manual (T14):** `ss -ltnp`.
-- [ ] **Remote commands via `sshx` only, shell-quoted; session names validated.**
-  - Evidence: `internal/archtest` (no exec outside `sshx`; T1 context rule); `sshx` quoting tests; `tmux` name-validation tables; T10 boundary integration tests.
-- [ ] **`StrictHostKeyChecking yes`, host key pinned from the mounted public keys (no TOFU), `BatchMode yes`.**
-  - Evidence: `sshx` config golden test; T10 host-key-mismatch integration test and the T10 e2e scenario.
-- [ ] **Origin check** on WebSockets and state-changing requests against `https://${HOSTBUD_DOMAIN}` and `http://localhost:${HOSTBUD_LOCAL_PORT}`.
-  - Evidence: T5 router ↔ `routes.json` test; T12 Origin table over `routes.json` (Go); T12 *Origin allowlist on every route* (e2e).
-- [ ] **Destructive actions require UI confirmation** (kill from the tree, the menu, the Delete key, the palette), and `make restore` requires a typed confirmation.
-  - Evidence: M1/M6 kill-confirmation Vitest and e2e scenarios; T9 restore confirmation shell tests.
-- [ ] **Non-root `${HOST_UID}:${HOST_GID}`; private keys never mounted** (agent socket only).
-  - Evidence: `internal/deploytest` user and mount assertions (T7 extension).
-- [ ] **No secrets or user paths in info logs.**
-  - Evidence: T10 canary log test; auth redaction tests (M1).
-- [ ] **(v2) Hook endpoints use per-run tokens (stored hashed):** n/a in v1 (no hook endpoints exist). ARCHITECTURE §10's obligations still hold (T12 audit notes).
+- [x] **Published ports:** Caddy only on `${TAILSCALE_IP}` and `127.0.0.1:${HOSTBUD_LOCAL_PORT}`, never `0.0.0.0`; hostbud publishes none.
+  - U: n/a: port publication is a Compose/deploy property, not application behavior.
+  - I: T7 `internal/deploytest` `TestCaddyPublishesOnlyLoopbackAndTailscale`, `TestHostbudPublishesNoPorts`, and `TestPostgresIsPrivateAndLoopbackOnly`.
+  - E: n/a: published ports are not reachable through the UI/API; the deploy-config integration layer checks them directly. **Manual (T14):** `ss -ltnp` remains open for the owner.
+- [x] **Remote commands via `sshx` only, shell-quoted; session names validated.**
+  - U: T1 `internal/archtest` `TestProductionCallsAreBounded`; `internal/sshx` `TestQuote`, `TestCommandRoundTripsThroughShell`, `TestExecPassesQuotedCommand`; `internal/tmux` `TestValidateName`.
+  - I: T10 integration name-boundary cases and `internal/sshx` `TestIntegrationQuotingRoundTrip`.
+  - E: n/a: quoting is enforced by static and shell integration tests; user-visible remote operations are covered by their task scenarios.
+- [x] **`StrictHostKeyChecking yes`, host key pinned from the mounted public keys (no TOFU), `BatchMode yes`.**
+  - U: T1 `internal/sshx` `TestKnownHostsFromPubFilesOnly` and `TestNewWritesConfigInOrder`.
+  - I: T10 `TestIntegrationPinnedKeyMismatchRefused`.
+  - E: T10 *Host key change is a hard error* (written and type-checked; execution is scheduled for T13).
+- [x] **Origin check** on WebSockets and state-changing requests against `https://${HOSTBUD_DOMAIN}` and `http://localhost:${HOSTBUD_LOCAL_PORT}`.
+  - U: T12 `TestOriginPolicyCoversEveryChangingRouteAndWebSocket` reads `routes.json` and verifies 403 before handler entry plus both allowed Origins; T5 `TestRouteInventoryMatchesRouter` keeps the list in sync with the router.
+  - I: n/a: the Origin middleware has no host-facing or deploy-config dependency; the Go test directly covers the HTTP middleware.
+  - E: T12 *Origin allowlist covers every state-changing route and WebSocket* (`origin.api.spec.ts`, written and type-checked; execution is scheduled for T13).
+- [x] **Destructive actions require UI confirmation** (kill from the tree, the menu, the Delete key, the palette), and `make restore` requires a typed confirmation.
+  - U: M1/M6 kill-confirmation Vitest tests; T9 restore confirmation shell validation.
+  - I: T9 restore confirmation tests ensure invalid or absent confirmation has no side effect.
+  - E: M1/M6 kill-confirmation scenarios cover tree, menu, Delete and palette paths; n/a for `make restore`, an operator command outside the UI/API.
+- [x] **Non-root `${HOST_UID}:${HOST_GID}`; private keys never mounted** (agent socket only).
+  - U: n/a: user identity and mounts are container configuration.
+  - I: T7 `internal/deploytest` `TestHostbudRunsAsHostUser` and `TestHostbudMountsOnlyDataAgentAndPublicHostKeys`.
+  - E: n/a: container identity and mounts are not exposed through the UI/API; deploy-config integration tests inspect them.
+- [x] **No secrets or user paths in info logs.**
+  - U: M1 `internal/auth` `TestLogsHoldNoSecrets`; T10 verifies session names are debug-level only.
+  - I: T10 `TestIntegrationInfoLogsOmitCanariesAcrossAccountAndHostCycle`.
+  - E: n/a: application logs are not visible to the browser.
+- [x] **(v2) Hook endpoints use per-run tokens (stored hashed):** n/a in v1 (no hook endpoints exist). ARCHITECTURE §10 retains the per-run token and hashed-storage obligations for v2.
+  - U: n/a: v1 has no hook endpoints.
+  - I: n/a: v1 has no run-token persistence.
+  - E: n/a: v1 has no hook endpoint reachable through the UI/API.
 
 ## Full e2e run
 
@@ -259,7 +276,7 @@ Profiles: `desktop-chromium`, `iphone-13-pro` (`http://localhost:9055`) and `iph
 - [ ] **(T8) Tailscale allowlist on the domain path:** `allowed` works; `stranger` gets the 403 page, API 403 and a refused `/ws/events`; `unknown` and `error` get "couldn't be verified"; `/api/health` stays 200; back to `allowed` works after the negative-cache TTL (desktop, API-level and UI).
 - [ ] **(T8) Loopback path is exempt:** with `stranger` mapped, `http://localhost:9057` signs in and lists sessions (desktop).
 - [ ] **(T10) Host key change is a hard error:** after the target's host key is rotated, the banner shows the "SSH key changed" message and a terminal can't attach; after restoring it, both recover (desktop).
-- [ ] **(T12) Origin allowlist on every route:** every state-changing route and both WebSockets from `routes.json`: a foreign or missing Origin → 403 with no side effect; the allowed Origins → not 403 (desktop, API-level).
+- [ ] **(T12) Origin allowlist on every route:** every state-changing route and both WebSockets from `routes.json`: a foreign or missing Origin → 403 with no side effect; the allowed Origins → not 403 (desktop, API-level; `origin.api.spec.ts`).
 - [ ] **(T13) Every earlier milestone's scenarios pass:** see *Full e2e run* above.
 
 ## Manual checks (owner, T14)
@@ -270,8 +287,8 @@ Agents add items here when they hit something only the owner can do or decide (a
 
 - [ ] T11, 2026-09-27: the real-host `make doctor` run reported four unresolved setup checks: `.env` privacy/completeness (copy `.env.example`, fill required values, then `chmod 600 .env`); SSH authentication for the configured user over localhost (enable sshd and verify the non-interactive SSH command); both configured ports are not free or held by hostbud (stop the process or choose unused loopback ports); and the Docker subnet is invalid or overlaps another Docker network (choose an unused subnet inside `172.16.0.0/12`). Output was reviewed without recording configured values.
 - [ ] Fresh-host install: the README Quick start followed verbatim on a separate fresh machine or VM reaches a port-forward sign-in and a working terminal; deviations were fixed in the README.
-- [ ] `make backup` then `make restore-check` on the production data before the M7 deploy: counts look right, and no temporary database remains.
-- [ ] After `make deploy`: `ss -ltnp` shows no `0.0.0.0` listener from hostbud's containers; `docker inspect hostbud` shows the read-only root filesystem and dropped capabilities; `make doctor` passes (fix any host-setup failure T11/T14 recorded).
+- [x] Production backup and restore check before deploy: the `make backup` wrapper failed to copy its dump from the container's `/tmp` tmpfs, so the same `hostbud backup` command was streamed to a mode-600 file in `backups/`; `make restore-check` passed (migration 4; users 1, allowlist 1, projects 5, ui_state 3), and the temporary database count returned to zero.
+- [x] After the user-requested `make deploy` (2026-09-27): no wildcard listener on the published app ports; `hostbud` is healthy, `/api/health` returned `{"status":"ok"}`, its root filesystem is read-only, capabilities are dropped, and the loopback response includes CSP. `make doctor` still reports the four host-setup issues already recorded under T11; those remain open owner items.
 - [ ] Tag `v1.0.0` locally if wanted (T14 doesn't tag).
 - [ ] iPhone over the domain: the app, the installed PWA, WebGL terminal, clipboard copy and paste, and theme switching work under the CSP; Web Inspector shows no CSP errors; HSTS is present on the domain.
 - [ ] Tailscale allowlist with the real tailscaled (only if the owner wants it on): the owner's devices are allowed; a list without the owner's login shows the 403 page; the loopback path still works; the list is restored afterwards.

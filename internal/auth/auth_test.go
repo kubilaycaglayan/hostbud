@@ -36,7 +36,7 @@ const pw = "correct horse battery"
 func TestNormalizeEmail(t *testing.T) {
 	for in, want := range map[string]string{
 		"  Person@Example.COM ":   "person@example.com",
-		"a.b+tag@sub.example.org": "a.b+tag@sub.example.org",
+		"a.b+tag@sub.example.com": "a.b+tag@sub.example.com",
 	} {
 		if got, err := NormalizeEmail(in); err != nil || got != want {
 			t.Errorf("NormalizeEmail(%q) = %q, %v", in, got, err)

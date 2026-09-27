@@ -21,9 +21,9 @@ Update this table in the same commit that finishes a task.
 | T9 Backup and restore | Done |
 | T10 Integration suite completion and log hygiene | Done |
 | T11 Fresh-host install and `make doctor` | Done |
-| T12 Docs and security audit | Not started |
+| T12 Docs and security audit | Done |
 | T13 Full e2e run | Not started |
-| T14 Release | Not started |
+| T14 Release | User-requested deploy and checks done; remaining release work pending T13 |
 | T15 Safe Docker cleanup | Not started |
 
 ## Rules for this milestone
@@ -47,7 +47,7 @@ Update this table in the same commit that finishes a task.
 | CP2 | T4 + T5 (WebSocket, HTTP and database limits) | `make lint test` | Passed |
 | CP3 | T6 + T7 (headers/CSP, container hardening) | `make lint test`, plus `make build` (the CSP hash is read from the built `index.html`) and `scripts/compose-config.sh` | Passed |
 | CP4 | T8 + T9 (Tailscale allowlist, backup/restore) | `make lint test` | Passed |
-| CP5 | T10 + T11 + T12 (integration completion, install, audit) | `make lint test` **three times in a row** (flake check for the integration suite), `make gitleaks`, e2e `tsc` | Not run |
+| CP5 | T10 + T11 + T12 (integration completion, install, audit) | `make lint test` **three times in a row** (flake check for the integration suite), `make gitleaks`, e2e `tsc` | Passed |
 | CP6 | T13 (full e2e) | `make e2e` until green, then **twice in a row from a clean checkout**; `make lint test` after the last fix | Not run |
 
 **Progress note (CP3):** `make lint test`, `make build` and `scripts/compose-config.sh` passed. The hardened `hostbud-e2e-app` started healthy, `hostbud healthcheck` returned success, and the throwaway e2e stack and volumes were removed.
@@ -57,6 +57,10 @@ Update this table in the same commit that finishes a task.
 **Progress note (T11):** `make fmt`, `make lint test`, `make shell-test`, `make docs-lint`, and `scripts/compose-config.sh` passed. `make doctor` ran read-only on the development host; its redacted output and four unresolved setup checks are in the owner backlog in M7-acceptance.md.
 
 **Progress note (T10, 2026-09-27):** Reviewed ARCHITECTURE §13's package/case matrix against the integration test names and confirmed all requested gaps are covered, including host-key pinning/recovery, agent failures, unreachable sshd, tmux restart, races, killed attach handshake, SFTP permissions and input boundaries. The info-level account/host canary cycle and debug-only session-name logging are covered. `make test` passed (Go integration suite with `-race`, frontend tests, and shell/doc checks). The T10 host-key E2E scenario is written and type-checks as part of the suite; execution remains scheduled for T13. CP5's three consecutive full runs remain pending until T12 is complete.
+
+**Progress note (T12, 2026-09-27):** Added route-inventory-driven Origin checks for every state-changing route and both WebSockets, with a desktop API scenario; completed the security evidence checklist and docs reconciliation. The tree-wide scan found no non-placeholder host addresses, personal home paths, or non-example email addresses. It recognizes `100.64.0.1` as the documented Tailscale placeholder, `100.100.100.100` as the MagicDNS resolver, and `/home/hostbud` as the generated container user's home. `.gitignore` contains all required local-data exclusions. `make lint test` passed three consecutive times (Go integration tests with `-count=1`, frontend suite, shell/docs checks); `make gitleaks` found no leaks in history; E2E `tsc` passed and `make e2e` remains scheduled for T13.
+
+**Progress note (user-requested deploy, 2026-09-27):** Deployed the current checkout after creating and validating a production backup. The standard `make backup` target could not copy from the app container's `/tmp` tmpfs; streaming the same `hostbud backup` output to a mode-600 file worked, and `make restore-check` passed with no leftover temporary database. The app is healthy, `/api/health` returned `{"status":"ok"}`, container hardening and CSP were confirmed, and there is no wildcard listener on the published app ports. `make doctor` still reports the four host setup issues listed under T11. T13 and the remaining T14 release work are pending.
 
 **What e2e can and can't reach.**
 - **Stalls** use the `test/sshd` stall switches through new `hostbud-e2e-ctl` actions: `/stall/tmux/on|off` (T2) and `/stall/sftp/on|off` (T3). While a switch is on, every `tmux` or `sftp-server` process started on the target sleeps until the switch expires (60 s TTL), so hostbud's call hangs exactly as it would against a wedged host. The suite runs serially (`workers: 1`), so a target-wide switch can't disturb another scenario, as long as every scenario turns it off in `finally`.

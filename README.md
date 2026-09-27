@@ -149,6 +149,14 @@ PostgreSQL credentials are supplied through the local, gitignored `.env` using t
 
 PostgreSQL is initialized as a fresh application database. The previous provisional SQLite database is not migrated because this deployment has not been used; its file, if present in the existing app data volume, is left untouched and ignored.
 
+## Limits and timeouts
+
+One SSH command and one SFTP operation each time out after 10 seconds by default. A timeout returns an actionable error and the app retries the host connection; repeated SSH timeouts reset the app's ControlMaster connection. Set `HOSTBUD_EXEC_TIMEOUT` or `HOSTBUD_SFTP_TIMEOUT` in `.env` to change the limit (each accepts 2 seconds through 2 minutes).
+
+The server accepts at most 32 attached terminals per account and 128 across all accounts by default. A full limit returns **Too many open terminals** before another SSH attach starts. Set `HOSTBUD_MAX_TERMINALS_PER_USER` (1–256) or `HOSTBUD_MAX_TERMINALS` (1–1024) in `.env` to change these caps. The browser layout supports up to 16 terminal panes, so the per-account default leaves room for multiple tabs and users' other devices.
+
+HTTP requests, WebSockets, SFTP listings and database queries also have fixed bounds. Oversized JSON requests return 413, an unexpected content type returns 415, oversized headers return 431, and slow or unavailable host/database calls return a timeout or service error instead of waiting indefinitely. The complete inventory and server behavior are in [Architecture §15](docs/ARCHITECTURE.md#15-limits-and-timeouts).
+
 Example whitelist maintenance SQL (replace the placeholder address; never commit real addresses):
 
 ```sql
