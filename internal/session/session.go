@@ -136,14 +136,14 @@ func (s *Service) Create(ctx context.Context, spec Spec) (string, error) {
 		return "", err
 	}
 
-	auto := spec.Name == ""
-	name := spec.Name
-	if auto {
-		name = uniqueName(defaultName(dir), sessions)
-	} else if err := tmux.ValidateName(name); err != nil {
+	baseName := spec.Name
+	if baseName == "" {
+		baseName = defaultName(dir)
+	} else if err := tmux.ValidateName(baseName); err != nil {
 		return "", errorf(CodeInvalid, "Use letters, digits, '-' and '_' only (up to 64 characters).",
-			"invalid session name %q", name)
+			"invalid session name %q", baseName)
 	}
+	name := uniqueName(baseName, sessions)
 
 	if _, err := s.exec.Exec(ctx, spec.Machine, "test", "-d", dir); err != nil {
 		var e *sshx.Error
@@ -155,8 +155,10 @@ func (s *Service) Create(ctx context.Context, spec Spec) (string, error) {
 	}
 
 	version, _ := tmux.ParseVersion(m.TmuxVersion)
-	// An auto-derived name may race with a session created meanwhile:
-	// retry with the next suffix.
+	// A name may race with a session created after the inventory snapshot.
+	// Reserve each collision locally and derive the next suffix from the
+	// original requested name, so a typed "work-1" becomes "work-1-1".
+	reserved := append([]tmux.Session(nil), sessions...)
 	for attempt := 0; ; attempt++ {
 		args, err := tmux.NewSessionArgs(tmux.NewSession{
 			Name: name, Path: dir, Env: spec.Env, StartCommand: spec.StartCommand,
@@ -182,8 +184,9 @@ func (s *Service) Create(ctx context.Context, spec Spec) (string, error) {
 			break
 		}
 		if isDuplicate(err) {
-			if auto && attempt < 20 {
-				name = nextName(name)
+			if attempt < 20 {
+				reserved = append(reserved, tmux.Session{Name: name})
+				name = uniqueName(baseName, reserved)
 				continue
 			}
 			return "", errorf(CodeDuplicate, "Pick another name, or open the existing session.",
@@ -465,20 +468,18 @@ func uniqueName(base string, sessions []tmux.Session) string {
 	for _, s := range sessions {
 		taken[s.Name] = true
 	}
-	name := base
-	for n := 1; taken[name]; n++ {
-		name = base + "-" + strconv.Itoa(n)
+	if !taken[base] {
+		return base
 	}
-	return name
-}
-
-var suffixRE = regexp.MustCompile(`^(.*)-(\d+)$`)
-
-// nextName bumps a "-<n>" suffix (or adds "-1").
-func nextName(name string) string {
-	if m := suffixRE.FindStringSubmatch(name); m != nil {
-		n, _ := strconv.Atoi(m[2])
-		return m[1] + "-" + strconv.Itoa(n+1)
+	for n := 1; ; n++ {
+		suffix := "-" + strconv.Itoa(n)
+		trimmed := base
+		if len(trimmed)+len(suffix) > 64 {
+			trimmed = trimmed[:64-len(suffix)]
+		}
+		name := trimmed + suffix
+		if !taken[name] {
+			return name
+		}
 	}
-	return name + "-1"
 }

@@ -5,6 +5,7 @@ import CreateSessionDialog from './CreateSessionDialog.vue'
 import KillSessionDialog from './KillSessionDialog.vue'
 import ToastRegion from './ToastRegion.vue'
 import { projectNameError, sessionNameError } from '@/lib/names'
+import { useToastsStore } from '@/stores/toasts'
 import { stubFetch } from '@/test-utils'
 
 beforeEach(() => setActivePinia(createPinia()))
@@ -91,6 +92,29 @@ describe('CreateSessionDialog', () => {
     expect(calls[0].body).toEqual({ name: 'web', path: '~/some/dir', startCommand: 'htop' })
   })
 
+  it('announces a numbered name only when a typed name changes', async () => {
+    stubFetch(() => ({ status: 201, body: { name: 'work-1' } }))
+    mount(ToastRegion, { attachTo: document.body })
+    mountOpen(CreateSessionDialog, { machine: 'host' })
+    await flushPromises()
+    await type('name', 'work')
+    await click('Create')
+    expect(useToastsStore().toasts).toMatchObject([{
+      title: 'Session name changed',
+      message: 'Named "work-1": "work" was already taken.',
+      tone: 'info',
+    }])
+    expect($('[role="status"]')?.textContent).toContain('Named "work-1"')
+  })
+
+  it('does not announce an auto-derived name when the name field is empty', async () => {
+    stubFetch(() => ({ status: 201, body: { name: 'dev-1' } }))
+    mountOpen(CreateSessionDialog, { machine: 'host' })
+    await flushPromises()
+    await click('Create')
+    expect(useToastsStore().toasts).toEqual([])
+  })
+
   it('rejects invalid names inline without calling the API', async () => {
     const calls = stubFetch(() => ({ status: 201, body: { name: 'x' } }))
     mountOpen(CreateSessionDialog, { machine: 'host' })
@@ -104,10 +128,10 @@ describe('CreateSessionDialog', () => {
     expect(calls).toEqual([])
   })
 
-  it('shows the backend error and hint in the dialog and stays open', async () => {
+  it('shows the missing-path error and hint in the dialog and stays open', async () => {
     stubFetch(() => ({
-      status: 409,
-      body: { error: 'a session named "web" already exists', hint: 'Pick another name, or open the existing session.' },
+      status: 400,
+      body: { error: "directory /home/dev/missing doesn't exist on the host", hint: 'Pick an existing directory, or create it first.' },
     }))
     const w = mountOpen(CreateSessionDialog, { machine: 'host' })
     await flushPromises()
@@ -115,8 +139,8 @@ describe('CreateSessionDialog', () => {
     await click('Create')
     const toast = $('[role=dialog] [role=alert]')!
     expect(toast.textContent).toContain("Couldn't create the session")
-    expect(toast.textContent).toContain('A session named "web" already exists.')
-    expect(toast.textContent).toContain('Pick another name')
+    expect(toast.textContent).toContain("Directory /home/dev/missing doesn't exist on the host.")
+    expect(toast.textContent).toContain('Pick an existing directory')
     expect(w.emitted('update:open')).toBeUndefined()
   })
 })

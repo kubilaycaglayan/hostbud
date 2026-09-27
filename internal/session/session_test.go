@@ -311,6 +311,68 @@ func TestCreateCustomNameIsKept(t *testing.T) {
 	}
 }
 
+func TestCreateTypedTakenNamesAreNumbered(t *testing.T) {
+	cases := []struct {
+		name   string
+		taken  []string
+		wanted string
+	}{
+		{"work", []string{"work"}, "work-1"},
+		{"work", []string{"work", "work-1"}, "work-2"},
+		{"work-1", []string{"work-1"}, "work-1-1"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name+"-"+tc.wanted, func(t *testing.T) {
+			name, err := newSvc(&fakeExec{}, okHost(tc.taken...)).Create(context.Background(), Spec{Machine: "host", Name: tc.name, Path: "~"})
+			if err != nil || name != tc.wanted {
+				t.Fatalf("Create() = %q, %v; want %q", name, err, tc.wanted)
+			}
+		})
+	}
+}
+
+func TestCreateTypedNameRetriesAfterTmuxRace(t *testing.T) {
+	var created []string
+	f := &fakeExec{handler: func(args []string) error {
+		if args[0] != "tmux" {
+			return nil
+		}
+		name := args[4]
+		created = append(created, name)
+		if len(created) < 3 {
+			return remote(1, "duplicate session: "+name)
+		}
+		return nil
+	}}
+	name, err := newSvc(f, okHost()).Create(context.Background(), Spec{Machine: "host", Name: "work-1", Path: "~"})
+	if err != nil || name != "work-1-2" || !slices.Equal(created, []string{"work-1", "work-1-1", "work-1-2"}) {
+		t.Fatalf("Create() = %q, %v; attempts %q", name, err, created)
+	}
+}
+
+func TestCreateTypedNameRaceStopsAfterTwentyRetries(t *testing.T) {
+	tries := 0
+	f := &fakeExec{handler: func(args []string) error {
+		if args[0] == "tmux" {
+			tries++
+			return remote(1, "duplicate session: "+args[4])
+		}
+		return nil
+	}}
+	_, err := newSvc(f, okHost()).Create(context.Background(), Spec{Machine: "host", Name: "work", Path: "~"})
+	if code(err) != CodeDuplicate || tries != 21 {
+		t.Fatalf("Create() error %v after %d attempts; want duplicate after 21 attempts", err, tries)
+	}
+}
+
+func TestUniqueNameTrimsTypedBaseToFitLimit(t *testing.T) {
+	base := strings.Repeat("x", 64)
+	name, err := newSvc(&fakeExec{}, okHost(base)).Create(context.Background(), Spec{Machine: "host", Name: base, Path: "~"})
+	if err != nil || len(name) > 64 || !strings.HasSuffix(name, "-1") || tmux.ValidateName(name) != nil {
+		t.Fatalf("Create() = %q (%d chars), %v", name, len(name), err)
+	}
+}
+
 func TestCreateRetriesOnceWhenTheServerRaced(t *testing.T) {
 	tries := 0
 	f := &fakeExec{handler: func(args []string) error {
@@ -377,7 +439,7 @@ func TestCreateErrorMapping(t *testing.T) {
 			}
 			return nil
 		}, CodePathNotFound, "existing directory"},
-		{"duplicate", func(a []string) error {
+		{"duplicate race exhausted", func(a []string) error {
 			if a[0] == "tmux" {
 				return remote(1, "duplicate session: web")
 			}
@@ -468,13 +530,5 @@ func TestKill(t *testing.T) {
 	}
 	if err := newSvc(&fakeExec{}, okHost()).Kill(context.Background(), "host", "a b"); code(err) != CodeInvalid {
 		t.Errorf("invalid: %v", err)
-	}
-}
-
-func TestNextName(t *testing.T) {
-	for in, want := range map[string]string{"api": "api-1", "api-1": "api-2", "a-b-9": "a-b-10"} {
-		if got := nextName(in); got != want {
-			t.Errorf("nextName(%q) = %q", in, got)
-		}
 	}
 }

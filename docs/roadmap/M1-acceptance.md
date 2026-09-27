@@ -47,8 +47,8 @@ A layer may be **n/a** only with a one-line reason (e.g. pure byte passthrough h
   - U: T9 `new-session` builder (`-c`, `-e`, command, `=` targets) · T11 `~/` expansion. I: T11 create with start command on test sshd (`#{pane_current_command}`). E: T16 *Create with start command* · T17 visible in terminal.
 - [x] Invalid name (e.g. `a.b`, `a:b`, a space) is rejected in the form and by the API.
   - U: T9 name validation · T12 `httptest` 400 `{error, hint}` · T16 form validation (Vitest). I: n/a (validation runs before any remote call; T8 checks that nothing reaches ssh unvalidated). E: T12 *API validation* · T16 *Invalid input*.
-- [x] Duplicate name or a non-existent path → clear, actionable error.
-  - U: T11 error mapping (fake executor) · T16 error toast (Vitest). I: T11 duplicate name and missing path against real tmux on test sshd (real error text is mapped). E: T16 *Invalid input*.
+- [x] A taken name on create is numbered and the actual name is returned; renaming to a taken name or creating in a non-existent path gives a clear, actionable error.
+  - U: T10 create numbering, retry and rename error mapping (fake executor) · T16 missing-path error toast (Vitest). I: T10 repeated create against real tmux on test sshd; T11 missing path. E: T16 *Invalid input* (taken-name behavior updated in T10; authored and type-checked, browser run at M7).
 - [x] Rename from the UI → `tmux ls` shows the new name; the UI updates.
   - U: T9 `rename-session` builder · T11 refresh after rename · T16 rename dialog (Vitest). I: T9 rename on test sshd. E: T12 *API mutations* · T16 *Rename*.
 - [x] Kill from the UI asks for confirmation; Cancel leaves the session alive; Confirm kills it.
@@ -117,7 +117,7 @@ UI
 - [x] **(T15) tmux missing:** against the tmux-less target, the UI shows the install hint.
 - [x] **(T16) Create with defaults:** the user opens the create dialog and gives only a path → the session appears named after the directory, and `tmux display -p '#{session_path}'` matches.
 - [x] **(T16) Create with start command:** name + path + `htop` → the session's pane is running htop (`#{pane_current_command}`). T17 adds the check that it's visible in the terminal.
-- [x] **(T16) Invalid input:** names like `a.b`, `a:b`, `a b` are rejected in the form; a duplicate name and a missing path show the actionable error text.
+- [x] **(T16 updated T10) Invalid input:** names like `a.b`, `a:b`, `a b` are rejected in the form; a taken name is numbered and a missing path shows the actionable error text (authored and type-checked; browser run at M7).
 - [x] **(T16) Rename:** rename via the UI → the new name is in `tmux ls` and the list.
 - [x] **(T16) Kill:** Cancel keeps the session; Confirm removes it from `tmux ls` and the list.
 - [x] **(T17) Attach and type:** the user clicks a session and types `echo e2e-$RANDOM` + Enter → the marker is in `capture-pane` and in the browser terminal.

@@ -2,12 +2,13 @@
 import { ref, watch } from 'vue'
 import { projectsApi } from '@/api/client'
 import type { Project } from '@/api/types'
-import { describeError } from '@/stores/toasts'
+import { describeError, useToastsStore } from '@/stores/toasts'
 
 // "New session here": a session in a saved project's directory. Open while
 // `project` is set; Cancel or a created session clears it.
 const project = defineModel<Project | null>('project', { default: null })
 const emit = defineEmits<{ created: [name: string] }>()
+const toasts = useToastsStore()
 
 const sessionName = ref('')
 const command = ref('')
@@ -36,9 +37,13 @@ async function createSession() {
   busy.value = true
   error.value = ''
   try {
+    const requestedName = sessionName.value.trim()
     const startCommand = command.value.trim() ? command.value : undefined
-    const result = await projectsApi.createSession(project.value.id, { name: sessionName.value.trim() || undefined, startCommand })
+    const result = await projectsApi.createSession(project.value.id, { name: requestedName || undefined, startCommand })
     project.value = null
+    if (requestedName && result.name !== requestedName) {
+      toasts.push({ title: 'Session name changed', message: `Named "${result.name}": "${requestedName}" was already taken.`, tone: 'info' })
+    }
     emit('created', result.name)
   } catch (e) { error.value = describeError(e).message }
   finally { busy.value = false }

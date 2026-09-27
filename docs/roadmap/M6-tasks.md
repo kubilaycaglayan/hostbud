@@ -19,7 +19,7 @@ Update this table in the same commit that finishes a task.
 | T7 Theme setting | Done |
 | T8 Keyboard shortcuts | Done |
 | T9 Command palette | Done |
-| T10 Taken session names get a number | Not started |
+| T10 Taken session names get a number | Done |
 | T11 Remove a project | Not started |
 | T12 Add the current directory as a project | Not started |
 | T13 Left bar toggle and icon toolbar | Not started |
@@ -41,6 +41,8 @@ T7 completed with Dark / Light / System account settings, per-account persistenc
 T8 completed with the shared shortcut registry and help dialog, global tab/focus chords, in-memory recent-tab switching, tree new-session shortcut and xterm interception. Unit coverage, frontend tests/lint and E2E type-check passed; browser E2E remains paused until M7. CP4 passed after T9.
 
 T9 completed with session/window/project search, fuzzy ranking, action dispatch, rename reveal, terminal focus restoration and compact-screen palette access. `make lint test`, `make build`, `make gitleaks` and `make e2e-lint` passed; browser E2E remains paused until M7. T9 scenarios are authored and type-checked. CP4 passed.
+
+T10 completed with typed-name collision numbering, 64-character suffix trimming, tmux race retries, unchanged rename conflicts and informational toasts when a typed name changes. Go unit/integration tests, frontend tests/lint and E2E TypeScript checks passed; browser E2E remains paused until M7. The M1 invalid-input scenario now expects a numbered session for a taken name.
 
 ## Rules for this milestone
 

@@ -4,11 +4,12 @@ import { computed, ref, watch } from 'vue'
 import { sessionsApi } from '@/api/client'
 import { sessionNameError } from '@/lib/names'
 import FormError from './FormError.vue'
-import { describeError } from '@/stores/toasts'
+import { describeError, useToastsStore } from '@/stores/toasts'
 
 const props = defineProps<{ machine: string; compact?: boolean }>()
 const open = defineModel<boolean>('open', { default: false })
 const emit = defineEmits<{ created: [name: string] }>()
+const toasts = useToastsStore()
 
 const name = ref('')
 const path = ref('~')
@@ -39,12 +40,16 @@ async function submit() {
   busy.value = true
   failure.value = null
   try {
+    const requestedName = name.value.trim()
     const res = await sessionsApi.create(props.machine, {
-      name: name.value.trim() || undefined,
+      name: requestedName || undefined,
       path: path.value.trim() || '~',
       startCommand: startCommand.value.trim() || undefined,
     })
     open.value = false
+    if (requestedName && res.name !== requestedName) {
+      toasts.push({ title: 'Session name changed', message: `Named "${res.name}": "${requestedName}" was already taken.`, tone: 'info' })
+    }
     emit('created', res.name)
   } catch (e) {
     failure.value = describeError(e)

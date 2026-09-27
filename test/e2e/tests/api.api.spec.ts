@@ -61,6 +61,23 @@ test('API mutations: create, rename and kill are reflected in tmux ls', async ({
   expect((await listSessions(request)).map((s) => s.name)).not.toContain(renamed)
 })
 
+test('(T10) Create with a taken name numbers it; rename still conflicts', async ({ target, request }) => {
+  const name = uniqueName('e2e-api-dup')
+  const another = uniqueName('e2e-api-rename')
+  forbidInLogs(name, another)
+  const first = await mutate(request, 'POST', sessionsPath, { name, path: '~' })
+  expect(first.status()).toBe(201)
+  expect(await first.json()).toEqual({ name })
+  const second = await mutate(request, 'POST', sessionsPath, { name, path: '~' })
+  expect(second.status()).toBe(201)
+  expect(await second.json()).toEqual({ name: `${name}-1` })
+  const other = await mutate(request, 'POST', sessionsPath, { name: another, path: '~' })
+  expect(other.status()).toBe(201)
+  const rename = await mutate(request, 'PATCH', `${sessionsPath}/${another}`, { name })
+  expect(rename.status()).toBe(409)
+  expect(await target.sessions()).toEqual(expect.arrayContaining([name, `${name}-1`, another]))
+})
+
 // API validation (T12)
 test('API validation: invalid names return 400 {error, hint}', async ({ target, request }) => {
   for (const bad of ['a.b', 'a:b', 'a b']) {

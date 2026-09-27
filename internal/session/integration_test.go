@@ -317,15 +317,18 @@ func TestIntegrationWindowsTmuxMissing(t *testing.T) {
 }
 
 func TestIntegrationErrorsMapped(t *testing.T) {
-	svc, _ := setup(t)
+	svc, c := setup(t)
 	ctx := context.Background()
 	if _, err := svc.Create(ctx, session.Spec{Machine: sshx.HostMachineID, Name: "dup"}); err != nil {
 		t.Fatal(err)
 	}
 	var e *session.Error
-	_, err := svc.Create(ctx, session.Spec{Machine: sshx.HostMachineID, Name: "dup"})
-	if !errors.As(err, &e) || e.Code != session.CodeDuplicate || !strings.Contains(e.Message, "dup") {
-		t.Fatalf("duplicate: %+v", err)
+	second, err := svc.Create(ctx, session.Spec{Machine: sshx.HostMachineID, Name: "dup"})
+	if err != nil || second != "dup-1" {
+		t.Fatalf("duplicate create = %q, %v; want dup-1", second, err)
+	}
+	if got := display(t, c, second, "#{session_name}"); got != second {
+		t.Fatalf("numbered session name = %q; want %q", got, second)
 	}
 	_, err = svc.Create(ctx, session.Spec{Machine: sshx.HostMachineID, Name: "nopath", Path: "~/sess-it/nope"})
 	if !errors.As(err, &e) || e.Code != session.CodePathNotFound || !strings.Contains(e.Message, "/home/dev/sess-it/nope") {
@@ -338,6 +341,9 @@ func TestIntegrationErrorsMapped(t *testing.T) {
 		t.Fatalf("kill renamed-away session: %+v", err)
 	}
 	if err := svc.Kill(ctx, sshx.HostMachineID, "dup2"); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.Kill(ctx, sshx.HostMachineID, "dup-1"); err != nil {
 		t.Fatal(err)
 	}
 }

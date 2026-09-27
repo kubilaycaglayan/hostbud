@@ -198,9 +198,9 @@ Design: [ARCHITECTURE §13.1](../ARCHITECTURE.md#131-e2e-environment). Built now
 ### T11 — Session service
 - Single `CreateSession(ctx, {machine, name, path, env, startCommand})`: custom name as given, else the default name: the directory's last path segment (`/root/docs/dev` → `dev`; characters a name can't hold become `-`); if taken, `dev-1`, `dev-2`, …; path default = probed home; `~/` expanded against home; validate name; refresh after.
 - `RenameSession`, `KillSession` (service assumes UI confirmed); refresh after.
-- Actionable errors (duplicate name, path doesn't exist, tmux missing).
+- Actionable errors (taken names on create are numbered; rename conflicts, missing paths and tmux missing are explained).
 
-**Tests:** U: fake executor: default name from the last path segment, `-1`, `-2`, … on clash, custom name kept, `~/` expansion, validation, refresh after each mutation, error mapping. I: on test sshd: create with defaults (`#{session_path}` matches); create with start command (`#{pane_current_command}`); duplicate name and missing path ⇒ real tmux errors mapped to actionable ones.
+**Tests:** U: fake executor: default name from the last path segment, `-1`, `-2`, … on clash, custom name kept, `~/` expansion, validation, refresh after each mutation, error mapping. I: on test sshd: create with defaults (`#{session_path}` matches); create with start command (`#{pane_current_command}`); missing path ⇒ real tmux error mapped to actionable text. T10 owns typed-name collision numbering and its create/rename coverage.
 
 **E2E:** none yet (reachable through the API in T12); `make e2e` stays green.
 
@@ -281,7 +281,7 @@ Design: [ARCHITECTURE §13.1](../ARCHITECTURE.md#131-e2e-environment). Built now
 **E2E (both projects):**
 - **Create with defaults (T16):** path only → the session is named after the directory, and `#{session_path}` matches.
 - **Create with start command (T16):** name + path + `htop` → `#{pane_current_command}` is `htop`.
-- **Invalid input (T16):** `a.b`, `a:b` and `a b` are rejected in the form; a duplicate name and a missing path show the actionable text.
+- **Invalid input (T16, updated by T10):** `a.b`, `a:b` and `a b` are rejected in the form; a taken name is numbered and a missing path shows the actionable text.
 - **Rename (T16):** the new name shows in `tmux ls` and in the list.
 - **Kill (T16):** Cancel keeps the session; Confirm removes it from `tmux ls` and the list.
 

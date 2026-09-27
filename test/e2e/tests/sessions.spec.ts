@@ -1,6 +1,6 @@
 import { expect, test } from '../helpers/fixtures.ts'
 import { ctl } from '../helpers/ctl.ts'
-import { POLL_INTERVAL_MS } from '../helpers/api.ts'
+import { forbidInLogs, MACHINE, mutate, ORIGIN, POLL_INTERVAL_MS } from '../helpers/api.ts'
 import { uniqueName } from '../helpers/target.ts'
 
 // "Within one poll interval", plus slack for ssh, the event and rendering.
@@ -25,6 +25,34 @@ test('real-terminal create and kill show up within one poll interval', async ({ 
   await expect(ui.session(name)).toBeVisible(withinPoll)
   await target.tmux('kill-session', '-t', `=${name}`)
   await expect(ui.session(name)).toHaveCount(0, withinPoll)
+})
+
+test('(T10) Taken session names get a number from New session and New session here', async ({ page, ui, target, request }) => {
+  const name = uniqueName('e2e-taken')
+  const projectName = uniqueName('e2e-taken-project')
+  const path = `/home/dev/${uniqueName('e2e-taken-path')}`
+  forbidInLogs(name, projectName, path)
+  await target.run(`mkdir -p '${path}' && tmux new-session -d -s '${name}' -c /home/dev`)
+  const project = await mutate(request, 'POST', '/api/projects', { machineId: MACHINE, path, name: projectName }, ORIGIN)
+  expect(project.status(), await project.text()).toBe(201)
+  await ui.open()
+
+  await ui.createSession({ name })
+  await expect(page.getByRole('region', { name: `Terminal: ${name}-1` })).toBeVisible(withinPoll)
+  await expect(page.locator('section[aria-label="Notifications"] [role="status"]')).toContainText(`Named "${name}-1": "${name}" was already taken.`)
+  expect(await target.sessions()).toEqual(expect.arrayContaining([name, `${name}-1`]))
+
+  await ui.showList()
+  await page.keyboard.press('Control+Shift+K')
+  const palette = page.getByRole('dialog', { name: 'Command palette' })
+  await palette.getByRole('combobox', { name: 'Command palette' }).fill(`New session in ${projectName}`)
+  await page.keyboard.press('Enter')
+  const dialog = page.getByRole('dialog', { name: `New session in ${projectName}` })
+  await dialog.getByLabel('Name').fill(name)
+  await dialog.getByRole('button', { name: 'Create session' }).click()
+  await expect(page.getByRole('region', { name: `Terminal: ${name}-2` })).toBeVisible(withinPoll)
+  await expect(page.locator('section[aria-label="Notifications"] [role="status"]')).toContainText(`Named "${name}-2": "${name}" was already taken.`)
+  await expect(ui.treeItem(projectName).getByRole('treeitem', { name: `${name}-2` })).toBeVisible()
 })
 
 // Attached state (T15)

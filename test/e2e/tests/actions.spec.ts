@@ -43,14 +43,14 @@ test('create with a name, a ~/ path and a start command runs it there', async ({
 })
 
 test.describe('refusals', () => {
-  // The backend's 400/409 answers are expected here.
+  // The backend's missing-path 400 answer is expected here.
   test.use({
     allowedBrowserErrors:
-      /^HTTP (400|409): POST http:\/\/localhost:9055\/api\/machines\/host\/sessions|status of (400|409)/,
+      /^HTTP 400: POST http:\/\/localhost:9055\/api\/machines\/host\/sessions|status of 400/,
   })
 
   // Invalid input (T16)
-  test('invalid input: bad names are refused in the form; duplicate and missing path explain why', async ({
+  test('(T16 updated T10) Invalid input: bad names are refused; a taken name is numbered and a missing path explains why', async ({
     page,
     ui,
     target,
@@ -70,11 +70,8 @@ test.describe('refusals', () => {
     const dup = uniqueName('e2e-dup')
     await target.tmux('new-session', '-d', '-s', dup)
     await ui.createSession({ name: dup })
-    // Shown in the still-open dialog (a toast would be hidden behind the modal).
-    const dupError = dialog.getByRole('alert', { name: "Couldn't create the session" })
-    await expect(dupError).toContainText(`A session named "${dup}" already exists.`)
-    await expect(dupError).toContainText('Pick another name')
-    await dialog.getByRole('button', { name: 'Cancel' }).click()
+    await expect(page.getByRole('region', { name: `Terminal: ${dup}-1` })).toBeVisible()
+    await expect(page.locator('section[aria-label="Notifications"] [role="status"]')).toContainText(`Named "${dup}-1": "${dup}" was already taken.`)
 
     const missing = uniqueName('e2e-nowhere')
     forbidInLogs(missing)
@@ -82,7 +79,7 @@ test.describe('refusals', () => {
     const pathError = dialog.getByRole('alert', { name: "Couldn't create the session" })
     await expect(pathError).toContainText(`Directory /home/dev/${missing} doesn't exist on the host.`)
     await expect(pathError).toContainText('Pick an existing directory')
-    expect(await target.sessions()).toEqual([dup])
+    expect(await target.sessions()).toEqual(expect.arrayContaining([dup, `${dup}-1`]))
   })
 })
 

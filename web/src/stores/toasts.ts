@@ -7,6 +7,7 @@ export interface Toast {
   title: string
   message: string
   hint?: string
+  tone?: 'error' | 'info'
 }
 
 let next = 1
@@ -23,7 +24,7 @@ export const useToastsStore = defineStore('toasts', () => {
   }
 
   function error(title: string, e: unknown) {
-    return push({ title, ...describeError(e) })
+    return push({ title, ...describeError(e), tone: 'error' })
   }
 
   function dismiss(id: number) {

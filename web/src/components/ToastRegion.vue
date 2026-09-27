@@ -12,14 +12,16 @@ const toasts = useToastsStore()
     <div
       v-for="t in toasts.toasts"
       :key="t.id"
-      role="alert"
+      :role="t.tone === 'info' ? 'status' : 'alert'"
       :aria-labelledby="`toast-${t.id}`"
-      class="pointer-events-auto w-full max-w-sm rounded border border-danger bg-surface p-3 shadow-lg"
+      class="pointer-events-auto w-full max-w-sm rounded border bg-surface p-3 shadow-lg"
+      :class="t.tone === 'info' ? 'border-accent' : 'border-danger'"
     >
       <div class="flex items-start justify-between gap-2">
         <p
           :id="`toast-${t.id}`"
-          class="font-bold text-danger"
+          class="font-bold"
+          :class="t.tone === 'info' ? 'text-accent' : 'text-danger'"
         >
           {{ t.title }}
         </p>
