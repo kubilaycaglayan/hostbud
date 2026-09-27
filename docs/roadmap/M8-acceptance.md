@@ -100,7 +100,7 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
   - U: T12 command-to-agent parsing, unknown-command handling and inventory event changes (Go); T12 compact mark order, placement, accessible label and gutter-only behavior (Vitest).
   - I: T12 `TestIntegrationPollerReportsForegroundAgentCommand` against `test/sshd`, including clearing the agent when its fake foreground command exits.
   - E: T12 *Agent logos appear on collapsed session rows* (desktop and iPhone 13 Pro), including both marks from separate panes and no mark for an ordinary shell.
-  - Status: Go unit and integration coverage and the Vitest component coverage pass; E2E is written/type-checked and its full run is paused until M7 T13.
+  - Status: Go unit and integration coverage and the Vitest component coverage pass; E2E is written/type-checked and its full run is on demand.
 
 ## Manual checks (owner)
 

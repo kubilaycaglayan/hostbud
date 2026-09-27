@@ -19,7 +19,7 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 | T7 Contrast in long-lived terminal clients | Implemented; e2e written, not run yet |
 | T8 Dictation editor, focus return and terminal text view | Implemented; e2e written and type-checked, run pending (on demand) |
 | T9 Touch scrolling through tmux | Implemented; e2e written, not run yet |
-| T12 Agent marks on session rows | Implemented; focused unit/integration pass; e2e written and type-checked, run pending M7 T13 |
+| T12 Agent marks on session rows | Implemented; focused unit/integration pass; e2e written and type-checked, run pending (on demand) |
 
 **Progress note (T2–T4, 2026-09-27):** Vitest (447 tests), eslint, `vue-tsc` and the e2e `tsc` passed; deployed to the host from a clean checkout of `f664bb8` (a pre-deploy `pg_dump` is in `backups/`), and the stack came up healthy. Still open for these tasks:
 - **E2E runs:** the scenarios *(T2) Compact tree*, *(T3) Compact file browser*, *(T3) No browser autocomplete outside login password* and *(T4) Custom tab order* type-check but haven't run: e2e runs only on demand. The T2 commit also updated two M6 scenarios that expanded single-window sessions (*(T4) Inline rename a session*, *(T3) Window rows follow the real terminal*).
@@ -33,7 +33,7 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 **Progress note (T8, 2026-09-27):** replaced the ineffective xterm hidden-input composition cleanup with a native dictation text editor that sends through xterm paste once. Added PWA background blur/focus guards, a three-dot toolbar menu, and a full-screen frozen scrollback text view; updated existing search/copy/show-keyboard/close/split e2e helpers for the menu. `make lint test` passes (470 Vitest tests, Go unit/integration, ESLint/type checks, docs checks, and e2e `tsc`); `make build` and `make gitleaks` pass. Per the user's explicit request, deployed after a fresh mode-600 backup passed `make restore-check`; the stack is healthy, loopback `/api/health` returns ok, CSP is present, and container hardening is intact. `make doctor` still reports the four open host setup checks recorded under M7 T11. The e2e scenarios are type-checked but their full run is on demand. The real iPhone system dictation check remains open owner backlog. No new env vars are needed.
 - **T6:** tmux's copy-mode output was recorded in a throwaway target container and replayed into xterm 6 in headless Chromium, with the rendered rows captured every frame. Before: 8–10 torn frames out of about 20 (tmux `mouse on`), and 3-row jumps per wheel notch (`mouse off`). After: 0 torn frames with `-T sync`, and 1 row per frame with `smoothScrollDuration` 100 ms. End position and direction were identical in all cases.
 - **T7:** the colors are client-owned: Codex queries OSC 10/11 and paints its composer background for the theme it started in. With `minimumContrastRatio` 4.5 the before/after in xterm 6 went from `rgb(31,35,40)` to `rgb(150,151,155)` on the dark composer after switching to light. Real Codex through an OS switch stays an owner check.
-- **Still open:** every M8 e2e scenario runs first at M7 T13. Owner check: the real Codex prompt through a dark-to-light switch.
+- **Still open:** every M8 e2e scenario runs first at an on-demand run. Owner check: the real Codex prompt through a dark-to-light switch.
 
 ## Rules for this milestone
 
@@ -138,7 +138,7 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 
 **Tests:** U: T9 `touchScroll.spec.ts` (swipe to lines, direction, threshold, multi-finger, momentum, stacking, speed cap), `copyMode.spec.ts` wheel actions, `TerminalView.spec.ts` swipe sends `wheel-up`; Go `TestWheelState`, `TestAppWheelArgs`, `TestCopyModeArgs` wheel cases, `TestCopyModeWheelFollowsTmuxWheelRule`, `TestCopyModeAPIValidationAndAccess` wheel cases. I: T9 `TestIntegrationWheelScrollsAppOrTmuxHistory` (`test/sshd`): in a shell the wheel enters copy mode and scrolls; a mouse-reporting app receives SGR wheel reports and the pane stays out of copy mode. E: T9 *Touch swipe scrolls the full tmux history* and *Touch swipe scrolls a mouse-aware full-screen app* (phone projects).
 
-**E2E:** Add the two T9 phone scenarios above on the throwaway target, never the real host's tmux. Type-check only until M7 T13's scheduled full e2e run. Momentum feel is a manual owner check on the iPhone PWA.
+**E2E:** Add the two T9 phone scenarios above on the throwaway target, never the real host's tmux. Type-check only; runs on demand. Momentum feel is a manual owner check on the iPhone PWA.
 
 ## T12 — Agent marks on session rows
 
@@ -148,7 +148,7 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 
 **Tests:** U: T12 Go parsing/inventory tests cover known and unknown commands plus agent appearance/disappearance; Vitest covers small colored logos before the name, stable order, accessible labeling and left-gutter-only display. I: T12 `TestIntegrationPollerReportsForegroundAgentCommand` runs a fake `codex` executable on `test/sshd` and verifies the mark clears when it exits. E: T12 *Agent logos appear on collapsed session rows* (desktop and iPhone 13 Pro), using fake Codex and Claude processes on the throwaway target.
 
-**E2E:** Add T12 *Agent logos appear on collapsed session rows* (desktop and iPhone 13 Pro): run fake `codex` and `claude` foreground commands in separate panes, verify both compact colored marks appear on the session row without expanding it, and verify an ordinary shell session has no mark. Type-check only under the paused E2E run policy.
+**E2E:** Add T12 *Agent logos appear on collapsed session rows* (desktop and iPhone 13 Pro): run fake `codex` and `claude` foreground commands in separate panes, verify both compact colored marks appear on the session row without expanding it, and verify an ordinary shell session has no mark. Type-check only; runs on demand.
 
 ## Done
 
