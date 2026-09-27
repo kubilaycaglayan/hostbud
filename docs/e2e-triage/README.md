@@ -24,11 +24,11 @@ from that milestone's triage index.
 - For fixes, link the fix commit(s) and focused checks. State explicitly when
   an issue is still open.
 
-Generate the report as soon as a full suite ends, before another run. The E2E
-driver clears `test/e2e/results` at the beginning of the next run. Do not start
-that next full run until the current report is complete and all failures from
-the current pass have been fixed as a batch. Focused checks can run during the
-batch.
+Generate and commit the report as soon as a full suite ends, before another
+run. The E2E driver clears `test/e2e/results` at the beginning of the next
+run. Do not start that next full run until the current report is complete and
+committed, and all failures from the current pass have been fixed as a batch.
+Focused checks can run during the batch.
 
 Keep reports safe for this public repository: use only fixture values such as
 `/home/dev`, `example.com` and generated `example.test` emails. Do not copy
