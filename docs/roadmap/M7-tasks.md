@@ -18,7 +18,7 @@ Update this table in the same commit that finishes a task.
 | T6 Security headers and CSP | Done |
 | T7 Container and deploy hardening | Done |
 | T8 Tailscale identity allowlist | Done |
-| T9 Backup and restore | Not started |
+| T9 Backup and restore | Done |
 | T10 Integration suite completion and log hygiene | Not started |
 | T11 Fresh-host install and `make doctor` | Not started |
 | T12 Docs and security audit | Not started |
@@ -46,11 +46,13 @@ Update this table in the same commit that finishes a task.
 | CP1 | T1 + T2 + T3 (config, exec and SFTP bounds) | `make lint test` | Passed |
 | CP2 | T4 + T5 (WebSocket, HTTP and database limits) | `make lint test` | Passed |
 | CP3 | T6 + T7 (headers/CSP, container hardening) | `make lint test`, plus `make build` (the CSP hash is read from the built `index.html`) and `scripts/compose-config.sh` | Passed |
-| CP4 | T8 + T9 (Tailscale allowlist, backup/restore) | `make lint test` | Not run |
+| CP4 | T8 + T9 (Tailscale allowlist, backup/restore) | `make lint test` | Passed |
 | CP5 | T10 + T11 + T12 (integration completion, install, audit) | `make lint test` **three times in a row** (flake check for the integration suite), `make gitleaks`, e2e `tsc` | Not run |
 | CP6 | T13 (full e2e) | `make e2e` until green, then **twice in a row from a clean checkout**; `make lint test` after the last fix | Not run |
 
 **Progress note (CP3):** `make lint test`, `make build` and `scripts/compose-config.sh` passed. The hardened `hostbud-e2e-app` started healthy, `hostbud healthcheck` returned success, and the throwaway e2e stack and volumes were removed.
+
+**Progress note (CP4):** `make lint test` and `make build` passed after T9. Go integration coverage exercised backup/restore round-trip, older-dump migration, and restore-check cleanup after both a complete dump and a sanity failure. The real-tailnet check and production backup/restore-check remain open owner items for T14.
 
 **What e2e can and can't reach.**
 - **Stalls** use the `test/sshd` stall switches through new `hostbud-e2e-ctl` actions: `/stall/tmux/on|off` (T2) and `/stall/sftp/on|off` (T3). While a switch is on, every `tmux` or `sftp-server` process started on the target sleeps until the switch expires (60 s TTL), so hostbud's call hangs exactly as it would against a wedged host. The suite runs serially (`workers: 1`), so a target-wide switch can't disturb another scenario, as long as every scenario turns it off in `finally`.

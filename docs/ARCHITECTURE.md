@@ -261,7 +261,11 @@ commands preserve the exact command text, reject blank/NUL/oversize values,
 and keep the 20 newest distinct strings per project. The store prunes older
 entries in the same transaction as each upsert.
 
-**Backups:** `make backup` runs a consistent PostgreSQL dump using the running database credentials and copies it to `./backups/` (gitignored). It must never print the password or include it in the backup command arguments shown in logs.
+**Backups and restore:** `make backup` writes a PostgreSQL custom-format dump named `backups/hostbud-<UTC timestamp>.dump`. The running app checks that `pg_dump` is at least as new as the PostgreSQL server, writes under `/tmp` (the runtime root is read-only), and passes `PGPASSWORD` only in the child environment, never argv or output. Compose copies the dump to the host; `backups/` is mode 700 and each dump is mode 600. The runtime pins PostgreSQL 15 client tools to match the PostgreSQL 15 server image.
+
+`make restore-check FILE=…` validates the custom dump and hostbud migration table, restores it into a uniquely named temporary database, checks the migration version and counts for users, allowlist, projects and UI state, then drops that database on every exit path. `make restore FILE=…` validates before asking for the configured database name (interactive typed confirmation or `CONFIRM=<name>`), takes a safety backup, stops only the app, and applies `pg_restore --clean --if-exists --single-transaction --no-owner --exit-on-error`. It starts the app and waits for the DB-backed healthcheck. A failed restore transaction leaves the database unchanged; if the restore commits but the app does not recover, the safety backup filename and recovery command are printed. Neither workflow runs as part of deploy or e2e.
+
+A dump excludes `/data` (generated SSH config, ControlMaster sockets, and `auth-key` for rate-limit hashing), Caddy certificates, and `.env`. Keep `.env` in a password manager; certificates can be reissued (subject to Let's Encrypt rate limits). Copy backups off the host.
 
 ### 8.1 Authentication
 

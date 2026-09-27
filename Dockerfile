@@ -33,11 +33,11 @@ RUN --mount=type=cache,id=hostbud-gomod,target=/go/pkg/mod \
     CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/hostbud ./cmd/hostbud
 
 # ── 3. Runtime ───────────────────────────────────────────────
-FROM --platform=linux/amd64 debian:stable-slim
+FROM --platform=linux/amd64 debian:bookworm-slim
 # Lets `make deploy` / `make docker-clean` prune only hostbud's untagged images.
 LABEL hostbud.image="1"
 RUN apt-get update \
- && apt-get install -y --no-install-recommends openssh-client postgresql-client ca-certificates tini \
+ && apt-get install -y --no-install-recommends openssh-client postgresql-client-15 ca-certificates tini \
  && rm -rf /var/lib/apt/lists/*
 
 # ssh refuses to run for a uid without a passwd entry, so create the host

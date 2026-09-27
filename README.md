@@ -142,6 +142,20 @@ Run it with `docker compose exec hostbud-postgres psql -U hostbud -d hostbud` (t
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for details.
 
+## Backup and restore
+
+Run `make backup` to create `backups/hostbud-<UTC timestamp>.dump`, a private PostgreSQL custom-format dump. The command creates `backups/` with mode 700, sets the dump to mode 600, and prints its filename and size. It uses the runtime `pg_dump`; if that client is older than the database server, backup stops with an install hint.
+
+Check a dump without touching the configured database:
+
+```sh
+make restore-check FILE=backups/hostbud-20260927T120000000000000Z.dump
+```
+
+The check restores to a temporary database, verifies the migration version and counts of users, allowlist entries, projects and UI state, then drops the temporary database. For a real restore, use `make restore FILE=…`; it validates the dump, shows the target database and requires typing its name. Non-interactive use must pass `CONFIRM=<database>`. Restore takes a safety backup first, stops only the app while applying the dump in one transaction, starts it again, and waits for health.
+
+A database dump does not include `hostbud-data` (regenerated SSH configuration and ControlMaster sockets plus `auth-key` used for rate-limit hashing), Caddy certificates (`hostbud-caddy-data`), or `.env`. Losing `auth-key` resets throttling buckets; Caddy can reissue certificates, subject to Let's Encrypt rate limits. Keep `.env` in a password manager and copy `backups/` off the host.
+
 ## Development
 Everything runs in containers; the host only needs Docker and `make` (`make help` lists targets). Tools run in long-lived `hostbud-tools-*` containers that `make` execs into (created on first use; `make tools-down` removes them).
 - `make build` — build the Vue app (`web/dist`) and the Go binary with it embedded (`bin/hostbud`). `make go-build` alone embeds whatever is in `web/dist` and serves a placeholder page if the frontend was never built.

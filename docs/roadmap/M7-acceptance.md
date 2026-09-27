@@ -164,19 +164,19 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 
 ## Backup and restore
 
-- [ ] `make backup` writes a PostgreSQL custom-format dump `backups/hostbud-<UTC>.dump` (file mode 600, directory 700) through `/tmp` in the read-only container. It prints only the name and size, and the password never appears in argv or output. The runtime `pg_dump` is at least the server's major version, else an actionable error.
+- [x] `make backup` writes a PostgreSQL custom-format dump `backups/hostbud-<UTC>.dump` (file mode 600, directory 700) through `/tmp` in the read-only container. It prints only the name and size, and the password never appears in argv or output. The runtime `pg_dump` is at least the server's major version, else an actionable error.
   - U: T9 `Store.Backup` argv/env; version-check table (Go); script argument validation with `docker` stubbed (shell).
   - I: T9 a dump from the test database restores (below) (Go, PostgreSQL).
   - E: n/a: an operator `make` target with no UI or API.
-- [ ] `make restore FILE=…` checks that the file is a hostbud custom-format dump, requires the database name typed (or `CONFIRM=<name>`), takes a safety backup, stops only the `hostbud` container, restores in a single transaction (`--clean --if-exists --no-owner --exit-on-error`), starts `hostbud`, and waits for health. On failure it names the safety backup and how to restore it.
+- [x] `make restore FILE=…` checks that the file is a hostbud custom-format dump, requires the database name typed (or `CONFIRM=<name>`), takes a safety backup, stops only the `hostbud` container, restores in a single transaction (`--clean --if-exists --no-owner --exit-on-error`), starts `hostbud`, and waits for health. On failure it names the safety backup and how to restore it.
   - U: T9 validation and confirmation paths with `docker` stubbed: wrong or missing confirmation, not a dump, not a hostbud dump → no side effect (shell).
   - I: T9 backup → mutate → restore on a **throwaway** database brings back the pre-backup rows; an older dump plus the next app start applies the newer migrations (Go, PostgreSQL).
   - E: n/a: an operator `make` target; destructive, so never run against the e2e or production database from the suite.
-- [ ] `make restore-check FILE=…` restores into a temporary `hostbud_restore_check_<random>` database, prints the migration version and row counts, and always drops the temporary database, even when a check fails. It never touches the production database.
-  - U: T9 the `trap` cleanup path (shell).
+- [x] `make restore-check FILE=…` restores into a temporary `hostbud_restore_check_<random>` database, prints the migration version and row counts, and always drops the temporary database, even when a check fails. It never touches the production database.
+  - U: T9 dump-list validation (Go); argument and temporary dump-file cleanup paths with `docker` stubbed (shell).
   - I: T9 no temporary database remains after a passing and a failing check (Go, PostgreSQL).
   - E: n/a: operator tooling. **Manual (T14):** run on a fresh `make backup` before the M7 deploy.
-- [ ] README *Backup and restore* covers backup, restore-check, restore, what isn't in a dump (`hostbud-data` including `auth-key`, Caddy's certificates, `.env`) and off-host copies. ARCHITECTURE §8 *Backups* matches.
+- [x] README *Backup and restore* covers backup, restore-check, restore, what isn't in a dump (`hostbud-data` including `auth-key`, Caddy's certificates, `.env`) and off-host copies. ARCHITECTURE §8 *Backups* matches.
   - U: n/a: documentation.
   - I: T11 `check-docs.sh` (the targets named in README exist).
   - E: n/a: documentation.

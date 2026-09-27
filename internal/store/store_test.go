@@ -7,13 +7,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/pressly/goose/v3"
 )
 
 // testConfig points at an isolated schema (named after dir) in the test DB.
@@ -385,12 +390,278 @@ func TestBackup(t *testing.T) {
 	if err := s.Backup(ctx, dest); err != nil {
 		t.Fatal(err)
 	}
+	info, err := os.Stat(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("backup mode=%v, want 0600", info.Mode().Perm())
+	}
 	if err := s.Backup(ctx, dest); err == nil {
 		t.Fatal("backup overwrote an existing file")
 	}
 	if out, err := exec.CommandContext(ctx, "pg_restore", "--list", dest).CombinedOutput(); err != nil {
 		t.Fatalf("restore smoke test: %v: %s", err, out)
 	}
+}
+
+func TestBackupCommandAndVersion(t *testing.T) {
+	s := &Store{dbconf: Config{Host: "server-a", Port: 5432, Name: "hostbud", User: "hostbud_test", Password: "test-password", SSLMode: "disable", Schema: "test_hostbud"}}
+	args := strings.Join(s.backupArgs("/tmp/hostbud.dump"), " ")
+	if strings.Contains(args, s.dbconf.Password) || !strings.Contains(args, "--format=custom") || !strings.Contains(args, "--schema test_hostbud") {
+		t.Fatalf("backup argv=%s", args)
+	}
+	env := backupEnv([]string{"PATH=/bin", "PGPASSWORD=old", "PGSSLMODE=require"}, s.dbconf.Password, s.dbconf.SSLMode)
+	if slices.Contains(env, "PGPASSWORD=old") || !slices.Contains(env, "PGPASSWORD=test-password") || !slices.Contains(env, "PGSSLMODE=disable") {
+		t.Fatalf("backup environment=%v", env)
+	}
+	for _, tc := range []struct {
+		client, server int
+		wantErr        bool
+	}{{14, 15, true}, {15, 15, false}, {17, 15, false}} {
+		err := validateDumpMajor(tc.client, tc.server)
+		if (err != nil) != tc.wantErr {
+			t.Errorf("validateDumpMajor(%d,%d)=%v", tc.client, tc.server, err)
+		}
+	}
+	match := dumpVersionRE.FindStringSubmatch("pg_dump (PostgreSQL) 15.13 (Debian 15.13-0+deb12u1)")
+	if len(match) != 2 || match[1] != "15" {
+		t.Fatalf("version parse=%v", match)
+	}
+}
+
+func TestValidateRestoreCheckList(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		list string
+		want bool
+	}{
+		{name: "hostbud table", list: `; 2121 2606 TABLE public goose_db_version hostbud`, want: true},
+		{name: "other table", list: `; 2121 2606 TABLE public users hostbud`},
+		{name: "substring is not enough", list: `; 2121 2606 TABLE public not_goose_db_version hostbud`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateRestoreCheckList([]byte(tc.list))
+			if (err == nil) != tc.want {
+				t.Fatalf("validateRestoreCheckList()=%v, want success=%t", err, tc.want)
+			}
+		})
+	}
+}
+
+func TestBackupRestoreRoundTrip(t *testing.T) {
+	if _, err := exec.LookPath("pg_dump"); err != nil {
+		t.Skip("pg_dump is not available in this test environment")
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+	dir := t.TempDir()
+	cfg := testConfig(dir)
+	s, err := Open(ctx, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.EnsureHostMachine(ctx, "Host machine"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateProject(ctx, HostMachineID, "/home/dev/before", "before"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.PutUIState(ctx, "before", json.RawMessage(`"saved"`)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.ExecContext(ctx, `INSERT INTO users(id,email,email_normalized,password_hash) VALUES ('backup-user','backup@example.com','backup@example.com','hash')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.ExecContext(ctx, `INSERT INTO email_allowlist(email_normalized) VALUES ('backup@example.com')`); err != nil {
+		t.Fatal(err)
+	}
+	dump := filepath.Join(dir, "hostbud.dump")
+	if err := s.Backup(ctx, dump); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateProject(ctx, HostMachineID, "/home/dev/after", "after"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.PutUIState(ctx, "after", json.RawMessage(`"mutation"`)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.ExecContext(ctx, `INSERT INTO users(id,email,email_normalized,password_hash) VALUES ('mutated-user','mutated@example.com','mutated@example.com','hash')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.ExecContext(ctx, `INSERT INTO email_allowlist(email_normalized) VALUES ('mutated@example.com')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	args := []string{"--clean", "--if-exists", "--single-transaction", "--no-owner", "--exit-on-error", "--no-password", "--host", cfg.Host, "--port", fmt.Sprint(cfg.Port), "--username", cfg.User, "--dbname", cfg.Name, "--schema", cfg.Schema, dump}
+	cmd := exec.CommandContext(ctx, "pg_restore", args...) //nolint:gosec // fixed test tool and separate arguments against the test database only
+	cmd.Env = backupEnv(os.Environ(), cfg.Password, cfg.SSLMode)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("pg_restore: %v: %s", err, out)
+	}
+	s, err = Open(ctx, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = s.Close() }()
+	if got, err := s.UIState(ctx, "before"); err != nil || string(got) != `"saved"` {
+		t.Fatalf("saved ui state=%s err=%v", got, err)
+	}
+	if _, err := s.UIState(ctx, "after"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("mutated ui state survived restore: %v", err)
+	}
+	projects, err := s.Projects(ctx, HostMachineID)
+	if err != nil || len(projects) != 1 || projects[0].Name != "before" {
+		t.Fatalf("projects after restore=%+v err=%v", projects, err)
+	}
+	var users, allowlist int
+	if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM users`).Scan(&users); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM email_allowlist`).Scan(&allowlist); err != nil {
+		t.Fatal(err)
+	}
+	if users != 1 || allowlist != 1 {
+		t.Fatalf("restored users=%d allowlist=%d", users, allowlist)
+	}
+}
+
+func TestOlderBackupRunsNewMigrationsOnOpen(t *testing.T) {
+	if _, err := exec.LookPath("pg_dump"); err != nil {
+		t.Skip("pg_dump is not available in this test environment")
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+	cfg := testConfig(t.TempDir())
+	db, err := sql.Open("pgx", cfg.dsn())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ident, err := quoteIdentifier(cfg.Schema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `CREATE SCHEMA `+ident); err != nil {
+		t.Fatal(err)
+	}
+	fsys, err := fs.Sub(migrations, "migrations")
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider, err := goose.NewProvider(goose.DialectPostgres, db, fsys)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := provider.UpTo(ctx, 3); err != nil {
+		t.Fatal(err)
+	}
+	old := &Store{db: db, now: time.Now, dbconf: cfg}
+	dump := filepath.Join(t.TempDir(), "old.dump")
+	if err := old.Backup(ctx, dump); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	admin := cfg
+	admin.Schema = ""
+	adminDB, err := sql.Open("pgx", admin.dsn())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := adminDB.ExecContext(ctx, `DROP SCHEMA `+ident+` CASCADE`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := adminDB.ExecContext(ctx, `CREATE SCHEMA `+ident); err != nil {
+		t.Fatal(err)
+	}
+	if err := adminDB.Close(); err != nil {
+		t.Fatal(err)
+	}
+	args := []string{"--no-password", "--no-owner", "--exit-on-error", "--host", cfg.Host, "--port", fmt.Sprint(cfg.Port), "--username", cfg.User, "--dbname", cfg.Name, "--schema", cfg.Schema, dump}
+	cmd := exec.CommandContext(ctx, "pg_restore", args...) //nolint:gosec // fixed test tool against the isolated integration database
+	cmd.Env = backupEnv(os.Environ(), cfg.Password, cfg.SSLMode)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("restore old dump: %v: %s", err, out)
+	}
+	current, err := Open(ctx, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = current.Close() }()
+	var version int
+	if err := current.db.QueryRowContext(ctx, `SELECT max(version_id) FROM goose_db_version WHERE is_applied`).Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	if version != 4 {
+		t.Fatalf("migrated version=%d, want 4", version)
+	}
+	var exists bool
+	if err := current.db.QueryRowContext(ctx, `SELECT to_regclass('projects') IS NOT NULL`).Scan(&exists); err != nil {
+		t.Fatal(err)
+	}
+	if !exists {
+		t.Fatal("latest projects migration did not run")
+	}
+}
+
+func TestRestoreCheckCleansTemporaryDatabaseOnSuccessAndSanityFailure(t *testing.T) {
+	if _, err := exec.LookPath("pg_dump"); err != nil {
+		t.Skip("pg_dump is not available in this test environment")
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
+	defer cancel()
+	cfg := testConfig(t.TempDir())
+	s, err := Open(ctx, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.EnsureHostMachine(ctx, "Host machine"); err != nil {
+		t.Fatal(err)
+	}
+	good := filepath.Join(t.TempDir(), "good.dump")
+	if err := s.Backup(ctx, good); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	checkNoTemporaryDBs := func() {
+		t.Helper()
+		adminCfg := cfg
+		adminCfg.Schema = ""
+		admin, err := sql.Open("pgx", adminCfg.dsn())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = admin.Close() }()
+		var count int
+		if err := admin.QueryRowContext(ctx, `SELECT count(*) FROM pg_database WHERE datname LIKE 'hostbud_restore_check_%'`).Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		if count != 0 {
+			t.Fatalf("restore-check left %d temporary databases", count)
+		}
+	}
+	if _, err := RestoreCheck(ctx, cfg, good); err != nil {
+		t.Fatalf("RestoreCheck good dump: %v", err)
+	}
+	checkNoTemporaryDBs()
+
+	bad := filepath.Join(t.TempDir(), "missing-users.dump")
+	args := []string{"--format=custom", "--no-password", "--host", cfg.Host, "--port", fmt.Sprint(cfg.Port), "--username", cfg.User, "--dbname", cfg.Name, "--schema", cfg.Schema, "--exclude-table=" + cfg.Schema + ".users", "--exclude-table=" + cfg.Schema + ".auth_sessions", "--file", bad}
+	cmd := exec.CommandContext(ctx, "pg_dump", args...) //nolint:gosec // fixed test tool and separate arguments against isolated integration database
+	cmd.Env = backupEnv(os.Environ(), cfg.Password, cfg.SSLMode)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("pg_dump incomplete archive: %v: %s", err, output)
+	}
+	if _, err := RestoreCheck(ctx, cfg, bad); err == nil || !strings.Contains(err.Error(), "count users") {
+		t.Fatalf("RestoreCheck incomplete dump error=%v, want users sanity failure", err)
+	}
+	checkNoTemporaryDBs()
 }
 
 func TestConcurrentOpenMigratesOnce(t *testing.T) {

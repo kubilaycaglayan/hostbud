@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -112,6 +113,7 @@ func (c Config) dsn() string {
 }
 
 var identifierRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+var dumpVersionRE = regexp.MustCompile(`(?i)postgresql\)?\s+([0-9]+)(?:\.[0-9]+)?`)
 
 func quoteIdentifier(name string) (string, error) {
 	if !identifierRE.MatchString(name) {
@@ -381,15 +383,68 @@ func (s *Store) Backup(ctx context.Context, dest string) error {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("backup: check destination: %w", err)
 	}
-	args := []string{
-		"--format=custom", "--no-password", "--file", dest,
-		"--host", s.dbconf.Host, "--port", fmt.Sprint(s.dbconf.Port),
-		"--username", s.dbconf.User, s.dbconf.Name,
+	if err := s.checkDumpVersion(ctx); err != nil {
+		return err
 	}
+	args := s.backupArgs(dest)
 	cmd := exec.CommandContext(ctx, "pg_dump", args...) //nolint:gosec // fixed binary; args are separate argv entries from operator config, no shell
-	cmd.Env = append(os.Environ(), "PGPASSWORD="+s.dbconf.Password, "PGSSLMODE="+s.dbconf.SSLMode)
+	cmd.Env = backupEnv(os.Environ(), s.dbconf.Password, s.dbconf.SSLMode)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("backup: %w", errors.Join(err, errors.New(strings.TrimSpace(string(output)))))
 	}
+	if err := os.Chmod(dest, 0o600); err != nil {
+		return fmt.Errorf("backup: restrict dump permissions: %w", err)
+	}
 	return nil
+}
+
+func (s *Store) backupArgs(dest string) []string {
+	args := []string{
+		"--format=custom", "--no-password", "--file", dest,
+		"--host", s.dbconf.Host, "--port", fmt.Sprint(s.dbconf.Port),
+		"--username", s.dbconf.User,
+	}
+	if s.dbconf.Schema != "" {
+		args = append(args, "--schema", s.dbconf.Schema)
+	}
+	args = append(args, s.dbconf.Name)
+	return args
+}
+
+func (s *Store) checkDumpVersion(ctx context.Context) error {
+	var serverVersion int
+	if err := s.db.QueryRowContext(ctx, `SHOW server_version_num`).Scan(&serverVersion); err != nil {
+		return fmt.Errorf("check PostgreSQL server version: %w", err)
+	}
+	output, err := exec.CommandContext(ctx, "pg_dump", "--version").Output() //nolint:gosec // fixed binary and fixed argument
+	if err != nil {
+		return fmt.Errorf("check pg_dump version: %w", err)
+	}
+	match := dumpVersionRE.FindStringSubmatch(string(output))
+	if len(match) != 2 {
+		return fmt.Errorf("check pg_dump version: unrecognized output %q", strings.TrimSpace(string(output)))
+	}
+	clientMajor, err := strconv.Atoi(match[1])
+	if err != nil {
+		return fmt.Errorf("check pg_dump version: %w", err)
+	}
+	serverMajor := serverVersion / 10000
+	return validateDumpMajor(clientMajor, serverMajor)
+}
+
+func validateDumpMajor(clientMajor, serverMajor int) error {
+	if clientMajor < serverMajor {
+		return fmt.Errorf("pg_dump major version %d is older than PostgreSQL server major version %d; install postgresql-client-%d or newer", clientMajor, serverMajor, serverMajor)
+	}
+	return nil
+}
+
+func backupEnv(base []string, password, sslMode string) []string {
+	env := make([]string, 0, len(base)+2)
+	for _, value := range base {
+		if !strings.HasPrefix(value, "PGPASSWORD=") && !strings.HasPrefix(value, "PGSSLMODE=") {
+			env = append(env, value)
+		}
+	}
+	return append(env, "PGPASSWORD="+password, "PGSSLMODE="+sslMode)
 }

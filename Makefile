@@ -19,7 +19,7 @@ GITLEAKS = scripts/tool.sh gitleaks $(GITLEAKS_IMAGE) . gitleaks
 
 .PHONY: help build test lint fmt tidy icons gitleaks gitleaks-staged hooks \
 	go-build go-test go-unit test-env test-down go-lint web-install web-build web-test web-lint e2e e2e-up e2e-run e2e-down e2e-install e2e-lint \
-	deploy logs backup tools-down docker-clean
+	deploy logs backup restore restore-check tools-down docker-clean
 
 help: ## List targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-16s %s\n", $$1, $$2}'
@@ -40,6 +40,7 @@ go-unit: ## Go unit tests only (no containers besides the toolbox)
 	$(GO) go test -race ./...
 
 test-env: ## Start integration targets, verify container hardening, and render production/e2e deploy configs
+	scripts/test-backup-tools.sh
 	scripts/test-sshd.sh up
 	scripts/test-postgres-capabilities.sh
 	scripts/test-readonly-image.sh
@@ -108,13 +109,25 @@ deploy: ## Build the image and (re)start hostbud + Caddy (docker compose up -d -
 logs: ## Follow the hostbud and Caddy logs
 	docker compose logs -f --tail=100
 
-backup: ## Copy the running hostbud's database to ./backups/ (VACUUM INTO)
-	@mkdir -p backups
-	@name=hostbud-$$(date -u +%Y%m%dT%H%M%SZ).db; \
-	docker compose exec -T hostbud hostbud backup /data/$$name && \
-	docker compose cp hostbud:/data/$$name backups/$$name && \
-	docker compose exec -T hostbud rm -f /data/$$name && \
-	echo "backup written to backups/$$name"
+backup: ## Write a private PostgreSQL custom-format dump to ./backups/
+	@set -eu; umask 077; mkdir -p backups; chmod 700 backups; \
+	name=hostbud-$$(date -u +%Y%m%dT%H%M%S%NZ).dump; tmp=/tmp/$$name; \
+	test ! -e "backups/$$name" || { echo "backup already exists: $$name" >&2; exit 1; }; \
+	cleanup() { docker compose exec -T hostbud rm -f "$$tmp" >/dev/null 2>&1 || true; }; \
+	trap cleanup EXIT HUP INT TERM; \
+	docker compose exec -T hostbud hostbud backup "$$tmp"; \
+	docker compose cp "hostbud:$$tmp" "backups/$$name" >/dev/null; \
+	chmod 600 "backups/$$name"; \
+	size=$$(wc -c <"backups/$$name" | tr -d ' '); \
+	echo "Backup written: $$name ($$size bytes)"
+
+restore: ## Replace the configured database from FILE after typed confirmation (CONFIRM for non-interactive use)
+	@test -n "$(FILE)" || { echo 'usage: make restore FILE=backups/<name>.dump [CONFIRM=<database>]' >&2; exit 2; }
+	@scripts/restore.sh "$(FILE)" "$(CONFIRM)"
+
+restore-check: ## Restore FILE into a temporary database and verify it without touching the configured database
+	@test -n "$(FILE)" || { echo 'usage: make restore-check FILE=backups/<name>.dump' >&2; exit 2; }
+	@scripts/restore-check.sh "$(FILE)"
 
 tools-down: ## Remove the toolbox containers (recreated on next use)
 	-docker rm -f $$(docker ps -aq --filter label=hostbud.tools=1) 2>/dev/null

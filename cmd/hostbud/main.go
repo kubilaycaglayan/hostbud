@@ -59,8 +59,13 @@ func run() error {
 				return errors.New("usage: hostbud backup <dest-file>")
 			}
 			return backup(cfg, os.Args[2])
+		case "restore-check":
+			if len(os.Args) != 3 {
+				return errors.New("usage: hostbud restore-check <dump-file>")
+			}
+			return restoreCheck(cfg, os.Args[2])
 		default:
-			return fmt.Errorf("unknown command %q (commands: backup, healthcheck)", os.Args[1])
+			return fmt.Errorf("unknown command %q (commands: backup, restore-check, healthcheck)", os.Args[1])
 		}
 	}
 
@@ -248,6 +253,17 @@ func backup(cfg config.Config, dest string) error {
 	}
 	defer func() { _ = st.Close() }()
 	return st.Backup(ctx, dest)
+}
+
+func restoreCheck(cfg config.Config, dump string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	result, err := store.RestoreCheck(ctx, store.Config{Host: cfg.DBHost, Port: cfg.DBPort, Name: cfg.DBName, User: cfg.DBUser, Password: cfg.DBPassword, SSLMode: cfg.DBSSLMode}, dump)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Restore check passed: migration=%d users=%d allowlist=%d projects=%d ui_state=%d\n", result.Version, result.Users, result.Allowlist, result.Projects, result.UIState)
+	return nil
 }
 
 // capabilityStore saves the inventory's probe results on the machine row.
