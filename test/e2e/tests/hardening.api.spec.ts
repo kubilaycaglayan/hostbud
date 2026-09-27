@@ -82,7 +82,9 @@ test('(T4) stalled terminal client is dropped while the tmux session survives', 
     stalled = opened.socket
     stalled?.pause()
     await expect.poll(() => target.tmux('list-clients', '-t', `=${name}`, '-F', '#{client_pid}').then((s) => s.trim().split('\n').filter(Boolean).length)).toBe(1)
-    await target.tmux('send-keys', '-t', `=${name}:`, 'yes | head -c 50M', 'Enter')
+    // tmux sends only screen updates: the flood must last until the socket
+    // buffers between hostbud and the paused client are full (bounded).
+    await target.tmux('send-keys', '-t', `=${name}:`, 'timeout 60 yes', 'Enter')
     await expect.poll(() => target.tmux('list-clients', '-t', `=${name}`, '-F', '#{client_pid}').then((s) => s.trim().split('\n').filter(Boolean).length), { timeout: 30_000 }).toBe(0)
     expect((await target.sessions())).toContain(name)
     stalled?.destroy()
@@ -91,6 +93,7 @@ test('(T4) stalled terminal client is dropped while the tmux session survives', 
     recovered = next.socket
     await expect.poll(() => target.tmux('list-clients', '-t', `=${name}`, '-F', '#{client_pid}').then((s) => s.trim().split('\n').filter(Boolean).length)).toBe(1)
   } finally {
+    await target.tmux('send-keys', '-t', `=${name}:`, 'C-c').catch(() => undefined)
     stalled?.destroy()
     recovered?.destroy()
   }
