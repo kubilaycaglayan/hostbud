@@ -3,7 +3,8 @@ import { ctl } from '../helpers/ctl.ts'
 import { uniqueName } from '../helpers/target.ts'
 
 test.use({
-  allowedBrowserErrors: /^HTTP 504: (POST .*\/api\/machines\/host\/sessions|GET .*\/api\/machines\/host\/fs)/,
+  allowedBrowserErrors:
+    /^HTTP 504: (POST .*\/api\/machines\/host\/sessions|GET .*\/api\/machines\/host\/fs)|status of 504 .*@ https?:\/\/[^/]+\/api\/machines\/host\/(sessions|fs\/)/,
   serviceWorkers: 'allow',
 })
 
@@ -15,7 +16,8 @@ for (const project of ['desktop-chromium', 'iphone-13-pro']) {
     await ui.open()
     await ui.openTerminal(name)
     await ui.type('vim', true)
-    await expect.poll(() => target.tmux('display-message', '-p', '-t', `=${name}`, '#{pane_current_command}')).toContain('vim')
+    // `=name:` targets the session's active pane (`=name` alone isn't a pane target).
+    await expect.poll(() => target.display(name, '#{pane_current_command}')).toContain('vim')
     const files = await ui.openFileBrowser()
     await files.getByRole('button', { name: 'Close file browser' }).click()
     await page.keyboard.press('Control+Shift+K')
@@ -72,6 +74,7 @@ for (const project of ['desktop-chromium', 'iphone-13-pro']) {
   test(`(T2) a real tmux stall shows timeout and recovers on ${project}`, async ({ page, ui, target }, info) => {
     test.skip(info.project.name !== project)
     const name = uniqueName('e2e-stall')
+    const hostBanner = page.getByRole('alert', { name: /Host unreachable|tmux not found on the host/, includeHidden: true })
     await ui.open()
     await ui.showList()
     await ui.headerAction('New session')
@@ -82,7 +85,8 @@ for (const project of ['desktop-chromium', 'iphone-13-pro']) {
       await dialog.getByRole('button', { name: 'Create' }).click()
       await expect(dialog).toContainText("The host didn't answer within 10s", { timeout: 15_000 })
       await expect(dialog.getByLabel('Name')).toHaveValue(name)
-      await expect(ui.banner()).toContainText('timed out', { timeout: 15_000 })
+      // The open (modal) dialog hides the rest of the page from the accessibility tree.
+      await expect(hostBanner).toContainText('timed out', { timeout: 15_000 })
     } finally {
       await ctl.unstallTmux()
     }
@@ -91,7 +95,7 @@ for (const project of ['desktop-chromium', 'iphone-13-pro']) {
       const { machines } = await response.json() as { machines: { status: string }[] }
       return machines[0]?.status
     }, { timeout: 20_000 }).toBe('ok')
-    await expect(ui.banner()).toHaveCount(0)
+    await expect(hostBanner).toHaveCount(0)
     await dialog.getByRole('button', { name: 'Create' }).click()
     await expect(page.getByRole('region', { name: `Terminal: ${name}` })).toBeVisible({ timeout: 10_000 })
 
