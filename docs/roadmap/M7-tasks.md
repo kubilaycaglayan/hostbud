@@ -16,7 +16,7 @@ Update this table in the same commit that finishes a task.
 | T4 WebSocket limits and stalled clients | Done |
 | T5 HTTP, request and database limits | Done |
 | T6 Security headers and CSP | Done |
-| T7 Container and deploy hardening | Not started |
+| T7 Container and deploy hardening | Done |
 | T8 Tailscale identity allowlist | Not started |
 | T9 Backup and restore | Not started |
 | T10 Integration suite completion and log hygiene | Not started |
@@ -194,11 +194,11 @@ The terminal and events sockets must never let one slow or greedy client hold se
 - **`hostbud-postgres`:** `no-new-privileges`; `cap_drop: [ALL]` with the smallest add-back set the official image's entrypoint needs (start from `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `SETGID`, `SETUID`; prove it with a fresh-volume start in the integration test; drop any that aren't needed); `shm_size: 128m`.
 - **All three:** `logging: {driver: json-file, options: {max-size: "10m", max-file: "5"}}`, so logs can't fill the disk.
 - **Unchanged and re-asserted:** published ports (Caddy on `127.0.0.1:${HOSTBUD_LOCAL_PORT}` and `${TAILSCALE_IP}` only; Postgres on `127.0.0.1:${HOSTBUD_DB_LOCAL_PORT}` only; hostbud none), `user: ${HOST_UID}:${HOST_GID}`, the agent socket and host public keys as the only host mounts (keys read-only, `create_host_path: false`), no `~/.ssh` mount, no Docker socket mount.
-- **E2E stack mirrors it:** `test/e2e/compose.yml` gives `hostbud-e2e-app` (and `-notmux`, `-ts`) the same `read_only`, `tmpfs`, `cap_drop`, `no-new-privileges` and `pids_limit`, so T13 runs the whole suite under the production restrictions.
+- **E2E stack mirrors it:** `test/e2e/compose.yml` gives `hostbud-e2e-app` and `-notmux` the same app settings, and its Caddy and PostgreSQL services the matching production settings. T8 adds `-ts` and must carry the app settings too, so T13 runs the whole suite under the production restrictions.
 - **Rollout risk:** the owner's running stack picks these up at T14's deploy. Before that, CP3 starts the hardened app once in the e2e project (not e2e tests: `docker compose -p hostbud-e2e up -d hostbud-e2e-app` and `/api/health`, then down) to catch a read-only-filesystem write early. Record that in Progress notes; it isn't an e2e run.
 - ARCHITECTURE §3 (the table and container settings), §13.1 (the e2e app mirrors production hardening).
 
-**Tests:** U (Go): `hostbud healthcheck` exit codes against a fake server (ok, 503, refused, slow). I (Go, `internal/deploytest` on the placeholder-rendered config): every setting above for each service (read_only, tmpfs, cap_drop/cap_add sets exactly, no-new-privileges, pids_limit, logging, healthcheck, depends_on condition); the existing port/user/mount assertions, plus "no `docker.sock`, no `.ssh` directory, no private key path mounted" for all services; `test/e2e/compose.yml` app services carry the same hardening as production (compared field by field). I (`test/sshd` toolbox): the hostbud binary runs its integration flows with `/` read-only (a Docker `--read-only` run of the built image with `/data` and `/tmp` writable; its health and one session list pass).
+**Tests:** U (Go): `hostbud healthcheck` exit codes against a fake server (ok, 503, refused, slow). I (Go, `internal/deploytest` on the placeholder-rendered configs): every setting above for each service (read_only, tmpfs, cap_drop/cap_add sets exactly, no-new-privileges, pids_limit, logging, healthcheck, depends_on condition); the existing port/user/mount assertions, plus "no `docker.sock`, no `.ssh` directory, no private key path mounted" for production services; e2e app/Caddy/PostgreSQL settings compared field by field. I (`scripts/test-postgres-capabilities.sh`, run by `make test-env`): fresh-volume PostgreSQL starts with only the three proven capabilities and answers `SELECT 1`. I (`scripts/test-readonly-image.sh`, run by `make test-env`): the built hostbud image runs with `/` read-only, `/data` and `/tmp` writable, and a read-only agent socket; the healthcheck, successful SSH inventory, and authenticated session-list API call pass through a Go client on `hostbud-test`.
 
 **E2E:** n/a for new scenarios: deploy settings aren't reachable through the UI or API; `internal/deploytest` owns them. The e2e app runs under the same restrictions, so T13's full run is the behavioral check (recorded in the acceptance checklist as the T13 run).
 

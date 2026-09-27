@@ -40,12 +40,37 @@ type build struct {
 }
 
 type service struct {
-	Build       *build             `json:"build"`
-	Image       string             `json:"image"`
-	User        string             `json:"user"`
-	Ports       []port             `json:"ports"`
-	Volumes     []volume           `json:"volumes"`
-	Environment map[string]*string `json:"environment"`
+	Build       *build                `json:"build"`
+	Image       string                `json:"image"`
+	User        string                `json:"user"`
+	Ports       []port                `json:"ports"`
+	Volumes     []volume              `json:"volumes"`
+	Environment map[string]*string    `json:"environment"`
+	ReadOnly    bool                  `json:"read_only"`
+	Tmpfs       []string              `json:"tmpfs"`
+	CapDrop     []string              `json:"cap_drop"`
+	CapAdd      []string              `json:"cap_add"`
+	SecurityOpt []string              `json:"security_opt"`
+	PidsLimit   int64                 `json:"pids_limit"`
+	ShmSize     string                `json:"shm_size"`
+	Healthcheck *healthcheck          `json:"healthcheck"`
+	DependsOn   map[string]dependency `json:"depends_on"`
+	Logging     logging               `json:"logging"`
+}
+
+type healthcheck struct {
+	Test        []string `json:"test"`
+	Interval    string   `json:"interval"`
+	Timeout     string   `json:"timeout"`
+	Retries     int      `json:"retries"`
+	StartPeriod string   `json:"start_period"`
+}
+type dependency struct {
+	Condition string `json:"condition"`
+}
+type logging struct {
+	Driver  string            `json:"driver"`
+	Options map[string]string `json:"options"`
 }
 
 type composeConfig struct {
@@ -68,6 +93,153 @@ func load(t *testing.T) composeConfig {
 		t.Fatal(err)
 	}
 	return c
+}
+
+func loadE2E(t *testing.T) composeConfig {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(repoRoot(), ".cache", "e2e-compose-config.json"))
+	if err != nil {
+		t.Fatalf("%v (run via `make test`, which renders both Compose files)", err)
+	}
+	var c composeConfig
+	if err := json.Unmarshal(data, &c); err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+
+func TestContainerHardeningAndE2EParity(t *testing.T) {
+	production := load(t)
+	e2e := loadE2E(t)
+	app := production.Services["hostbud"]
+	caddy := production.Services["hostbud-caddy"]
+	postgres := production.Services["hostbud-postgres"]
+	assertAppHardening(t, "hostbud", app)
+	assertCaddyHardening(t, "hostbud-caddy", caddy)
+	assertPostgresHardening(t, "hostbud-postgres", postgres)
+
+	for _, name := range []string{"hostbud-e2e-app", "hostbud-e2e-app-notmux"} {
+		actual := e2e.Services[name]
+		assertAppHardening(t, name, actual)
+		if app.ReadOnly != actual.ReadOnly || !slices.Equal(app.Tmpfs, actual.Tmpfs) ||
+			!slices.Equal(app.CapDrop, actual.CapDrop) || !slices.Equal(app.CapAdd, actual.CapAdd) ||
+			!slices.Equal(app.SecurityOpt, actual.SecurityOpt) || app.PidsLimit != actual.PidsLimit ||
+			!sameHealthcheck(app.Healthcheck, actual.Healthcheck) || app.Logging.Driver != actual.Logging.Driver || !mapsEqual(app.Logging.Options, actual.Logging.Options) {
+			t.Errorf("%s doesn't mirror production app hardening", name)
+		}
+	}
+	e2eCaddy := e2e.Services["hostbud-e2e-caddy"]
+	assertCaddyHardening(t, "hostbud-e2e-caddy", e2eCaddy)
+	if caddy.ReadOnly != e2eCaddy.ReadOnly || !slices.Equal(caddy.Tmpfs, e2eCaddy.Tmpfs) ||
+		!slices.Equal(caddy.CapDrop, e2eCaddy.CapDrop) || !slices.Equal(caddy.CapAdd, e2eCaddy.CapAdd) ||
+		!slices.Equal(caddy.SecurityOpt, e2eCaddy.SecurityOpt) || caddy.Logging.Driver != e2eCaddy.Logging.Driver || !mapsEqual(caddy.Logging.Options, e2eCaddy.Logging.Options) {
+		t.Error("hostbud-e2e-caddy doesn't mirror production Caddy hardening")
+	}
+	e2ePostgres := e2e.Services["hostbud-e2e-postgres"]
+	assertPostgresHardening(t, "hostbud-e2e-postgres", e2ePostgres)
+	if !slices.Equal(postgres.CapDrop, e2ePostgres.CapDrop) || !slices.Equal(postgres.CapAdd, e2ePostgres.CapAdd) ||
+		!slices.Equal(postgres.SecurityOpt, e2ePostgres.SecurityOpt) || postgres.ShmSize != e2ePostgres.ShmSize ||
+		postgres.Logging.Driver != e2ePostgres.Logging.Driver || !mapsEqual(postgres.Logging.Options, e2ePostgres.Logging.Options) {
+		t.Error("hostbud-e2e-postgres doesn't mirror production Postgres hardening")
+	}
+}
+
+func TestProductionServicesHaveNoDangerousHostMounts(t *testing.T) {
+	c := load(t)
+	for name, service := range c.Services {
+		for _, mount := range service.Volumes {
+			value := strings.ToLower(mount.Source + " " + mount.Target)
+			if strings.Contains(value, "docker.sock") || strings.Contains(value, ".ssh") ||
+				strings.Contains(value, "private_key") || strings.HasSuffix(strings.ToLower(mount.Source), ".pem") ||
+				(strings.Contains(value, "id_ed25519") && !strings.HasSuffix(strings.ToLower(mount.Source), ".pub")) ||
+				(strings.Contains(value, "id_rsa") && !strings.HasSuffix(strings.ToLower(mount.Source), ".pub")) {
+				t.Errorf("%s mounts a Docker socket, SSH directory or private key path: %+v", name, mount)
+			}
+		}
+	}
+}
+
+func TestPostgresMinimalCapabilitiesStartedOnFreshVolume(t *testing.T) {
+	marker, err := os.ReadFile(filepath.Join(repoRoot(), ".cache", "postgres-capabilities.ok"))
+	if err != nil {
+		t.Fatalf("fresh-volume Postgres capability check did not run (run via `make test`): %v", err)
+	}
+	if strings.TrimSpace(string(marker)) != "verified" {
+		t.Fatalf("fresh-volume Postgres capability check marker = %q, want verified", marker)
+	}
+}
+
+func TestReadOnlyAppImageHealthAndSessionListPassed(t *testing.T) {
+	marker, err := os.ReadFile(filepath.Join(repoRoot(), ".cache", "readonly-image.ok"))
+	if err != nil {
+		t.Fatalf("read-only image integration check didn't run (run via `make test`): %v", err)
+	}
+	if strings.TrimSpace(string(marker)) != "verified" {
+		t.Fatalf("read-only image integration check marker = %q, want verified", marker)
+	}
+}
+
+func sameHealthcheck(a, b *healthcheck) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return slices.Equal(a.Test, b.Test) && a.Interval == b.Interval && a.Timeout == b.Timeout && a.Retries == b.Retries && a.StartPeriod == b.StartPeriod
+}
+
+func assertAppHardening(t *testing.T, name string, s service) {
+	t.Helper()
+	if !s.ReadOnly || !slices.Equal(s.Tmpfs, []string{"/tmp"}) || !slices.Equal(s.CapDrop, []string{"ALL"}) || len(s.CapAdd) != 0 ||
+		!slices.Equal(s.SecurityOpt, []string{"no-new-privileges:true"}) || s.PidsLimit != 1024 {
+		t.Errorf("%s app hardening = read_only:%v tmpfs:%v cap_drop:%v cap_add:%v security_opt:%v pids_limit:%d", name, s.ReadOnly, s.Tmpfs, s.CapDrop, s.CapAdd, s.SecurityOpt, s.PidsLimit)
+	}
+	if s.Healthcheck == nil || !slices.Equal(s.Healthcheck.Test, []string{"CMD", "hostbud", "healthcheck"}) ||
+		s.Healthcheck.Timeout != "2s" || s.Healthcheck.Interval != "10s" || s.Healthcheck.Retries != 3 {
+		t.Errorf("%s healthcheck = %+v", name, s.Healthcheck)
+	}
+	assertLogging(t, name, s.Logging)
+}
+
+func assertCaddyHardening(t *testing.T, name string, s service) {
+	t.Helper()
+	if !s.ReadOnly || !slices.Equal(s.Tmpfs, []string{"/tmp"}) || !slices.Equal(s.CapDrop, []string{"ALL"}) ||
+		!slices.Equal(s.CapAdd, []string{"NET_BIND_SERVICE"}) || !slices.Equal(s.SecurityOpt, []string{"no-new-privileges:true"}) {
+		t.Errorf("%s Caddy hardening = read_only:%v tmpfs:%v cap_drop:%v cap_add:%v security_opt:%v", name, s.ReadOnly, s.Tmpfs, s.CapDrop, s.CapAdd, s.SecurityOpt)
+	}
+	if name == "hostbud-caddy" && s.DependsOn["hostbud"].Condition != "service_healthy" {
+		t.Errorf("%s must wait for hostbud healthcheck, got %v", name, s.DependsOn)
+	}
+	if name == "hostbud-e2e-caddy" && (s.DependsOn["hostbud-e2e-app"].Condition != "service_healthy" || s.DependsOn["hostbud-e2e-app-notmux"].Condition != "service_healthy") {
+		t.Errorf("%s must wait for both app healthchecks, got %v", name, s.DependsOn)
+	}
+	assertLogging(t, name, s.Logging)
+}
+
+func mapsEqual(a, b map[string]string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for key, value := range a {
+		if b[key] != value {
+			return false
+		}
+	}
+	return true
+}
+
+func assertPostgresHardening(t *testing.T, name string, s service) {
+	t.Helper()
+	if !slices.Equal(s.CapDrop, []string{"ALL"}) || !slices.Equal(s.CapAdd, []string{"DAC_OVERRIDE", "SETGID", "SETUID"}) ||
+		!slices.Equal(s.SecurityOpt, []string{"no-new-privileges:true"}) || s.ShmSize != "134217728" {
+		t.Errorf("%s Postgres hardening = cap_drop:%v cap_add:%v security_opt:%v shm_size:%s", name, s.CapDrop, s.CapAdd, s.SecurityOpt, s.ShmSize)
+	}
+	assertLogging(t, name, s.Logging)
+}
+
+func assertLogging(t *testing.T, name string, log logging) {
+	t.Helper()
+	if log.Driver != "json-file" || log.Options["max-size"] != "10m" || log.Options["max-file"] != "5" {
+		t.Errorf("%s logging = %+v", name, log)
+	}
 }
 
 func TestHostbudPublishesNoPorts(t *testing.T) {

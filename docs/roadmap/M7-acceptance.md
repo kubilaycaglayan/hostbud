@@ -126,19 +126,19 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 
 ## Container and deploy hardening
 
-- [ ] `hostbud` runs with a read-only root filesystem (`/tmp` as tmpfs, `/data` as its volume), `cap_drop: [ALL]`, `no-new-privileges`, `pids_limit: 1024`, and a healthcheck (`hostbud healthcheck` → `/api/health`).
+- [x] `hostbud` runs with a read-only root filesystem (`/tmp` as tmpfs, `/data` as its volume), `cap_drop: [ALL]`, `no-new-privileges`, `pids_limit: 1024`, and a healthcheck (`hostbud healthcheck` → `/api/health`).
   - U: T7 `hostbud healthcheck` exit codes (ok, 503, refused, slow) (Go).
-  - I: T7 `internal/deploytest` pins every setting; the built image runs its health and a session list with `--read-only` and only `/data` and `/tmp` writable (Go).
+  - I: T7 `internal/deploytest` pins every setting; `scripts/test-readonly-image.sh` runs the built image with `--read-only` and only `/data` and `/tmp` writable, then verifies health, SSH inventory and an authenticated session list through its Go client.
   - E: T13 the full suite runs against `hostbud-e2e-app` with the same restrictions (T7 mirrors them into `test/e2e/compose.yml`).
-- [ ] `hostbud-caddy` runs with `cap_drop: [ALL]` + `NET_BIND_SERVICE`, `no-new-privileges`, a read-only root filesystem, and waits for `hostbud` to be healthy. `hostbud-postgres` runs with `no-new-privileges` and `cap_drop: [ALL]` plus only the capabilities its entrypoint proves it needs.
+- [x] `hostbud-caddy` runs with `cap_drop: [ALL]` + `NET_BIND_SERVICE`, `no-new-privileges`, a read-only root filesystem, and waits for `hostbud` to be healthy. `hostbud-postgres` runs with `no-new-privileges` and `cap_drop: [ALL]` plus only the capabilities its entrypoint proves it needs.
   - U: n/a: Compose settings have no unit.
-  - I: T7 `internal/deploytest` (exact cap sets, `depends_on` condition); a fresh-volume Postgres start with the reduced capabilities (Go).
+  - I: T7 `internal/deploytest` (exact cap sets, `depends_on` condition); `scripts/test-postgres-capabilities.sh` starts a fresh-volume Postgres with the reduced capabilities and checks `SELECT 1` (run by `make test-env`, with success verified by `internal/deploytest`).
   - E: T13 the e2e Caddy mirrors the settings, and the suite runs through it.
-- [ ] All three services rotate logs (`json-file`, `max-size: 10m`, `max-file: 5`).
+- [x] All three services rotate logs (`json-file`, `max-size: 10m`, `max-file: 5`).
   - U: n/a: Compose settings.
   - I: T7 `internal/deploytest`.
   - E: n/a: log rotation isn't observable through the UI or API.
-- [ ] Unchanged and re-asserted: Caddy publishes only on `127.0.0.1:${HOSTBUD_LOCAL_PORT}` and `${TAILSCALE_IP}`; Postgres only on `127.0.0.1:${HOSTBUD_DB_LOCAL_PORT}`; hostbud publishes nothing. `hostbud` runs as `${HOST_UID}:${HOST_GID}`. The only host mounts are the agent socket and the host's public keys (read-only, `create_host_path: false`), plus the tailscaled socket with the T8 override (read-only). No service mounts the Docker socket, `~/.ssh` or a private key.
+- [x] Unchanged and re-asserted: Caddy publishes only on `127.0.0.1:${HOSTBUD_LOCAL_PORT}` and `${TAILSCALE_IP}`; Postgres only on `127.0.0.1:${HOSTBUD_DB_LOCAL_PORT}`; hostbud publishes nothing. `hostbud` runs as `${HOST_UID}:${HOST_GID}`. The only host mounts are the agent socket and the host's public keys (read-only, `create_host_path: false`), plus the tailscaled socket with the T8 override (read-only). No production service mounts the Docker socket, `~/.ssh` or a private key.
   - U: n/a: Compose settings.
   - I: T7 `internal/deploytest` extended with the no-docker-socket / no-`.ssh` / no-private-key assertions for every service, with and without the Tailscale override (Go).
   - E: n/a: port binding isn't observable from inside the e2e network. **Manual (T14):** `ss -ltnp` on the host shows no `0.0.0.0` listener from hostbud's containers.

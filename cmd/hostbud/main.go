@@ -39,6 +39,12 @@ func main() {
 }
 
 func run() error {
+	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
+		if len(os.Args) != 2 {
+			return errors.New("usage: hostbud healthcheck")
+		}
+		return runHealthcheck()
+	}
 	cfg, err := config.Load(os.Getenv)
 	if err != nil {
 		return fmt.Errorf("invalid configuration:\n%w", err)
@@ -52,7 +58,7 @@ func run() error {
 			}
 			return backup(cfg, os.Args[2])
 		default:
-			return fmt.Errorf("unknown command %q (commands: backup)", os.Args[1])
+			return fmt.Errorf("unknown command %q (commands: backup, healthcheck)", os.Args[1])
 		}
 	}
 

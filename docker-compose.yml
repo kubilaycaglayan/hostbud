@@ -13,6 +13,20 @@ services:
     restart: unless-stopped
     depends_on:
       hostbud-postgres: { condition: service_healthy }
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 1024
+    healthcheck:
+      test: ["CMD", "hostbud", "healthcheck"]
+      interval: 10s
+      timeout: 2s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
     # No published ports: only reachable through hostbud-caddy.
     user: ${HOST_UID}:${HOST_GID}
     # Explicit list (no env_file) so unrelated secrets in .env never reach the app.
@@ -77,6 +91,13 @@ services:
     image: postgres:15.13-bookworm
     container_name: hostbud-postgres
     restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    cap_add: [DAC_OVERRIDE, SETGID, SETUID]
+    shm_size: 128m
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB && psql -U $$POSTGRES_USER -d $$POSTGRES_DB -c 'SELECT 1' >/dev/null"]
       start_period: 90s
@@ -100,7 +121,16 @@ services:
     image: hostbud-caddy:local
     container_name: hostbud-caddy
     restart: unless-stopped
-    depends_on: [hostbud]
+    depends_on:
+      hostbud: { condition: service_healthy }
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: [no-new-privileges:true]
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
     environment:
       HOSTBUD_LOCAL_PORT: ${HOSTBUD_LOCAL_PORT:-9055}
       HOSTBUD_DOMAIN: ${HOSTBUD_DOMAIN:?set HOSTBUD_DOMAIN in .env}

@@ -39,8 +39,10 @@ go-test: test-env ## Go unit + integration tests (-tags=integration, against tes
 go-unit: ## Go unit tests only (no containers besides the toolbox)
 	$(GO) go test -race ./...
 
-test-env: ## Start the integration targets (hostbud-test-sshd[-notmux]; kept running) and render the deploy and Caddy config
+test-env: ## Start integration targets, verify container hardening, and render production/e2e deploy configs
 	scripts/test-sshd.sh up
+	scripts/test-postgres-capabilities.sh
+	scripts/test-readonly-image.sh
 	scripts/compose-config.sh
 	scripts/caddy-config.sh
 

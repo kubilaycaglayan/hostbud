@@ -10,3 +10,4 @@ env -i PATH="$PATH" HOME="$HOME" DOCKER_HOST="${DOCKER_HOST:-}" \
 	HOSTBUD_DOMAIN=hostbud.example.com TAILSCALE_IP=100.64.0.1 CLOUDFLARE_API_TOKEN=placeholder-cloudflare-token \
 	HOSTBUD_DB_NAME=hostbud HOSTBUD_DB_USER=hostbud HOSTBUD_DB_PASSWORD=placeholder-password \
 	docker compose --env-file /dev/null config --format json >"$root/.cache/compose-config.json"
+docker compose --env-file /dev/null -f test/e2e/compose.yml config --format json >"$root/.cache/e2e-compose-config.json"

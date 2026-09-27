@@ -38,7 +38,7 @@ Choose **Dark**, **Light** or **System** from the Account menu. System follows t
    ```
    then `systemctl --user daemon-reload && systemctl --user enable --now ssh-agent.socket hostbud-ssh-add.service`, and `sudo loginctl enable-linger "$USER"` so both start at boot without a login.
 4. **Configure:** `cp .env.example .env` and set at least `HOST_UID` / `HOST_GID` (`id -u` / `id -g`), `HOST_SSH_USER`, `HOST_SSH_AUTH_SOCK` (the socket above) a new random `HOSTBUD_DB_PASSWORD`, and the domain settings `HOSTBUD_DOMAIN`, `TAILSCALE_IP` and `CLOUDFLARE_API_TOKEN` ([below](#domain-access-over-tailscale)). Check that `HOSTBUD_LOCAL_PORT` (9055) and the uncommon `HOSTBUD_DB_LOCAL_PORT` are free with `ss -ltn`; both bind to loopback only. Keep `.env` private: `chmod 600 .env`.
-5. **Deploy:** `make deploy`. The host's `/etc/ssh/ssh_host_{ed25519,ecdsa,rsa}_key.pub` must exist (drop the mount in `docker-compose.yml` for a key type your sshd doesn't have). `curl http://localhost:9055/api/health` answers `{"status":"ok"}`; within a minute Caddy has the domain's certificate (`make logs` shows `certificate obtained successfully`).
+5. **Deploy:** `make deploy`. The host's `/etc/ssh/ssh_host_{ed25519,ecdsa,rsa}_key.pub` must exist (drop the mount in `docker-compose.yml` for a key type your sshd doesn't have). Compose waits for PostgreSQL-backed app health before starting Caddy; the app runs with a read-only root filesystem. `curl http://localhost:9055/api/health` answers `{"status":"ok"}`; within a minute Caddy has the domain's certificate (`make logs` shows `certificate obtained successfully`).
 6. **Allow your address** (there is deliberately no web admin for this):
    ```sh
    docker compose exec hostbud-postgres psql -U hostbud -d hostbud \
