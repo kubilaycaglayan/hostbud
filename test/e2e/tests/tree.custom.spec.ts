@@ -65,6 +65,39 @@ test('(T2) Tree state survives an app restart', async ({ page, ui, target, reque
   await expect.poll(async () => (await rows.allTextContents()).map((text) => text.trim())).toEqual([second, first])
 })
 
+test('(T2) Another open tab never overwrites a manual session order', async ({ page, ui, target, request }) => {
+  await account(ui)
+  const path = `/home/dev/${uniqueName('tree-tabs')}`
+  const projectName = uniqueName('tree-project')
+  const project = await addProject(request, path, projectName)
+  const first = uniqueName('tree-first')
+  const second = uniqueName('tree-second')
+  await createSession(target, first, path)
+  await createSession(target, second, path)
+  await page.reload()
+  const rowNames = (p: typeof page) => async () =>
+    (await p.getByRole('group', { name: `Sessions in ${projectName}` }).locator('[data-session-row]').allTextContents()).map((text) => text.trim())
+  // A second tab (another device, in effect) loaded before the reorder.
+  const stale = await page.context().newPage()
+  await stale.goto('/')
+  await expect.poll(rowNames(stale)).toEqual([first, second])
+  await ui.treeItem(first).focus()
+  await page.keyboard.press('Alt+ArrowDown')
+  await ui.waitForSave('tree')
+  // A live event reaches the stale tab; it must not save its old order.
+  const third = uniqueName('tree-third')
+  await createSession(target, third, path)
+  await expect.poll(rowNames(stale)).toEqual([first, second, third])
+  await stale.waitForTimeout(1500) // past the 500 ms save debounce
+  expect(await getUIState(page.request, 'tree')).toMatchObject({ sessions: { [project.id]: [second, first] } })
+  // Returning to the stale tab picks up the saved order.
+  await stale.evaluate(() => document.dispatchEvent(new Event('visibilitychange')))
+  await expect.poll(rowNames(stale)).toEqual([second, first, third])
+  await page.reload()
+  await expect.poll(rowNames(page)).toEqual([second, first, third])
+  await stale.close()
+})
+
 test('(T2) Keyboard tree navigation', async ({ page, ui, target }) => {
   await account(ui)
   const path = `/home/dev/${uniqueName('tree-keys')}`

@@ -19,6 +19,7 @@ export const useTreeStore = defineStore('tree', () => {
   let cancelDeferred = () => {}
   let deferred = false // a save waits for the connection
   let generation = 0
+  let quiet = false // applying a change that isn't the user's; don't save it
 
   const groups = computed(() => projectTree(projectsStore.items, sessionsStore.list('host'), order.value))
 
@@ -36,6 +37,26 @@ export const useTreeStore = defineStore('tree', () => {
       order.value = emptyTreeState()
     }
     loaded.value = true
+  }
+
+  /** Adopt the order another tab or device saved, unless this one has an
+   * unsaved change (it wins, as the latest edit). */
+  async function refresh() {
+    if (!loaded.value || timer !== undefined || deferred) return
+    const gen = generation
+    const before = JSON.stringify(order.value)
+    let saved: unknown
+    try {
+      saved = await getUIState('tree')
+    } catch (error) {
+      console.warn("hostbud: can't refresh the saved tree order", error)
+      return
+    }
+    if (gen !== generation || timer !== undefined || deferred || JSON.stringify(order.value) !== before) return
+    const valid = saved !== null ? validateTreeState(saved) : null
+    if (!valid || JSON.stringify(valid) === before) return
+    apply(valid)
+    sync()
   }
 
   function persist(keepalive = false) {
@@ -83,7 +104,7 @@ export const useTreeStore = defineStore('tree', () => {
   }
 
   function saveSoon() {
-    if (!loaded.value) return
+    if (!loaded.value || quiet) return
     clearTimeout(timer)
     timer = setTimeout(() => {
       timer = undefined
@@ -103,49 +124,61 @@ export const useTreeStore = defineStore('tree', () => {
 
   /** Append observed rows; prune saved keys only after authoritative loads. */
   function sync() {
-    for (const p of projectsStore.items) if (!order.value.projects.includes(p.id)) order.value.projects.push(p.id)
+    // Only the user's edits are saved. Rows appended or pruned here follow
+    // from the live list, and every client derives them; saving them from a
+    // tab that loaded earlier would overwrite the order another tab or
+    // device saved since (a save sends the whole tree).
+    const before = JSON.stringify(order.value)
+    const state: TreeState = JSON.parse(before)
+    for (const p of projectsStore.items) if (!state.projects.includes(p.id)) state.projects.push(p.id)
 
     const reachable = machinesStore.byId('host')?.status === 'ok'
     const projectIds = new Set(projectsStore.items.map((p) => p.id))
     const sessionList = sessionsStore.list('host')
     const sessionNames = new Set(sessionList.map((s) => s.name))
-    const projection = projectTree(projectsStore.items, sessionList, order.value)
+    const projection = projectTree(projectsStore.items, sessionList, state)
     if (projectsStore.loaded) {
-      order.value.projects = order.value.projects.filter((id) => projectIds.has(id))
-      order.value.pinned = order.value.pinned.filter((id) => projectIds.has(id))
-      order.value.hidden.projects = order.value.hidden.projects.filter((id) => projectIds.has(id))
-      order.value.collapsed = order.value.collapsed.filter((id) => id === OTHER_GROUP || projectIds.has(id))
+      state.projects = state.projects.filter((id) => projectIds.has(id))
+      state.pinned = state.pinned.filter((id) => projectIds.has(id))
+      state.hidden.projects = state.hidden.projects.filter((id) => projectIds.has(id))
+      state.collapsed = state.collapsed.filter((id) => id === OTHER_GROUP || projectIds.has(id))
     }
-    const pinnedIds = new Set(order.value.pinned)
-    order.value.projects = [
-      ...order.value.projects.filter((id) => pinnedIds.has(id)),
-      ...order.value.projects.filter((id) => !pinnedIds.has(id)),
+    const pinnedIds = new Set(state.pinned)
+    state.projects = [
+      ...state.projects.filter((id) => pinnedIds.has(id)),
+      ...state.projects.filter((id) => !pinnedIds.has(id)),
     ]
 
     const savedGroups = projectsStore.loaded
-      ? Object.fromEntries(Object.entries(order.value.sessions).filter(([id]) => id === OTHER_GROUP || projectIds.has(id)))
-      : order.value.sessions
+      ? Object.fromEntries(Object.entries(state.sessions).filter(([id]) => id === OTHER_GROUP || projectIds.has(id)))
+      : state.sessions
     const next: Record<string, string[]> = reachable && projectsStore.loaded ? {} : { ...savedGroups }
     const merge = (previous: string[], observed: string[]) => [...previous, ...observed.filter((name) => !previous.includes(name))]
     for (const group of projection.groups) {
       const id = group.project.id
-      const observed = ordered(group.sessions, order.value.sessions[id] ?? [], (s) => s.name).map((s) => s.name)
-      next[id] = reachable ? observed : merge(order.value.sessions[id] ?? [], observed)
+      const observed = ordered(group.sessions, state.sessions[id] ?? [], (s) => s.name).map((s) => s.name)
+      next[id] = reachable ? observed : merge(state.sessions[id] ?? [], observed)
     }
-    const observedOther = ordered(projection.other, order.value.sessions.__other__ ?? [], (s) => s.name).map((s) => s.name)
-    next.__other__ = reachable ? observedOther : merge(order.value.sessions.__other__ ?? [], observedOther)
-    order.value.sessions = next
+    const observedOther = ordered(projection.other, state.sessions.__other__ ?? [], (s) => s.name).map((s) => s.name)
+    next.__other__ = reachable ? observedOther : merge(state.sessions.__other__ ?? [], observedOther)
+    state.sessions = next
 
     if (reachable) {
-      order.value.hidden.sessions = order.value.hidden.sessions.filter((key) => {
+      state.hidden.sessions = state.hidden.sessions.filter((key) => {
         const [machine, name] = key.split('/')
         return machine !== 'host' || sessionNames.has(name)
       })
-      order.value.expanded = order.value.expanded.filter((key) => {
+      state.expanded = state.expanded.filter((key) => {
         const [machine, name] = key.split('/')
         return machine !== 'host' || sessionNames.has(name)
       })
     }
+    if (JSON.stringify(state) !== before) apply(state)
+  }
+
+  function apply(state: TreeState) {
+    quiet = true
+    try { order.value = state } finally { quiet = false }
   }
 
   function reorderProjects(ids: string[]) {
@@ -263,5 +296,5 @@ export const useTreeStore = defineStore('tree', () => {
       : order.value.expanded.filter((item) => item !== key)
   }
 
-  return { order, groups, loaded, load, sync, flush, reorderProjects, reorderProjectSection, pinProject, unpinProject, reorderSessions, renameSession, hideProject, unhideProject, hideSession, unhideSession, setShowHidden, toggleShowHidden, hiddenCount, setCollapsed, toggleCollapsed, setExpanded, reset }
+  return { order, groups, loaded, load, refresh, sync, flush, reorderProjects, reorderProjectSection, pinProject, unpinProject, reorderSessions, renameSession, hideProject, unhideProject, hideSession, unhideSession, setShowHidden, toggleShowHidden, hiddenCount, setCollapsed, toggleCollapsed, setExpanded, reset }
 })

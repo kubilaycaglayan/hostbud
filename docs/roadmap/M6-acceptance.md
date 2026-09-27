@@ -28,6 +28,10 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
   - U: T2 debounce and flush (fake timers, `pagehide`); the size guard with 500 projects × 20 sessions of 64-byte names; the oversize path doesn't call `putUIState` (Vitest).
   - I: T2 a 64 KiB + 1 body still gets 413 (existing M1/M3 handler test extended to `tree`) (Go).
   - E: T2 *Tree state survives an app restart* reloads immediately after a change.
+- [ ] Only the user's edits save the tree; rows appended or pruned by a live event never do, since every client derives them. So an open tab or device that loaded earlier never overwrites a manual order, and it adopts the saved order when it becomes visible again (unless it has an unsaved edit).
+  - U: T2 a live event that appends and prunes rows sends no `PUT`; a reorder does; `refresh()` adopts the saved order and skips it while a local save is pending (Vitest).
+  - I: n/a (client-side save policy; the server stores values uninterpreted).
+  - E: T2 *Another open tab never overwrites a manual session order* (desktop).
 - [x] Customization is per account: pins, hidden rows, collapse state, order and theme saved by one account never show for another account on the same host.
   - U: T2 the store resets on sign-out (Vitest).
   - I: T2 two accounts' `tree` and T7 two accounts' `theme` values are isolated (Go, PostgreSQL; extends the M3/M4 per-user UI-state test).
@@ -286,6 +290,7 @@ Profiles: `desktop-chromium`, `iphone-13-pro` (`http://localhost:9055`) and `iph
 - [x] **(T1) Windows and panes API:** through Caddy, a session with 3 windows (one split) lists them in order with ids, names, active flags and panes; `select` a window and a pane, and `display -p` on the target agrees; a pane id from another session → 404; signed out → 401; foreign Origin on `select` → 403; unknown session → 404 (desktop, API-level).
 - [x] **(T2) Tree state upgrades from M4:** a v1 `tree` value seeded through the API loads with its order; after a reorder, `GET /api/ui-state/tree` returns version 2 with that order (desktop).
 - [x] **(T2) Tree state survives an app restart:** reorder sessions, reload immediately (flush on `pagehide`), then restart; the order is unchanged after the host is reachable again, and no saved session entry was pruned by the first empty snapshot (desktop).
+- [ ] **(T2) Another open tab never overwrites a manual session order:** a second tab loaded before a reorder gets a new session by live event and saves nothing (`GET /api/ui-state/tree` still has the manual order); `visibilitychange` makes it show the saved order; reload keeps it (desktop).
 - [x] **(T2) Keyboard tree navigation:** focus the tree, walk it with the arrow keys, Home/End, open a session with Enter, move a session with Alt+↓, reload → the order persists (desktop).
 - [x] **(T2) Collapse state persists:** collapse a project and Other sessions, reload and restart → still collapsed; a terminal open on a collapsed session keeps its tmux client PID (desktop and `iphone-13-pro` in the drawer).
 - [x] **(T2) Tree shows hierarchy:** with a project holding two sessions and one Other session, the project header shows its name and `~`-shortened path; each session row's text starts to the right of its project header's text (bounding boxes); the header background differs from a session row's (computed style); Other sessions is a header row of the same style (desktop and `iphone-13-pro` in the drawer).

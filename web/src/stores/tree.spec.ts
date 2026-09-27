@@ -225,4 +225,49 @@ describe('tree order store', () => {
     expect(saved.sessions).toEqual({ p0: ['actual'], __other__: [] })
     expect(new TextEncoder().encode(JSON.stringify(saved)).byteLength).toBeLessThan(60 * 1024)
   })
+
+  it('never saves rows a live event appends or prunes, only user edits', async () => {
+    const calls = stubFetch((method, path) => path === '/api/ui-state/tree' && method === 'GET'
+      ? { status: 200, body: { ...emptyTreeState(), sessions: { __other__: ['b', 'a'] } } }
+      : { status: 204 })
+    useMachinesStore().apply({ type: 'snapshot', machines: [{ id: 'host', label: 'Host', status: 'ok', os: '', home: '/home/dev', tmuxVersion: '', tmuxMissing: false }], sessions: { host: [] } })
+    useSessionsStore().apply({ type: 'snapshot', machines: [], sessions: { host: [session('a', '/x'), session('b', '/x')] } })
+    const tree = useTreeStore()
+    await tree.load()
+    vi.useFakeTimers()
+    tree.sync()
+    useSessionsStore().apply({ type: 'sessions.changed', machine: 'host', payload: { sessions: [{ ...session('a', '/x'), attached: 1 }, session('b', '/x'), session('c', '/x')] } })
+    tree.sync()
+    expect(tree.groups.other.map((s) => s.name)).toEqual(['b', 'a', 'c'])
+    useSessionsStore().apply({ type: 'sessions.changed', machine: 'host', payload: { sessions: [session('b', '/x'), session('c', '/x')] } })
+    tree.sync()
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(calls.filter((call) => call.method === 'PUT')).toHaveLength(0)
+    tree.reorderSessions('__other__', ['c', 'b'])
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(calls.filter((call) => call.method === 'PUT').at(-1)?.body).toMatchObject({ sessions: { __other__: ['c', 'b'] } })
+  })
+
+  it('refresh adopts the order another device saved unless a local change is pending', async () => {
+    let remote: string[] = ['a', 'b']
+    const calls = stubFetch((method, path) => path === '/api/ui-state/tree' && method === 'GET'
+      ? { status: 200, body: { ...emptyTreeState(), sessions: { __other__: remote } } }
+      : { status: 204 })
+    useMachinesStore().apply({ type: 'snapshot', machines: [{ id: 'host', label: 'Host', status: 'ok', os: '', home: '/home/dev', tmuxVersion: '', tmuxMissing: false }], sessions: { host: [] } })
+    useSessionsStore().apply({ type: 'snapshot', machines: [], sessions: { host: [session('a', '/x'), session('b', '/x')] } })
+    const tree = useTreeStore()
+    await tree.load()
+    tree.sync()
+    vi.useFakeTimers()
+    remote = ['b', 'a']
+    await tree.refresh()
+    expect(tree.groups.other.map((s) => s.name)).toEqual(['b', 'a'])
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(calls.filter((call) => call.method === 'PUT')).toHaveLength(0)
+
+    tree.reorderSessions('__other__', ['a', 'b'])
+    remote = ['b', 'a']
+    await tree.refresh()
+    expect(tree.groups.other.map((s) => s.name)).toEqual(['a', 'b'])
+  })
 })

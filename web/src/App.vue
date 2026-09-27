@@ -480,13 +480,19 @@ const flushState = () => {
   layout.flush()
   tree.flush()
 }
+// Coming back to this tab or device picks up the order saved elsewhere.
+const onVisibilityChange = () => {
+  if (document.visibilityState === 'visible') void tree.refresh()
+}
 onMounted(() => {
   void auth.check()
   window.addEventListener('pagehide', flushState)
+  document.addEventListener('visibilitychange', onVisibilityChange)
   window.addEventListener('keydown', onShortcutKeydown, true)
 })
 onUnmounted(() => {
   window.removeEventListener('pagehide', flushState)
+  document.removeEventListener('visibilitychange', onVisibilityChange)
   window.removeEventListener('keydown', onShortcutKeydown, true)
   live.stop()
 })
