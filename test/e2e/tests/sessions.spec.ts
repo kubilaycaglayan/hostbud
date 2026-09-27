@@ -56,6 +56,8 @@ test('(T10) Taken session names get a number from New session and New session he
   await page.keyboard.press('Control+Shift+K')
   const palette = page.getByRole('dialog', { name: 'Command palette' })
   await palette.getByRole('combobox', { name: 'Command palette' }).fill(`New session in ${projectName}`)
+  // Enter runs the match even when fill() dropped the highlight.
+  await expect(palette.getByRole('option', { name: `New session in ${projectName}` })).toBeVisible()
   await page.keyboard.press('Enter')
   const dialog = page.getByRole('dialog', { name: 'New session here' })
   await expect(dialog).toContainText(`New session in ${projectName}`)
@@ -63,6 +65,7 @@ test('(T10) Taken session names get a number from New session and New session he
   await dialog.getByRole('button', { name: 'Create session' }).click()
   await expect(page.getByRole('region', { name: `Terminal: ${name}-2` })).toBeVisible(withinPoll)
   await expect(page.locator('section[aria-label="Notifications"] [role="status"]').filter({ hasText: `Named "${name}-2"` })).toContainText(`Named "${name}-2": "${name}" was already taken.`)
+  await ui.showList()
   await expect(ui.treeItem(projectName).getByRole('treeitem', { name: `${name}-2` })).toBeVisible()
 })
 

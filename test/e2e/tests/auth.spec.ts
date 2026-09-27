@@ -17,6 +17,10 @@ test.beforeEach(async () => {
   // Each scenario starts with fresh throttling (the owner can reset it too).
   await owner.clearRateLimits()
 })
+// ...and leaves none behind: later specs register accounts too.
+test.afterEach(async () => {
+  await owner.clearRateLimits()
+})
 
 async function createAccount(request: APIRequestContext) {
   const account = newAccount()

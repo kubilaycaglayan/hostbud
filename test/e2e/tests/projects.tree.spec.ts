@@ -239,9 +239,18 @@ for (const profile of ['desktop', 'phone'] as const) {
       await createTargetSession(target, one, first)
       await createTargetSession(target, two, first)
       await page.goto('/')
+      await expect(ui.treeItem(one)).toBeVisible()
+      await expect(ui.treeItem(two)).toBeVisible()
       // Drop on the top edge of the target row, as tree.custom.spec.ts does.
       await ui.treeItem(secondName).getByRole('button', { name: `Drag to reorder project ${secondName}` }).dragTo(ui.treeItem(firstName), { targetPosition: { x: 20, y: 1 } })
-      await ui.treeItem(two).getByRole('button', { name: `Drag to reorder session ${two}` }).dragTo(ui.treeItem(one), { targetPosition: { x: 20, y: 1 } })
+      // Let the tree settle after the project move before the next drag.
+      await expect.poll(async () => (await page.getByRole('group', { name: 'Projects' }).locator(':scope > [role="treeitem"]').evaluateAll((items) => items.map((item) => item.getAttribute('aria-label')))).filter((name) => name === firstName || name === secondName)).toEqual([secondName, firstName])
+      // Retried: a live session update re-rendering the list can drop a drag.
+      const sessionOrder = () => page.getByRole('group', { name: `Sessions in ${firstName}` }).locator('button[data-session-row]').allTextContents()
+      await expect(async () => {
+        if ((await sessionOrder())[0] !== two) await ui.treeItem(two).getByRole('button', { name: `Drag to reorder session ${two}` }).dragTo(ui.treeItem(one), { targetPosition: { x: 20, y: 1 } })
+        expect(await sessionOrder()).toEqual([two, one])
+      }).toPass({ timeout: 10_000 })
       await target.run(`mkdir -p ${shq(`${root}/third`)}`)
       await addProject(request, `${root}/third`, thirdName)
       const addedSession = uniqueName('e2e-order-new')
