@@ -17,7 +17,7 @@ async function createSessions(target: { tmux(...args: string[]): Promise<string>
 }
 
 async function captured(target: { tmux(...args: string[]): Promise<string> }, name: string) {
-  return target.tmux('capture-pane', '-p', '-t', `=${name}`)
+  return target.tmux('capture-pane', '-p', '-t', `=${name}:`)
 }
 
 test('(T8) Keyboard shortcuts help opens from both scopes and restores focus', async ({ page, ui, target }) => {
@@ -96,7 +96,7 @@ test('(T8) Global shortcuts do not reach the running program', async ({ page, ui
   await page.reload()
   await ui.openTerminal(vim)
   await ui.type('vim', true)
-  await expect.poll(() => target.tmux('display-message', '-p', '-t', `=${vim}`, '#{pane_current_command}')).toContain('vim')
+  await expect.poll(() => target.display(vim, '#{pane_current_command}')).toContain('vim')
   await ui.type('iSHORTCUT_BUFFER')
   await ui.openTerminal(shell)
   await page.keyboard.press('Control+Shift+]')
@@ -188,10 +188,12 @@ test('(T9) Palette runs theme, tree, session and confirmation actions', async ({
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
   await open(`Hide ${session}`)
   await choose(`Hide ${session}`)
-  expect((await (await request.get('/api/ui-state/tree')).json()).hidden.sessions).toContain(`host/${session}`)
+  // The page's own account (page.request), after the debounced save.
+  const hiddenSessions = async () => ((await (await page.request.get('/api/ui-state/tree')).json()).hidden.sessions as string[])
+  await expect.poll(hiddenSessions).toContain(`host/${session}`)
   await open(`Unhide ${session}`)
   await choose(`Unhide ${session}`)
-  expect((await (await request.get('/api/ui-state/tree')).json()).hidden.sessions).not.toContain(`host/${session}`)
+  await expect.poll(hiddenSessions).not.toContain(`host/${session}`)
   await open(`New session in ${project}`)
   await choose(`New session in ${project}`)
   const newSessionDialog = page.getByRole('dialog', { name: 'New session here' })
