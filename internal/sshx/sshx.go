@@ -155,6 +155,16 @@ func (p *subsystemPipe) Close() error {
 // bounded by DefaultTimeout unless ctx has an earlier deadline; cancelling
 // ctx kills ssh. Failures are *Error values with an actionable message.
 func (c *Client) Exec(ctx context.Context, machine string, args ...string) (out []byte, resultErr error) {
+	return c.exec(ctx, machine, nil, args...)
+}
+
+// ExecInput is Exec with stdin: the remote command reads input, which never
+// appears in any process's argv (V2-M1: run tokens reach tmux this way).
+func (c *Client) ExecInput(ctx context.Context, machine string, input []byte, args ...string) ([]byte, error) {
+	return c.exec(ctx, machine, input, args...)
+}
+
+func (c *Client) exec(ctx context.Context, machine string, input []byte, args ...string) (out []byte, resultErr error) {
 	argv, err := c.Args(machine, nil, args...)
 	if err != nil {
 		return nil, err
@@ -171,6 +181,9 @@ func (c *Client) Exec(ctx context.Context, machine string, args ...string) (out 
 	cmd := commandContext(ctx, c.cfg.SSHBinary, argv...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	if input != nil {
+		cmd.Stdin = bytes.NewReader(input)
+	}
 	cmd.WaitDelay = time.Second // don't hang on pipes held open by children
 	err = cmd.Run()
 	if err == nil {

@@ -53,8 +53,16 @@ type Spec struct {
 	Machine      string
 	Name         string            // optional: defaults to the directory's last path segment
 	Path         string            // optional: defaults to the home dir; "~/x" allowed
-	Env          map[string]string // needs tmux ≥ 3.2
-	StartCommand string            // optional: run instead of the shell
+	Env          map[string]string // needs tmux ≥ 3.2; sent through stdin, never in an argv
+	StartCommand string            // optional: a command line run instead of the shell (UI)
+	StartArgv    []string          // optional: a program and its arguments, quoted by sshx (v2 runs)
+}
+
+// InputExecutor runs a remote command with stdin (sshx.Client.ExecInput).
+// Sessions with env vars are created through it, so the values (a run
+// token) never show in a process list.
+type InputExecutor interface {
+	ExecInput(ctx context.Context, machine string, input []byte, args ...string) ([]byte, error)
 }
 
 // CopyModeState is the state reported by tmux after a copy-mode action.
@@ -161,16 +169,15 @@ func (s *Service) Create(ctx context.Context, spec Spec) (string, error) {
 	// original requested name, so a typed "work-1" becomes "work-1-1".
 	reserved := append([]tmux.Session(nil), sessions...)
 	for attempt := 0; ; attempt++ {
-		args, err := tmux.NewSessionArgs(tmux.NewSession{
-			Name: name, Path: dir, Env: spec.Env, StartCommand: spec.StartCommand,
-		}, version)
+		ns := tmux.NewSession{Name: name, Path: dir, Env: spec.Env, StartCommand: spec.StartCommand, StartArgv: spec.StartArgv}
+		run, err := s.newSessionRunner(ns, version)
 		if errors.Is(err, tmux.ErrEnvUnsupported) {
 			return "", errorf(CodeInvalid, "Upgrade tmux on the host to 3.2 or newer.", "%s", err)
 		}
 		if err != nil {
 			return "", errorf(CodeInvalid, "", "%s", err)
 		}
-		_, err = s.exec.Exec(ctx, spec.Machine, args...)
+		err = run(ctx, spec.Machine)
 		if isServerGone(err) {
 			// Transient: the new server raced one that was still exiting
 			// (e.g. right after a kill-server). One retry after a pause.
@@ -179,7 +186,7 @@ func (s *Service) Create(ctx context.Context, spec Spec) (string, error) {
 			case <-ctx.Done():
 				return "", s.remoteError(ctx.Err())
 			}
-			_, err = s.exec.Exec(ctx, spec.Machine, args...)
+			err = run(ctx, spec.Machine)
 		}
 		if err == nil {
 			break
@@ -200,6 +207,46 @@ func (s *Service) Create(ctx context.Context, spec Spec) (string, error) {
 	s.log.Debug("session created details", "machine", spec.Machine, "session", name)
 	s.refresh(ctx, t)
 	return name, nil
+}
+
+// newSessionRunner returns how to run new-session: with env vars, as a
+// script on stdin (values stay out of every argv); otherwise as plain argv.
+func (s *Service) newSessionRunner(ns tmux.NewSession, version tmux.Version) (func(context.Context, string) error, error) {
+	if len(ns.Env) == 0 {
+		args, err := tmux.NewSessionArgs(ns, version)
+		if err != nil {
+			return nil, err
+		}
+		return func(ctx context.Context, machine string) error {
+			_, err := s.exec.Exec(ctx, machine, args...)
+			return err
+		}, nil
+	}
+	in, ok := s.exec.(InputExecutor)
+	if !ok {
+		return nil, errors.New("session env needs an executor with stdin")
+	}
+	args, script, err := tmux.NewSessionScript(ns, version)
+	if err != nil {
+		return nil, err
+	}
+	return func(ctx context.Context, machine string) error {
+		_, err := in.ExecInput(ctx, machine, script, args...)
+		return err
+	}, nil
+}
+
+// SanitizeName turns any text into a valid session name base the way
+// directory names are ("my.app" → "my-app"); empty becomes "session".
+func SanitizeName(text string) string {
+	name := strings.Trim(invalidNameChars.ReplaceAllString(text, "-"), "-")
+	if len(name) > 60 {
+		name = strings.TrimRight(name[:60], "-")
+	}
+	if name == "" {
+		name = "session"
+	}
+	return name
 }
 
 // Rename renames a session.
@@ -464,14 +511,7 @@ func defaultName(dir string) string {
 	if base == "/" {
 		base = "root"
 	}
-	name := strings.Trim(invalidNameChars.ReplaceAllString(base, "-"), "-")
-	if len(name) > 60 {
-		name = name[:60]
-	}
-	if name == "" {
-		name = "session"
-	}
-	return name
+	return SanitizeName(base)
 }
 
 // uniqueName returns base, or base-1, base-2, … if taken.

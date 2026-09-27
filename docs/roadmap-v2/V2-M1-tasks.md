@@ -14,7 +14,7 @@ Update this table in the same commit that finishes a task.
 | T1 Spike on this host | Done (results in v2 ARCHITECTURE §12; no client dropped) |
 | T2 Schema migration and store | Done |
 | T3 Run tokens and the hook endpoint | Done (e2e written and type-checked) |
-| T4 Session creation for runs | Not started |
+| T4 Session creation for runs | Done (S8: env through `tmux start-server ; source-file -` on stdin) |
 | T5 Adapter interface and the Claude Code adapter | Not started |
 | T6 Codex adapter | Not started |
 | T7 Stub clients on the throwaway target | Not started |

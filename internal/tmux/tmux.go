@@ -238,6 +238,7 @@ type NewSession struct {
 	Path         string            // absolute start directory
 	Env          map[string]string // -e KEY=VAL, only with tmux ≥ 3.2
 	StartCommand string            // shell command line, run by StartShell; empty = shell
+	StartArgv    []string          // or: a program and its arguments, each quoted
 }
 
 // ErrEnvUnsupported means env vars were requested on tmux < 3.2.
@@ -278,11 +279,36 @@ func NewSessionArgs(s NewSession, v Version) ([]string, error) {
 			args = append(args, "-e", k+"="+s.Env[k])
 		}
 	}
-	if s.StartCommand != "" {
+	switch {
+	case s.StartCommand != "" && len(s.StartArgv) > 0:
+		return nil, errors.New("new-session: give a start command or an argv, not both")
+	case s.StartCommand != "":
 		// One argument: tmux hands it to its default shell with -c.
 		args = append(args, StartShell(s.StartCommand))
+	case len(s.StartArgv) > 0:
+		args = append(args, StartShell(sshx.Command(s.StartArgv...)))
 	}
 	return args, nil
+}
+
+// NewSessionScript returns new-session as a tmux command script for
+// `tmux start-server ; source-file -` (the returned argv): the script is fed
+// through stdin, so env values (a run token) never appear in an argv. Every
+// word is single-quoted, so tmux expands nothing ($VAR, ~) and ; # { } are
+// literal. Newlines are refused.
+func NewSessionScript(s NewSession, v Version) (argv []string, script []byte, err error) {
+	args, err := NewSessionArgs(s, v)
+	if err != nil {
+		return nil, nil, err
+	}
+	words := make([]string, 0, len(args)-1)
+	for _, a := range args[1:] { // drop "tmux"
+		if strings.ContainsAny(a, "\n\r") {
+			return nil, nil, errors.New("new-session: arguments can't contain line breaks")
+		}
+		words = append(words, sshx.Quote(a))
+	}
+	return []string{"tmux", "start-server", ";", "source-file", "-"}, []byte(strings.Join(words, " ") + "\n"), nil
 }
 
 // StartShell wraps a start command line so it runs as if typed at a prompt:

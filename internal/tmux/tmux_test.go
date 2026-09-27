@@ -429,3 +429,42 @@ func TestAppWheelArgs(t *testing.T) {
 		}
 	}
 }
+
+func TestNewSessionStartArgvIsQuotedBySshx(t *testing.T) {
+	argv := []string{"claude", "--settings", `{"hooks":{"Stop":[{"command":"curl \"$HOSTBUD_URL\""}]}}`, "/goal it's done"}
+	got, err := NewSessionArgs(NewSession{Name: "app-q1", Path: "/home/dev/app", StartArgv: argv}, v(3, 4))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := StartShell(sshx.Command(argv...)); got[len(got)-1] != want {
+		t.Fatalf("start argument %q, want %q", got[len(got)-1], want)
+	}
+	if _, err := NewSessionArgs(NewSession{Name: "a", Path: "/x", StartCommand: "top", StartArgv: []string{"top"}}, v(3, 4)); err == nil {
+		t.Fatal("command and argv together accepted")
+	}
+}
+
+func TestNewSessionScript(t *testing.T) {
+	argv, script, err := NewSessionScript(NewSession{Name: "app-q1", Path: "/home/dev/my app", Env: map[string]string{"K": "a 'b' $HOME ~ ;#"}, StartCommand: "echo hi"}, v(3, 4))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(argv, []string{"tmux", "start-server", ";", "source-file", "-"}) {
+		t.Fatalf("argv %q", argv)
+	}
+	want := `'new-session' '-d' '-s' 'app-q1' '-c' '/home/dev/my app' '-e' 'K=a '\''b'\'' $HOME ~ ;#' ` + sshx.Quote(StartShell("echo hi")) + "\n"
+	if string(script) != want {
+		t.Fatalf("script %q\nwant   %q", script, want)
+	}
+	for _, bad := range []NewSession{
+		{Name: "a", Path: "/x", Env: map[string]string{"K": "line\nbreak"}},
+		{Name: "a", Path: "/x", StartArgv: []string{"echo", "a\rb"}},
+	} {
+		if _, _, err := NewSessionScript(bad, v(3, 4)); err == nil {
+			t.Errorf("line break accepted: %+v", bad)
+		}
+	}
+	if _, _, err := NewSessionScript(NewSession{Name: "a", Path: "/x", Env: map[string]string{"K": "v"}}, v(3, 1)); !errors.Is(err, ErrEnvUnsupported) {
+		t.Errorf("tmux 3.1: %v", err)
+	}
+}

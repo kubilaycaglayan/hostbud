@@ -19,8 +19,16 @@ import (
 type fakeExec struct {
 	mu      sync.Mutex
 	calls   [][]string
+	inputs  [][]byte
 	output  []byte
 	handler func(args []string) error
+}
+
+func (f *fakeExec) ExecInput(ctx context.Context, machine string, input []byte, args ...string) ([]byte, error) {
+	f.mu.Lock()
+	f.inputs = append(f.inputs, input)
+	f.mu.Unlock()
+	return f.Exec(ctx, machine, args...)
 }
 
 func (f *fakeExec) Exec(_ context.Context, _ string, args ...string) ([]byte, error) {
@@ -344,17 +352,63 @@ func TestCreateNameFromPathWithSuffixOnClash(t *testing.T) {
 	}
 }
 
-func TestCreateExpandsTildeAndPassesCommandAndEnv(t *testing.T) {
+func TestCreateExpandsTildeAndPassesCommand(t *testing.T) {
 	f := &fakeExec{}
 	_, err := newSvc(f, okHost()).Create(context.Background(), Spec{
-		Machine: "host", Name: "web", Path: "~/some/dir", StartCommand: "htop", Env: map[string]string{"K": "v"},
+		Machine: "host", Name: "web", Path: "~/some/dir", StartCommand: "htop",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"tmux", "new-session", "-d", "-s", "web", "-c", "/home/dev/some/dir", "-e", "K=v", tmux.StartShell("htop")}
-	if got := f.tmuxCalls(); !slices.Equal(got[0], want) {
-		t.Fatalf("got %q", got[0])
+	want := []string{"tmux", "new-session", "-d", "-s", "web", "-c", "/home/dev/some/dir", tmux.StartShell("htop")}
+	if got := f.tmuxCalls(); !slices.Equal(got[0], want) || len(f.inputs) != 0 {
+		t.Fatalf("got %q (inputs %q)", got[0], f.inputs)
+	}
+}
+
+// Env vars (a run token) reach tmux only through stdin: one quoted -e per
+// entry in a source-file script, never in an argv.
+func TestCreateSendsEnvThroughStdin(t *testing.T) {
+	f := &fakeExec{}
+	const token = "tok-secret-value"
+	name, err := newSvc(f, okHost()).Create(context.Background(), Spec{
+		Machine: "host", Name: "app-q1", Path: "~/app",
+		Env:       map[string]string{"HOSTBUD_RUN_TOKEN": token, "HOSTBUD_URL": "http://127.0.0.1:9055", "HOSTBUD_RUN_ID": "01RUN"},
+		StartArgv: []string{"claude", "--model", "opus 4", "/goal ship it"},
+	})
+	if err != nil || name != "app-q1" {
+		t.Fatalf("Create = %q, %v", name, err)
+	}
+	for _, call := range f.calls {
+		if strings.Contains(strings.Join(call, " "), token) {
+			t.Fatalf("token in an argv: %q", call)
+		}
+	}
+	if got := f.tmuxCalls(); len(got) != 1 || !slices.Equal(got[0], []string{"tmux", "start-server", ";", "source-file", "-"}) {
+		t.Fatalf("tmux calls %q", got)
+	}
+	want := "'new-session' '-d' '-s' 'app-q1' '-c' '/home/dev/app' '-e' 'HOSTBUD_RUN_ID=01RUN' '-e' 'HOSTBUD_RUN_TOKEN=tok-secret-value' '-e' 'HOSTBUD_URL=http://127.0.0.1:9055' " +
+		sshx.Quote(tmux.StartShell(sshx.Command("claude", "--model", "opus 4", "/goal ship it"))) + "\n"
+	if len(f.inputs) != 1 || string(f.inputs[0]) != want {
+		t.Fatalf("script %q\nwant   %q", f.inputs, want)
+	}
+}
+
+func TestCreateRejectsCommandAndArgvTogether(t *testing.T) {
+	_, err := newSvc(&fakeExec{}, okHost()).Create(context.Background(), Spec{Machine: "host", Path: "~", StartCommand: "htop", StartArgv: []string{"top"}})
+	if code(err) != CodeInvalid {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestSanitizeName(t *testing.T) {
+	for in, want := range map[string]string{
+		"my.app": "my-app", "Hostbud v2!": "Hostbud-v2", "": "session", "...": "session",
+		strings.Repeat("a", 59) + ".b": strings.Repeat("a", 59), "émoji🙂x": "moji-x",
+	} {
+		if got := SanitizeName(in); got != want {
+			t.Errorf("SanitizeName(%q) = %q, want %q", in, got, want)
+		}
 	}
 }
 
