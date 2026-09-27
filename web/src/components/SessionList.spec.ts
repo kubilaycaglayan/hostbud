@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import SessionList from './SessionList.vue'
 import type { Session } from '@/api/types'
 import { useTreeStore } from '@/stores/tree'
+import { useWindowsStore } from '@/stores/windows'
 
 const s = (name: string, attached = 0, windows = 1): Session => ({
   id: '$1', name, path: '/home/dev', attached, windows, created: '', activity: '',
@@ -36,19 +37,27 @@ describe('SessionList', () => {
     expect(w.get('button[aria-label="b"]').classes()).toContain('touch-target')
     expect(w.get('button[aria-label="Kill b"]').classes()).toContain('touch-target')
     expect(w.get('button[aria-label="Rename b"]').classes()).toContain('touch-target')
-    expect(w.get('li').classes()).toContain('py-0.5')
+    // Compact rows (M8 T2): no vertical row padding; touch-target keeps 44 px on phones.
+    expect(w.get('li').classes().filter((c) => /^py-/.test(c))).toEqual([])
+    expect(w.get('button[aria-label="b"]').classes()).toContain('min-h-7')
   })
 
-  it('keeps the session action group immediately after the title in kill/menu/rename order', () => {
-    const w = mount(SessionList, { props: { sessions: [s('a')] } })
+  it('leads with the session name, then its status and the kill/menu/rename actions; the drag handle comes last (M8 T2)', () => {
+    const w = mount(SessionList, { props: { sessions: [s('a')], sortable: true } })
     const row = w.get('li')
-    expect(row.get('[data-session-row]').attributes('aria-label')).toBe('a')
-    const actions = row.get('[data-session-row]').element.nextElementSibling
+    const first = row.element.firstElementChild as HTMLElement
+    expect(first.getAttribute('aria-label')).toBe('a')
+    expect(first.hasAttribute('data-session-row')).toBe(true)
+    expect(first.className).toContain('font-medium')
+    expect(first.className).toContain('text-fg')
+    expect(first.className).toContain('flex-1')
+    expect(first.nextElementSibling?.getAttribute('role')).toBe('img')
+    const actions = first.nextElementSibling?.nextElementSibling
     expect(actions?.tagName).toBe('SPAN')
-    expect(actions?.classList.contains('gap-0.5')).toBe(true)
-    expect(row.findAll('button').slice(-3).map((button) => button.attributes('aria-label'))).toEqual([
+    expect([...actions!.querySelectorAll('button')].map((button) => button.getAttribute('aria-label'))).toEqual([
       'Kill a', 'More actions for a', 'Rename a',
     ])
+    expect(row.element.lastElementChild?.getAttribute('aria-label')).toBe('Drag to reorder session a')
   })
 
   it('emits select and marks the selected session', async () => {
@@ -162,6 +171,48 @@ describe('SessionList', () => {
     const item = [...document.body.querySelectorAll<HTMLElement>('[role=menuitem]')].find((x) => x.textContent?.trim() === label)
     item!.click()
     expect(w.emitted('split')).toEqual([['b', dir]])
+    w.unmount()
+  })
+
+  it('shows a session chevron only where the row expands (M8 T2)', async () => {
+    setActivePinia(createPinia())
+    const w = mount(SessionList, { props: { sessions: [s('single'), s('multi', 0, 2)], treeView: true }, attachTo: document.body })
+    const single = w.get('[data-tree-key="session:single"]')
+    const multi = w.get('[data-tree-key="session:multi"]')
+    // One window, panes unknown: nothing to expand, no inert chevron.
+    expect(single.find('button[aria-label="Expand single"]').exists()).toBe(false)
+    expect(single.attributes('aria-expanded')).toBeUndefined()
+    expect(single.find('svg').exists()).toBe(false)
+    // Several windows: the chevron stays, operable and named.
+    expect(multi.attributes('aria-expanded')).toBe('false')
+    const chevron = multi.get('button[aria-label="Expand multi"]')
+    expect(chevron.classes()).toEqual(expect.arrayContaining(['touch-target', 'min-h-7', 'min-w-6']))
+    expect(chevron.attributes('title')).toBe('Expand multi')
+
+    // A single window already loaded with split panes does expand.
+    useWindowsStore().bySession['host/single'] = {
+      status: 'ok', truncated: false, windows: [
+        { id: '@1', index: 0, name: 'shell', active: true, panes: [
+          { id: '%1', index: 0, active: true, command: 'bash', width: 40, height: 24 },
+          { id: '%2', index: 1, active: false, command: 'vim', width: 40, height: 24 },
+        ] },
+      ],
+    }
+    await w.vm.$nextTick()
+    expect(w.get('[data-tree-key="session:single"]').find('button[aria-label="Expand single"]').exists()).toBe(true)
+    // …but a loaded single window with one pane doesn't.
+    useWindowsStore().bySession['host/single'].windows[0].panes.pop()
+    await w.vm.$nextTick()
+    expect(w.get('[data-tree-key="session:single"]').find('button[aria-label="Expand single"]').exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('an expanded state kept from before hides the group once the row no longer expands (M8 T2)', async () => {
+    setActivePinia(createPinia())
+    useTreeStore().order.expanded = ['host/single']
+    const w = mount(SessionList, { props: { sessions: [s('single')], treeView: true }, attachTo: document.body })
+    expect(w.find('[data-tree-key="session:single"] [role="group"]').exists()).toBe(false)
+    expect(w.get('[data-tree-key="session:single"]').attributes('aria-expanded')).toBeUndefined()
     w.unmount()
   })
 })

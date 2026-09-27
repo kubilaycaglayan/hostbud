@@ -69,7 +69,7 @@ function renameOnFinePointer() {
     :class="props.hidden ? 'opacity-50' : ''"
   >
     <div
-      class="flex min-h-12 items-center gap-1"
+      class="flex min-h-9 items-center gap-0.5"
       @click="emit('headerClick', props.group.project.id)"
       @pointerdown="emit('longPressStart', $event, props.group.project.id)"
       @pointermove="emit('longPressMove', $event)"
@@ -77,8 +77,8 @@ function renameOnFinePointer() {
       @pointercancel="emit('longPressEnd')"
       @pointerleave="emit('longPressEnd')"
     >
-      <button type="button" class="touch-target project-drag-handle min-h-11 min-w-8 cursor-grab rounded text-muted" :aria-label="'Drag to reorder project ' + props.group.project.name" title="Drag to reorder projects" tabindex="-1" @click.stop>⠿</button>
-      <button type="button" class="touch-target inline-flex min-h-11 min-w-8 items-center justify-center rounded text-muted" :aria-label="(props.collapsed ? 'Expand ' : 'Collapse ') + props.group.project.name" :aria-expanded="!props.collapsed" :title="(props.collapsed ? 'Expand ' : 'Collapse ') + props.group.project.name" tabindex="-1" @click.stop="emit('headerClick', props.group.project.id)">
+      <button type="button" class="touch-target project-drag-handle min-h-7 min-w-5 cursor-grab rounded text-muted" :aria-label="'Drag to reorder project ' + props.group.project.name" title="Drag to reorder projects" tabindex="-1" @click.stop>⠿</button>
+      <button type="button" class="touch-target inline-flex min-h-7 min-w-6 items-center justify-center rounded text-muted" :aria-label="(props.collapsed ? 'Expand ' : 'Collapse ') + props.group.project.name" :aria-expanded="!props.collapsed" :title="(props.collapsed ? 'Expand ' : 'Collapse ') + props.group.project.name" tabindex="-1" @click.stop="emit('headerClick', props.group.project.id)">
         <ChevronRight :size="16" class="transition-transform" :class="!props.collapsed ? 'rotate-90' : ''" aria-hidden="true" />
       </button>
       <Folder :size="16" class="shrink-0 text-muted" aria-hidden="true" />
@@ -87,12 +87,12 @@ function renameOnFinePointer() {
         <span class="block truncate font-semibold">{{ props.group.project.name }}</span>
         <span class="block truncate text-xs text-muted" :title="props.group.project.path">{{ shortPath(props.group.project.path) }}</span>
       </span>
-      <button v-if="props.pinned" type="button" class="touch-target inline-flex min-h-11 min-w-8 items-center justify-center rounded text-muted" :aria-label="'Unpin ' + props.group.project.name" title="Pinned" tabindex="-1" @click.stop="emit('togglePin', props.group.project.id)">
+      <button v-if="props.pinned" type="button" class="touch-target inline-flex min-h-7 min-w-6 items-center justify-center rounded text-muted" :aria-label="'Unpin ' + props.group.project.name" title="Pinned" tabindex="-1" @click.stop="emit('togglePin', props.group.project.id)">
         <Pin :size="16" aria-hidden="true" />
       </button>
-      <button type="button" class="touch-target min-h-11 rounded px-2" :aria-label="'Rename ' + props.group.project.name" title="Rename" tabindex="-1" @click.stop="emit('startRename', 'project:' + props.group.project.id)">✎</button>
+      <button type="button" class="touch-target min-h-7 min-w-6 rounded px-1" :aria-label="'Rename ' + props.group.project.name" title="Rename" tabindex="-1" @click.stop="emit('startRename', 'project:' + props.group.project.id)">✎</button>
       <DropdownMenuRoot :open="props.menuOpen" @update:open="(open) => emit('menuOpen', open, props.group.project.id)">
-        <DropdownMenuTrigger type="button" class="touch-target min-h-11 rounded px-2 text-muted" :aria-label="'More actions for ' + props.group.project.name" title="More" tabindex="-1" @click.stop>⋯</DropdownMenuTrigger>
+        <DropdownMenuTrigger type="button" class="touch-target min-h-7 min-w-6 rounded px-1 text-muted" :aria-label="'More actions for ' + props.group.project.name" title="More" tabindex="-1" @click.stop>⋯</DropdownMenuTrigger>
         <DropdownMenuPortal>
           <DropdownMenuContent align="end" :side-offset="4" class="z-30 min-w-48 rounded border border-border bg-surface p-1 text-fg shadow-lg">
             <DropdownMenuItem class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 outline-none data-highlighted:bg-bg" @select="emit('startRename', 'project:' + props.group.project.id)">Rename</DropdownMenuItem>
@@ -102,9 +102,9 @@ function renameOnFinePointer() {
           </DropdownMenuContent>
         </DropdownMenuPortal>
       </DropdownMenuRoot>
-      <button type="button" class="touch-target min-h-11 rounded px-2" :aria-label="'New session in ' + props.group.project.name" :title="'New session in ' + props.group.project.name" tabindex="-1" @click.stop="emit('sessionInProject', props.group.project)">＋</button>
+      <button type="button" class="touch-target min-h-7 min-w-6 rounded px-1" :aria-label="'New session in ' + props.group.project.name" :title="'New session in ' + props.group.project.name" tabindex="-1" @click.stop="emit('sessionInProject', props.group.project)">＋</button>
     </div>
-    <div v-if="!props.collapsed" role="group" class="ml-3 border-l border-border py-1 pl-3">
+    <div v-if="!props.collapsed" role="group" class="ml-2.5 border-l border-border py-0.5 pl-1.5">
       <SessionList
         :sessions="props.group.sessions"
         :selected="props.selected"

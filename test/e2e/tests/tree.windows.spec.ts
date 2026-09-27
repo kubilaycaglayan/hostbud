@@ -69,14 +69,23 @@ test('(T3) Window rows follow the real terminal', async ({ page, ui, target }) =
   await target.tmux('new-session', '-d', '-s', name, '-c', '/home/dev')
   await page.reload()
   await expect(ui.treeItem(name)).toBeVisible()
-  await ui.treeItem(name).getByRole('button', { name: `Expand ${name}` }).click()
-  await expect(page.locator(`[data-tree-key^="window:host/${name}/"]`)).toHaveCount(1)
+  // One window: nothing to expand, so no chevron (M8 T2).
+  const expand = ui.treeItem(name).getByRole('button', { name: `Expand ${name}` })
+  await expect(expand).toHaveCount(0)
+  await expect(ui.treeItem(name)).not.toHaveAttribute('aria-expanded', /.*/)
+  // A second window appears live: the chevron follows, and expands to both.
   await target.tmux('new-window', '-d', '-t', `=${name}:`, '-n', 'extra')
+  await expect(expand).toBeVisible({ timeout: 5_000 })
+  await expand.click()
+  await expect(page.locator(`[data-tree-key^="window:host/${name}/"]`)).toHaveCount(2)
   const extra = page.locator(`[data-tree-key^="window:host/${name}/"]`).filter({ hasText: 'extra' })
   await expect(extra).toBeVisible({ timeout: 5_000 })
+  await target.tmux('new-window', '-d', '-t', `=${name}:`, '-n', 'third')
+  await expect(page.locator(`[data-tree-key^="window:host/${name}/"]`)).toHaveCount(3, { timeout: 5_000 })
   const index = await target.tmux('display-message', '-p', '-t', `=${name}:extra`, '#{window_index}')
   await target.tmux('kill-window', '-t', `=${name}:${index.trim()}`)
   await expect(extra).toHaveCount(0, { timeout: 5_000 })
+  await expect(page.locator(`[data-tree-key^="window:host/${name}/"]`)).toHaveCount(2)
 })
 
 test('(T3) Open at a window and pane', async ({ page, ui, target }) => {

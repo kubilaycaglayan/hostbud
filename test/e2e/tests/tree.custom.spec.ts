@@ -200,6 +200,8 @@ test('(T4) Inline rename a session', async ({ page, ui, target }) => {
   const taken = uniqueName('taken-session')
   const nextName = uniqueName('renamed-session')
   await createSession(target, oldName, path)
+  // Two windows: only a session with something to expand has a chevron (M8 T2).
+  await target.tmux('new-window', '-d', '-t', `=${oldName}:`)
   await createSession(target, taken, path)
   await page.reload()
   await expect(ui.treeItem(oldName)).toBeVisible()
@@ -224,7 +226,7 @@ test('(T4) Inline rename a session', async ({ page, ui, target }) => {
   await input.press('Enter')
   await expect(ui.treeItem(nextName)).toBeVisible()
   await expect(ui.treeItem(nextName)).toHaveAttribute('aria-expanded', 'true')
-  await expect(ui.treeItem(nextName).locator('[data-tree-key^="window:"]')).toHaveCount(1)
+  await expect(ui.treeItem(nextName).locator('[data-tree-key^="window:"]')).toHaveCount(2)
   await expect.poll(async () => (await ui.sessionNames()).indexOf(nextName)).toBe(oldIndex)
   expect((await target.run(`tmux list-clients -t ${shq('=' + nextName)} -F '#{client_pid}'`)).trim()).toBe(pid)
 })

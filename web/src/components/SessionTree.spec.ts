@@ -404,6 +404,48 @@ describe('SessionTree', () => {
     wrapper.unmount()
   })
 
+  it('compact project rows: drag and expand side by side, name-first sessions, no 44 px desktop minimums (M8 T2)', () => {
+    const wrapper = mount(SessionTree, { attachTo: document.body })
+    const project = wrapper.get('[data-tree-key="project:a"]')
+    const header = project.element.firstElementChild as HTMLElement
+    expect(header.className).toContain('min-h-9')
+    expect(header.className).toContain('gap-0.5')
+    const [drag, expand] = [...header.children] as HTMLElement[]
+    expect(drag.getAttribute('aria-label')).toBe('Drag to reorder project a')
+    expect(expand.getAttribute('aria-label')).toBe('Collapse a')
+    expect(drag.classList.contains('min-w-5')).toBe(true)
+    expect(expand.classList.contains('min-w-6')).toBe(true)
+    // Every control stays a touch target (44 px on phones) without a desktop 44 px minimum.
+    const controls = [...project.element.querySelectorAll('button')]
+    expect(controls.every((button) => button.classList.contains('touch-target'))).toBe(true)
+    expect(project.element.querySelectorAll('.min-h-11, .min-h-12, .min-w-8')).toHaveLength(0)
+    const group = project.get('[role="group"]')
+    expect(group.classes()).toEqual(expect.arrayContaining(['ml-2.5', 'py-0.5', 'pl-1.5']))
+    // Session rows lead with the name; their chevron (3 windows) follows it.
+    const row = wrapper.get('[data-tree-key="session:one"]')
+    expect(row.element.firstElementChild?.getAttribute('aria-label')).toBe('one')
+    const buttons = row.findAll('button').map((b) => b.attributes('aria-label'))
+    expect(buttons.indexOf('one')).toBeLessThan(buttons.indexOf('Expand one'))
+    // Project actions are still wired.
+    expect(project.find('button[aria-label="More actions for a"]').exists()).toBe(true)
+    expect(project.find('button[aria-label="New session in a"]').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('arrow keys skip expanding a session with nothing to expand (M8 T2)', async () => {
+    useSessionsStore().apply({ type: 'snapshot', machines: [], sessions: { host: [{ ...session('one', '/work/a'), windows: 1 }, session('two', '/work/a'), session('loose', '/outside')] } })
+    await nextTick()
+    const list = vi.spyOn(windowsApi, 'list').mockResolvedValue({ windows: [], truncated: false })
+    const wrapper = mount(SessionTree, { attachTo: document.body })
+    const row = wrapper.get('[data-tree-key="session:one"]')
+    expect(row.attributes('aria-expanded')).toBeUndefined()
+    await row.trigger('keydown', { key: 'ArrowRight' })
+    await flushPromises()
+    expect(useTreeStore().order.expanded).not.toContain('host/one')
+    expect(list).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
   it('renders lazy window and pane rows and emits their selection ids', async () => {
     const tree = useTreeStore()
     tree.order.expanded = ['host/one']
