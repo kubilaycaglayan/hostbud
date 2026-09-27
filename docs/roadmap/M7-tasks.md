@@ -15,7 +15,7 @@ Update this table in the same commit that finishes a task.
 | T3 SFTP bounds | Done |
 | T4 WebSocket limits and stalled clients | Done |
 | T5 HTTP, request and database limits | Done |
-| T6 Security headers and CSP | Not started |
+| T6 Security headers and CSP | Done |
 | T7 Container and deploy hardening | Not started |
 | T8 Tailscale identity allowlist | Not started |
 | T9 Backup and restore | Not started |

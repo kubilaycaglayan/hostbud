@@ -4,12 +4,18 @@ package api
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"mime"
 	"net/http"
 	"net/netip"
+	"net/url"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -44,11 +50,61 @@ type Config struct {
 	TrustedProxies []netip.Prefix // peers whose X-Forwarded-* headers count (Caddy)
 	// Heartbeat is how often /ws/events sends {"type":"heartbeat"}, so the
 	// browser notices a hung connection (default 15s).
-	Heartbeat      time.Duration
-	ExecTimeout    time.Duration
-	SFTPTimeout    time.Duration
-	RequestTimeout time.Duration
-	DBPing         func(context.Context) error
+	Heartbeat             time.Duration
+	ExecTimeout           time.Duration
+	SFTPTimeout           time.Duration
+	RequestTimeout        time.Duration
+	DBPing                func(context.Context) error
+	ContentSecurityPolicy string
+}
+
+var inlineScriptRE = regexp.MustCompile(`(?is)<script\b([^>]*)>(.*?)</script\s*>`)
+var scriptSourceRE = regexp.MustCompile(`(?i)\bsrc\s*=`)
+var bootCapabilityRE = regexp.MustCompile(`(?i)\bfetch\s*\(|\bXMLHttpRequest\b|\bWebSocket\b`)
+
+// BuildContentSecurityPolicy hashes the single approved inline theme boot script.
+// Any other inline script must be moved into a same-origin asset before startup.
+func BuildContentSecurityPolicy(dist fs.FS, origins []string) (string, error) {
+	index, err := fs.ReadFile(dist, "index.html")
+	if err != nil {
+		return "", fmt.Errorf("read embedded index.html for CSP: %w", err)
+	}
+	allScripts := inlineScriptRE.FindAllSubmatch(index, -1)
+	scripts := make([][]byte, 0, len(allScripts))
+	for _, script := range allScripts {
+		if !scriptSourceRE.Match(script[1]) {
+			scripts = append(scripts, script[2])
+		}
+	}
+	if len(scripts) != 1 {
+		return "", fmt.Errorf("CSP requires exactly one inline script in index.html; found %d", len(scripts))
+	}
+	if !strings.Contains(string(scripts[0]), "hostbud.theme") || !strings.Contains(string(scripts[0]), "dataset.theme") {
+		return "", errors.New("CSP inline script is not the approved hostbud theme boot script")
+	}
+	boot := string(scripts[0])
+	if len(boot) >= 1024 || bootCapabilityRE.MatchString(boot) ||
+		strings.Count(boot, "document.documentElement.") != strings.Count(boot, "document.documentElement.dataset.theme") {
+		return "", errors.New("CSP inline script exceeds the theme boot script rules")
+	}
+	hash := sha256.Sum256(scripts[0])
+	connect := []string{"'self'"}
+	for _, origin := range origins {
+		u, err := url.Parse(origin)
+		if err != nil || u.Host == "" {
+			return "", fmt.Errorf("invalid CSP origin %q", origin)
+		}
+		switch u.Scheme {
+		case "http":
+			u.Scheme = "ws"
+		case "https":
+			u.Scheme = "wss"
+		default:
+			return "", fmt.Errorf("invalid CSP origin scheme in %q", origin)
+		}
+		connect = append(connect, u.Scheme+"://"+u.Host)
+	}
+	return "default-src 'self'; script-src 'self' 'sha256-" + base64.StdEncoding.EncodeToString(hash[:]) + "'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src " + strings.Join(connect, " ") + "; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'", nil
 }
 
 // New returns the root HTTP handler.
@@ -77,7 +133,24 @@ func New(cfg Config) http.Handler {
 
 	mux := http.NewServeMux()
 	mountRoutes(s, mux)
-	return checkOrigin(cfg.Origins, requestLimits(cfg, requireAuth(cfg.Auth, mux)))
+	inner := checkOrigin(cfg.Origins, requestLimits(cfg, requireAuth(cfg.Auth, mux)))
+	return securityHeaders(cfg.ContentSecurityPolicy, inner)
+}
+
+func securityHeaders(csp string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := w.Header()
+		h.Set("X-Content-Type-Options", "nosniff")
+		h.Set("Referrer-Policy", "no-referrer")
+		h.Set("X-Frame-Options", "DENY")
+		h.Set("Cross-Origin-Opener-Policy", "same-origin")
+		h.Set("Cross-Origin-Resource-Policy", "same-origin")
+		h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()")
+		if csp != "" {
+			h.Set("Content-Security-Policy", csp)
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func mountRoutes(s *server, mux *http.ServeMux) {

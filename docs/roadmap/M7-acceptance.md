@@ -111,15 +111,15 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 
 ## Security headers and CSP
 
-- [ ] Every response (API, SPA, assets, errors, 404) carries `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Resource-Policy: same-origin` and a restrictive `Permissions-Policy` (clipboard left alone). The domain site adds HSTS (`max-age=31536000`, no `includeSubDomains`/`preload`); the loopback site and hostbud itself never send it.
+- [x] Every response (API, SPA, assets, errors, 404) carries `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Resource-Policy: same-origin` and a restrictive `Permissions-Policy` (clipboard left alone). The domain site adds HSTS (`max-age=31536000`, no `includeSubDomains`/`preload`); the loopback site and hostbud itself never send it.
   - U: T6 middleware on each response kind; no HSTS from hostbud (Go).
   - I: T6 `caddy adapt`: HSTS on the domain site only (Go, `scripts/caddy-config.sh`).
   - E: T6 *Security headers on both sites*.
-- [ ] HTML responses carry the CSP: `default-src 'self'`; `script-src 'self'` plus exactly the M6 theme boot script's hash, computed at startup from the embedded `index.html` (any other inline script is a startup error); `style-src 'self' 'unsafe-inline'` (style attributes; reasons in §11); `connect-src 'self'` plus the explicit `ws://localhost:${HOSTBUD_LOCAL_PORT}` / `wss://${HOSTBUD_DOMAIN}`; `worker-src`, `manifest-src`, `font-src` `'self'`; `img-src 'self' data: blob:`; `frame-ancestors 'none'`; `base-uri 'none'`; `form-action 'self'`; `object-src 'none'`. There's no `unsafe-eval`.
+- [x] HTML responses carry the CSP: `default-src 'self'`; `script-src 'self'` plus exactly the M6 theme boot script's hash, computed at startup from the embedded `index.html` (any other inline script is a startup error); `style-src 'self' 'unsafe-inline'` (style attributes; reasons in §11); `connect-src 'self'` plus the explicit `ws://localhost:${HOSTBUD_LOCAL_PORT}` / `wss://${HOSTBUD_DOMAIN}`; `worker-src`, `manifest-src`, `font-src` `'self'`; `img-src 'self' data: blob:`; `frame-ancestors 'none'`; `base-uri 'none'`; `form-action 'self'`; `object-src 'none'`. There's no `unsafe-eval`.
   - U: T6 CSP from the allowlist (local, domain, both); hash of a fixture `index.html`; a second inline script → startup error (Go); `check-dist` rejects a second inline script (node).
   - I: T6 the built `web/dist/index.html` hashes to what the server computes (Go, after `make build` at CP3).
   - E: T6 *Security headers on both sites* (CSP present on `/`).
-- [ ] The whole app runs under the CSP with no violations: terminals (WebGL), vim, the file browser, dialogs, the palette, theme switching, the PWA manifest and service worker, on all three profiles.
+- [x] The whole app runs under the CSP with no violations: terminals (WebGL), vim, the file browser, dialogs, the palette, theme switching, the PWA manifest and service worker, on all three profiles.
   - U: n/a: violations only happen in a real browser.
   - I: n/a: browser-side.
   - E: T6 *No CSP violations anywhere* (the fixture-level guard fails any UI scenario that triggers a violation, in all three profiles, plus the explicit tour scenario on desktop and `iphone-13-pro`). **Manual (T14):** Safari on the iPhone and the installed app show no CSP errors in Web Inspector.

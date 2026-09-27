@@ -65,6 +65,12 @@ describe('check-dist PWA validation', () => {
     writeFileSync(join(dir, 'index.html'), html.replace('</script>', ';document.documentElement.style.colorScheme="dark"</script>'))
     assert.throws(() => checkDist(dir), /set only data-theme/)
   })
+  it('rejects a second inline script', () => {
+    const dir = fixture()
+    const html = readFileSync(join(dir, 'index.html'), 'utf8')
+    writeFileSync(join(dir, 'index.html'), html.replace('</script>', '</script><script>evil()</script>'))
+    assert.throws(() => checkDist(dir), /more than one inline script/)
+  })
   it('generates the expected PNG sizes from a fixture SVG', () => {
     const dir = mkdtempSync(join(tmpdir(), 'hostbud-icons-'))
     dirs.push(dir)

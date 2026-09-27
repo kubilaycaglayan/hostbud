@@ -2,7 +2,36 @@ import { expect, test } from '../helpers/fixtures.ts'
 import { ctl } from '../helpers/ctl.ts'
 import { uniqueName } from '../helpers/target.ts'
 
-test.use({ allowedBrowserErrors: /^HTTP 504: (POST .*\/api\/machines\/host\/sessions|GET .*\/api\/machines\/host\/fs)/ })
+test.use({
+  allowedBrowserErrors: /^HTTP 504: (POST .*\/api\/machines\/host\/sessions|GET .*\/api\/machines\/host\/fs)/,
+  serviceWorkers: 'allow',
+})
+
+for (const project of ['desktop-chromium', 'iphone-13-pro']) {
+  test(`(T6) CSP tour across app surfaces on ${project}`, async ({ page, ui, target }, info) => {
+    test.skip(info.project.name !== project)
+    const name = uniqueName('csp-tour')
+    await target.tmux('new-session', '-d', '-s', name, '-c', '/home/dev')
+    await ui.open()
+    await ui.openTerminal(name)
+    await ui.type('vim', true)
+    await expect.poll(() => target.tmux('display-message', '-p', '-t', `=${name}`, '#{pane_current_command}')).toContain('vim')
+    const files = await ui.openFileBrowser()
+    await files.getByRole('button', { name: 'Close file browser' }).click()
+    await page.keyboard.press('Control+Shift+K')
+    await expect(page.getByRole('dialog', { name: 'Command palette' })).toBeVisible()
+    await page.keyboard.press('Escape')
+    await ui.openAccountMenu()
+    await page.getByRole('radio', { name: 'Light', exact: true }).check()
+    await page.getByRole('radio', { name: 'System', exact: true }).check()
+    const install = await page.evaluate(async () => {
+      const manifest = await fetch('/manifest.webmanifest').then((r) => r.json())
+      const registration = await navigator.serviceWorker.register('/sw.js')
+      return { manifest: manifest.name, worker: Boolean(registration.installing || registration.waiting || registration.active) }
+    })
+    expect(install).toEqual({ manifest: 'hostbud', worker: true })
+  })
+}
 
 for (const project of ['desktop-chromium', 'iphone-13-pro']) {
   test(`(T2) session create timeout keeps the form open on ${project}`, async ({ page, ui }, info) => {

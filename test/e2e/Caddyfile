@@ -16,6 +16,7 @@
 import hostbud.caddy
 
 hostbud.example.test {
+	header Strict-Transport-Security "max-age=31536000"
 	tls internal
 	import hostbud
 }

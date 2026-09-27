@@ -10,6 +10,9 @@ export function checkDist(dist) {
   if (!exists('index.html')) fail('missing index.html')
   if (!exists('manifest.webmanifest')) fail('missing manifest.webmanifest')
   const html = readFileSync(file('index.html'), 'utf8')
+  const inlineScripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi)]
+    .filter((match) => !/\bsrc\s*=/i.test(match[1]))
+  if (inlineScripts.length > 1) fail('index.html has more than one inline script')
   const boot = html.match(/<script>([\s\S]*?)<\/script>/)
   const firstStylesheet = html.search(/<link[^>]+rel=["']stylesheet["']/i)
   if (!boot || boot[1].length >= 1024) fail('theme boot script is missing or exceeds 1 KiB')

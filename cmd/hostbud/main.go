@@ -126,24 +126,30 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	origins := api.AllowedOrigins(cfg.Domain, cfg.LocalPort)
+	csp, err := api.BuildContentSecurityPolicy(web.Dist(), origins)
+	if err != nil {
+		return fmt.Errorf("configure Content-Security-Policy: %w", err)
+	}
 
 	srv := &http.Server{
 		Addr: cfg.Listen,
 		Handler: api.New(api.Config{
 			Log: log, Dist: web.Dist(),
-			ExecTimeout:    cfg.ExecTimeout,
-			SFTPTimeout:    cfg.SFTPTimeout,
-			DBPing:         st.Ping,
-			Origins:        api.AllowedOrigins(cfg.Domain, cfg.LocalPort),
-			Bus:            bus,
-			Machines:       []api.Snapshotter{inv},
-			Sessions:       sessions,
-			Projects:       projectService,
-			FileSystem:     filesystem,
-			Terminal:       &term.Handler{SSH: ssh, Log: log, Shutdown: ctx.Done(), MaxPerUser: cfg.MaxTerminalsPerUser, MaxTotal: cfg.MaxTerminals, AttachTimeout: cfg.ExecTimeout, AccountID: api.AuthenticatedUserID},
-			UIState:        st,
-			Auth:           accounts,
-			TrustedProxies: proxies,
+			ExecTimeout:           cfg.ExecTimeout,
+			SFTPTimeout:           cfg.SFTPTimeout,
+			DBPing:                st.Ping,
+			Origins:               origins,
+			ContentSecurityPolicy: csp,
+			Bus:                   bus,
+			Machines:              []api.Snapshotter{inv},
+			Sessions:              sessions,
+			Projects:              projectService,
+			FileSystem:            filesystem,
+			Terminal:              &term.Handler{SSH: ssh, Log: log, Shutdown: ctx.Done(), MaxPerUser: cfg.MaxTerminalsPerUser, MaxTotal: cfg.MaxTerminals, AttachTimeout: cfg.ExecTimeout, AccountID: api.AuthenticatedUserID},
+			UIState:               st,
+			Auth:                  accounts,
+			TrustedProxies:        proxies,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
 		MaxHeaderBytes:    32 << 10,

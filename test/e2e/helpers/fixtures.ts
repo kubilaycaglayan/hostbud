@@ -38,6 +38,21 @@ export const test = base.extend<Fixtures>({
       // A failed load names its URL only in the location.
       if (m.type() === 'error') report(`console error: ${m.text()} @ ${m.location().url}`)
     })
+    await page.exposeBinding('__hostbudCSPViolation', (_source, details: unknown) => {
+      problems.push(`securitypolicyviolation: ${JSON.stringify(details)}`)
+    })
+    await page.addInitScript(() => {
+      window.addEventListener('securitypolicyviolation', (event) => {
+        const report = (window as Window & { __hostbudCSPViolation?: (detail: unknown) => void }).__hostbudCSPViolation
+        report?.({
+          blockedURI: event.blockedURI,
+          violatedDirective: event.violatedDirective,
+          effectiveDirective: event.effectiveDirective,
+          sourceFile: event.sourceFile,
+          lineNumber: event.lineNumber,
+        })
+      })
+    })
     page.on('pageerror', (e) => report(`uncaught: ${e.message}`))
     page.on('requestfailed', (r) =>
       report(`request failed: ${r.method()} ${r.url()} (${r.failure()?.errorText})`),

@@ -15,6 +15,7 @@ import hostbud.caddy
 # the token is read from the environment at runtime. ACME_EMAIL is optional
 # (an empty value drops the argument).
 {$HOSTBUD_DOMAIN} {
+	header Strict-Transport-Security "max-age=31536000"
 	tls {$ACME_EMAIL} {
 		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
 		# Find the zone through public resolvers: Docker's DNS (forwarding to

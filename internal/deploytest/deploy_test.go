@@ -346,6 +346,28 @@ func upstreams(v any) []string {
 	return out
 }
 
+func responseHeader(v any, name string) []string {
+	var out []string
+	switch x := v.(type) {
+	case map[string]any:
+		if x["handler"] == "headers" {
+			if values, ok := dig(x, "response", "set", name).([]any); ok {
+				for _, value := range values {
+					out = append(out, fmt.Sprint(value))
+				}
+			}
+		}
+		for _, child := range x {
+			out = append(out, responseHeader(child, name)...)
+		}
+	case []any:
+		for _, child := range x {
+			out = append(out, responseHeader(child, name)...)
+		}
+	}
+	return out
+}
+
 func TestCaddyfileServesBothSites(t *testing.T) {
 	raw, cfg := adapted(t, "adapt.json")
 	if dig(cfg, "admin", "disabled") != true {
@@ -364,9 +386,15 @@ func TestCaddyfileServesBothSites(t *testing.T) {
 		switch listen {
 		case "[:443]":
 			tlsSite = fmt.Sprint(dig(srv, "routes", 0, "match", 0, "host")) == "["+placeholderDomain+"]"
+			if got := responseHeader(srv, "Strict-Transport-Security"); fmt.Sprint(got) != "[max-age=31536000]" {
+				t.Errorf("domain HSTS = %v, want max-age=31536000 only", got)
+			}
 		case "[:9055]":
 			// Plain HTTP: no TLS on the loopback site.
 			localSite = dig(srv, "tls_connection_policies") == nil
+			if got := responseHeader(srv, "Strict-Transport-Security"); len(got) != 0 {
+				t.Errorf("loopback site must not send HSTS, got %v", got)
+			}
 		default:
 			t.Errorf("unexpected server %s listening on %s", name, listen)
 		}
