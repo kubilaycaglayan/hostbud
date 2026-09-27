@@ -110,6 +110,44 @@ func TestIntegrationPollerReportsForegroundAgentCommand(t *testing.T) {
 	}
 }
 
+	testenv.Sh(t, c, "ln -sf /bin/sleep /home/dev/coy")
+	testenv.Sh(t, c, "tmux send-keys -t =inventory-agent-it: '/home/dev/coy 60' Enter")
+func TestIntegrationPollerReportsProviderHookStatus(t *testing.T) {
+	inv, _, c := run(t, testenv.SSHD)
+	testenv.Sh(t, c, "tmux kill-session -t =inventory-hook-status-it 2>/dev/null; true")
+	t.Cleanup(func() { testenv.Sh(t, c, "tmux kill-session -t =inventory-hook-status-it 2>/dev/null; true") })
+	testenv.Sh(t, c, "ln -sf /bin/sleep /home/dev/coy")
+	testenv.Sh(t, c, "tmux new-session -d -s inventory-hook-status-it -c /home/dev")
+	testenv.Sh(t, c, "tmux send-keys -t =inventory-hook-status-it: '/home/dev/coy 60' Enter")
+	testenv.Sh(t, c, "tmux set-option -p -t =inventory-hook-status-it: @hostbud_agent_status working")
+	if err := inv.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	_, sessions := inv.Snapshot()
+	got, ok := findSession(sessions, "inventory-hook-status-it")
+	if !ok || got.Status != tmux.AgentWorking {
+		t.Fatalf("working hook status = %+v (found %v)", got, ok)
+	}
+	testenv.Sh(t, c, "tmux set-option -p -t =inventory-hook-status-it: @hostbud_agent_status blocked")
+	if err := inv.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	_, sessions = inv.Snapshot()
+	got, ok = findSession(sessions, "inventory-hook-status-it")
+	if !ok || got.Status != tmux.AgentBlocked {
+		t.Fatalf("blocked hook status = %+v (found %v)", got, ok)
+	}
+	testenv.Sh(t, c, "tmux send-keys -t =inventory-hook-status-it: C-c")
+	if err := inv.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	_, sessions = inv.Snapshot()
+	got, ok = findSession(sessions, "inventory-hook-status-it")
+	if !ok || got.Status != tmux.AgentEnded {
+		t.Fatalf("ended status after shell resumes = %+v (found %v)", got, ok)
+	}
+}
+
 func findSession(sessions []tmux.Session, name string) (tmux.Session, bool) {
 	for _, session := range sessions {
 		if session.Name == name {

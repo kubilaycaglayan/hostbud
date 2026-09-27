@@ -57,16 +57,27 @@ describe('service worker cache lifecycle', () => {
     expect([...records.keys()]).toEqual(['hostbud-shell-current', 'other-app-cache'])
   })
 
-  it('serves navigation and precached assets cache-first without writing runtime entries', async () => {
+  it('refreshes the navigation shell from the network and keeps precached assets cache-first', async () => {
     const shell = new Response('shell')
     const asset = new Response('asset')
     const { cacheStorage, records, putCalls } = fakeCaches({ 'hostbud-shell-v1': { '/': shell, '/assets/app.js': asset } })
-    const fetcher = vi.fn(async () => new Response('network'))
-    expect(await handleFetch(fakeRequest('/session/a', 'GET', 'navigate'), 'https://hostbud.example.test', cacheStorage, 'hostbud-shell-v1', ['/assets/app.js'], fetcher)).toBe(shell)
+    const fetcher = vi.fn(async () => new Response('fresh shell'))
+    const navigation = await handleFetch(fakeRequest('/session/a', 'GET', 'navigate'), 'https://hostbud.example.test', cacheStorage, 'hostbud-shell-v1', ['/assets/app.js'], fetcher)
+    expect(await navigation?.text()).toBe('fresh shell')
     expect(await handleFetch(fakeRequest('/assets/app.js'), 'https://hostbud.example.test', cacheStorage, 'hostbud-shell-v1', ['/assets/app.js'], fetcher)).toBe(asset)
-    expect(fetcher).not.toHaveBeenCalled()
+    expect(fetcher).toHaveBeenCalledTimes(1)
     expect(records.get('hostbud-shell-v1')?.size).toBe(2)
-    expect(putCalls()).toBe(0)
+    expect(putCalls()).toBe(1)
+    expect(await records.get('hostbud-shell-v1')?.get('/')?.text()).toBe('fresh shell')
+  })
+
+  it('falls back to the cached app shell when a navigation request is offline', async () => {
+    const shell = new Response('cached shell')
+    const { cacheStorage } = fakeCaches({ 'hostbud-shell-v1': { '/': shell } })
+    const fetcher = vi.fn(async () => { throw new TypeError('offline') })
+    const response = await handleFetch(fakeRequest('/session/a', 'GET', 'navigate'), 'https://hostbud.example.test', cacheStorage, 'hostbud-shell-v1', [], fetcher)
+    expect(response).toBe(shell)
+    expect(fetcher).toHaveBeenCalledOnce()
   })
 
   it.each(['/api/auth/me', '/api/machines/host/sessions', '/ws/events', '/ws/term?session=x'])('leaves %s to the network with no runtime cache write', async (url) => {

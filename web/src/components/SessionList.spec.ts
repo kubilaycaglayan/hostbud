@@ -79,6 +79,30 @@ describe('SessionList', () => {
     expect(w.find('[data-agent-mark]').exists()).toBe(false)
   })
 
+  it('shows agent logos before hook status and the unchanged name on collapsed gutter rows', () => {
+    setActivePinia(createPinia())
+    for (const [status, emoji, label] of [
+      ['working', '🟢', 'Working'],
+      ['blocked', '🚧', 'Blocked or waiting'],
+      ['ended', '🎯', 'Ended'],
+    ] as const) {
+      const w = mount(SessionList, { props: { sessions: [{ ...s('status-session'), agents: ['codex'], status }], treeView: true } })
+      const row = w.get('li')
+      expect(row.get('[data-session-status]').text()).toBe(emoji)
+      expect(row.get('[data-session-status]').attributes('aria-label')).toBe(label)
+      expect(row.attributes('aria-label')).toBe(`status-session, ${label}, Codex running`)
+      expect(row.get('[data-session-row]').attributes('aria-label')).toBe('status-session')
+      expect(row.element.firstElementChild?.getAttribute('data-agent')).toBe('codex')
+      expect(row.element.children[1]?.hasAttribute('data-session-status')).toBe(true)
+      w.unmount()
+    }
+  })
+
+  it('keeps status marks out of non-gutter session lists', () => {
+    const w = mount(SessionList, { props: { sessions: [{ ...s('status-session'), status: 'working' }] } })
+    expect(w.find('[data-session-status]').exists()).toBe(false)
+  })
+
   it('emits select and marks the selected session', async () => {
     const w = mount(SessionList, { props: { sessions: [s('a'), s('b')], selected: 'b' } })
     expect(w.get('button[aria-label="b"]').attributes('aria-current')).toBe('true')

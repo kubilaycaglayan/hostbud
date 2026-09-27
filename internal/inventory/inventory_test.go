@@ -12,6 +12,7 @@ import (
 
 	"hostbud/internal/events"
 	"hostbud/internal/sshx"
+	"hostbud/internal/tmux"
 )
 
 // fakeExec answers the probe and list-sessions from mutable state.
@@ -30,12 +31,12 @@ type fakeExec struct {
 func (f *fakeExec) Exec(_ context.Context, _ string, args ...string) ([]byte, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if args[0] == "sh" {
-		return []byte(f.probeOut), f.probeErr
-	}
 	if strings.Contains(strings.Join(args, " "), "list-panes") {
 		f.paneCalls++
 		return []byte(f.paneOut), f.paneErr
+	}
+	if args[0] == "sh" {
+		return []byte(f.probeOut), f.probeErr
 	}
 	f.listCalls++
 	return []byte(f.listOut), f.listErr
@@ -197,31 +198,34 @@ func TestPaneAgentChangesPublishCollapsedSessionMetadata(t *testing.T) {
 	h := start(t, f)
 	h.drain()
 
-	f.set(func(f *fakeExec) { f.paneOut = "P\ta\tcodex\n" })
+	f.set(func(f *fakeExec) { f.paneOut = "P\ta\t%1\tcoy\tworking\tcodex,\n" })
 	h.step()
 	evs := h.drain()
 	if len(evs) != 1 || evs[0].Type != events.SessionsChanged {
 		t.Fatalf("agent appearance events = %+v", evs)
 	}
 	sessions := evs[0].Payload.(SessionsChanged).Sessions
-	if len(sessions) != 1 || !slices.Equal(sessions[0].Agents, []string{"codex"}) {
+	if len(sessions) != 1 || !slices.Equal(sessions[0].Agents, []string{"codex"}) || sessions[0].Status != tmux.AgentWorking {
 		t.Fatalf("session agent metadata = %+v", sessions)
 	}
 
-	f.set(func(f *fakeExec) { f.paneOut = "P\ta\tbash\n" })
+	f.set(func(f *fakeExec) { f.paneOut = "P\ta\t%1\tbash\tworking\t\n" })
 	h.step()
 	evs = h.drain()
-	if len(evs) != 1 || len(evs[0].Payload.(SessionsChanged).Sessions[0].Agents) != 0 {
+	if len(evs) != 1 || len(evs[0].Payload.(SessionsChanged).Sessions[0].Agents) != 0 || evs[0].Payload.(SessionsChanged).Sessions[0].Status != tmux.AgentEnded {
 		t.Fatalf("agent exit events = %+v", evs)
 	}
 
-	f.set(func(f *fakeExec) { f.paneOut = "P\ta\tcodex\n" })
+	f.set(func(f *fakeExec) { f.paneOut = "P\ta\t%1\tcoy\tblocked\tcodex,\n" })
 	h.step()
-	h.drain()
+	evs = h.drain()
+	if len(evs) != 1 || evs[0].Payload.(SessionsChanged).Sessions[0].Status != tmux.AgentBlocked {
+		t.Fatalf("blocked status event = %+v", evs)
+	}
 	f.set(func(f *fakeExec) { f.paneErr = errors.New("supplementary query failed") })
 	h.step()
 	_, got := h.inv.Snapshot()
-	if !slices.Equal(got[0].Agents, []string{"codex"}) {
+	if !slices.Equal(got[0].Agents, []string{"codex"}) || got[0].Status != tmux.AgentBlocked {
 		t.Fatalf("failed supplementary query cleared the last known agent: %+v", got)
 	}
 }

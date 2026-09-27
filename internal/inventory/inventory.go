@@ -279,22 +279,25 @@ func (inv *Inventory) poll(ctx context.Context) bool {
 	}
 
 	// Keep the session list useful even if this supplementary metadata query
-	// fails. Preserve the last known marks until another successful query;
-	// arbitrary process names/arguments stay remote.
+	// fails. Preserve the last known marks and hook statuses until another
+	// successful query; arbitrary process names/arguments stay remote.
 	if len(sessions) > 0 {
 		inv.mu.Lock()
-		previousAgents := make(map[string][]string, len(inv.sessions))
+		previous := make(map[string]tmux.Session, len(inv.sessions))
 		for _, session := range inv.sessions {
-			previousAgents[session.Name] = append([]string(nil), session.Agents...)
+			previous[session.Name] = session
 		}
 		inv.mu.Unlock()
 		for i := range sessions {
-			sessions[i].Agents = previousAgents[sessions[i].Name]
+			sessions[i].Agents = append([]string(nil), previous[sessions[i].Name].Agents...)
+			sessions[i].Status = previous[sessions[i].Name].Status
 		}
 		if paneOut, paneErr := inv.exec.Exec(ctx, inv.opt.MachineID, tmux.ListPaneCommands()...); paneErr == nil {
-			if agents, parseErr := tmux.ParsePaneAgents(string(paneOut)); parseErr == nil {
+			if metadata, parseErr := tmux.ParsePaneMetadata(string(paneOut)); parseErr == nil {
 				for i := range sessions {
-					sessions[i].Agents = agents[sessions[i].Name]
+					item := metadata[sessions[i].Name]
+					sessions[i].Agents = item.Agents
+					sessions[i].Status = item.Status
 				}
 			}
 		}
@@ -399,5 +402,5 @@ func (inv *Inventory) setSessions(sessions []tmux.Session) {
 func sameSession(a, b tmux.Session) bool {
 	return a.ID == b.ID && a.Name == b.Name && a.Path == b.Path &&
 		a.ProjectID == b.ProjectID && a.Attached == b.Attached && a.Windows == b.Windows &&
-		a.Created.Equal(b.Created) && slices.Equal(a.Agents, b.Agents)
+		a.Created.Equal(b.Created) && slices.Equal(a.Agents, b.Agents) && a.Status == b.Status
 }

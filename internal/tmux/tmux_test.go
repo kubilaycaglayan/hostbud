@@ -284,26 +284,39 @@ func TestParseSessions(t *testing.T) {
 	}
 }
 
-func TestParsePaneAgents(t *testing.T) {
-	if got, want := ListPaneCommands(), []string{"env", "LC_ALL=C.UTF-8", "tmux", "list-panes", "-a", "-F", "P\t#{session_name}\t#{pane_current_command}"}; !slices.Equal(got, want) {
+func TestParsePaneMetadataAgentAliases(t *testing.T) {
+	if got, want := ListPaneCommands(), []string{"sh", "-c", paneMetadataScript}; !slices.Equal(got, want) {
 		t.Fatalf("ListPaneCommands() = %q, want %q", got, want)
 	}
-	got, err := ParsePaneAgents("P\tacc-a\tcodex\nP\tacc-a\tbash\nP\tacc-a\tclaude\nP\tacc-b\tvim\nP\tacc-c\tCLAUDE-CODE\nP\tlegacy.session\tcodex\n")
+	got, err := ParsePaneMetadata("P\tacc-a\t%1\tcodex\tworking\t\nP\tacc-a\t%2\tbash\t\t\nP\tacc-a\t%3\tclaude\tblocked\t\nP\tacc-b\t%4\tvim\t\t\nP\tacc-c\t%5\tCLAUDE-CODE\tended\t\nP\tacc-d\t%6\tcodex-linux-x64\t\t\nP\tacc-e\t%7\t/usr/local/bin/codex\t\t\nP\tacc-f\t%8\tcoy\t\t\nP\tacc-g\t%9\tcly\t\t\nP\tlegacy.session\t%10\tcodex\t\t\nP\tforced-exit\t%11\tbash\tworking\t\nP\tforced-exit\t%12\tbash\tblocked\t\nP\tchild-command\t%13\tvim\tworking\t\nP\tnode-launcher\t%14\tnode\tworking\tcodex,\nP\tboth-processes\t%15\tnode\t\tcodex,claude\n")
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := map[string][]string{"acc-a": {"codex", "claude"}, "acc-c": {"claude"}, "legacy.session": {"codex"}}
+	want := map[string]PaneMetadata{
+		"acc-a":          {Agents: []string{"codex", "claude"}, Status: AgentBlocked},
+		"acc-b":          {},
+		"acc-c":          {Agents: []string{"claude"}, Status: AgentEnded},
+		"acc-d":          {Agents: []string{"codex"}},
+		"acc-e":          {Agents: []string{"codex"}},
+		"acc-f":          {Agents: []string{"codex"}},
+		"acc-g":          {Agents: []string{"claude"}},
+		"legacy.session": {Agents: []string{"codex"}},
+		"forced-exit":    {Status: AgentEnded},
+		"child-command":  {Status: AgentWorking},
+		"node-launcher":  {Agents: []string{"codex"}, Status: AgentWorking},
+		"both-processes": {Agents: []string{"codex", "claude"}},
+	}
 	if len(got) != len(want) {
 		t.Fatalf("agents = %#v, want %#v", got, want)
 	}
-	for session, agents := range want {
-		if !slices.Equal(got[session], agents) {
-			t.Fatalf("agents[%s] = %#v, want %#v", session, got[session], agents)
+	for session, metadata := range want {
+		if !slices.Equal(got[session].Agents, metadata.Agents) || got[session].Status != metadata.Status {
+			t.Fatalf("metadata[%s] = %#v, want %#v", session, got[session], metadata)
 		}
 	}
-	for _, bad := range []string{"x\tacc\tcodex\n", "P\t\tcodex\n", "P\tacc\tclaude\textra\n"} {
-		if _, err := ParsePaneAgents(bad); err == nil {
-			t.Errorf("ParsePaneAgents(%q) accepted", bad)
+	for _, bad := range []string{"x\tacc\t%1\tcodex\t\t\n", "P\t\t%1\tcodex\t\t\n", "P\tacc\tno-pane\tcodex\t\t\n", "P\tacc\t%1\tclaude\textra\textra\n", "P\tacc\t%1\tbash\t\tother\n"} {
+		if _, err := ParsePaneMetadata(bad); err == nil {
+			t.Errorf("ParsePaneMetadata(%q) accepted", bad)
 		}
 	}
 }

@@ -24,6 +24,16 @@ export function handleFetch(
   const cacheUrl = route === 'shell' ? '/' : new URL(request.url).pathname
   return cacheStorage.open(cacheName).then(async (cache) => {
     const cached = await cache.match(cacheUrl)
+    if (route === 'shell') {
+      try {
+        const response = await fetcher(request)
+        if (response.ok) await cache.put(cacheUrl, response.clone())
+        return response
+      } catch (error) {
+        if (cached) return cached
+        throw error
+      }
+    }
     return cached ?? fetcher(request)
   })
 }

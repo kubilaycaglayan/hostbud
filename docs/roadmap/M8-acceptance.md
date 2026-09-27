@@ -98,9 +98,17 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
 
 - [ ] Collapsed session rows show tiny colored Codex and Claude Code marks when any pane's foreground command is recognized. A session with both harnesses shows both marks in stable order; ordinary commands show none. Marks appear without opening window/pane details, stay in the left gutter only, and are exposed accessibly without changing the session name or row actions.
   - U: T12 command-to-agent parsing, unknown-command handling and inventory event changes (Go); T12 compact mark order, placement, accessible label and gutter-only behavior (Vitest).
-  - I: T12 `TestIntegrationPollerReportsForegroundAgentCommand` against `test/sshd`, including clearing the agent when its fake foreground command exits.
-  - E: T12 *Agent logos appear on collapsed session rows* (desktop and iPhone 13 Pro), including both marks from separate panes and no mark for an ordinary shell.
-  - Status: Go unit and integration coverage and the Vitest component coverage pass; E2E is written/type-checked and its full run is on demand.
+  - I: T12 `TestIntegrationPollerReportsForegroundAgentCommand` against `test/sshd`, launching the Codex alias `coy` and clearing its mark when the fake foreground command exits; `TestIntegrationPollerFindsCodexProcessBehindNodeForeground` covers the Node-launched Codex process.
+  - E: T12 *Agent logos appear on collapsed session rows* (desktop and iPhone 13 Pro), including the Codex child process behind foreground `node`, the `cly` alias and no mark for an ordinary shell.
+  - Status: Go unit tests and focused `test/sshd` integration coverage for canonical and Node-launched Codex processes pass; Vitest component coverage passes. E2E covers the Node-launched Codex case and `cly`; the owner asked to skip E2E during this check, so its updated scenario is not type-checked or run yet.
+
+## Provider hook status in the left session list
+
+- [ ] Configured Codex and Claude Code hooks report work-in-progress, blocked/waiting and ended states for tmux panes. Collapsed session rows show 🟢, 🚧 or 🎯 at the beginning of the displayed name without changing the actual name; no status appears before a hook signal. In a session with multiple agent panes, blocked takes priority over working, and working takes priority over ended. A tracked agent that returns to a known interactive shell without sending a session-end hook is shown as ended.
+  - U: T13 Python hook event mapping and safe tmux target validation; Go pane metadata parsing, forced-exit inference, aggregation and event diffing; Vitest emoji mapping, accessible label, collapsed-row placement, gutter-only rendering and unchanged session name; service-worker network-first shell refresh and offline fallback.
+  - I: T13 `TestIntegrationPollerReportsProviderHookStatus` (`test/sshd`) verifies tmux pane-option working/blocked signals and ended inference after the foreground agent exits.
+  - E: T13 *Provider hook status appears before a collapsed session name* (desktop and iPhone 13 Pro), verifies all three status marks and multi-pane priority without expanding the row, then confirms status survives an ordinary refresh despite a stale cached shell.
+  - Manual (owner, open): install each user's Codex and Claude Code hooks following README instructions and confirm real `UserPromptSubmit`, wait/permission and `SessionEnd` signals on the target host; provider behavior cannot be exercised by fake foreground executables alone.
 
 ## Manual checks (owner)
 

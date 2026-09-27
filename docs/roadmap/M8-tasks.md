@@ -20,6 +20,7 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 | T8 Dictation editor, focus return and terminal text view | Implemented; e2e written and type-checked, run pending (on demand) |
 | T9 Touch scrolling through tmux | Implemented; e2e written, not run yet |
 | T12 Agent marks on session rows | Implemented; focused unit/integration pass; e2e written and type-checked, run pending (on demand) |
+| T13 Provider hook status on session rows | In progress |
 
 **Progress note (T2–T4, 2026-09-27):** Vitest (447 tests), eslint, `vue-tsc` and the e2e `tsc` passed; deployed to the host from a clean checkout of `f664bb8` (a pre-deploy `pg_dump` is in `backups/`), and the stack came up healthy. Still open for these tasks:
 - **E2E runs:** the scenarios *(T2) Compact tree*, *(T3) Compact file browser*, *(T3) No browser autocomplete outside login password* and *(T4) Custom tab order* type-check but haven't run: e2e runs only on demand. The T2 commit also updated two M6 scenarios that expanded single-window sessions (*(T4) Inline rename a session*, *(T3) Window rows follow the real terminal*).
@@ -146,7 +147,17 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 - Add only recognized agent names to session metadata by reading pane foreground commands during the regular inventory poll. Discard other command names and all arguments. Detection is best-effort and must not change tmux configuration.
 - Include the metadata in session snapshots/events so the mark appears on collapsed session rows without fetching window/pane details. Re-evaluate it on each poll and publish changes when marks appear or disappear.
 
-**Tests:** U: T12 Go parsing/inventory tests cover known and unknown commands plus agent appearance/disappearance; Vitest covers small colored logos before the name, stable order, accessible labeling and left-gutter-only display. I: T12 `TestIntegrationPollerReportsForegroundAgentCommand` runs a fake `codex` executable on `test/sshd` and verifies the mark clears when it exits. E: T12 *Agent logos appear on collapsed session rows* (desktop and iPhone 13 Pro), using fake Codex and Claude processes on the throwaway target.
+**Tests:** U: T12 Go parsing/inventory tests cover canonical command names, the owner's `coy`/`cly` aliases, recognized agent processes behind `node`, unknown commands and agent appearance/disappearance; Vitest covers small colored logos before the name, stable order, accessible labeling and left-gutter-only display. I: T12 `TestIntegrationPollerReportsForegroundAgentCommand` covers the `coy` alias and disappearance; `TestIntegrationPollerFindsCodexProcessBehindNodeForeground` covers the Codex process behind a `node` foreground command on `test/sshd`. E: T12 *Agent logos appear on collapsed session rows* (desktop and iPhone 13 Pro), using a fake Codex process behind `node` and fake `cly` on the throwaway target.
+
+**E2E:** Add T12 *Agent logos appear on collapsed session rows* (desktop and iPhone 13 Pro): run a fake Codex process with `node` as the foreground command and a fake `cly` process in separate panes, verify both compact colored marks appear on the session row without expanding it, and verify an ordinary shell session has no mark. Type-check only; runs on demand.
+
+## T13 — Provider hook status on session rows
+
+- Ship one Python 3 hook handler for Codex and Claude Code. Document user-wide target-host installation by merging handlers into `~/.codex/hooks.json` and `~/.claude/settings.json`; do not overwrite existing hook settings. Hooks write a fixed status value to a pane-scoped tmux user option, and events outside tmux are ignored.
+- Map prompt/tool activity to `working`, approval/turn-end/idle/interruption events to `blocked`, and provider session end to `ended`. Inventory reads pane status during the normal pane metadata poll and publishes aggregated status with session snapshots/events. If a known interactive shell resumes while an active status remains, report ended to cover common forced exits.
+- Show agent logos first, then 🟢, 🚧 or 🎯, then the session name in the collapsed left gutter row; preserve actual names and accessible labels. Aggregate one status per session by priority: blocked, working, ended. Omit the marker until a hook reports a known state.
+
+**Tests:** U: T13 Python hook mapping/target validation, Go pane metadata parsing and session status aggregation/change events, Vitest agent-logo/status order, accessible status text, unchanged session name and gutter-only rendering, and service-worker network-first shell refresh with offline fallback. I: T13 `TestIntegrationPollerReportsProviderHookStatus` sets pane options on `test/sshd`, checks working/blocked states and ended inference after the foreground process exits. E: T13 *Agent logos appear before provider hook status on collapsed session rows* (desktop and iPhone 13 Pro), covering all three marks, multi-pane aggregation, and status persistence across an ordinary refresh with a stale cached shell.
 
 **E2E:** Add T12 *Agent logos appear on collapsed session rows* (desktop and iPhone 13 Pro): run fake `codex` and `claude` foreground commands in separate panes, verify both compact colored marks appear on the session row without expanding it, and verify an ordinary shell session has no mark. Type-check only; runs on demand.
 

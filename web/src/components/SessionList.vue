@@ -54,8 +54,20 @@ function windowError(name: string) {
   return [error.message, error.hint].filter(Boolean).join(' ')
 }
 function agentLabel(agent: 'codex' | 'claude') { return agent === 'codex' ? 'Codex running' : 'Claude Code running' }
+function statusLabel(status: Session['status']) {
+  if (status === 'working') return 'Working'
+  if (status === 'blocked') return 'Blocked or waiting'
+  if (status === 'ended') return 'Ended'
+  return ''
+}
+function statusEmoji(status: Session['status']) {
+  if (status === 'working') return '🟢'
+  if (status === 'blocked') return '🚧'
+  if (status === 'ended') return '🎯'
+  return ''
+}
 function sessionLabel(s: Session) {
-  return [s.name, ...(s.agents ?? []).map(agentLabel), ...(isHidden(s.name) ? ['hidden'] : [])].join(', ')
+  return [s.name, statusLabel(s.status), ...(s.agents ?? []).map(agentLabel), ...(isHidden(s.name) ? ['hidden'] : [])].filter(Boolean).join(', ')
 }
 function visibleAgents(s: Session): ('codex' | 'claude')[] {
   if (!props.treeView) return []
@@ -169,12 +181,21 @@ const sortableSessions = computed({
       class="flex flex-wrap items-center gap-0.5 rounded px-1"
       :class="[s.name === props.selected ? 'bg-bg' : '', isHidden(s.name) ? 'opacity-50' : '']"
     >
-      <!-- The name leads (M8 T2); status, expand and actions follow. -->
+      <!-- Agent logos and status are display-only prefixes; the session's actual name stays unchanged. -->
       <AgentMark
         v-for="agent in visibleAgents(s)"
         :key="agent"
         :agent="agent"
       />
+      <span
+        v-if="props.treeView && s.status"
+        role="img"
+        data-session-status
+        :data-status="s.status"
+        :aria-label="statusLabel(s.status)"
+        :title="statusLabel(s.status)"
+        class="shrink-0 text-xs leading-none"
+      >{{ statusEmoji(s.status) }}</span>
       <InlineRename
         v-if="props.treeView && props.editingName === s.name"
         :name="s.name"

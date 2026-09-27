@@ -20,6 +20,7 @@ export interface Session {
   name: string
   path: string
   agents?: ('codex' | 'claude')[]
+  status?: 'working' | 'blocked' | 'ended'
   projectId?: string
   attached: number
   windows: number

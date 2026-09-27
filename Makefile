@@ -5,6 +5,7 @@ GO_IMAGE       ?= golang:1.27.1-bookworm
 LINT_IMAGE     ?= golangci/golangci-lint:v2.14.0
 GITLEAKS_IMAGE ?= zricethezav/gitleaks:v8.30.1
 NODE_IMAGE     ?= node:24.21.0-bookworm-slim
+PYTHON_IMAGE   ?= python:3.13-slim-bookworm
 
 # Tools run in long-lived toolbox containers (scripts/tool.sh): created on
 # first use, then reused via `docker exec`. `make tools-down` removes them.
@@ -15,7 +16,7 @@ GOLANGCI = scripts/tool.sh lint $(LINT_IMAGE) .
 # pnpm comes from corepack (version pinned by each package.json "packageManager").
 PNPM     = scripts/tool.sh node $(NODE_IMAGE) web corepack pnpm
 PNPM_E2E = scripts/tool.sh node $(NODE_IMAGE) test/e2e corepack pnpm
-SHELL_TOOL = scripts/tool.sh shell debian:bookworm-slim .
+SHELL_TOOL = scripts/tool.sh shell $(PYTHON_IMAGE) .
 GITLEAKS = scripts/tool.sh gitleaks $(GITLEAKS_IMAGE) . gitleaks
 
 .PHONY: help build test lint fmt tidy icons gitleaks gitleaks-staged hooks \
@@ -91,6 +92,7 @@ docs-lint: ## Check README targets, env docs and documentation links
 	scripts/check-docs.sh
 
 shell-test: ## Run shell script fixture tests in a container
+	$(SHELL_TOOL) python3 scripts/test-agent-status-hook.py
 	$(SHELL_TOOL) sh scripts/test-doctor.sh
 	$(SHELL_TOOL) sh scripts/test-docs.sh
 

@@ -6,6 +6,7 @@ package tmux
 import (
 	"errors"
 	"fmt"
+	"path"
 	"regexp"
 	"slices"
 	"strconv"
@@ -34,16 +35,26 @@ func target(name string) string { return "=" + name }
 
 // Session is one line of list-sessions.
 type Session struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	Path      string    `json:"path"`
-	Agents    []string  `json:"agents,omitempty"`
-	ProjectID string    `json:"projectId,omitempty"`
-	Attached  int       `json:"attached"` // number of attached clients
-	Windows   int       `json:"windows"`
-	Created   time.Time `json:"created"`
-	Activity  time.Time `json:"activity"`
+	ID        string      `json:"id"`
+	Name      string      `json:"name"`
+	Path      string      `json:"path"`
+	Agents    []string    `json:"agents,omitempty"`
+	Status    AgentStatus `json:"status,omitempty"`
+	ProjectID string      `json:"projectId,omitempty"`
+	Attached  int         `json:"attached"` // number of attached clients
+	Windows   int         `json:"windows"`
+	Created   time.Time   `json:"created"`
+	Activity  time.Time   `json:"activity"`
 }
+
+// AgentStatus is the most urgent hook-reported agent state in a session.
+type AgentStatus string
+
+const (
+	AgentWorking AgentStatus = "working"
+	AgentBlocked AgentStatus = "blocked"
+	AgentEnded   AgentStatus = "ended"
+)
 
 // listFormat is ':'-separated. tmux never allows ':' in session names (it
 // rewrites them), the other fields are ids and numbers, and the path comes
@@ -93,48 +104,130 @@ func ParseSessions(out string) ([]Session, error) {
 // foreground command. It is used to decorate session rows without loading
 // full window metadata or exposing arbitrary process arguments.
 func ListPaneCommands() []string {
-	return []string{"env", "LC_ALL=C.UTF-8", "tmux", "list-panes", "-a", "-F", "P\t#{session_name}\t#{pane_current_command}"}
+	return []string{"sh", "-c", paneMetadataScript}
 }
 
-// ParsePaneAgents extracts only recognized foreground harness names by
-// session. Other command names and all command arguments are discarded.
-func ParsePaneAgents(out string) (map[string][]string, error) {
-	found := make(map[string]map[string]bool)
+// paneMetadataScript combines tmux's foreground command with recognized
+// process names attached to the pane's TTY. Some launchers (including Codex)
+// leave a generic runtime such as node as tmux's foreground command while the
+// agent process remains in the same terminal process group. Only recognized
+// agent names leave the host; other process names and all arguments stay local.
+const paneMetadataScript = `tmux list-panes -a -F 'P|#{session_name}|#{pane_id}|#{pane_current_command}|#{@hostbud_agent_status}|#{pane_tty}' |
+while IFS='|' read -r marker session pane command status tty; do
+	[ "$marker" = P ] || continue
+	tty=${tty#/dev/}
+	agents=$(ps -t "$tty" -o comm= 2>/dev/null | awk '
+		{
+			command = tolower($1)
+			if (command == "codex" || command == "coy" || command ~ /^codex-/) codex = 1
+			if (command == "claude" || command == "claude-code" || command == "cly") claude = 1
+		}
+		END { if (codex) printf "codex"; printf ","; if (claude) printf "claude" }
+	')
+	printf 'P\t%s\t%s\t%s\t%s\t%s\n' "$session" "$pane" "$command" "$status" "$agents"
+done`
+
+type PaneMetadata struct {
+	Agents []string
+	Status AgentStatus
+}
+
+// ParsePaneMetadata extracts recognized foreground harness names and hook
+// status markers by session. Other command names and all command arguments
+// are discarded. Active markers whose agent process has disappeared are
+// treated as ended when a known interactive shell has resumed, covering common
+// forced exits that cannot run a session-end hook without mistaking child tools
+// for process exit.
+func ParsePaneMetadata(out string) (map[string]PaneMetadata, error) {
+	type aggregate struct {
+		agents map[string]bool
+		status AgentStatus
+	}
+	found := make(map[string]aggregate)
 	for line := range strings.SplitSeq(strings.TrimRight(out, "\n"), "\n") {
 		if line == "" {
 			continue
 		}
-		f := strings.SplitN(line, "\t", 3)
-		if len(f) != 3 || f[0] != "P" || f[1] == "" || strings.ContainsAny(f[1]+f[2], "\t\r\n") {
-			return nil, fmt.Errorf("unexpected pane command record")
+		f := strings.Split(line, "\t")
+		if len(f) != 6 || f[0] != "P" || f[1] == "" || !paneIDRE.MatchString(f[2]) || strings.ContainsAny(strings.Join(f, ""), "\r") {
+			return nil, fmt.Errorf("unexpected pane metadata record")
 		}
-		var agent string
-		switch strings.ToLower(strings.TrimSpace(f[2])) {
-		case "codex":
-			agent = "codex"
-		case "claude", "claude-code":
-			agent = "claude"
+		paneAgents := make(map[string]bool)
+		// tmux normally reports only the executable name, but installations
+		// that invoke a platform-specific Codex launcher can expose that name
+		// instead. Reduce a possible path to its basename and accept Codex's
+		// own launcher prefix while keeping unrelated commands unclassified.
+		command := strings.ToLower(path.Base(strings.TrimSpace(f[3])))
+		switch {
+		case command == "codex" || command == "coy" || strings.HasPrefix(command, "codex-"):
+			paneAgents["codex"] = true
+		case command == "claude" || command == "claude-code" || command == "cly":
+			paneAgents["claude"] = true
 		}
-		if agent == "" {
-			continue
+		for _, processAgent := range strings.Split(f[5], ",") {
+			switch processAgent {
+			case "codex":
+				paneAgents["codex"] = true
+			case "claude":
+				paneAgents["claude"] = true
+			case "":
+			default:
+				return nil, fmt.Errorf("unexpected pane agent process")
+			}
 		}
-		if found[f[1]] == nil {
-			found[f[1]] = make(map[string]bool)
+		meta := found[f[1]]
+		if meta.agents == nil {
+			meta.agents = make(map[string]bool)
 		}
-		found[f[1]][agent] = true
+		for agent := range paneAgents {
+			meta.agents[agent] = true
+		}
+		status := AgentStatus(f[4])
+		if status != AgentWorking && status != AgentBlocked && status != AgentEnded {
+			status = ""
+		}
+		if status != "" && len(paneAgents) == 0 && status != AgentEnded && isShellCommand(f[3]) {
+			status = AgentEnded
+		}
+		if statusPriority(status) > statusPriority(meta.status) {
+			meta.status = status
+		}
+		found[f[1]] = meta
 	}
-	result := make(map[string][]string, len(found))
-	for name, agents := range found {
-		list := make([]string, 0, len(agents))
+	result := make(map[string]PaneMetadata, len(found))
+	for name, meta := range found {
+		list := make([]string, 0, len(meta.agents))
 		// Stable icon ordering when a session has more than one agent.
 		for _, agent := range []string{"codex", "claude"} {
-			if agents[agent] {
+			if meta.agents[agent] {
 				list = append(list, agent)
 			}
 		}
-		result[name] = list
+		result[name] = PaneMetadata{Agents: list, Status: meta.status}
 	}
 	return result, nil
+}
+
+func isShellCommand(command string) bool {
+	switch strings.ToLower(path.Base(strings.TrimSpace(command))) {
+	case "sh", "bash", "zsh", "fish", "dash", "ksh", "csh", "tcsh":
+		return true
+	default:
+		return false
+	}
+}
+
+func statusPriority(status AgentStatus) int {
+	switch status {
+	case AgentBlocked:
+		return 3
+	case AgentWorking:
+		return 2
+	case AgentEnded:
+		return 1
+	default:
+		return 0
+	}
 }
 
 // NewSession describes a session to create.
