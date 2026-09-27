@@ -120,6 +120,8 @@ services:
       HOSTBUD_POLL_INTERVAL: 1s
       HOSTBUD_LOG_LEVEL: info
       HOSTBUD_LOCAL_PORT: "9055"
+      # V2-M1: run hooks on the target reach Caddy's loopback site by name.
+      HOSTBUD_HOOK_BASE_URL: http://hostbud-e2e-caddy:9055
       # Served over HTTPS by hostbud-e2e-caddy (internal CA); Origin allowlist.
       HOSTBUD_DOMAIN: hostbud.example.test
       HOSTBUD_HOST_ADDR: hostbud-e2e-target

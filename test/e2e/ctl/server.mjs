@@ -12,6 +12,8 @@ const actions = {
   'POST /restart-app': ['docker', ['restart', '--time', '5', 'hostbud-e2e-app']],
   'POST /app/stop': ['docker', ['stop', '--time', '5', 'hostbud-e2e-app']],
   'POST /app/start': ['docker', ['start', 'hostbud-e2e-app']],
+  // V2-M1: restart mid-run and wait until the app is healthy again.
+  'POST /app/restart': ['docker', ['restart', '--time', '5', 'hostbud-e2e-app']],
   'POST /sshd/stop': ['docker', ['exec', 'hostbud-e2e-target', '/usr/local/bin/sshd-ctl.sh', 'stop']],
   'POST /sshd/start': ['docker', ['exec', 'hostbud-e2e-target', '/usr/local/bin/sshd-ctl.sh', 'start']],
   'POST /hostkey/rotate': ['docker', ['exec', 'hostbud-e2e-target', '/usr/local/bin/sshd-ctl.sh', 'rotate-hostkey']],
@@ -83,7 +85,7 @@ createServer(async (req, res) => {
       res.writeHead(500).end(`${err.message}\n${stderr}`)
       return
     }
-    if (req.url === '/app/start' || req.url === '/ts/restart') {
+    if (req.url === '/app/start' || req.url === '/app/restart' || req.url === '/ts/restart') {
       const healthURL = req.url === '/ts/restart' ? 'http://hostbud-e2e-caddy:9057/api/health' : 'http://hostbud-e2e-caddy:9055/api/health'
       const deadline = Date.now() + 60_000
       while (Date.now() < deadline) {

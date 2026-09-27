@@ -9,6 +9,7 @@ ARG WITH_TMUX=1
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       openssh-server openssh-client openssh-sftp-server tini procps vim htop less locales ca-certificates \
+      python3 curl \
  && if [ "$WITH_TMUX" = "1" ]; then apt-get install -y --no-install-recommends tmux; fi \
  && rm -rf /var/lib/apt/lists/* \
  && sed -i 's/^# *en_US.UTF-8/en_US.UTF-8/' /etc/locale.gen && locale-gen \
@@ -22,7 +23,10 @@ COPY sshd_config /etc/ssh/sshd_config.d/hostbud-test.conf
 COPY entrypoint.sh keygen.sh sshd-ctl.sh /usr/local/bin/
 COPY tmux-wrap.sh /usr/local/lib/hostbud/tmux-wrap.sh
 COPY sftp-wrap.sh /usr/local/bin/sftp-wrap
-RUN chmod 755 /usr/local/bin/sftp-wrap \
+# V2-M1 T7: stub claude and codex clients on dev's PATH (never real agents).
+COPY stubs/stub.py /usr/local/lib/hostbud/stubs/stub.py
+COPY stubs/claude stubs/codex /usr/local/bin/
+RUN chmod 755 /usr/local/bin/sftp-wrap /usr/local/bin/claude /usr/local/bin/codex \
  && sed -i '/^Subsystem[[:space:]]sftp[[:space:]]/c\Subsystem sftp /usr/local/bin/sftp-wrap' /etc/ssh/sshd_config \
  && if [ "$WITH_TMUX" = "1" ]; then chmod 755 /usr/local/lib/hostbud/tmux-wrap.sh && ln -s /usr/local/lib/hostbud/tmux-wrap.sh /usr/local/bin/tmux; fi
 

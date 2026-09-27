@@ -17,6 +17,12 @@ export const ctl = {
   appStop: () => call('/app/stop'),
   /** Starts hostbud-e2e-app and waits for /api/health through Caddy. */
   appStart: () => call('/app/start'),
+  /** Restarts hostbud-e2e-app and waits for /api/health through Caddy
+   * (V2-M1 restart safety). */
+  appRestart: () => {
+    appRestarts.count++
+    return call('/app/restart')
+  },
   /** Stops sshd on the target, dropping every open connection. */
   stopSshd: () => call('/sshd/stop'),
   startSshd: () => call('/sshd/start'),

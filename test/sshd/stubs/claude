@@ -1,0 +1,3 @@
+#!/bin/sh
+# hostbud stub claude (V2-M1 T7): never a real agent. See stub.py.
+exec python3 /usr/local/lib/hostbud/stubs/stub.py claude "$@"

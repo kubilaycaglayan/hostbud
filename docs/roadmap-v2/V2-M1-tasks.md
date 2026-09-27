@@ -17,7 +17,7 @@ Update this table in the same commit that finishes a task.
 | T4 Session creation for runs | Done (S8: env through `tmux start-server ; source-file -` on stdin) |
 | T5 Adapter interface and the Claude Code adapter | Done |
 | T6 Codex adapter | Done (its integration test runs the T7 stub `codex`, committed with T7) |
-| T7 Stub clients on the throwaway target | Not started |
+| T7 Stub clients on the throwaway target | Done (stubs in `test/sshd/stubs`; drift test in `internal/agents`) |
 | T8 Queue service and REST API | Not started |
 | T9 Dispatcher and state machines | Not started |
 | T10 Queue panel (desktop) | Not started |

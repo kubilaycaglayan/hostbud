@@ -24,22 +24,25 @@ func TestIntegrationClaudeAdapterOnTarget(t *testing.T) {
 	files := fsbrowse.New(c, sshx.HostMachineID, time.Minute, 5*time.Second)
 	t.Cleanup(func() {
 		_ = files.Close()
-		testenv.Sh(t, c, "rm -rf ~/.claude/projects/-home-dev-agents-it ~/.claude/projects/escape ~/.local/bin/claude")
+		testenv.Sh(t, c, "rm -rf ~/.claude/projects/-home-dev-agents-it ~/.claude/projects/escape ~/.hostbud-stubs/old-version ~/.hostbud-stubs/missing-claude")
 	})
 	claude := NewClaude(c, func(string) Files { return files }, func(string) string { return "/home/dev" })
 
-	testenv.Sh(t, c, `mkdir -p ~/.local/bin && printf '#!/bin/sh\necho "2.1.283 (Claude Code)"\n' > ~/.local/bin/claude && chmod 755 ~/.local/bin/claude`)
+	// The stub claude on the target's PATH (T7), found through the login
+	// shell; its switches report an old version or play "not installed".
+	testenv.Sh(t, c, "rm -f ~/.hostbud-stubs/old-version ~/.hostbud-stubs/missing-claude; mkdir -p ~/.hostbud-stubs")
 	if v, err := claude.CheckVersion(ctx, sshx.HostMachineID); err != nil || v != "2.1.283" {
 		t.Fatalf("CheckVersion = %q, %v", v, err)
 	}
-	testenv.Sh(t, c, `printf '#!/bin/sh\necho "1.9.3 (Claude Code)"\n' > ~/.local/bin/claude`)
+	testenv.Sh(t, c, "touch ~/.hostbud-stubs/old-version")
 	if _, err := claude.CheckVersion(ctx, sshx.HostMachineID); err == nil || !strings.Contains(err.Error(), "found 1.9.3") {
 		t.Fatalf("old client: %v", err)
 	}
-	testenv.Sh(t, c, "rm -f ~/.local/bin/claude")
+	testenv.Sh(t, c, "rm -f ~/.hostbud-stubs/old-version; touch ~/.hostbud-stubs/missing-claude")
 	if _, err := claude.CheckVersion(ctx, sshx.HostMachineID); err == nil || err.Error() != "claude not found on the host — install Claude Code first" {
 		t.Fatalf("missing client: %v", err)
 	}
+	testenv.Sh(t, c, "rm -f ~/.hostbud-stubs/missing-claude")
 
 	achieved, err := os.ReadFile(fixtureDir + "achieved.jsonl")
 	if err != nil {
