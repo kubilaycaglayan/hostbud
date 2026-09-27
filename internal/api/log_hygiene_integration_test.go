@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -26,6 +27,7 @@ import (
 	"hostbud/internal/fsbrowse"
 	"hostbud/internal/inventory"
 	"hostbud/internal/projects"
+	"hostbud/internal/queue"
 	"hostbud/internal/session"
 	"hostbud/internal/sshx"
 	"hostbud/internal/store"
@@ -97,6 +99,7 @@ func TestIntegrationInfoLogsOmitCanariesAcrossAccountAndHostCycle(t *testing.T) 
 		Log: logger, Dist: fstest.MapFS{}, Origins: AllowedOrigins("", 9055), Bus: bus,
 		Machines: []Snapshotter{inv}, Sessions: sessions, Projects: projectService,
 		FileSystem: filesystem, Terminal: terminal, Auth: authService,
+		Hooks: queue.NewHooks(repository, nil, logger),
 	})
 	server := httptest.NewServer(handler)
 	defer server.Close()
@@ -228,10 +231,65 @@ func TestIntegrationInfoLogsOmitCanariesAcrossAccountAndHostCycle(t *testing.T) 
 	if terminal.Active() != 0 {
 		t.Fatal("terminal attach did not stop after session kill")
 	}
+	// V2-M1 T3: run hooks. Tokens and hook bodies never reach info logs,
+	// also for refused hooks (bad token, rate limit).
+	queueRow, err := repository.CreateQueue(ctx, created.ID, "canary-queue-"+runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, err := repository.AddQueueItem(ctx, queueRow.ID, "claude", "--canary-flag", "/goal canary-goal-"+runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runToken, tokenHash, err := queue.NewToken()
+	if err != nil {
+		t.Fatal(err)
+	}
+	run, err := repository.CreateRun(ctx, item.ID, tokenHash, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	hookBody := `{"session_id":"canary-agent-session-` + runID + `","transcript_path":"/home/dev/.claude/projects/canary-transcript-` + runID + `.jsonl"}`
+	hook := func(token string) int {
+		t.Helper()
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, server.URL+"/api/hooks/"+run.ID+"/turn_end", strings.NewReader(hookBody))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Content-Type", "application/json")
+		response, err := server.Client().Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = response.Body.Close()
+		return response.StatusCode
+	}
+	if got := hook(runToken); got != http.StatusNoContent {
+		t.Fatalf("hook with the run token = %d", got)
+	}
+	wrongToken, _, _ := queue.NewToken()
+	if got := hook(wrongToken); got != http.StatusUnauthorized {
+		t.Fatalf("hook with another token = %d", got)
+	}
+	for range queue.HookBurst {
+		_ = hook(runToken)
+	}
+	if !strings.Contains(logs.String(), `"reason":"rate_limited"`) || !strings.Contains(logs.String(), `"reason":"bad_token"`) {
+		t.Fatalf("refused hooks aren't logged: %s", logs.String())
+	}
+	if events, err := repository.RunEvents(ctx, run.ID, 50); err != nil || len(events) == 0 || string(events[len(events)-1].Payload) != hookBody {
+		t.Fatalf("hook event not recorded verbatim: %v, %v", events, err)
+	}
+	if err := repository.DeleteQueue(ctx, queueRow.ID); !errors.Is(err, store.ErrConflict) {
+		t.Fatalf("delete queue with an active run: %v", err)
+	}
+
 	response, body = request(http.MethodPost, "/api/auth/logout", nil, cookieToken)
 	wantStatus(response, body, http.StatusNoContent, "sign out")
 
-	for _, canary := range []string{email, password, cookieToken, projectPath, projectName, sessionName, renamedName, startCommand, folderName} {
+	for _, canary := range []string{email, password, cookieToken, projectPath, projectName, sessionName, renamedName, startCommand, folderName,
+		runToken, wrongToken, "canary-agent-session-" + runID, "canary-transcript-" + runID, "canary-goal-" + runID, "--canary-flag"} {
 		if strings.Contains(logs.String(), canary) {
 			t.Fatalf("info logs contain canary %q: %s", canary, logs.String())
 		}

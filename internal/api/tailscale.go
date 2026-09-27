@@ -20,7 +20,7 @@ func tailscaleIdentity(cfg Config, next http.Handler) http.Handler {
 		return next
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/health" {
+		if r.URL.Path == "/api/health" || tokenAuthRoute(r) {
 			next.ServeHTTP(w, r)
 			return
 		}

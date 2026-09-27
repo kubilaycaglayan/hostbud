@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"log/slog"
 	"mime"
@@ -60,6 +61,14 @@ type Config struct {
 	ContentSecurityPolicy string
 	AllowedTSUsers        string
 	TSLogin               func(context.Context, string) (string, error)
+	// Hooks receives v2 run hooks (POST /api/hooks/{run}/{event}).
+	Hooks HookReceiver
+}
+
+// HookReceiver checks and records one run hook (queue.Hooks). It returns a
+// *queue.HookError for a refused hook.
+type HookReceiver interface {
+	Receive(ctx context.Context, runID, event, authorization string, body io.Reader) error
 }
 
 var inlineScriptRE = regexp.MustCompile(`(?is)<script\b([^>]*)>(.*?)</script\s*>`)
@@ -213,6 +222,9 @@ func mountRoutes(s *server, mux *http.ServeMux) {
 		addFunc("DELETE /api/projects/{id}", s.deleteProject)
 		addFunc("POST /api/projects/{id}/sessions", s.createProjectSession)
 	}
+	if cfg.Hooks != nil {
+		addFunc(hookRoute, s.runHook)
+	}
 	add("GET /", spaHandler(cfg.Dist))
 }
 
@@ -233,7 +245,9 @@ func requestLimits(cfg Config, next http.Handler) http.Handler {
 				return
 			}
 			r.Body = http.MaxBytesReader(w, r.Body, fsbrowse.MaxUploadBytes)
-		} else if isStateChanging(r.Method) && hasRequestBody(r) {
+		} else if isStateChanging(r.Method) && hasRequestBody(r) && !tokenAuthRoute(r) {
+			// (Run hooks cap their body themselves, after the token check,
+			// so their responses keep the order in v2 §8.)
 			// The media type first: a non-JSON body is refused whatever its size.
 			mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 			if err != nil || mediaType != "application/json" {

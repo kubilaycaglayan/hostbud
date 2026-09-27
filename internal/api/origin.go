@@ -22,6 +22,10 @@ func AllowedOrigins(domain string, localPort int) []string {
 // WebSocket hijacking). Safe methods pass through.
 func checkOrigin(allowed []string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if tokenAuthRoute(r) {
+			next.ServeHTTP(w, r)
+			return
+		}
 		safe := r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions
 		upgrade := strings.EqualFold(r.Header.Get("Upgrade"), "websocket")
 		if (!safe || upgrade) && !slices.Contains(allowed, r.Header.Get("Origin")) {

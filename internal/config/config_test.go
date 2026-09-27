@@ -197,3 +197,30 @@ func TestLoadAuthSettings(t *testing.T) {
 		}
 	}
 }
+
+func TestLoadHookBaseURL(t *testing.T) {
+	cfg, err := Load(envFrom(map[string]string{"HOST_SSH_USER": "dev", "HOSTBUD_LOCAL_PORT": "9123"}))
+	if err != nil || cfg.HookBaseURL != "" || cfg.HookURL() != "http://127.0.0.1:9123" {
+		t.Fatalf("default: %q %q %v", cfg.HookBaseURL, cfg.HookURL(), err)
+	}
+	for raw, want := range map[string]string{
+		"http://hostbud-e2e-caddy:9055": "http://hostbud-e2e-caddy:9055",
+		"https://hostbud.example.com/":  "https://hostbud.example.com",
+		" http://127.0.0.1:9055 ":       "http://127.0.0.1:9055",
+		"http://[::1]:9055":             "http://[::1]:9055",
+	} {
+		cfg, err := Load(envFrom(map[string]string{"HOST_SSH_USER": "dev", "HOSTBUD_HOOK_BASE_URL": raw}))
+		if err != nil || cfg.HookURL() != want {
+			t.Errorf("%q: %q, %v; want %q", raw, cfg.HookURL(), err, want)
+		}
+	}
+	for _, raw := range []string{
+		"hostbud-e2e-caddy:9055", "ftp://example.com", "http://", "http://example.com/api", "http://example.com?x=1",
+		"http://example.com#frag", "http://user:pw@example.com", "/relative", "http://example.com/?",
+	} {
+		_, err := Load(envFrom(map[string]string{"HOST_SSH_USER": "dev", "HOSTBUD_HOOK_BASE_URL": raw}))
+		if err == nil || !strings.Contains(err.Error(), "HOSTBUD_HOOK_BASE_URL") {
+			t.Errorf("%q accepted: %v", raw, err)
+		}
+	}
+}

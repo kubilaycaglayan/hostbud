@@ -46,7 +46,7 @@ func AuthenticatedUserID(r *http.Request) string {
 func requireAuth(a Authenticator, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		protected := strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/ws/")
-		if !protected || publicRoutes[r.Method+" "+r.URL.Path] {
+		if !protected || publicRoutes[r.Method+" "+r.URL.Path] || tokenAuthRoute(r) {
 			next.ServeHTTP(w, r)
 			return
 		}

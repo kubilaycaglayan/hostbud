@@ -22,6 +22,7 @@ import (
 	"hostbud/internal/fsbrowse"
 	"hostbud/internal/inventory"
 	"hostbud/internal/projects"
+	"hostbud/internal/queue"
 	"hostbud/internal/session"
 	"hostbud/internal/sshx"
 	"hostbud/internal/store"
@@ -150,10 +151,13 @@ func run() error {
 		return fmt.Errorf("configure Content-Security-Policy: %w", err)
 	}
 
+	// v2 run hooks: recorded and handed to the dispatcher (V2-M1 T9).
+	hooks := queue.NewHooks(st, nil, log)
 	srv := &http.Server{
 		Addr: cfg.Listen,
 		Handler: api.New(api.Config{
-			Log: log, Dist: web.Dist(),
+			Hooks: hooks,
+			Log:   log, Dist: web.Dist(),
 			ExecTimeout:           cfg.ExecTimeout,
 			SFTPTimeout:           cfg.SFTPTimeout,
 			UploadTimeout:         cfg.UploadTimeout,

@@ -8,11 +8,13 @@ interface RouteInfo {
   stateChanging: boolean
   websocket: boolean
   jsonBody: boolean
+  token_auth?: boolean
 }
 
 const routes = JSON.parse(readFileSync('/e2e/routes.json', 'utf8')) as RouteInfo[]
 const pathFor = (path: string) =>
   path.replaceAll('{machine}', 'host').replaceAll('{name}', 'origin-check').replaceAll('{id}', 'missing').replaceAll('{key}', 'layout')
+    .replaceAll('{run}', '01ARZ3NDEKTSV4RRFFQ69G5FAV').replaceAll('{event}', 'turn_end')
 
 test('(T12) Origin allowlist covers every state-changing route and WebSocket', async ({ request }) => {
   const cookie = `hostbud_session=${(await request.storageState()).cookies.find((c) => c.name === 'hostbud_session')?.value ?? ''}`
@@ -26,6 +28,15 @@ test('(T12) Origin allowlist covers every state-changing route and WebSocket', a
 
   for (const route of routes.filter((entry) => entry.stateChanging || entry.websocket)) {
     const path = pathFor(route.path)
+    if (route.token_auth) {
+      // V2-M1 T3: run hooks are token-authenticated; the Origin check doesn't
+      // apply (an unknown run answers 404 whatever the Origin).
+      for (const origin of [FOREIGN_ORIGIN, undefined]) {
+        const response = await request.fetch(path, { method: route.method, headers: origin ? { Origin: origin } : {}, data: '{}' })
+        expect(response.status(), `${route.method} ${route.path} Origin ${origin}`).toBe(404)
+      }
+      continue
+    }
     const before = route.stateChanging ? await state(path) : null
     const beforeBody = before ? await before.text() : ''
     if (route.websocket) {

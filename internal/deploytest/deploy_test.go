@@ -150,6 +150,36 @@ func TestCaddyMarksDomainAndLoopbackProxyPaths(t *testing.T) {
 	}
 }
 
+// V2-M1 T3: run hooks reach the app through the loopback site unchanged: one
+// catch-all route straight to hostbud:8080 that only sets X-Hostbud-Via, so
+// /api/hooks/* and its Authorization header pass through, with no new port.
+func TestCaddyLoopbackSiteProxiesHooksUnchanged(t *testing.T) {
+	_, cfg := adapted(t, "adapt.json")
+	servers, _ := dig(cfg, "apps", "http", "servers").(map[string]any)
+	var loopback map[string]any
+	for _, srv := range servers {
+		m, _ := srv.(map[string]any)
+		if listen, _ := m["listen"].([]any); len(listen) == 1 && listen[0] == ":9055" {
+			loopback = m
+		}
+	}
+	if loopback == nil || len(servers) != 2 {
+		t.Fatalf("want the :443 domain site and the :9055 loopback site, got %v", servers)
+	}
+	routes, _ := loopback["routes"].([]any)
+	if len(routes) != 1 || dig(routes[0], "match") != nil {
+		t.Fatalf("loopback site must be one unmatched route, got %v", routes)
+	}
+	handlers, _ := dig(routes[0], "handle").([]any)
+	if len(handlers) != 1 || dig(handlers[0], "handler") != "reverse_proxy" || !slices.Equal(upstreams(handlers[0]), []string{"hostbud:8080"}) {
+		t.Fatalf("loopback site must proxy everything to hostbud:8080, got %v", handlers)
+	}
+	request, _ := dig(handlers[0], "headers", "request").(map[string]any)
+	if len(request) != 1 || dig(request, "set", "X-Hostbud-Via", 0) != "local" || len(dig(request, "set").(map[string]any)) != 1 {
+		t.Fatalf("loopback proxy may only set X-Hostbud-Via (Authorization must pass through), got %v", request)
+	}
+}
+
 func TestContainerHardeningAndE2EParity(t *testing.T) {
 	production := load(t)
 	e2e := loadE2E(t)
@@ -330,6 +360,19 @@ func TestHardeningLimitsOnlyReachHostbud(t *testing.T) {
 			if _, ok := env(svc, key); ok {
 				t.Errorf("%s unexpectedly receives %s", name, key)
 			}
+		}
+	}
+}
+
+// V2-M1: the run hook base URL override reaches only hostbud (empty by default).
+func TestHookBaseURLOnlyReachesHostbud(t *testing.T) {
+	c := load(t)
+	if got, ok := env(c.Services["hostbud"], "HOSTBUD_HOOK_BASE_URL"); !ok || got != "" {
+		t.Errorf("hostbud HOSTBUD_HOOK_BASE_URL = %q, present=%v; want an empty default", got, ok)
+	}
+	for name, svc := range c.Services {
+		if _, ok := env(svc, "HOSTBUD_HOOK_BASE_URL"); ok && name != "hostbud" {
+			t.Errorf("%s unexpectedly receives HOSTBUD_HOOK_BASE_URL", name)
 		}
 	}
 }

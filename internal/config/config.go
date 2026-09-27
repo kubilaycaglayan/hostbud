@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"hostbud/internal/auth"
 	"log/slog"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -48,6 +49,16 @@ type Config struct {
 	TrustedProxies      string        // HOSTBUD_TRUSTED_PROXIES (CIDRs, comma-separated)
 	AllowedTSUsers      string        // HOSTBUD_ALLOWED_TS_USERS (optional, comma-separated)
 	TailscaleSocket     string        // TAILSCALED_SOCKET (optional, required when allowlist is enabled)
+	HookBaseURL         string        // HOSTBUD_HOOK_BASE_URL (optional: HOSTBUD_URL inside run sessions)
+}
+
+// HookURL is HOSTBUD_URL for run sessions (v2): the override, or Caddy's
+// loopback site on the host.
+func (c Config) HookURL() string {
+	if c.HookBaseURL != "" {
+		return c.HookBaseURL
+	}
+	return fmt.Sprintf("http://127.0.0.1:%d", c.LocalPort)
 }
 
 // DefaultTrustedProxies are the private ranges Docker networks use: hostbud
@@ -190,6 +201,26 @@ func Load(getenv func(string) string) (Config, error) {
 	if cfg.HostSSHUser == "" {
 		errs = append(errs, errors.New("HOST_SSH_USER: required — the user hostbud logs in as on the host (see .env.example)"))
 	}
+	cfg.HookBaseURL = strings.TrimSpace(getenv("HOSTBUD_HOOK_BASE_URL"))
+	if err := validHookBaseURL(cfg.HookBaseURL); err != nil {
+		errs = append(errs, fmt.Errorf("HOSTBUD_HOOK_BASE_URL: %w", err))
+	}
+	cfg.HookBaseURL = strings.TrimSuffix(cfg.HookBaseURL, "/")
 
 	return cfg, errors.Join(errs...)
+}
+
+// validHookBaseURL accepts "" or an absolute http(s) URL with a host and no
+// path, query, fragment or credentials.
+func validHookBaseURL(raw string) error {
+	if raw == "" {
+		return nil
+	}
+	u, err := url.Parse(raw)
+	bad := errors.New("must be empty or a base URL like http://127.0.0.1:9055 (http or https, no path, query or fragment)")
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.Hostname() == "" || u.User != nil ||
+		(u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.Fragment != "" || u.Opaque != "" || strings.HasSuffix(raw, "?") || strings.HasSuffix(raw, "#") {
+		return bad
+	}
+	return nil
 }

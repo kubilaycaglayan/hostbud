@@ -33,5 +33,6 @@
   {"method":"PATCH","path":"/api/projects/{id}","stateChanging":true,"authRequired":true,"websocket":false,"jsonBody":true},
   {"method":"DELETE","path":"/api/projects/{id}","stateChanging":true,"authRequired":true,"websocket":false,"jsonBody":false},
   {"method":"POST","path":"/api/projects/{id}/sessions","stateChanging":true,"authRequired":true,"websocket":false,"jsonBody":true},
+  {"method":"POST","path":"/api/hooks/{run}/{event}","stateChanging":true,"authRequired":false,"websocket":false,"jsonBody":false,"token_auth":true},
   {"method":"GET","path":"/","stateChanging":false,"authRequired":false,"websocket":false,"jsonBody":false}
 ]

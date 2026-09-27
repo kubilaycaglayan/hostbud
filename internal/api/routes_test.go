@@ -21,6 +21,7 @@ type routeInfo struct {
 	AuthRequired  bool   `json:"authRequired"`
 	WebSocket     bool   `json:"websocket"`
 	JSONBody      bool   `json:"jsonBody"`
+	TokenAuth     bool   `json:"token_auth"`
 }
 
 type routeOnlyTerminal struct{}
@@ -38,7 +39,7 @@ func TestRouteInventoryMatchesRouter(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg := Config{Dist: fstest.MapFS{}, Bus: events.NewBus(), Auth: &fakeAuth{}, Sessions: &fakeService{},
-		Projects: &fakeProjects{}, FileSystem: &fakeFileBrowser{}, Terminal: routeOnlyTerminal{}, UIState: &fakeUIState{}}
+		Projects: &fakeProjects{}, FileSystem: &fakeFileBrowser{}, Terminal: routeOnlyTerminal{}, UIState: &fakeUIState{}, Hooks: &fakeHooks{}}
 	s := &server{cfg: cfg}
 	mountRoutes(s, http.NewServeMux())
 	want := make([]string, 0, len(routes))
@@ -56,7 +57,16 @@ func TestRouteInventoryMatchesRouter(t *testing.T) {
 			t.Errorf("%s websocket flag mismatch", route.Method+" "+route.Path)
 		}
 		protected := strings.HasPrefix(route.Path, "/api/") || strings.HasPrefix(route.Path, "/ws/")
-		wantAuth := protected && !publicRoutes[route.Method+" "+route.Path]
+		key := route.Method + " " + route.Path
+		wantAuth := protected && !publicRoutes[key] && !tokenAuthRoutes[key]
+		if route.TokenAuth != tokenAuthRoutes[key] {
+			t.Errorf("%s token_auth flag mismatch", key)
+		}
+		// The exemption matcher accepts exactly the token-auth routes.
+		sample := strings.NewReplacer("{machine}", "host", "{name}", "x", "{id}", "x", "{key}", "layout", "{run}", "01ARZ3NDEKTSV4RRFFQ69G5FAV", "{event}", "turn_end").Replace(route.Path)
+		if got := tokenAuthRoute(httptest.NewRequest(route.Method, sample, nil)); got != route.TokenAuth {
+			t.Errorf("%s: tokenAuthRoute = %v, want %v", key, got, route.TokenAuth)
+		}
 		if route.AuthRequired != wantAuth {
 			t.Errorf("%s auth flag mismatch", route.Method+" "+route.Path)
 		}
@@ -147,7 +157,20 @@ func TestOriginPolicyCoversEveryChangingRouteAndWebSocket(t *testing.T) {
 		if !route.StateChanging && !route.WebSocket {
 			continue
 		}
-		path := strings.NewReplacer("{machine}", "host", "{name}", "origin-check", "{id}", "missing", "{key}", "layout").Replace(route.Path)
+		path := strings.NewReplacer("{machine}", "host", "{name}", "origin-check", "{id}", "missing", "{key}", "layout", "{run}", "01ARZ3NDEKTSV4RRFFQ69G5FAV", "{event}", "turn_end").Replace(route.Path)
+		if route.TokenAuth {
+			// Token-authenticated: any Origin, or none, reaches the handler.
+			for _, origin := range []string{"http://evil.example.com", ""} {
+				called := false
+				req := httptest.NewRequestWithContext(t.Context(), route.Method, path, nil)
+				req.Header.Set("Origin", origin)
+				checkOrigin(allowed, http.HandlerFunc(func(http.ResponseWriter, *http.Request) { called = true })).ServeHTTP(httptest.NewRecorder(), req)
+				if !called {
+					t.Errorf("%s origin=%q: token-auth route blocked by the Origin check", route.Method+" "+route.Path, origin)
+				}
+			}
+			continue
+		}
 		for _, origin := range []string{"http://evil.example.com", ""} {
 			t.Run(route.Method+" "+path+" rejected origin="+origin, func(t *testing.T) {
 				called := false

@@ -268,7 +268,8 @@ Any agent client can join the queue if it can (a) be started with an initial pro
   - `413` if the body is too large;
   - `400` if the body isn't JSON;
   - `429` if the run's hook rate limit is exceeded (a token bucket per run; nothing is recorded).
-- The browser Origin check and the cookie session do not apply here. The bearer token is the only credential.
+- The browser Origin check, the cookie session, the Tailscale identity gate and the generic JSON body limits do not apply here (one named exemption, `tokenAuthRoutes` in `internal/api`, marked `token_auth` in the route table). The bearer token is the only credential.
+- Checks run in this order: unknown event or run → 404, bad token → 401, ended run → 410, rate limit → 429, body → 413, not JSON → 400. The rate limit is a token bucket per run: 60 a minute, burst 20.
 
 **Goal-state contract:** the adapter must be able to answer, for a bound session, "is the goal with this exact condition achieved, and when?" from **structured state** written by the client (a typed transcript record, a database row or a status file). Printed text must never be matched.
 
