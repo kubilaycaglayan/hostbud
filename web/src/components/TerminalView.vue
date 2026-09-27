@@ -127,6 +127,9 @@ function updateScrollGesture(event: PointerEvent) {
   const gesture = touchScrollStart
   if (!gesture || event.pointerType !== 'touch') return
   if (Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) >= 8) clearTouchSelectTimer()
+  // Outside explicit tmux copy mode, let xterm's overflow viewport perform a
+  // native pan. Programmatic scrolling here competes with iOS's nested scrollers.
+  if (!copyMode.inMode.value) return
   const screen = term.value?.element?.querySelector('.xterm-screen')?.getBoundingClientRect()
   const cellHeight = screen && term.value ? screen.height / term.value.rows : 16
   const movement = swipeDelta(gesture, { x: event.clientX, y: event.clientY }, cellHeight)
@@ -164,18 +167,33 @@ function selectTouchWord(x: number, y: number): boolean {
   const column = Math.max(0, Math.min(t.cols - 1, Math.floor((x - screen.left) / (screen.width / t.cols))))
   const row = Math.max(0, Math.min(t.rows - 1, Math.floor((y - screen.top) / (screen.height / t.rows))))
   const buffer = t.buffer.active
-  const text = buffer.getLine(buffer.viewportY + row)?.translateToString(true) ?? ''
-  const chars = Array.from(text)
-  const char = chars[column]
-  if (!char || /\s/u.test(char)) return false
-  const isWord = (value: string) => /[\p{L}\p{N}_-]/u.test(value)
+  const bufferRow = buffer.viewportY + row
+  const line = buffer.getLine(bufferRow)
+  if (!line) return false
+  const cell = (col: number) => col >= 0 && col < t.cols ? line.getCell(col) : undefined
+  const isWord = (value: string) => /[\p{L}\p{M}\p{N}_-]/u.test(value)
   let start = column
-  let end = column + 1
-  if (isWord(char)) {
-    while (start > 0 && isWord(chars[start - 1] ?? '')) start--
-    while (end < chars.length && isWord(chars[end] ?? '')) end++
+  while (start > 0 && (cell(start)?.getWidth() ?? 1) === 0) start--
+  const selected = cell(start)
+  if (!selected || !isWord(selected.getChars())) return false
+  let end = start + Math.max(1, selected.getWidth())
+  while (start > 0) {
+    let previous = start - 1
+    while (previous > 0 && (cell(previous)?.getWidth() ?? 1) === 0) previous--
+    if (!isWord(cell(previous)?.getChars() ?? '')) break
+    start = previous
   }
-  t.select(start, row, end - start)
+  while (end < t.cols) {
+    const next = cell(end)
+    if (!next) break
+    if (next.getWidth() === 0) {
+      end++
+      continue
+    }
+    if (!isWord(next.getChars())) break
+    end += Math.max(1, next.getWidth())
+  }
+  t.select(start, bufferRow, end - start)
   return true
 }
 
@@ -262,12 +280,21 @@ function refit() {
 
 /** Sets up the terminal's hidden input for on-screen keyboards: no
  * autocorrect, capitalization or suggestions rewriting what's typed. */
-function prepareInput(input: HTMLTextAreaElement | undefined) {
+function prepareInput(input: HTMLTextAreaElement | undefined, screenReaderMode: boolean) {
   if (!input) return
   input.setAttribute('autocorrect', 'off')
   input.setAttribute('autocapitalize', 'off')
   input.setAttribute('autocomplete', 'off')
   input.setAttribute('spellcheck', 'false')
+  if (!screenReaderMode) {
+    // xterm 6 leaves committed IME text in the helper textarea (xtermjs/xterm.js#6012). Voice dictation
+    // can replace that stale value and xterm then treats it as fresh input.
+    // xterm registered its compositionend handler during open(); defer ours so
+    // its final composition value has been sent before resetting the textarea.
+    input.addEventListener('compositionend', () => {
+      window.setTimeout(() => { input.value = '' }, 0)
+    })
+  }
 }
 
 /** Focuses the terminal, which brings up a phone's on-screen keyboard. */
@@ -341,7 +368,7 @@ onMounted(async () => {
   search.value = new SearchAddon()
   t.loadAddon(search.value)
   t.open(el.value!)
-  prepareInput(t.textarea)
+  prepareInput(t.textarea, !!t.options.screenReaderMode)
   try {
     const webgl = new WebglAddon()
     webgl.onContextLoss(() => webgl.dispose())
@@ -548,7 +575,7 @@ defineExpose({ refit, reconnect, showKeyboard })
         <div
           ref="el"
           data-testid="terminal"
-          class="min-h-0 flex-1 touch-none overflow-hidden bg-bg p-1"
+          :class="['min-h-0 flex-1 overflow-hidden bg-bg p-1', inMode ? 'touch-none' : 'touch-pan-y']"
           @mousedown.capture="startAltClick"
           @pointerdown="startScrollGesture"
           @pointermove="updateScrollGesture"

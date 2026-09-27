@@ -66,11 +66,13 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
   - U: T6 handler (allowlist, 400/404/413, namespacing, auth, Origin) (Go) · client helpers (Vitest). I: T6 store round-trip for two users (PostgreSQL). E: T6 *UI state API*.
 
 ## E2E (`make e2e`, simulated user)
-Projects as in M2: `desktop-chromium` and `iphone-13-pro` on `http://localhost:9055`, `iphone-13-pro-domain` on `https://hostbud.example.test`. Clipboard scenarios run in `desktop-chromium` only (Playwright grants clipboard permissions only in Chromium). Each item is tagged with the task that adds it, in the same commit as the behavior.
+Projects as in M2: `desktop-chromium` and `iphone-13-pro` on `http://localhost:9055`, `iphone-13-pro-domain` on `https://hostbud.example.test`. Clipboard permission assertions run in `desktop-chromium` (Playwright grants those permissions only in Chromium); phone tests cover selecting text and tapping Copy. Each item is tagged with the task that adds it, in the same commit as the behavior.
 
 - [x] **(T1) Delete word and line:** Option+Backspace and Cmd+Backspace edit a bash command line (desktop).
 - [x] **(T1) Move by word and line:** Option+←/→ and Cmd+←/→ move the cursor so typed text lands in the right place (desktop).
 - [x] **(T2) Copy selection:** a drag-selected line is in the clipboard after Ctrl+Shift+C and after the menu's Copy.
+- [ ] **(T8) Touch long press selects terminal text for copying:** scroll into local history on a phone, hold a printed marker to select it, then tap Copy. Actual clipboard verification remains a manual iPhone PWA check.
+- [ ] **(T8) Dictation commits clean terminal input:** consecutive voice-like composition phrases each run once on a phone; owner verifies actual dictation on iPhone.
 - [x] **(T2) Ctrl+C still interrupts:** with a selection present, Ctrl+C interrupts `sleep` and leaves the clipboard alone.
 - [x] **(T2) Bracketed paste:** a two-line paste (keys and menu) sits in the command line until Enter, then each command runs once.
 - [x] **(T2) Forced selection:** with tmux `mouse on`, a plain drag makes no selection, and Shift+drag does and copies.

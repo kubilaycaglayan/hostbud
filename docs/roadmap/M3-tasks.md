@@ -85,9 +85,9 @@ Scope: the *Copy and paste* bullet of [ROADMAP M3](../ROADMAP.md#m3--terminal-wo
   - The OSC 52 provider: writes decoded text; refuses reads; ignores oversized payloads.
 - I (`test/sshd`): the M1 term bridge attaches to a tmux session and runs `copy-mode` + `send-keys -X select-line` + `copy-selection`. The PTY output then contains `ESC]52;c;<base64 of the line>`, which pins the tmux side of the OSC 52 path.
 
-**E2E (desktop-chromium; clipboard permissions granted):**
+**E2E (desktop-chromium unless noted; clipboard permissions granted there):**
 - **Copy selection (T2):** `echo copy-<marker>`; drag-select the output line; Ctrl+Shift+C → `navigator.clipboard.readText()` holds `copy-<marker>`. Repeat with the context menu's **Copy**.
-- **Touch long press (T2):** on a phone, press and hold a printed marker to select its word; the header's **Copy** action is visible and can be tapped. The actual clipboard result is a manual iPhone PWA check.
+- **Touch long press (T8 correction to T2):** on a phone, scroll into local xterm history, press and hold a printed marker to select its word; the header's **Copy** action is visible and can be tapped. The actual clipboard result is a manual iPhone PWA check.
 - **Ctrl+C still interrupts (T2):** with a selection present, `sleep 100` then Ctrl+C returns to the prompt (`capture-pane` shows `^C` and a new prompt), and the clipboard is unchanged.
 - **Bracketed paste (T2):** clipboard = `echo one-<m>\necho two-<m>`; Ctrl+Shift+V at a bash prompt → both lines sit in the command line and nothing runs until Enter. After Enter both outputs appear once. The same text pasted with the menu's **Paste** behaves the same.
 - **Forced selection (T2):** with `tmux set -t <s> mouse on` on the target, a plain drag does *not* produce a browser selection (tmux gets it), and Shift+drag does, and copying it works.

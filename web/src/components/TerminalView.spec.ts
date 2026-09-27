@@ -409,15 +409,19 @@ describe('TerminalView', () => {
     screen.className = 'xterm-screen'
     screen.getBoundingClientRect = () => ({ left: 0, top: 0, right: 1000, bottom: 300, width: 1000, height: 300, x: 0, y: 0, toJSON: () => ({}) })
     w.get('[data-testid="terminal"]').element.appendChild(screen)
-    const active = t.buffer.active as { viewportY: number; getLine: (row: number) => { translateToString: () => string } }
+    const active = t.buffer.active as { viewportY: number; getLine: (row: number) => { translateToString: () => string; getCell: (column: number) => { getChars: () => string; getWidth: () => number } } }
     active.viewportY = 17
     active.getLine = (row) => {
       expect(row).toBe(18)
-      return { translateToString: () => 'echo copy-marker' }
+      const text = 'echo copy-marker'
+      return {
+        translateToString: () => text,
+        getCell: (column) => ({ getChars: () => text[column] ?? '', getWidth: () => 1 }),
+      }
     }
 
     const down = new Event('pointerdown', { bubbles: true, cancelable: true })
-    Object.defineProperties(down, { pointerType: { value: 'touch' }, clientX: { value: 62 }, clientY: { value: 5 } })
+    Object.defineProperties(down, { pointerType: { value: 'touch' }, clientX: { value: 62 }, clientY: { value: 15 } })
     w.get('[data-testid="terminal"]').element.dispatchEvent(down)
     await flushPromises()
     await vi.advanceTimersByTimeAsync(500)
