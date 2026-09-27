@@ -52,7 +52,9 @@ function onAuxClick(ev: MouseEvent, id: string) {
   <!-- Fallback dragging (Sortable's own pointer handling) behaves the same
        in every browser, lets a click through below the tolerance and
        swallows the click that ends a drag. On touch, a short hold starts a
-       drag so a swipe still scrolls the bar. -->
+       drag so a swipe still scrolls the bar. The drag ghost lives on <body>
+       (fallback-on-body), outside the tablist, so the list never holds two
+       tabs with one name. -->
   <VueDraggable
     ref="list"
     v-model="sortableTabs"
@@ -63,6 +65,7 @@ function onAuxClick(ev: MouseEvent, id: string) {
     :class="props.compact ? 'min-w-0 flex-1 border-0' : 'border-b border-border'"
     :animation="150"
     :force-fallback="true"
+    :fallback-on-body="true"
     :fallback-tolerance="4"
     :delay="250"
     :delay-on-touch-only="true"
