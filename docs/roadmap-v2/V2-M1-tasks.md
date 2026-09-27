@@ -37,7 +37,7 @@ P3 is T0.
 
 ## Rules for this milestone
 
-The v2 ROADMAP *Rules* and AGENTS.md apply in full. That covers: e2e runs once in T13, no real agents in tests, host safety, the public repo, owner items never blocking, and Docker cleanup at the end. This milestone adds:
+The v2 ROADMAP *Rules* and AGENTS.md apply in full. That covers: e2e runs only on demand (never as part of a task or T13), no real agents in tests, host safety, the public repo, owner items never blocking, and Docker cleanup at the end. This milestone adds:
 
 - **T1 comes before any product code** (T0's bug fix is the only exception). Its results are in v2 ARCHITECTURE before T2 starts.
 - **Batched checkpoints** (as in v1 M3–M7). Each commit runs only fast checks:
@@ -66,7 +66,7 @@ The v2 ROADMAP *Rules* and AGENTS.md apply in full. That covers: e2e runs once i
 | CP3 | T5–T7 | `make lint test`, e2e `tsc` | Not run |
 | CP4 | T8–T9 | `make lint test` **three times in a row** (timers and concurrent signals), e2e `tsc` | Not run |
 | CP5 | T10–T12 | `make lint test`, `vue-tsc`, e2e `tsc`, `make gitleaks`, docs check | Not run |
-| CP6 | T13 | `make e2e` until green, then `make lint test`, `make gitleaks`, `make deploy` | Not run |
+| CP6 | T13 | `make lint test`, e2e `tsc`, `make gitleaks`, `make deploy` (no `make e2e`: on demand only) | Not run |
 
 **Progress note:** (preconditions and checkpoint results go here.)
 
@@ -345,11 +345,11 @@ Scope: R T12. Additions:
 ## T13 — Milestone acceptance
 
 Scope: R T13. Additions:
-- **Fixing e2e failures:** never skip a scenario, retry until green, or weaken an assertion.
+- **No e2e run** (on demand only). **Fixing failures from an on-demand run:** never skip a scenario, retry until green, or weaken an assertion.
   - a product bug ⇒ the bug-fix workflow;
   - a stale scenario ⇒ fix it, with the reason in the commit;
   - a flaky scenario ⇒ fix the wait, not just the timeout.
-- **Fast loop:** `make e2e-up` + `make e2e-run ARGS="<spec> -g '<name>' --project=<profile>"`, then the whole suite until green.
+- **Fast loop (only while fixing a requested run):** `make e2e-up` + `make e2e-run ARGS="<spec> -g '<name>' --project=<profile>"`; the next full run waits for the owner's request.
 - **Deploy checks:**
   - `docker compose ps` shows everything healthy;
   - `/api/health` is ok;
@@ -357,7 +357,7 @@ Scope: R T13. Additions:
   - the Queue panel opens.
 
   If a check fails, roll back to the previous deploy commit. The migration is append-only, so no data is lost.
-- **Checklist:** tick it, marking the E items as passed with the date and commit. Review §12 for R2.
+- **Checklist:** tick it; E items count as written until an on-demand run passes them (then record the date and commit). Review §12 for R2.
 - **Summary:**
   - what changed;
   - the two optional env vars;

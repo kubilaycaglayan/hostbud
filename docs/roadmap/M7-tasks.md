@@ -22,8 +22,8 @@ Update this table in the same commit that finishes a task.
 | T10 Integration suite completion and log hygiene | Done |
 | T11 Fresh-host install and `make doctor` | Done |
 | T12 Docs and security audit | Done |
-| T13 Full e2e run | Not started |
-| T14 Release | User-requested deploy and checks done; remaining release work pending T13 |
+| T13 Full e2e run | On demand only (owner's decision, 2026-09-27): runs when the owner asks; doesn't block T14/T15 |
+| T14 Release | User-requested deploy and checks done; remaining release work open |
 | T15 Safe Docker cleanup | Not started |
 
 ## Rules for this milestone
@@ -31,7 +31,7 @@ Update this table in the same commit that finishes a task.
 - Work top to bottom, one task at a time, and don't start a task until the previous one is done. **Before starting M7, check that M4, M5 and M6 meet their acceptance checklists**, except the e2e runs that were deferred to M7 and open owner items (their *Manual checks (owner)* lists). M7 hardens what those milestones built (the M5 service worker and the M6 theme boot script constrain the CSP; M6's routes need the same limits), so don't harden a moving target.
 - Before each task, read the U/I/E coverage lines that [M7-acceptance.md](M7-acceptance.md) assigns to it, plus its own **Tests:** and **E2E:** lines. Write all of them in the same commit(s) as the behavior. Never leave tests or scenarios for a later task.
 - **Batched test checkpoints** (continuing M3–M6): each commit runs only fast checks: `go build`/`go vet` for the Go packages it touches, `vue-tsc` for the frontend, and `tsc` for the e2e suite when it changes. `make gitleaks` runs on every commit through the pre-commit hook. Full suites run at the checkpoints below. A checkpoint failure is fixed (with a regression test if it's a bug) before the next task starts, and the checkpoint re-runs until green.
-- **E2E runs stay paused until T13.** T1–T12 write their scenarios and type-check them, but never run `make e2e`, `e2e-up` or `e2e-run`. T13 is the one full run, and from then on e2e runs are allowed and required (T14 records the policy change).
+- **E2E runs only on demand** (AGENTS.md; owner's decision, 2026-09-27). Tasks write their scenarios and type-check them, but never run `make e2e`, `e2e-up` or `e2e-run` unless the owner asks in the current session. T13 is carried out only on such a request; until then its items stay open and don't block T14, T15 or M7's done state.
 - Every task has an **E2E:** line. A scenario is tagged with the task that writes it, both here and in the acceptance checklist.
 - Tasks marked *(host)* need the real host, a desktop browser or the owner's iPhone. The agent does the host parts itself. Anything that needs the owner's device, account or decision is an open owner item: record it and continue, never wait (AGENTS.md, *Owner items never block agents*).
 - **Hardening must not break the running deployment.** The dev machine is the deploy host. Don't run `make deploy` before T14. Don't restart, stop or recreate the production containers, and never touch the volumes `hostbud-data`, `hostbud-postgres-data`, `hostbud-caddy-data` or `hostbud-caddy-config`. Restore (T9) is exercised only against throwaway databases, never the production one. Don't change the owner's tmux config, shell config or `~/.ssh` files, and never kill or detach the owner's tmux sessions.
@@ -48,7 +48,7 @@ Update this table in the same commit that finishes a task.
 | CP3 | T6 + T7 (headers/CSP, container hardening) | `make lint test`, plus `make build` (the CSP hash is read from the built `index.html`) and `scripts/compose-config.sh` | Passed |
 | CP4 | T8 + T9 (Tailscale allowlist, backup/restore) | `make lint test` | Passed |
 | CP5 | T10 + T11 + T12 (integration completion, install, audit) | `make lint test` **three times in a row** (flake check for the integration suite), `make gitleaks`, e2e `tsc` | Passed |
-| CP6 | T13 (full e2e) | `make e2e` until green, then **twice in a row from a clean checkout**; `make lint test` after the last fix | Not run |
+| CP6 | T13 (full e2e, on demand only) | When the owner asks: `make e2e` until green, then **twice in a row from a clean checkout**; `make lint test` after the last fix | Open (on demand) |
 
 **Progress note (CP3):** `make lint test`, `make build` and `scripts/compose-config.sh` passed. The hardened `hostbud-e2e-app` started healthy, `hostbud healthcheck` returned success, and the throwaway e2e stack and volumes were removed.
 
@@ -325,7 +325,7 @@ The ROADMAP accepts M7 when "fresh-host install from README works end to end". M
 
 ## T13 — Full e2e run
 
-The first `make e2e` since M3 (ROADMAP: *Full e2e run*). The last code task: everything after it is release and cleanup.
+The first `make e2e` since M3 (ROADMAP: *Full e2e run*). **On demand only:** start it (and each later full pass) only when the owner asks for it in the current session. It doesn't block T14, T15 or M7's done state; until it's green, its checklist items stay open. Passes 1–4 were run on request and are recorded in [M7-e2e-triage.md](M7-e2e-triage.md).
 
 1. **Preconditions.** T1–T12 done; `make lint test` green; working tree clean for this task's files. **Nobody else is using the e2e stack:** `docker compose -p hostbud-e2e ps -q` is empty and `pgrep -af 'test/e2e/run.sh'` shows nothing. If not, another run is using it: wait until it's free (re-check every few minutes), and never tear down a stack someone else is using. Enough disk: `docker system df`, and at least 10 GB free for the e2e images.
 2. **First full run — diagnostic pass:** run `make e2e` (fresh stack, all three profiles, torn down after). At the end of this and every later full run, create a per-run report at `docs/e2e-triage/YYYY-MM-DD-v1-m7-pass-NN.md` using [the report template](../e2e-triage/README.md), update `M7-e2e-triage.md` with its link and summary, and commit those changes before any next full run. Before starting any fix or another full run, the report must contain the command/commit, passed/failed/skipped counts, elapsed time, every failed scenario (full test title, profile, concise error, classification, and suspected shared cause), and the full runner output/artifact location. The runner clears `test/e2e/results` at the start of a pass, so preserve and commit the report first. Classify every failure into exactly one class:
@@ -335,15 +335,15 @@ The first `make e2e` since M3 (ROADMAP: *Full e2e run*). The last code task: eve
    - **Environment** (disk, a stale image): fix the environment, not the code; record what happened.
    Forbidden to get green: `retries > 0`, raising the global `timeout`/`expect.timeout`, `test.skip`/`test.fixme`/`test.only`, deleting a scenario, or loosening an assertion to match a bug. If a scenario truly can't run in e2e (Playwright can't observe the behavior at all, not just "it's hard"), move it to the M7 manual checklist with the reason, record the move in [M7-acceptance.md](M7-acceptance.md#full-e2e-run) and list it in the summary for the owner to review later. Don't wait for approval. The owner may send it back to e2e.
 4. **Batch the fixes before another full pass:** keep the first pass's complete failure inventory in the triage file and fix the whole inventory before running the suite again. Use focused scenarios/specs and unit/integration tests while fixing. A focused check may be run per fix; the full suite may not. If a failure reveals a shared cause, record that relationship and fix the cause once. If focused checks uncover another issue, add it to the inventory and fix it in this batch. Never weaken assertions to hide a bug.
-5. **Second full run:** only after every first-pass issue is fixed, `make lint test` is green, and the worktree contains the fixes, run a full suite and record its detailed report, counts and duration. If it has failures, inventory the complete results and batch-fix all of them before another full run. Repeat this record → batch-fix → full-run sequence until green.
-6. **Stability: twice in a row from a clean checkout.** After all inventoried failures are fixed, create a throwaway worktree at `HEAD` in the scratch directory (`git worktree add <scratch>/hostbud-m7-e2e HEAD`). In it, run `make e2e` twice consecutively. Both must be fully green in all three profiles, with no retries or skips. If either run fails, record all failures, batch-fix them, then restart the two-run check in a fresh worktree. This closes M3's open two-run check (CP3) as well. Remove only the worktree this task created.
+5. **Second full run (when the owner asks):** only after every first-pass issue is fixed, `make lint test` is green, and the worktree contains the fixes, run a full suite and record its detailed report, counts and duration. If it has failures, inventory the complete results and batch-fix all of them before another full run. Repeat this record → batch-fix → requested full-run sequence until green.
+6. **Stability: twice in a row from a clean checkout (when the owner asks).** After all inventoried failures are fixed, create a throwaway worktree at `HEAD` in the scratch directory (`git worktree add <scratch>/hostbud-m7-e2e HEAD`). In it, run `make e2e` twice consecutively. Both must be fully green in all three profiles, with no retries or skips. If either run fails, record all failures, batch-fix them, then restart the two-run check in a fresh worktree. This closes M3's open two-run check (CP3) as well. Remove only the worktree this task created.
 7. **Record:** in each of [M1](M1-acceptance.md)–[M7](M7-acceptance.md)'s acceptance checklists, mark the E items as passed at the M7 run (date, commit), and tick the M4–M6 "part of the M7 full run" DoD lines and M3's CP3 note. Commit each full-run report immediately after its pass; commit the final checklist updates and Progress table with the final report.
 
 **Tests:** whatever the triage adds (regression tests per the bug-fix workflow).
 
-**E2E:** one diagnostic full-suite pass with detailed output logged; batch-fix the entire failure inventory using focused checks before each next full pass; then run twice in a row from a clean checkout with no retries or skips. Adds no scenario except regressions.
+**E2E:** on demand only: one diagnostic full-suite pass with detailed output logged; batch-fix the entire failure inventory using focused checks before each next full pass; then run twice in a row from a clean checkout with no retries or skips. Adds no scenario except regressions.
 
-**Done:** `make e2e` is green twice in a row from a clean checkout with no retries, skips or weakened assertions, every fix is classified and committed, and every milestone's checklist records the pass.
+**Done (when requested runs get there):** `make e2e` is green twice in a row from a clean checkout with no retries, skips or weakened assertions, every fix is classified and committed, and every milestone's checklist records the pass.
 
 ## T14 — Release
 
@@ -355,19 +355,19 @@ The first `make e2e` since M3 (ROADMAP: *Full e2e run*). The last code task: eve
   - `make doctor` runs clean, or its host-setup failures are recorded as open owner items (T11).
   If the hardened app fails to start, roll back with `git stash`/checkout of the previous deploy commit and `make deploy`, report, and fix before retrying. The data is untouched either way (migrations are append-only).
 - *(host)* Owner's manual checks, listed in [M7-acceptance.md](M7-acceptance.md#manual-checks-owner-t14): record date and result for each there. If the owner hasn't done them yet, list them as open in the summary rather than ticking them, and don't wait for them: they don't block T14, T15 or M7's done state.
-- **E2E policy switches back on:** from now on e2e runs before every commit that changes behavior e2e can reach (ARCHITECTURE §13.1 already says so after M7). Update AGENTS.md (the "paused until the end of M7" paragraph becomes the resumed rule), ROADMAP (the paused note becomes history), and the project memory note about paused e2e runs.
+- **E2E policy:** stays on demand (AGENTS.md, ROADMAP, ARCHITECTURE §13.1; changed 2026-09-27). Nothing to switch back on.
 - **Version:** don't tag, and don't wait for an answer. List "tag `v1.0.0` locally" (no remote exists) as an open owner item in the summary.
-- **Summary to the owner:** what changed; **new env vars:** `HOSTBUD_EXEC_TIMEOUT`, `HOSTBUD_SFTP_TIMEOUT`, `HOSTBUD_MAX_TERMINALS_PER_USER`, `HOSTBUD_MAX_TERMINALS` (all optional, defaults fine), and the optional `COMPOSE_FILE` line for the Tailscale override with `HOSTBUD_ALLOWED_TS_USERS` / `TAILSCALED_SOCKET`; manual steps (run `make doctor`; optionally enable the Tailscale allowlist; set up an off-host copy of `backups/`); the e2e results (counts, the two green runs); open manual checks.
+- **Summary to the owner:** what changed; **new env vars:** `HOSTBUD_EXEC_TIMEOUT`, `HOSTBUD_SFTP_TIMEOUT`, `HOSTBUD_MAX_TERMINALS_PER_USER`, `HOSTBUD_MAX_TERMINALS` (all optional, defaults fine), and the optional `COMPOSE_FILE` line for the Tailscale override with `HOSTBUD_ALLOWED_TS_USERS` / `TAILSCALED_SOCKET`; manual steps (run `make doctor`; optionally enable the Tailscale allowlist; set up an off-host copy of `backups/`); the e2e results so far (counts from requested runs, or that the run is still open); open manual checks.
 
 **Tests:** none new.
 
-**E2E:** none run beyond T13 unless the deploy step finds a bug. Then the bug-fix workflow applies, followed by `make e2e` green again before re-deploying.
+**E2E:** none run (on demand only). A bug found at deploy follows the bug-fix workflow with focused lower-layer tests; e2e runs only if the owner asks.
 
-**Done:** the hardened stack runs on the host and is healthy, the owner's checks are recorded or listed as open (backlog, not blockers), the e2e policy is back in force, and the summary has been delivered.
+**Done:** the hardened stack runs on the host and is healthy, the owner's checks are recorded or listed as open (backlog, not blockers), and the summary has been delivered.
 
 ## T15 — Safe Docker cleanup
 
-Free the disk the milestone's builds and e2e runs used, **without touching the running deployment, its data, other projects, or work another agent may be doing at the same time.** This is the last step of the milestone, after T14's deploy and checks. M7 is the first milestone since M3 that ran e2e, so there is more to clean than in M5/M6: the e2e images, possibly a leftover stack, and T13's worktree.
+Free the disk the milestone's builds and e2e runs used, **without touching the running deployment, its data, other projects, or work another agent may be doing at the same time.** This is the last step of the milestone, after T14's deploy and checks. If requested e2e runs happened, there is more to clean than in M5/M6: the e2e images, possibly a leftover stack, and T13's worktree.
 
 1. **Check that nothing is in use.** If any of these hold, skip the cleaning (steps 3–6), record "cleanup skipped: <reason>" in Progress and the summary, and treat the task as done. Cleanup can run again later:
    - a `make` test/lint/build or e2e run is in progress from this or another session (`pgrep -af 'scripts/tool.sh|docker exec hostbud-tools|test/e2e/run.sh|docker compose .*hostbud'`);

@@ -254,6 +254,8 @@ Each item needs automated evidence (T12 audit). Ticked only when every listed te
 
 ## Full e2e run
 
+On demand only (owner's decision, 2026-09-27): these items are ticked by runs the owner asks for. While open, they are listed as open items and don't block the definition of done below.
+
 - [ ] **(T13) Full suite green:** `make e2e` passes the complete suite from M1–M7 in all three profiles (`desktop-chromium`, `iphone-13-pro`, `iphone-13-pro-domain`) with `retries: 0`, `forbidOnly: true`, the global timeouts unchanged, and no `skip`/`fixme`/deleted scenarios. A scenario moved to manual (only when Playwright truly can't observe it) is recorded here with the reason and listed in the summary for the owner to review later. No approval is awaited.
 - [ ] **(T13) Twice in a row from a clean checkout:** two consecutive `make e2e` runs in a fresh worktree at the final commit are fully green. This also closes M3's open two-run check (M3-tasks CP3).
 - [ ] **(T13) Every failure classified and fixed properly:** each fix commit names its class (product bug with a regression test committed first, stale scenario with the ARCHITECTURE line or task that changed the behavior, harness cause, or environment). Progress notes list them.
@@ -297,11 +299,11 @@ Agents add items here when they hit something only the owner can do or decide (a
 
 ## Definition of done
 
-- [ ] Every functional and security criterion above is satisfied: its U/I tests pass and its E scenario passed in the T13 run.
-- [ ] `make e2e` is green twice in a row from a clean checkout (T13), with all earlier milestones' scenarios included, and every milestone's checklist records the pass.
-- [ ] `make lint test` (three times in a row at CP5, and once after T13's last fix) and `make gitleaks` are green; no secrets, real hostnames, Tailscale IPs, owner paths or emails are tracked.
+- [ ] Every functional and security criterion above is satisfied: its U/I tests pass and its E scenario is written and type-checked (it passes at an on-demand T13 run).
+- [ ] T13's on-demand run: either green twice in a row from a clean checkout and recorded in every milestone's checklist, or listed as open in the summary (not a blocker).
+- [ ] `make lint test` (three times in a row at CP5, and once after any T13 fix) and `make gitleaks` are green; no secrets, real hostnames, Tailscale IPs, owner paths or emails are tracked.
 - [ ] README (status v1, limits and errors, Tailscale allowlist, backup/restore, doctor, Quick start, Troubleshooting), ARCHITECTURE (§3, §4, §6–§9, §11–§13, new §15), ROADMAP and `.env.example` (the four new vars, the commented `COMPOSE_FILE` override line) match what was built; no new migration.
-- [ ] The E2E policy is back in force: AGENTS.md, ROADMAP and ARCHITECTURE §13.1 say e2e runs before every commit that changes reachable behavior.
+- [x] The E2E policy is documented: AGENTS.md, ROADMAP and ARCHITECTURE §13.1 say e2e runs only on demand (2026-09-27).
 - [ ] *(host)* `make deploy` done with the hardened stack healthy; the owner's manual checks are recorded above or listed as open.
 - [ ] T15 safe Docker cleanup done: the production stack, all volumes and all backups intact and healthy; T13's worktree and any restore-check database removed; nothing outside hostbud touched; reclaimed space reported.
 - [ ] Summary delivered: what changed, the new env vars (four optional limits, the optional Tailscale override), manual steps on the host (`make doctor`, optional allowlist, off-host backup copies), e2e results, open manual checks.

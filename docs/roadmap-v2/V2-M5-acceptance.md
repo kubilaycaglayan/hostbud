@@ -60,7 +60,7 @@ Written in T1–T5, first run in T7, on desktop and `iphone-13-pro`.
 - [ ] (T4) Pane text not exposed
 - [ ] (T5) Flag badge (desktop and phone)
 - [ ] (T5) Flag notifies once
-- [ ] (T7) Full suite green on every e2e app: every v1 and V2-M1–V2-M5 scenario, both profiles, no skips or weakened assertions
+- [ ] (on demand) Full suite green on every e2e app: every v1 and V2-M1–V2-M5 scenario, both profiles, no skips or weakened assertions — run only when the owner asks; open until then, not a blocker
 
 ## Manual checks (owner; backlog, not blockers)
 
@@ -69,7 +69,7 @@ Written in T1–T5, first run in T7, on desktop and `iphone-13-pro`.
 
 ## Definition of done
 
-- [ ] Every criterion is ticked, and T7's `make e2e` run is green and recorded with its date and commit.
+- [ ] Every criterion is ticked (E items as written and type-checked; `make e2e` runs only on demand and a pending run is listed as open).
 - [ ] `make lint test` is green, `make gitleaks` is clean, and nothing host-specific or key-like is tracked.
 - [ ] *(host)* `make deploy` succeeded: the stack is healthy, the supervisor reports off, and V2-M4 queues still advance.
 - [ ] T8 Docker cleanup is done (including `hostbud-e2e-llmfake`), or skipped with the reason recorded; production, volumes and backups are intact, and the reclaimed space is reported.

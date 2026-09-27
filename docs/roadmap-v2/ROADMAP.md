@@ -13,12 +13,11 @@ This roadmap replaces the *v2 — Orchestration* section of the v1 ROADMAP (V2.1
 - **Breakdown files.** When a milestone is started, its tasks and checklist are written to `docs/roadmap-v2/V2-M<n>-tasks.md` and `docs/roadmap-v2/V2-M<n>-acceptance.md`, in the same format as `docs/roadmap/M*-tasks.md` / `M*-acceptance.md`. The task lists and criteria below are the starting point for those files.
 - **Three test layers per criterion.** Every acceptance criterion has a coverage line with **U** (unit: Go with fakes, Vitest), **I** (integration: against `test/sshd` or the real deploy config) and **E** (e2e), each naming the task that writes it. **n/a** needs a one-line reason; "manual" only for what automation can't observe.
 - **E2E scenarios are never deferred.** Every task has an **E2E:** line. Scenarios are written in the same commit as the behavior (API-level before the UI exists).
-- **E2E runs once per milestone** (owner's decision, 2026-09-27, to use resources better). This is the default for every v2 planning file and every `V2-M*-tasks.md` / `V2-M*-acceptance.md`:
-  - `make e2e` (and `e2e-up` / `e2e-run`) is **not** run per commit, per task or at checkpoints. The only e2e check per commit is that the suite type-checks (`tsc`);
-  - the full suite (both profiles, all v1 and v2 scenarios) runs in the **last task of each milestone**, before the milestone's goal is marked complete. After every full pass, create and commit a report under `docs/e2e-triage/`, and link it from the milestone's triage index before another full run. Record its command/commit, counts, duration, every failed test title/profile, error summary and classification. The first run is diagnostic; batch-fix the entire inventory with focused checks before starting the next full run. If a verification run finds failures, record all of them and fix them before the following full run. A milestone isn't done until a full run is green;
-  - a milestone is not done until that run is green. Until then, E items in its checklist count as written, not yet passed;
-  - this replaces, for v2 milestones, the post-M7 rule in AGENTS.md and v1 ARCHITECTURE §13.1 ("required again before every commit").
-- **Docker cleanup at the end of every milestone** (owner's request, 2026-09-27). Each v2 milestone's **last task** is a *Safe Docker cleanup*, after the milestone's e2e run and deploy. It follows v1 M7 T15's procedure ([../roadmap/M7-tasks.md](../roadmap/M7-tasks.md#t15--safe-docker-cleanup)):
+- **E2E runs only on demand** (owner's decision, 2026-09-27; replaces the earlier "once per milestone" rule). This is the default for every v2 planning file and every `V2-M*-tasks.md` / `V2-M*-acceptance.md`:
+  - `make e2e` (and `e2e-up` / `e2e-run`) is **never** run while implementing a feature or working on a task, checkpoint or milestone, including its last task. The only e2e check per commit is that the suite type-checks (`tsc`);
+  - a full run (both profiles, all v1 and v2 scenarios) happens only when the owner asks for one. After every full pass, create and commit a report under `docs/e2e-triage/`, and link it from the milestone's triage index before another full run. Record its command/commit, counts, duration, every failed test title/profile, error summary and classification. Batch-fix the whole inventory with focused checks; the next full run again waits for the owner's request;
+  - a milestone's definition of done never waits on a run. E items in its checklist count as written (type-checked) until an on-demand run passes them; a pending run is listed as open in the summary.
+- **Docker cleanup at the end of every milestone** (owner's request, 2026-09-27). Each v2 milestone's **last task** is a *Safe Docker cleanup*, after the milestone's deploy. It follows v1 M7 T15's procedure ([../roadmap/M7-tasks.md](../roadmap/M7-tasks.md#t15--safe-docker-cleanup)):
   - first check nothing is in use (a `make`/e2e/build/restore run from any session, a busy toolbox container). If something is, skip, record "cleanup skipped: <reason>" in Progress and the summary, and don't force it;
   - clean only with the repo's own `make docker-clean` (without `CACHE=1`): the e2e stack and its images, the toolbox containers, dangling `hostbud.image=1` images, plus the milestone's own clean worktrees and restore-check leftovers. When a milestone adds e2e services or images (stubs, `hostbud-e2e-pushfake`, `hostbud-e2e-llmfake`), the recipe is extended to remove them;
   - never prune globally (`docker system/volume/network/builder prune`), never touch the production containers, their images, the volumes `hostbud-data`, `hostbud-postgres-data`, `hostbud-caddy-data`, `hostbud-caddy-config`, `backups/`, other projects' objects, the toolbox images or the warm `test/sshd` targets, and never close a tmux session;
@@ -38,7 +37,7 @@ This roadmap replaces the *v2 — Orchestration* section of the v1 ROADMAP (V2.1
 
 | # | Precondition | Why |
 |---|---|---|
-| P1 | v1 through M7 is done, including M7's full e2e run (twice green). M8 may still be in progress. | v2 relies on the M7 hardening (timeouts, CSP, headers) and on a green e2e baseline. |
+| P1 | v1 through M7 is done (M7's full e2e run is on demand and may still be open). M8 may still be in progress. | v2 relies on the M7 hardening (timeouts, CSP, headers). |
 | P2 | v1 obligations in v1 ARCHITECTURE §10 still hold: (1) typed events on the `events` bus, (2) one session-create service accepting `env` and `startCommand`, (3) dialect-agnostic store with append-only migrations, (4) room for token-authenticated `/api/hooks/*` that bypass the browser Origin check. | v2 §4 and §5.1 build directly on them. V2-M1 T0 re-checks (2). |
 | P3 | The v1 ROADMAP *Later* bug "session start command fails to create the session" is fixed and verified. | Runs are created through exactly that path (v2 §10). This is V2-M1 **T0**. |
 
@@ -262,10 +261,10 @@ Run each check with **both** real clients, in a scratch directory the owner does
 - **E2E:** none (docs only).
 
 #### T13 — Milestone acceptance
-- **The milestone's e2e run:** `make e2e` (full suite, both profiles) for the first time in V2-M1; fix every failure and rerun until green. Then `make lint test` green, gitleaks clean, deploy with `make deploy`.
+- `make lint test` green, e2e `tsc` clean, gitleaks clean, deploy with `make deploy`. No e2e run (on demand only).
 - Walk the criteria below and tick each one whose tests pass.
 - The real-client check is the owner's (see *Manual checks*).
-- **E2E:** full suite run (both profiles), no new scenarios.
+- **E2E:** no new scenarios; no run (on demand only).
 
 #### T14 — Safe Docker cleanup
 - The milestone's last step, after T13's deploy (see *Rules*, Docker cleanup): check nothing is in use, `make docker-clean` without `CACHE=1` (recipe read first; extended for any new e2e images), remove only this milestone's clean worktrees and restore-check leftovers, never prune globally or touch production, volumes, backups, other projects or tmux sessions; verify the stack is healthy and report reclaimed space.
@@ -330,7 +329,7 @@ Scope: v2 §10 *V2-M2*, v2 §3.3 and §3.9. Breakdown: [V2-M2-tasks.md](V2-M2-ta
   - a "waiting for slot" state on items;
   - desktop and phone.
 - **T6 Docs:** v1 ARCHITECTURE §9/§12, README "Queues" (parallel runs, cap), this roadmap's status.
-- **T7 Milestone acceptance:** the milestone's single e2e run: `make e2e` (full suite, both profiles), fix every failure and rerun until green; then `make lint test`, gitleaks, `make deploy`, and tick the criteria below.
+- **T7 Milestone acceptance:** `make lint test`, e2e `tsc`, gitleaks, `make deploy`, and tick the criteria below (no e2e run; on demand only).
 - **T8 Safe Docker cleanup:** as in *Rules* (after T7's deploy; `make docker-clean` without `CACHE=1`; production, volumes and backups untouched; reclaimed space reported).
 
 **E2E** (per task, stubs):
@@ -376,7 +375,7 @@ Breakdown: [V2-M3-tasks.md](V2-M3-tasks.md) · [V2-M3-acceptance.md](V2-M3-accep
 - **T3 Outbound delivery:** push is sent from the server with a timeout and retries (bounded). A failure is logged without the endpoint URL at info. This needs outbound HTTPS from the container, documented in README.
 - **T4 Settings UI:** per-account toggle, a per-event choice (done / needs attention / queue finished), "send test notification". Desktop and phone.
 - **T5 Docs:** README (enabling, iOS requirements), v1 ARCHITECTURE §11/§12/§15.
-- **T6 Milestone acceptance:** the milestone's single e2e run: `make e2e` (full suite, both profiles), fix every failure and rerun until green; then `make lint test`, gitleaks, `make deploy`, and tick the criteria below.
+- **T6 Milestone acceptance:** `make lint test`, e2e `tsc`, gitleaks, `make deploy`, and tick the criteria below (no e2e run; on demand only).
 - **T7 Safe Docker cleanup:** as in *Rules*; the `docker-clean` recipe also removes the `hostbud-e2e-pushfake` image.
 
 **E2E:**
@@ -425,7 +424,7 @@ Breakdown: [V2-M4-tasks.md](V2-M4-tasks.md) · [V2-M4-acceptance.md](V2-M4-accep
   - Mark done still overrides.
 - **T5 Panel:** gate fields on the item form, gate status and verify output in the item view, Approve/Reject buttons. Desktop and phone.
 - **T6 Docs:** README (writing verify commands, what runs where), v1 ARCHITECTURE §12/§15.
-- **T7 Milestone acceptance:** the milestone's single e2e run: `make e2e` (full suite, both profiles), fix every failure and rerun until green; then `make lint test`, gitleaks, `make deploy`, and tick the criteria below.
+- **T7 Milestone acceptance:** `make lint test`, e2e `tsc`, gitleaks, `make deploy`, and tick the criteria below (no e2e run; on demand only).
 - **T8 Safe Docker cleanup:** as in *Rules*.
 
 **E2E** (stubs):
@@ -475,7 +474,7 @@ Breakdown: [V2-M5-tasks.md](V2-M5-tasks.md) · [V2-M5-acceptance.md](V2-M5-accep
   - The supervisor is off until the provider is configured.
 - **T5 Panel:** a flag badge with the label, reason and time on the item. Desktop and phone. Integrates with V2-M3 when notifications are on ("needs your input").
 - **T6 Docs:** README, v1 ARCHITECTURE §10/§12/§14/§15 (package `internal/llm`).
-- **T7 Milestone acceptance:** the milestone's single e2e run: `make e2e` (full suite, both profiles), fix every failure and rerun until green; then `make lint test`, gitleaks, `make deploy`, and tick the criteria below.
+- **T7 Milestone acceptance:** `make lint test`, e2e `tsc`, gitleaks, `make deploy`, and tick the criteria below (no e2e run; on demand only).
 - **T8 Safe Docker cleanup:** as in *Rules*; the `docker-clean` recipe also removes the `hostbud-e2e-llmfake` image.
 
 **E2E:**

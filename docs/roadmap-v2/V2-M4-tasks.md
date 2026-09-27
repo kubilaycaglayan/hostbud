@@ -37,7 +37,7 @@ The v2 ROADMAP *Rules*, AGENTS.md and the V2-M1 milestone rules (fast checks per
 | CP1 | T1 | `make lint test`, `scripts/compose-config.sh`, e2e `tsc` | Not run |
 | CP2 | T2–T4 | `make lint test` **three times in a row** (timeouts, races, restart), e2e `tsc` | Not run |
 | CP3 | T5–T6 | `make lint test`, `vue-tsc`, e2e `tsc`, `make gitleaks`, docs check | Not run |
-| CP4 | T7 | `make e2e` until green, then `make lint test`, `make gitleaks`, `make deploy` | Not run |
+| CP4 | T7 | `make lint test`, e2e `tsc`, `make gitleaks`, `make deploy` (no `make e2e`: on demand only) | Not run |
 
 **Progress note:** (precondition and checkpoint results go here.)
 
@@ -103,8 +103,8 @@ Scope: R T6. Also: v2 §5.4 (the item states, gates, slots and notifications abo
 
 ## T7 — Milestone acceptance
 
-Scope: R T7, done as V2-M1 T13 (no skipped scenarios or weakened assertions; the deploy checks, plus: existing items have no gates and V2-M3 queues still advance). Tick the checklist with dates and commits; write the summary with the new env var and the open owner items.
-- **E2E:** the full suite, both profiles, on every e2e app.
+Scope: R T7, done as V2-M1 T13 (the deploy checks; e2e fixing rules apply to on-demand runs; plus: existing items have no gates and V2-M3 queues still advance). Tick the checklist with dates and commits (E items as written until an on-demand run passes them); write the summary with the new env var and the open owner items.
+- **E2E:** no new scenarios; no run (on demand only; a full suite on every e2e app runs when the owner asks).
 
 ## T8 — Safe Docker cleanup
 

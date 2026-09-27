@@ -8,7 +8,7 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
   - U: T1 placement/order, dialog actions, accessible names, compact styling and hit-area classes (Vitest).
   - I: n/a: frontend presentation and local dialog actions; no server contract changes.
   - E: T1 *Header actions and compact controls* (desktop and phone).
-  - Status (2026-09-27): U written and passing (`web/src/App.spec.ts`); E written and type-checked (`test/e2e/tests/header.actions.spec.ts`; M6 T13 phone/wide scenarios and helpers updated for the move), run pending (paused until M7 T13). Not ticked until the e2e run passes.
+  - Status (2026-09-27): U written and passing (`web/src/App.spec.ts`); E written and type-checked (`test/e2e/tests/header.actions.spec.ts`; M6 T13 phone/wide scenarios and helpers updated for the move), run pending (on demand). Not ticked until the e2e run passes.
 
 ## Project and session tree
 
@@ -16,7 +16,7 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
   - U: T2 row structure, affordance visibility, name-first layout, action wiring and compact styling (Vitest).
   - I: n/a: presentation-only; tree data and APIs are unchanged.
   - E: T2 *Compact tree* (desktop and phone), including actual reorder/collapse/open behavior.
-  - Status (2026-09-27): U written and passing (`web/src/components/SessionList.spec.ts`, `SessionTree.spec.ts`; e2e `tests/tree.compact.spec.ts`); E written and type-checked, run pending (paused until M7 T13). Not ticked until the e2e run passes.
+  - Status (2026-09-27): U written and passing (`web/src/components/SessionList.spec.ts`, `SessionTree.spec.ts`; e2e `tests/tree.compact.spec.ts`); E written and type-checked, run pending (on demand). Not ticked until the e2e run passes.
 
 ## File browser and browser autocomplete
 
@@ -24,12 +24,12 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
   - U: T3 dialog/item density classes, bounds-related responsive classes and action wiring (Vitest).
   - I: n/a: layout is frontend-only; existing M4 file-browser API integration coverage remains applicable.
   - E: T3 *Compact file browser* (desktop and phone), screenshot/bounds plus navigation and item actions.
-  - Status (2026-09-27): U written and passing (`web/src/components/FileBrowserDialog.spec.ts`, `web/src/lib/autocomplete.spec.ts`; e2e `tests/files.compact.spec.ts`); E written and type-checked, run pending (paused until M7 T13). Not ticked until the e2e run passes.
+  - Status (2026-09-27): U written and passing (`web/src/components/FileBrowserDialog.spec.ts`, `web/src/lib/autocomplete.spec.ts`; e2e `tests/files.compact.spec.ts`); E written and type-checked, run pending (on demand). Not ticked until the e2e run passes.
 - [ ] Browser autocomplete/autofill is disabled on all application inputs except the login-screen password input, whose current autocomplete behavior and markup remain unchanged.
   - U: T3 rendered form attribute audit, with explicit login-password exception regression (Vitest).
   - I: n/a: browser form markup; no server behavior changes.
   - E: T3 *No browser autocomplete outside login password* (desktop): inspect all application form controls and preserve login password behavior.
-  - Status (2026-09-27): U written and passing (`web/src/components/FileBrowserDialog.spec.ts`, `web/src/lib/autocomplete.spec.ts`; e2e `tests/files.compact.spec.ts`); E written and type-checked, run pending (paused until M7 T13). Not ticked until the e2e run passes.
+  - Status (2026-09-27): U written and passing (`web/src/components/FileBrowserDialog.spec.ts`, `web/src/lib/autocomplete.spec.ts`; e2e `tests/files.compact.spec.ts`); E written and type-checked, run pending (on demand). Not ticked until the e2e run passes.
 
 ## Open tab ordering
 
@@ -37,7 +37,7 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
   - U: T4 layout-store reorder/restore/append behavior and active/pane invariants (Vitest); drag/drop interaction updates order without changing the active tab or mounting terminals (component test).
   - I: n/a: this uses the existing `ui_state/layout` persistence route with no server changes; M3 covers its authenticated persistence integration.
   - E: T4 *Custom tab order* (desktop and phone), including persistence after reload and restart and unchanged appearance.
-  - Status (2026-09-27): U written and passing (`web/src/lib/layout.spec.ts`, `stores/layout.spec.ts`, `components/TabBar.spec.ts`, `App.spec.ts`; e2e `tests/tabs.order.spec.ts`); E written and type-checked, run pending (paused until M7 T13). Not ticked until the e2e run passes.
+  - Status (2026-09-27): U written and passing (`web/src/lib/layout.spec.ts`, `stores/layout.spec.ts`, `components/TabBar.spec.ts`, `App.spec.ts`; e2e `tests/tabs.order.spec.ts`); E written and type-checked, run pending (on demand). Not ticked until the e2e run passes.
 
 ## Text input caret placement
 
@@ -45,7 +45,7 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
   - U: T5 pointer-to-caret regression coverage across positions/line boundaries and ordinary-click behavior (Vitest).
   - I: n/a: caret positioning is browser-side input behavior and makes no server request.
   - E: T5 *Option-click caret placement* (desktop), asserts caret coordinates and text insertion at the clicked location in representative single-line and multiline app inputs.
-  - Status (2026-09-27): cause identified (xterm 6 `altClickMovesCursor` miscounts in the normal buffer; the app's own `<input>`s are unaffected and there are no `<textarea>`s). U written and passing (`web/src/lib/altClick.spec.ts`, including a reproduction of xterm's miscount on a bordered multiline prompt; `TerminalView.spec.ts`); E written and type-checked (`test/e2e/tests/caret.spec.ts`: bash single-line and soft-wrapped, a deterministic bordered multiline prompt on the throwaway target, and the New session Name input), run pending (paused until M7 T13), which is also the first live check in a browser. Not ticked until the e2e run passes.
+  - Status (2026-09-27): cause identified (xterm 6 `altClickMovesCursor` miscounts in the normal buffer; the app's own `<input>`s are unaffected and there are no `<textarea>`s). U written and passing (`web/src/lib/altClick.spec.ts`, including a reproduction of xterm's miscount on a bordered multiline prompt; `TerminalView.spec.ts`); E written and type-checked (`test/e2e/tests/caret.spec.ts`: bash single-line and soft-wrapped, a deterministic bordered multiline prompt on the throwaway target, and the New session Name input), run pending (on demand), which is also the first live check in a browser. Not ticked until the e2e run passes.
 
 ## Terminal scrolling readability
 
@@ -53,13 +53,13 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
   - U: T6 wheel handling/render update or scroll-step behavior (Vitest), including direction and bounded movement.
   - I: T6 `TestIntegrationAttachDeclaresSynchronizedOutput` (`internal/term`, against `test/sshd`): the browser's tmux client declares `sync`, redraws arrive in DEC 2026 marks, and the session keeps working.
   - E: T6 *Readable terminal scrolling* (desktop), with deterministic distinct/repeated target output, both directions, controlled/rapid wheel input, visible text assertions and before/after captures for visual review.
-  - Status (2026-09-27): wheel causes measured and fixed (tmux copy-mode redraws torn across network chunks → `-T sync`; xterm scrollback notches jumping 3 rows per frame → `smoothScrollDuration` 100 ms). U written and passing (`TerminalView.spec.ts`, `internal/tmux`, `internal/term`); I written and passing; E `test/e2e/tests/scroll.wheel.spec.ts` written and type-checked, run pending (paused until M7 T13). Not ticked until the e2e run passes.
+  - Status (2026-09-27): wheel causes measured and fixed (tmux copy-mode redraws torn across network chunks → `-T sync`; xterm scrollback notches jumping 3 rows per frame → `smoothScrollDuration` 100 ms). U written and passing (`TerminalView.spec.ts`, `internal/tmux`, `internal/term`); I written and passing; E `test/e2e/tests/scroll.wheel.spec.ts` written and type-checked, run pending (on demand). Not ticked until the e2e run passes.
 
 - [ ] On touch screens a vertical swipe over the terminal scrolls like a mouse wheel: a mouse-aware full-screen app (Claude Code, Codex) receives wheel reports and scrolls its own history; otherwise tmux copy mode scrolls tmux's full history, including output before the browser attached. xterm's partial local scrollbar is hidden on touch screens. Experimental momentum: flicks coast with friction, same-direction flicks stack up to a speed cap, and a touch stops it.
   - U: T9 `touchScroll.spec.ts`, `copyMode.spec.ts` wheel actions and `TerminalView.spec.ts` swipe request (Vitest); Go `TestWheelState`, `TestAppWheelArgs`, `TestCopyModeArgs`, `TestCopyModeWheelFollowsTmuxWheelRule`, `TestCopyModeAPIValidationAndAccess`.
   - I: T9 `TestIntegrationWheelScrollsAppOrTmuxHistory` (`internal/session`, against `test/sshd`).
   - E: T9 *Touch swipe scrolls the full tmux history* and *Touch swipe scrolls a mouse-aware full-screen app* (phone projects).
-  - Status (2026-09-27): U and I written and passing; E written and type-checked, run pending M7 T13. Deployed at the owner's request; the owner confirmed plain tmux and Claude Code scrolling on the phone.
+  - Status (2026-09-27): U and I written and passing; E written and type-checked, run pending (on demand). Deployed at the owner's request; the owner confirmed plain tmux and Claude Code scrolling on the phone.
   - **Manual (owner, open):** tune the momentum feel (friction, speed cap) in the iPhone 13 Pro PWA.
 
 ## Mobile terminal input
@@ -73,7 +73,7 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
   - U: T7 mounted-terminal palette update, contrast pairs and attached-session invariant across theme changes (Vitest).
   - I: n/a: theme and terminal color rendering are frontend-only; tmux/SSH attachment state is unchanged.
   - E: T7 *Long-lived terminal contrast* (desktop), representative prompt-like TUI on the throwaway target across System dark/light changes, attached-session and palette assertions, with screenshots. Real Codex-specific rendering is recorded as an owner check if Codex is unavailable in the throwaway target.
-  - Status (2026-09-27): diagnosed as client-owned (Codex queries OSC 10/11 and paints an explicit composer background computed for the start-up theme; default-colored text on it measured 1.16:1 after dark → light). hostbud enforces `minimumContrastRatio` 4.5; before/after verified in headless Chromium with xterm 6 (`rgb(31,35,40)` → `rgb(150,151,155)` on the dark composer). U written and passing (`web/src/lib/theme.spec.ts`, `TerminalView.spec.ts`); E `test/e2e/tests/theme.contrast.spec.ts` written and type-checked, run pending (paused until M7 T13). Real Codex remains the open owner check below. Not ticked until the e2e run passes.
+  - Status (2026-09-27): diagnosed as client-owned (Codex queries OSC 10/11 and paints an explicit composer background computed for the start-up theme; default-colored text on it measured 1.16:1 after dark → light). hostbud enforces `minimumContrastRatio` 4.5; before/after verified in headless Chromium with xterm 6 (`rgb(31,35,40)` → `rgb(150,151,155)` on the dark composer). U written and passing (`web/src/lib/theme.spec.ts`, `TerminalView.spec.ts`); E `test/e2e/tests/theme.contrast.spec.ts` written and type-checked, run pending (on demand). Real Codex remains the open owner check below. Not ticked until the e2e run passes.
 
 ## Dictation, focus return and terminal text view
 
@@ -81,17 +81,17 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
   - U: T8 dialog Send/Cancel and exactly-once xterm paste coverage (Vitest).
   - I: n/a: browser input handling only; no server state or integration contract changes.
   - E: T8 *Dictation editor sends reviewed text once* (desktop Chromium), verified in the throwaway shell.
-  - Status (2026-09-27): U coverage is written and passing (`TerminalView.spec.ts`); E `test/e2e/tests/dictation.spec.ts` is written and type-checked, run pending M7 T13. The iPhone system dictation check remains open owner backlog.
+  - Status (2026-09-27): U coverage is written and passing (`TerminalView.spec.ts`); E `test/e2e/tests/dictation.spec.ts` is written and type-checked, run pending (on demand). The iPhone system dictation check remains open owner backlog.
 - [ ] Backgrounding blurs the active text field; returning and switching tabs or panes do not automatically focus the terminal or reopen the keyboard. An explicit Show keyboard action still focuses it.
   - U: T8 hidden-page blur, tab/pane switching focus guard, and Show keyboard coverage (Vitest).
   - I: n/a: browser visibility and focus behavior only.
   - E: T8 *Returning from background does not automatically refocus the terminal* (desktop Chromium).
-  - Status (2026-09-27): U coverage is written and passing (`pageFocus.spec.ts`, `TerminalView.spec.ts`); E `test/e2e/tests/dictation.spec.ts` is written and type-checked, run pending M7 T13.
+  - Status (2026-09-27): U coverage is written and passing (`pageFocus.spec.ts`, `TerminalView.spec.ts`); E `test/e2e/tests/dictation.spec.ts` is written and type-checked, run pending (on demand).
 - [ ] Per-terminal actions are consolidated in one three-dot menu, and View terminal text opens a frozen, full-screen, scrollable and selectable copyable snapshot of all history retained by the active tmux pane, including before browser attachment, with tmux colors and styles, wrapped long lines and native selection/copy/vertical scrolling, no visible title or text box frame, and a close button. Tab controls remain unchanged.
   - U: T8 capture command validation, service errors, authenticated uncached API, ANSI styling and safe text rendering, native reader and toolbar actions (Go/Vitest).
   - I: T8 `TestIntegrationOutputIncludesHistoryWithoutAttaching` captures styled historical output and joined rows without attaching or entering copy mode; `TestIntegrationOutputIncludesHistoryUnderFullScreenApp` captures shell history, the saved normal screen and the full-screen app's screen in order, with row padding trimmed (`test/sshd`).
   - E: T8 *Terminal text snapshot scrolls, selects, and closes* and *Terminal text includes shell history under a full-screen app* (desktop Chromium).
-  - Status (2026-09-27): U coverage is written and passing (`terminalOutput.spec.ts`, `TerminalTextDialog.spec.ts`, `TerminalView.spec.ts`, Go capture/API tests); E `test/e2e/tests/dictation.spec.ts` is written and type-checked, run pending M7 T13.
+  - Status (2026-09-27): U coverage is written and passing (`terminalOutput.spec.ts`, `TerminalTextDialog.spec.ts`, `TerminalView.spec.ts`, Go capture/API tests); E `test/e2e/tests/dictation.spec.ts` is written and type-checked, run pending (on demand).
   - **Manual (owner, open):** verify two consecutive dictations with native iOS dictation in the iPhone 13 Pro PWA; Playwright cannot invoke iOS system dictation.
 
 ## Agent marks in the left session list
@@ -106,7 +106,7 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
 
 Manual check (owner): if Codex cannot run in the throwaway E2E target, verify the reported “Ask Codex to do anything” prompt surface through a dark-to-light OS theme change with the long-running session still attached. This remains open owner backlog and does not block M8.
 
-T8 output reader correction: switched from the browser screen snapshot to on-demand tmux history capture. No new environment variables or host configuration changes. E2E remains written/type-checked pending M7 T13. Manual (owner, open): confirm native selection and vertical scrolling in the installed iPhone PWA.
+T8 output reader correction: switched from the browser screen snapshot to on-demand tmux history capture. No new environment variables or host configuration changes. E2E remains written/type-checked; run on demand. Manual (owner, open): confirm native selection and vertical scrolling in the installed iPhone PWA.
 
 T8 full-screen apps: while a pane is on the alternate screen (vim, Claude Code, Codex), the view shows tmux's shell history, the saved normal screen and the app's current screen. An app's own internal scrollback isn't held by tmux and can't be shown. tmux keeps `history-limit` lines (default 2000); hostbud doesn't change it.
 

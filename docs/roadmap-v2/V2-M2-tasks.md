@@ -33,7 +33,7 @@ The v2 ROADMAP *Rules*, AGENTS.md and the V2-M1 milestone rules (fast checks per
 | CP1 | T1–T3 | `make lint test`, `scripts/compose-config.sh`, e2e `tsc` | Not run |
 | CP2 | T4 | `make lint test` **three times in a row** (concurrent signals, timers), e2e `tsc` | Not run |
 | CP3 | T5–T6 | `make lint test`, `vue-tsc`, e2e `tsc`, `make gitleaks`, docs check | Not run |
-| CP4 | T7 | `make e2e` until green, then `make lint test`, `make gitleaks`, `make deploy` | Not run |
+| CP4 | T7 | `make lint test`, e2e `tsc`, `make gitleaks`, `make deploy` (no `make e2e`: on demand only) | Not run |
 
 **Progress note:** (precondition and checkpoint results go here.)
 
@@ -108,8 +108,8 @@ Scope: R T6. Also: v2 §5.1 and §6 (slots, `waiting_since`, naming), the v2 ROA
 
 ## T7 — Milestone acceptance
 
-Scope: R T7, done as V2-M1 T13 (no skipped scenarios or weakened assertions; the fast loop; the deploy checks, plus: the switch is off in production unless the owner set it, and the V2-M1 queue still works). Tick the checklist with dates and commits, and write the summary with the new env var and the open owner items.
-- **E2E:** the full suite, both profiles, on both e2e apps.
+Scope: R T7, done as V2-M1 T13 (the deploy checks; e2e fixing rules apply to on-demand runs; plus: the switch is off in production unless the owner set it, and the V2-M1 queue still works). Tick the checklist with dates and commits (E items as written until an on-demand run passes them), and write the summary with the new env var and the open owner items.
+- **E2E:** no new scenarios; no run (on demand only; a full suite on both e2e apps runs when the owner asks).
 
 ## T8 — Safe Docker cleanup
 
