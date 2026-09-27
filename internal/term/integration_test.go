@@ -21,6 +21,7 @@ import (
 	"hostbud/internal/sshx"
 	"hostbud/internal/term"
 	"hostbud/internal/testenv"
+	"hostbud/internal/tmux"
 )
 
 type env struct {
@@ -172,6 +173,30 @@ func TestIntegrationAttachTypeResizeClose(t *testing.T) {
 	if got := e.sh("tmux has-session -t =term-a && echo alive"); got != "alive" {
 		t.Fatal("session died with the socket")
 	}
+}
+
+// M8 T6: with the host's tmux version known, the browser's client declares
+// the "sync" terminal feature, so tmux wraps redraws in DEC 2026 marks.
+func TestIntegrationAttachDeclaresSynchronizedOutput(t *testing.T) {
+	var version tmux.Version
+	e := setup(t, func(h *term.Handler) { h.TmuxVersion = func(string) tmux.Version { return version } })
+	v, err := tmux.ParseVersion(e.sh("tmux -V"))
+	if err != nil || !v.AtLeast(3, 2) {
+		t.Fatalf("test/sshd tmux %q (%v): need 3.2+", v.Raw, err)
+	}
+	version = v
+	e.newSession("term-sync")
+	conn, out := e.attach("term-sync", 80, 24)
+	e.eventually("attached", func() bool { return e.sh("tmux display -p -t =term-sync: '#{session_attached}'") == "1" })
+	if features := e.sh("tmux list-clients -t =term-sync -F '#{client_termfeatures}'"); !strings.Contains(features, "sync") {
+		t.Fatalf("client features %q, want sync", features)
+	}
+	send(t, conn, "clear; seq 1 50\r")
+	out.waitFor(t, "\x1b[?2026h")
+	out.waitFor(t, "\x1b[?2026l")
+	// The session keeps working as before.
+	send(t, conn, "echo sync-marker-$((6*7))\r")
+	out.waitFor(t, "sync-marker-42")
 }
 
 func TestIntegrationTerminalAttachLimit(t *testing.T) {

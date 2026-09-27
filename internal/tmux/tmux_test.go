@@ -95,7 +95,10 @@ func TestExactTargets(t *testing.T) {
 		{func() ([]string, error) { return RenameSessionArgs("old", "new") }, []string{"tmux", "rename-session", "-t", "=old", "new"}},
 		{func() ([]string, error) { return KillSessionArgs("acc-a") }, []string{"tmux", "kill-session", "-t", "=acc-a"}},
 		{func() ([]string, error) { return HasSessionArgs("acc-a") }, []string{"tmux", "has-session", "-t", "=acc-a"}},
-		{func() ([]string, error) { return AttachArgs("acc-a") }, []string{"tmux", "attach-session", "-t", "=acc-a"}},
+		{func() ([]string, error) { return AttachArgs("acc-a", Version{}) }, []string{"tmux", "attach-session", "-t", "=acc-a"}},
+		{func() ([]string, error) { return AttachArgs("acc-a", Version{Major: 3, Minor: 1}) }, []string{"tmux", "attach-session", "-t", "=acc-a"}},
+		{func() ([]string, error) { return AttachArgs("acc-a", Version{Major: 3, Minor: 2}) }, []string{"tmux", "-T", "sync", "attach-session", "-t", "=acc-a"}},
+		{func() ([]string, error) { return AttachArgs("acc-a", Version{Major: 3, Minor: 5}) }, []string{"tmux", "-T", "sync", "attach-session", "-t", "=acc-a"}},
 	}
 	for _, c := range cases {
 		got, err := c.got()
@@ -109,7 +112,7 @@ func TestExactTargets(t *testing.T) {
 	if _, err := KillSessionArgs("a:b"); !errors.Is(err, ErrInvalidName) {
 		t.Error("kill of invalid name accepted")
 	}
-	if _, err := AttachArgs(""); !errors.Is(err, ErrInvalidName) {
+	if _, err := AttachArgs("", Version{Major: 3, Minor: 5}); !errors.Is(err, ErrInvalidName) {
 		t.Error("attach of empty name accepted")
 	}
 }

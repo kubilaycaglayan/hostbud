@@ -26,6 +26,7 @@ import (
 	"hostbud/internal/sshx"
 	"hostbud/internal/store"
 	"hostbud/internal/term"
+	"hostbud/internal/tmux"
 	"hostbud/internal/tsauth"
 	"hostbud/web"
 )
@@ -163,7 +164,7 @@ func run() error {
 			Sessions:              sessions,
 			Projects:              projectService,
 			FileSystem:            filesystem,
-			Terminal:              &term.Handler{SSH: ssh, Log: log, Shutdown: ctx.Done(), MaxPerUser: cfg.MaxTerminalsPerUser, MaxTotal: cfg.MaxTerminals, AttachTimeout: cfg.ExecTimeout, AccountID: api.AuthenticatedUserID},
+			Terminal:              &term.Handler{SSH: ssh, Log: log, Shutdown: ctx.Done(), MaxPerUser: cfg.MaxTerminalsPerUser, MaxTotal: cfg.MaxTerminals, AttachTimeout: cfg.ExecTimeout, AccountID: api.AuthenticatedUserID, TmuxVersion: hostTmuxVersion(inv)},
 			UIState:               st,
 			Auth:                  accounts,
 			TrustedProxies:        proxies,
@@ -289,4 +290,17 @@ func loadOrCreateKey(path string) ([]byte, error) {
 		return nil, fmt.Errorf("write %s: %w", path, err)
 	}
 	return b, nil
+}
+
+// hostTmuxVersion reports the host's tmux version from the inventory (zero
+// for other machines or before the first probe), for the attach flags.
+func hostTmuxVersion(inv *inventory.Inventory) func(machine string) tmux.Version {
+	return func(machine string) tmux.Version {
+		if machine != store.HostMachineID {
+			return tmux.Version{}
+		}
+		m, _ := inv.Snapshot()
+		v, _ := tmux.ParseVersion(m.TmuxVersion)
+		return v
+	}
 }

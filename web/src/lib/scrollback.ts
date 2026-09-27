@@ -16,6 +16,13 @@ import type { IDisposable, Terminal } from '@xterm/xterm'
 
 const ALT_SCREEN_MODES = new Set([47, 1047, 1049])
 
+/** Mouse-wheel notches in xterm's scrollback animate over this long (M8 T6):
+ * a notch then moves the text one row per frame instead of jumping 3 rows at
+ * once, which is hard to follow in repeated output. Same rows, same end
+ * position and direction; trackpads and output-driven scrolls aren't
+ * animated (xterm's Viewport only smooths classified wheel notches). */
+export const WHEEL_SMOOTH_SCROLL_MS = 100
+
 /** True if every parameter of a DECSET/DECRST is an alternate-screen mode. */
 export function onlyAltScreen(params: (number | number[])[]): boolean {
   return params.length > 0 && params.every((p) => typeof p === 'number' && ALT_SCREEN_MODES.has(p))

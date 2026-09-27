@@ -53,6 +53,7 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
   - U: T6 wheel handling/render update or scroll-step behavior (Vitest), including direction and bounded movement; direct touch swipes use the local terminal buffer and make no copy-mode API request. If the wheel fix changes rendering only, document why no separate state logic applies.
   - I: n/a when the fix is browser/xterm rendering only; no server or SSH behavior changes.
   - E: T6 *Readable terminal scrolling* (desktop), with deterministic distinct/repeated target output, both directions, controlled/rapid wheel input, visible text assertions and before/after captures for visual review; T6 *Touch swipe scrolls history directly* (phone), both directions while tmux stays out of copy mode.
+  - Status (2026-09-27): wheel causes measured and fixed (tmux copy-mode redraws torn across network chunks → `-T sync`; xterm scrollback notches jumping 3 rows per frame → `smoothScrollDuration` 100 ms). U written and passing (`TerminalView.spec.ts`, `internal/tmux`, `internal/term`); I written and passing; E `test/e2e/tests/scroll.wheel.spec.ts` written and type-checked, run pending (paused until M7 T13). Not ticked until the e2e run passes.
 
 ## Long-lived terminal theme contrast
 

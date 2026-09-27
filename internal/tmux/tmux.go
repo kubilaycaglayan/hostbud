@@ -378,9 +378,17 @@ func HasSessionArgs(name string) ([]string, error) {
 }
 
 // AttachArgs returns the argv for attach-session (interactive, via PTY).
-func AttachArgs(name string) ([]string, error) {
+// With tmux 3.2 or newer the client declares the terminal feature "sync"
+// (-T, this client only; no server option or user config changes): tmux
+// then wraps each redraw in synchronized-output marks (DEC mode 2026), and
+// xterm shows it as one frame instead of line by line, which is what made
+// copy-mode wheel scrolling flicker (M8 T6).
+func AttachArgs(name string, v Version) ([]string, error) {
 	if err := ValidateName(name); err != nil {
 		return nil, err
+	}
+	if v.AtLeast(3, 2) {
+		return []string{"tmux", "-T", "sync", "attach-session", "-t", target(name)}, nil
 	}
 	return []string{"tmux", "attach-session", "-t", target(name)}, nil
 }

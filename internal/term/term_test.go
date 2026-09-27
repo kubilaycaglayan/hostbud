@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+
+	"hostbud/internal/tmux"
 )
 
 func TestParseControl(t *testing.T) {
@@ -52,7 +54,7 @@ func (fakeSSH) Args(machine string, opts []string, args ...string) ([]string, er
 }
 
 func TestAttachArgv(t *testing.T) {
-	got, err := AttachArgv(fakeSSH{}, "host", "my-session")
+	got, err := AttachArgv(fakeSSH{}, "host", "my-session", tmux.Version{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +62,13 @@ func TestAttachArgv(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Fatalf("got %q", got)
 	}
-	if _, err := AttachArgv(fakeSSH{}, "host", "a.b"); err == nil {
+	// tmux 3.2+: synchronized redraws for this client (M8 T6).
+	got, err = AttachArgv(fakeSSH{}, "host", "my-session", tmux.Version{Major: 3, Minor: 4})
+	want = []string{"ssh", "-F", "cfg", "-tt", "host", "--", "tmux", "-T", "sync", "attach-session", "-t", "=my-session"}
+	if err != nil || !slices.Equal(got, want) {
+		t.Fatalf("got %q, %v", got, err)
+	}
+	if _, err := AttachArgv(fakeSSH{}, "host", "a.b", tmux.Version{}); err == nil {
 		t.Fatal("invalid session name accepted")
 	}
 }
@@ -177,6 +185,18 @@ func eventually(t *testing.T, what string, cond func() bool) {
 			t.Fatalf("timed out: %s", what)
 		}
 		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func TestHandlerAttachesWithTheMachinesTmuxVersion(t *testing.T) {
+	proc := newFake()
+	h, url, startedCh := serve(t, proc)
+	var asked string
+	h.TmuxVersion = func(machine string) tmux.Version { asked = machine; return tmux.Version{Major: 3, Minor: 5} }
+	_ = dial(t, url+"?machine=host&session=s1&cols=100&rows=30")
+	st := <-startedCh
+	if asked != "host" || !slices.Equal(st.argv[len(st.argv)-5:], []string{"-T", "sync", "attach-session", "-t", "=s1"}) {
+		t.Fatalf("asked %q, started %q", asked, st.argv)
 	}
 }
 

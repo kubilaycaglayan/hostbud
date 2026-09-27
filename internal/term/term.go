@@ -53,6 +53,9 @@ type Handler struct {
 	// (25s, 10s); tests shorten them.
 	PingInterval, PingTimeout time.Duration
 	AttachTimeout             time.Duration
+	// TmuxVersion reports a machine's tmux version (zero when unknown), which
+	// picks the attach flags (tmux.AttachArgs).
+	TmuxVersion func(machine string) tmux.Version
 
 	active  atomic.Int64
 	limitMu sync.Mutex
@@ -63,8 +66,8 @@ type Handler struct {
 func (h *Handler) Active() int { return int(h.active.Load()) }
 
 // AttachArgv returns the full argv for attaching to a session.
-func AttachArgv(ssh SSH, machine, session string) ([]string, error) {
-	attach, err := tmux.AttachArgs(session)
+func AttachArgv(ssh SSH, machine, session string, version tmux.Version) ([]string, error) {
+	attach, err := tmux.AttachArgs(session, version)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +93,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	argv, err := AttachArgv(h.SSH, q.Get("machine"), q.Get("session"))
+	var version tmux.Version
+	if h.TmuxVersion != nil {
+		version = h.TmuxVersion(q.Get("machine"))
+	}
+	argv, err := AttachArgv(h.SSH, q.Get("machine"), q.Get("session"), version)
 	if err != nil {
 		http.Error(w, "invalid machine or session: "+err.Error(), http.StatusBadRequest)
 		return

@@ -158,7 +158,7 @@ func TestIntegrationExactTargets(t *testing.T) {
 // and returns a func that ends it.
 func attachClient(t *testing.T, c *sshx.Client, name string) func() {
 	t.Helper()
-	attach, _ := tmux.AttachArgs(name)
+	attach, _ := tmux.AttachArgs(name, tmux.Version{})
 	argv, err := c.Args(sshx.HostMachineID, []string{"-tt"}, attach...)
 	if err != nil {
 		t.Fatal(err)

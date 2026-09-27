@@ -15,7 +15,7 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 | T3 Compact file browser and autocomplete policy | Implemented; e2e written, not run yet |
 | T4 Drag to reorder open tabs | Implemented; e2e written, not run yet |
 | T5 Reliable Option-click caret placement | Implemented; e2e written, not run yet |
-| T6 Readable terminal wheel scrolling | In progress (direct touch scrolling implemented; wheel readability work remains) |
+| T6 Readable terminal wheel scrolling | Implemented; e2e written, not run yet |
 | T7 Contrast in long-lived terminal clients | Not started |
 
 **Progress note (T2–T4, 2026-09-27):** Vitest (447 tests), eslint, `vue-tsc` and the e2e `tsc` passed; deployed to the host from a clean checkout of `f664bb8` (a pre-deploy `pg_dump` is in `backups/`), and the stack came up healthy. Still open for these tasks:
