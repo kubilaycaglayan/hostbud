@@ -183,15 +183,15 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 
 ## Integration suite against `test/sshd`
 
-- [ ] ARCHITECTURE §13 has a coverage matrix: packages (`sshx`, `tmux`, `inventory`, `session`, `term`, `fsbrowse`, `projects`, `store`, `auth`) × cases (happy path, not found, invalid input, timeout, unreachable, tmux missing, host-key mismatch, concurrency). Every cell names a test or gives an n/a reason.
+- [x] ARCHITECTURE §13 has a coverage matrix: packages (`sshx`, `tmux`, `inventory`, `session`, `term`, `fsbrowse`, `projects`, `store`, `auth`) × cases (happy path, not found, invalid input, timeout, unreachable, tmux missing, host-key mismatch, concurrency). Every cell names a test or gives an n/a reason.
   - U: n/a: the matrix documents the I layer.
   - I: T10 fills every gap the matrix shows; T12 audits it.
   - E: n/a: documentation of integration coverage.
-- [ ] The failure cases are covered against the real target: host-key mismatch (a hard error with the actionable message, no master created, recovery on restore); empty or missing agent (`KindAgent` with the `HOST_SSH_AUTH_SOCK`/`ssh-add` hint); sshd down; tmux server killed (empty list, then create works); concurrent create of one name (one 201, one 409); rename during kill; attach to a session killed mid-handshake; SFTP permission denied; name and path boundaries (1/64 chars, Unicode, 4096-byte path).
+- [x] The failure cases are covered against the real target: host-key mismatch (a hard error with the actionable message, no master created, recovery on restore); empty or missing agent (`KindAgent` with the `HOST_SSH_AUTH_SOCK`/`ssh-add` hint); sshd down; tmux server killed (empty list, then create works); concurrent create of one name (one 201, one 409); rename during kill; attach to a session killed mid-handshake; SFTP permission denied; name and path boundaries (1/64 chars, Unicode, 4096-byte path).
   - U: T10 messages and hints for the new error kinds (Go).
   - I: T10 each case (Go, `test/sshd`).
   - E: T10 *Host key change is a hard error* (desktop); the others are user-visible through M1/M4 scenarios already or aren't reachable from a serial single user.
-- [ ] Info-level logs contain no user-chosen names or secrets. A full cycle run at info level with canary values (path, start command, session and project names, email, password, cookie token) logs none of them. Session names are logged only at debug.
+- [x] Info-level logs contain no user-chosen names or secrets. A full cycle run at info level with canary values (path, start command, session and project names, email, password, cookie token) logs none of them. Session names are logged only at debug.
   - U: T10 `term` and `session` log the name at debug only (Go).
   - I: T10 canary log test (Go, `test/sshd` + PostgreSQL).
   - E: n/a: logs aren't visible to the browser.

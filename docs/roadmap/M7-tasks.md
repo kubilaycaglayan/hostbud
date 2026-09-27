@@ -19,7 +19,7 @@ Update this table in the same commit that finishes a task.
 | T7 Container and deploy hardening | Done |
 | T8 Tailscale identity allowlist | Done |
 | T9 Backup and restore | Done |
-| T10 Integration suite completion and log hygiene | In progress |
+| T10 Integration suite completion and log hygiene | Done |
 | T11 Fresh-host install and `make doctor` | Done |
 | T12 Docs and security audit | Not started |
 | T13 Full e2e run | Not started |
@@ -55,6 +55,8 @@ Update this table in the same commit that finishes a task.
 **Progress note (CP4):** `make lint test` and `make build` passed after T9. Go integration coverage exercised backup/restore round-trip, older-dump migration, and restore-check cleanup after both a complete dump and a sanity failure. The real-tailnet check and production backup/restore-check remain open owner items for T14.
 
 **Progress note (T11):** `make fmt`, `make lint test`, `make shell-test`, `make docs-lint`, and `scripts/compose-config.sh` passed. `make doctor` ran read-only on the development host; its redacted output and four unresolved setup checks are in the owner backlog in M7-acceptance.md.
+
+**Progress note (T10, 2026-09-27):** Reviewed ARCHITECTURE §13's package/case matrix against the integration test names and confirmed all requested gaps are covered, including host-key pinning/recovery, agent failures, unreachable sshd, tmux restart, races, killed attach handshake, SFTP permissions and input boundaries. The info-level account/host canary cycle and debug-only session-name logging are covered. `make test` passed (Go integration suite with `-race`, frontend tests, and shell/doc checks). The T10 host-key E2E scenario is written and type-checks as part of the suite; execution remains scheduled for T13. CP5's three consecutive full runs remain pending until T12 is complete.
 
 **What e2e can and can't reach.**
 - **Stalls** use the `test/sshd` stall switches through new `hostbud-e2e-ctl` actions: `/stall/tmux/on|off` (T2) and `/stall/sftp/on|off` (T3). While a switch is on, every `tmux` or `sftp-server` process started on the target sleeps until the switch expires (60 s TTL), so hostbud's call hangs exactly as it would against a wedged host. The suite runs serially (`workers: 1`), so a target-wide switch can't disturb another scenario, as long as every scenario turns it off in `finally`.
