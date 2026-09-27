@@ -275,3 +275,68 @@ func TestIntegrationProjectSessionPlacementRenameEndAndRecreate(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestIntegrationDeleteProjectCascadesMetadataAndKeepsLiveSession(t *testing.T) {
+	ctx := context.Background()
+	client := testenv.Connected(t, testenv.SSHD)
+	if _, err := client.Exec(ctx, sshx.HostMachineID, "mkdir", "-p", "/home/dev/project-delete-it/app"); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_, _ = client.Exec(context.Background(), sshx.HostMachineID, "tmux", "kill-session", "-t", "=project-delete-it-session")
+		_, _ = client.Exec(context.Background(), sshx.HostMachineID, "rm", "-rf", "/home/dev/project-delete-it")
+	}()
+
+	repo := projectTestStore(t)
+	parent, err := repo.CreateProject(ctx, sshx.HostMachineID, "/home/dev/project-delete-it", "parent")
+	if err != nil {
+		t.Fatal(err)
+	}
+	child, err := repo.CreateProject(ctx, sshx.HostMachineID, "/home/dev/project-delete-it/app", "child")
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := repo.CreateProject(ctx, sshx.HostMachineID, "/home/dev", "unrelated")
+	if err != nil {
+		t.Fatal(err)
+	}
+	bus := events.NewBus()
+	service := projects.New(repo, bus, nil)
+	if _, err := client.Exec(ctx, sshx.HostMachineID, "tmux", "new-session", "-d", "-s", "project-delete-it-session", "-c", child.Path); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.UpsertSessionLink(ctx, sshx.HostMachineID, "project-delete-it-session", child.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.RememberRecentCommand(ctx, child.ID, "sleep 300"); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.RememberRecentCommand(ctx, other.ID, "echo keep"); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Delete(ctx, child.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repo.Project(ctx, child.ID); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("deleted project lookup = %v; want not found", err)
+	}
+	if _, err := repo.SessionLink(ctx, sshx.HostMachineID, "project-delete-it-session"); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("deleted project's session link = %v; want cascade", err)
+	}
+	if commands, err := repo.RecentCommands(ctx, child.ID); err != nil || len(commands) != 0 {
+		t.Fatalf("deleted project's recent commands = %+v, %v; want empty", commands, err)
+	}
+	if commands, err := repo.RecentCommands(ctx, other.ID); err != nil || len(commands) != 1 || commands[0].Command != "echo keep" {
+		t.Fatalf("unrelated project's recent commands = %+v, %v", commands, err)
+	}
+	if _, err := repo.Project(ctx, parent.ID); err != nil {
+		t.Fatalf("parent project was changed: %v", err)
+	}
+	placement, err := service.Place(ctx, sshx.HostMachineID, "project-delete-it-session", child.Path)
+	if err != nil || !placement.Matched || placement.ProjectID != parent.ID {
+		t.Fatalf("deleted session placement = %+v, %v; want parent %s", placement, err, parent.ID)
+	}
+	if output, err := client.Exec(ctx, sshx.HostMachineID, "tmux", "display-message", "-p", "-t", "=project-delete-it-session:", "#{session_name}"); err != nil || strings.TrimSpace(string(output)) != "project-delete-it-session" {
+		t.Fatalf("live tmux session after project deletion = %q, %v", strings.TrimSpace(string(output)), err)
+	}
+}

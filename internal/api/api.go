@@ -98,6 +98,7 @@ func New(cfg Config) http.Handler {
 		mux.HandleFunc("GET /api/projects/{id}", s.getProject)
 		mux.HandleFunc("GET /api/projects/{id}/recent-commands", s.listRecentCommands)
 		mux.HandleFunc("PATCH /api/projects/{id}", s.renameProject)
+		mux.HandleFunc("DELETE /api/projects/{id}", s.deleteProject)
 		mux.HandleFunc("POST /api/projects/{id}/sessions", s.createProjectSession)
 	}
 	mux.Handle("GET /", spaHandler(cfg.Dist))

@@ -20,7 +20,7 @@ Update this table in the same commit that finishes a task.
 | T8 Keyboard shortcuts | Done |
 | T9 Command palette | Done |
 | T10 Taken session names get a number | Done |
-| T11 Remove a project | Not started |
+| T11 Remove a project | Done |
 | T12 Add the current directory as a project | Not started |
 | T13 Left bar toggle and icon toolbar | Not started |
 | T14 Docs, audit and release | Not started |
@@ -43,6 +43,8 @@ T8 completed with the shared shortcut registry and help dialog, global tab/focus
 T9 completed with session/window/project search, fuzzy ranking, action dispatch, rename reveal, terminal focus restoration and compact-screen palette access. `make lint test`, `make build`, `make gitleaks` and `make e2e-lint` passed; browser E2E remains paused until M7. T9 scenarios are authored and type-checked. CP4 passed.
 
 T10 completed with typed-name collision numbering, 64-character suffix trimming, tmux race retries, unchanged rename conflicts and informational toasts when a typed name changes. Go unit/integration tests, frontend tests/lint and E2E TypeScript checks passed; browser E2E remains paused until M7. The M1 invalid-input scenario now expects a numbered session for a taken name.
+
+T11 completed with account-wide project removal, cascading links and command history, immediate path-based session re-placement, confirmation from the tree and command palette, and a close-and-toast path for an open New session here dialog. Go/PostgreSQL/test-sshd integration, frontend tests/lint and E2E TypeScript checks passed; desktop and phone browser scenarios are authored and remain paused until M7. No migration or environment variable was added.
 
 ## Rules for this milestone
 
@@ -296,7 +298,7 @@ Hide (T5) only hides a project for one account. This task deletes one: the proje
 
 **Tests:** U (Go): service delete publishes `deleted` and re-places; 404 for an unknown id; handler 401/403/404/204 (Go). U (Vitest): the confirmation dialog's text (session count, target group, path), Cancel sends nothing, success drops the project and moves its sessions without re-attaching, an open New session here dialog for it closes, the menu item in the ⋯ menu, long-press menu and palette, Delete on a focused project row. I (Go, PostgreSQL + test sshd): deleting a project removes its links and recent commands but not other projects' rows; a linked session is re-placed under a parent project or Other sessions and still exists in tmux.
 
-**E2E:** add in `projects.tree.spec.ts` (desktop) and `tree.custom.phone.spec.ts` (`iphone-13-pro`, via long-press): **(T11) Remove a project** (a project with a running session open in a tab; Remove → Cancel leaves it; Remove → confirm: the header is gone, the session is under Other sessions, the tab keeps its tmux client PID, the directory still exists on the target; reload and restart → still removed; add the same folder again from the browser → a fresh project with no recent commands). API-level in `projects.api.spec.ts`: **(T11) Delete project API** (signed out → 401, foreign Origin → 403, unknown id → 404, delete → 204 and a second delete → 404; `GET /api/projects` no longer lists it). Type-check only.
+**E2E:** added in `projects.tree.spec.ts` for desktop and the phone profile (`iphone-13-pro`, via long-press): **(T11) Remove a project** (a project with a running session open in a tab; Remove → Cancel leaves it; Remove → confirm: the header is gone, the session is under Other sessions, the tab keeps its tmux client PID, the directory still exists on the target; reload and restart → still removed; add the same folder again from the browser → a fresh project with no recent commands). API-level in `projects.api.spec.ts`: **(T11) Delete project API** (signed out → 401, foreign Origin → 403, unknown id → 404, delete → 204 and a second delete → 404; `GET /api/projects` no longer lists it). Both scenarios are type-checked; browser runs stay paused until M7.
 
 **Done:** a project can be removed from the tree after a confirmation, for every account; its sessions keep running and are re-placed at once; nothing on disk or in tmux changes; the scenarios compile.
 

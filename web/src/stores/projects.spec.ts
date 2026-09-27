@@ -23,4 +23,23 @@ describe('project events', () => {
     expect(tree.groups.groups[0].sessions.map((session) => session.name)).toEqual(['one'])
     tree.reset()
   })
+
+  it('removes a project on its event and immediately places linked sessions under the remaining longest path', () => {
+    const projects = useProjectsStore()
+    const parent = project('parent', '/work')
+    const child = project('child', '/work/app')
+    projects.items = [parent, child]
+    projects.loaded = true
+    useSessionsStore().apply({
+      type: 'snapshot', machines: [],
+      sessions: { host: [{ id: '$one', name: 'one', path: '/work/app', projectId: 'child', attached: 0, windows: 1, created: '', activity: '' }] },
+    })
+    const tree = useTreeStore()
+    tree.order.projects = ['parent', 'child']
+    projects.apply({ type: 'projects.changed', machine: 'host', payload: { action: 'deleted', project: child } })
+    tree.sync()
+    expect(projects.items.map((item) => item.id)).toEqual(['parent'])
+    expect(tree.groups.groups.find((group) => group.project.id === 'parent')?.sessions.map((item) => item.name)).toEqual(['one'])
+    expect(tree.order.projects).toEqual(['parent'])
+  })
 })

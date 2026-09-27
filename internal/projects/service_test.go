@@ -12,15 +12,16 @@ import (
 )
 
 type fakeRepo struct {
-	projects   []store.Project
-	links      map[string]store.SessionLink
-	err        error
-	created    store.Project
-	createCall []string
-	updated    bool
-	deleted    bool
-	commands   []store.RecentCommand
-	remembered []string
+	projects        []store.Project
+	links           map[string]store.SessionLink
+	err             error
+	created         store.Project
+	createCall      []string
+	updated         bool
+	deleted         bool
+	deletedProjects []string
+	commands        []store.RecentCommand
+	remembered      []string
 }
 
 func linkKey(machine, name string) string { return machine + ":" + name }
@@ -72,6 +73,24 @@ func (f *fakeRepo) RenameProject(_ context.Context, id, name string) (store.Proj
 		}
 	}
 	return store.Project{}, store.ErrNotFound
+}
+func (f *fakeRepo) DeleteProject(_ context.Context, id string) error {
+	if f.err != nil {
+		return f.err
+	}
+	for i, p := range f.projects {
+		if p.ID == id {
+			f.projects = append(f.projects[:i], f.projects[i+1:]...)
+			f.deletedProjects = append(f.deletedProjects, id)
+			for key, link := range f.links {
+				if link.ProjectID == id {
+					delete(f.links, key)
+				}
+			}
+			return nil
+		}
+	}
+	return store.ErrNotFound
 }
 func (f *fakeRepo) SessionLink(_ context.Context, machine, name string) (store.SessionLink, error) {
 	link, ok := f.links[linkKey(machine, name)]
@@ -229,6 +248,40 @@ func TestCreateSessionUsesProjectSpecAndLinksIt(t *testing.T) {
 	}
 	if len(repo.remembered) != 1 {
 		t.Fatalf("failed command was remembered: %v", repo.remembered)
+	}
+}
+
+func TestDeleteProjectPublishesAndReResolvesLinkedSessions(t *testing.T) {
+	parent := store.Project{ID: "parent", MachineID: "host", Path: "/home/dev/work", Name: "Work"}
+	child := store.Project{ID: "child", MachineID: "host", Path: "/home/dev/work/app", Name: "App"}
+	repo := &fakeRepo{projects: []store.Project{parent, child}, links: map[string]store.SessionLink{
+		linkKey("host", "inside"): {MachineID: "host", SessionName: "inside", ProjectID: "child"},
+	}}
+	bus := events.NewBus()
+	ch, unsubscribe := bus.Subscribe(2)
+	defer unsubscribe()
+	svc := New(repo, bus, nil)
+	if err := svc.Delete(context.Background(), child.ID); err != nil {
+		t.Fatal(err)
+	}
+	if !errors.Is(repo.DeleteProject(context.Background(), "missing"), store.ErrNotFound) {
+		t.Fatal("unknown project deletion should return not found")
+	}
+	select {
+	case event := <-ch:
+		change, ok := event.Payload.(Changed)
+		if event.Type != events.ProjectsChanged || event.Machine != "host" || !ok || change.Action != "deleted" || change.Project.ID != child.ID {
+			t.Fatalf("delete event = %+v", event)
+		}
+	default:
+		t.Fatal("delete did not publish projects.changed")
+	}
+	if _, ok := repo.links[linkKey("host", "inside")]; ok {
+		t.Fatal("project delete did not cascade its session link")
+	}
+	placement, err := svc.Place(context.Background(), "host", "inside", "/home/dev/work/app")
+	if err != nil || !placement.Matched || placement.ProjectID != parent.ID {
+		t.Fatalf("session placement after deletion = %+v, %v; want parent %s", placement, err, parent.ID)
 	}
 }
 

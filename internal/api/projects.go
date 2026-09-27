@@ -20,6 +20,7 @@ type ProjectService interface {
 	Get(context.Context, string) (store.Project, error)
 	Create(context.Context, string, string, string) (store.Project, error)
 	Rename(context.Context, string, string) (store.Project, error)
+	Delete(context.Context, string) error
 	CreateSession(context.Context, string, session.Spec) (string, error)
 }
 
@@ -168,6 +169,14 @@ func (s *server) renameProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, p)
+}
+
+func (s *server) deleteProject(w http.ResponseWriter, r *http.Request) {
+	if err := s.cfg.Projects.Delete(r.Context(), r.PathValue("id")); err != nil {
+		s.projectError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *server) projectError(w http.ResponseWriter, err error) {

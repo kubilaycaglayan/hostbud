@@ -30,6 +30,7 @@ const emit = defineEmits<{
   startRename: [key: string]
   cancelRename: [key: string]
   hideProject: [id: string]
+  removeProject: [id: string]
   togglePin: [id: string]
   select: [name: string]
   selectWindow: [name: string, window: string, pane?: string]
@@ -97,6 +98,7 @@ function renameOnFinePointer() {
             <DropdownMenuItem class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 outline-none data-highlighted:bg-bg" @select="emit('startRename', 'project:' + props.group.project.id)">Rename</DropdownMenuItem>
             <DropdownMenuItem class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 outline-none data-highlighted:bg-bg" @select="emit('hideProject', props.group.project.id)">{{ props.hidden ? 'Unhide' : 'Hide' }}</DropdownMenuItem>
             <DropdownMenuItem class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 outline-none data-highlighted:bg-bg" @select="emit('togglePin', props.group.project.id)">{{ props.pinned ? 'Unpin' : 'Pin' }}</DropdownMenuItem>
+            <DropdownMenuItem class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 text-danger outline-none data-highlighted:bg-bg" @select="emit('removeProject', props.group.project.id)">Remove project…</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenuPortal>
       </DropdownMenuRoot>

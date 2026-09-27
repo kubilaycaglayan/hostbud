@@ -4,7 +4,7 @@ import { dispatchPaletteAction, type PaletteActionHandlers } from './paletteActi
 describe('dispatchPaletteAction', () => {
   it('routes each action to its existing handler with the right target and mode', () => {
     const handlers = Object.fromEntries([
-      'newSession', 'newProjectSession', 'browseFiles', 'renameProject', 'renameSession',
+      'newSession', 'newProjectSession', 'browseFiles', 'renameProject', 'removeProject', 'renameSession',
       'hideProject', 'unhideProject', 'hideSession', 'unhideSession', 'pinProject', 'unpinProject',
       'killSession', 'collapseAll', 'expandAll', 'setShowHidden', 'split', 'closeTab', 'nextTab',
       'previousTab', 'setTheme', 'shortcuts', 'signOut',
@@ -13,6 +13,7 @@ describe('dispatchPaletteAction', () => {
     const actions = [
       ['new-session', 'newSession', []], ['new-project-session:p1', 'newProjectSession', ['p1']],
       ['browse-files', 'browseFiles', []], ['rename-project:p1', 'renameProject', ['p1']],
+      ['remove-project:p1', 'removeProject', ['p1']],
       ['rename-session:acc-a', 'renameSession', ['acc-a']], ['hide-project:p1', 'hideProject', ['p1']],
       ['unhide-project:p1', 'unhideProject', ['p1']], ['hide-session:acc-a', 'hideSession', ['acc-a']],
       ['unhide-session:acc-a', 'unhideSession', ['acc-a']], ['pin-project:p1', 'pinProject', ['p1']],

@@ -5,6 +5,7 @@ export interface PaletteActionHandlers {
   newProjectSession(id: string): void
   browseFiles(): void
   renameProject(id: string): void
+  removeProject(id: string): void
   renameSession(name: string): void
   hideProject(id: string): void
   unhideProject(id: string): void
@@ -36,6 +37,7 @@ export function dispatchPaletteAction(id: string, handlers: PaletteActionHandler
     case 'new-project-session': handlers.newProjectSession(value); break
     case 'browse-files': handlers.browseFiles(); break
     case 'rename-project': handlers.renameProject(value); break
+    case 'remove-project': handlers.removeProject(value); break
     case 'rename-session': handlers.renameSession(value); break
     case 'hide-project': handlers.hideProject(value); break
     case 'unhide-project': handlers.unhideProject(value); break

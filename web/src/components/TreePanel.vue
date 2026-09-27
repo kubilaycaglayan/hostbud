@@ -11,6 +11,7 @@ const emit = defineEmits<{
   selectWindow: [name: string, window: string, pane?: string]
   split: [name: string, dir: SplitDir]
   kill: [name: string]
+  removeProject: [id: string]
   sessionInProject: [project: Project]
   create: []
   browse: []
@@ -44,6 +45,7 @@ defineExpose({
         @select-window="(name, window, pane) => emit('selectWindow', name, window, pane)"
         @split="(name, dir) => emit('split', name, dir)"
         @kill="emit('kill', $event)"
+        @remove-project="emit('removeProject', $event)"
         @session-in-project="emit('sessionInProject', $event)"
         @create="emit('create')"
       />

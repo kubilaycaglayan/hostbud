@@ -49,6 +49,7 @@ func (f placementResolverFake) Create(context.Context, string, string, string) (
 func (f placementResolverFake) Rename(context.Context, string, string) (store.Project, error) {
 	return store.Project{}, nil
 }
+func (f placementResolverFake) Delete(context.Context, string) error { return nil }
 func (f placementResolverFake) CreateSession(context.Context, string, session.Spec) (string, error) {
 	return "", nil
 }

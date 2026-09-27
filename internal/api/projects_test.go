@@ -25,6 +25,7 @@ type fakeProjects struct {
 	name        string
 	sessionSpec session.Spec
 	recent      []store.RecentCommand
+	deleted     bool
 }
 
 func (f *fakeProjects) List(_ context.Context, machineID string) ([]store.Project, error) {
@@ -49,6 +50,14 @@ func (f *fakeProjects) Rename(_ context.Context, id, name string) (store.Project
 	f.calls = append(f.calls, "rename "+id)
 	f.name = name
 	return f.renamed, f.err
+}
+func (f *fakeProjects) Delete(_ context.Context, id string) error {
+	f.calls = append(f.calls, "delete "+id)
+	if f.err != nil {
+		return f.err
+	}
+	f.deleted = true
+	return nil
 }
 func (f *fakeProjects) CreateSession(_ context.Context, id string, spec session.Spec) (string, error) {
 	f.calls = append(f.calls, "session "+id)
@@ -114,8 +123,8 @@ func TestProjectAPICreateListRenameAndValidation(t *testing.T) {
 			t.Errorf("%s %s = %d %s", method, c.path, rec.Code, rec.Body)
 		}
 	}
-	if rec := e.do(t, http.MethodDelete, "/api/projects/project-a", "", nil); rec.Code != http.StatusMethodNotAllowed {
-		t.Fatalf("project delete route exposed: %d", rec.Code)
+	if rec := e.do(t, http.MethodDelete, "/api/projects/project-a", "", nil); rec.Code != http.StatusNoContent || !f.deleted {
+		t.Fatalf("project delete = %d %s, deleted=%t", rec.Code, rec.Body, f.deleted)
 	}
 }
 
@@ -130,9 +139,16 @@ func TestProjectAPIAuthOriginAndErrors(t *testing.T) {
 	if rec := e.do(t, http.MethodGet, "/api/projects/project-a/recent-commands", "", map[string]string{"Cookie": ""}); rec.Code != http.StatusUnauthorized {
 		t.Fatalf("anonymous recent commands = %d", rec.Code)
 	}
+	if rec := e.do(t, http.MethodDelete, "/api/projects/project-a", "", map[string]string{"Cookie": ""}); rec.Code != http.StatusUnauthorized {
+		t.Fatalf("anonymous project delete = %d", rec.Code)
+	}
 	if rec := e.do(t, http.MethodPost, "/api/projects", `{"path":"/home/dev/app"}`,
 		map[string]string{"Origin": "https://evil.example.com"}); rec.Code != http.StatusForbidden {
 		t.Fatalf("foreign-origin create = %d", rec.Code)
+	}
+	if rec := e.do(t, http.MethodDelete, "/api/projects/project-a", "",
+		map[string]string{"Origin": "https://evil.example.com"}); rec.Code != http.StatusForbidden {
+		t.Fatalf("foreign-origin delete = %d", rec.Code)
 	}
 	if len(f.calls) != 0 {
 		t.Fatalf("unauthorized/foreign request reached project service: %v", f.calls)
@@ -149,6 +165,10 @@ func TestProjectAPIAuthOriginAndErrors(t *testing.T) {
 		if rec := e.do(t, http.MethodGet, "/api/projects", "", nil); rec.Code != tc.status {
 			t.Errorf("error %v: status=%d body=%s", tc.err, rec.Code, rec.Body)
 		}
+	}
+	f.err = store.ErrNotFound
+	if rec := e.do(t, http.MethodDelete, "/api/projects/unknown", "", nil); rec.Code != http.StatusNotFound {
+		t.Fatalf("unknown project delete = %d %s", rec.Code, rec.Body)
 	}
 }
 

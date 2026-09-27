@@ -14,6 +14,10 @@ export const useProjectsStore = defineStore('projects', () => {
     if (event.type !== 'projects.changed') return
     const p = event.payload.project
     const index = items.value.findIndex((item) => item.id === p.id)
+    if (event.payload.action === 'deleted') {
+      if (index >= 0) items.value.splice(index, 1)
+      return
+    }
     if (index < 0) items.value.push(p)
     else items.value[index] = p
   }

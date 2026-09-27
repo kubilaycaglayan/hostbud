@@ -32,7 +32,7 @@ describe('buildPaletteItems', () => {
       projects: base.projects.map((project) => ({ ...project, hidden: false, pinned: false })),
     })
     for (const id of [
-      'action:new-session', 'action:new-project-session:p1', 'action:browse-files', 'action:rename-project:p1',
+      'action:new-session', 'action:new-project-session:p1', 'action:browse-files', 'action:rename-project:p1', 'action:remove-project:p1',
       'action:hide-project:p1', 'action:pin-project:p1', 'action:rename-session:acc-a', 'action:kill-session:acc-a',
       'action:collapse-all', 'action:expand-all', 'action:show-hidden', 'action:split-right', 'action:split-down',
       'action:next-tab', 'action:previous-tab', 'action:theme-dark', 'action:theme-light', 'action:theme-system',

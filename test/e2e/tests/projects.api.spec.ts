@@ -65,3 +65,26 @@ test('(T3) project API: auth, Origin and live project events', async ({ page, re
     await anonymous.dispose()
   }
 })
+
+test('(T11) Delete project API requires auth and an allowed Origin', async ({ request, target, baseURL }) => {
+  const name = uniqueName('e2e-delete-api')
+  const path = `/home/dev/${name}`
+  forbidInLogs(name, path)
+  await target.run(`mkdir -p ${shq(path)}`)
+  const created = await mutate(request, 'POST', '/api/projects', { machineId: 'host', path, name }, ORIGIN)
+  expect(created.status()).toBe(201)
+  const project = await created.json() as { id: string }
+
+  const anonymous = await playwrightRequest.newContext({ baseURL, storageState: { cookies: [], origins: [] } })
+  try {
+    expect((await anonymous.delete(`/api/projects/${project.id}`, { headers: { Origin: ORIGIN } })).status()).toBe(401)
+    expect((await mutate(request, 'DELETE', `/api/projects/${project.id}`, undefined, FOREIGN_ORIGIN)).status()).toBe(403)
+    expect((await mutate(request, 'DELETE', '/api/projects/missing-project')).status()).toBe(404)
+    expect((await mutate(request, 'DELETE', `/api/projects/${project.id}`)).status()).toBe(204)
+    expect((await mutate(request, 'DELETE', `/api/projects/${project.id}`)).status()).toBe(404)
+    const listed = await request.get('/api/projects', { params: { machine: 'host' } })
+    expect((await listed.json()).projects).not.toContainEqual(expect.objectContaining({ id: project.id }))
+  } finally {
+    await anonymous.dispose()
+  }
+})

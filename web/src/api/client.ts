@@ -129,6 +129,7 @@ export const projectsApi = {
   recentCommands: (id: string) => request<{ commands: string[] }>('GET', `/api/projects/${encodeURIComponent(id)}/recent-commands`),
   create: (machineId: string, path: string, name: string) => request<Project>('POST', '/api/projects', { machineId, path, name }),
   rename: (id: string, name: string) => request<Project>('PATCH', `/api/projects/${encodeURIComponent(id)}`, { name }),
+  remove: (id: string) => request<void>('DELETE', `/api/projects/${encodeURIComponent(id)}`),
   createSession: (id: string, spec: { name?: string; startCommand?: string }) =>
     request<{ name: string }>('POST', `/api/projects/${encodeURIComponent(id)}/sessions`, spec),
 }

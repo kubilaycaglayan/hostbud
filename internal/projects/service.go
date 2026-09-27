@@ -29,6 +29,7 @@ type Repository interface {
 	Project(context.Context, string) (store.Project, error)
 	CreateProject(context.Context, string, string, string) (store.Project, error)
 	RenameProject(context.Context, string, string) (store.Project, error)
+	DeleteProject(context.Context, string) error
 	SessionLink(context.Context, string, string) (store.SessionLink, error)
 	UpsertSessionLink(context.Context, string, string, string) error
 	RenameSessionLink(context.Context, string, string, string) error
@@ -135,6 +136,21 @@ func (s *Service) Rename(ctx context.Context, id, name string) (store.Project, e
 		s.publish("upsert", p)
 	}
 	return p, err
+}
+
+// Delete removes project metadata and its cascading session links/command
+// history, then publishes the project so clients immediately re-resolve
+// sessions against the remaining longest path matches.
+func (s *Service) Delete(ctx context.Context, id string) error {
+	p, err := s.repo.Project(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := s.repo.DeleteProject(ctx, id); err != nil {
+		return err
+	}
+	s.publish("deleted", p)
+	return nil
 }
 
 func (s *Service) publish(action string, p store.Project) {

@@ -91,6 +91,76 @@ for (const profile of ['desktop', 'phone'] as const) {
   test.describe(`project tree ${profile}`, () => {
     test.use(profile === 'phone' ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } : {})
 
+    test('(T11) Remove a project without stopping its sessions, then add the folder again', async ({ page, ui, target, request }) => {
+      const root = `/home/dev/${uniqueName('e2e-remove-root')}`
+      const folder = `${root}/app`
+      const projectName = uniqueName('remove-project')
+      const sessionName = uniqueName('remove-session')
+      await target.run(`mkdir -p ${shq(folder)}`)
+      const originalProject = await addProject(request, folder, projectName)
+      await page.reload()
+      await page.getByRole('button', { name: `New session in ${projectName}` }).click()
+      const create = page.getByRole('dialog', { name: 'New session here' })
+      await create.getByLabel('Name').fill(sessionName)
+      await create.getByLabel('Start command').fill('sleep 3600')
+      await create.getByRole('button', { name: 'Create session' }).click()
+      await expect(page.getByRole('region', { name: `Terminal: ${sessionName}` })).toBeVisible()
+      const clientPID = (await target.run(`tmux list-clients -t ${shq('=' + sessionName)} -F '#{client_pid}'`)).trim()
+
+      await ui.showList()
+      const row = ui.treeItem(projectName)
+      if (profile === 'phone') {
+        const header = row.locator(':scope > div')
+        await header.dispatchEvent('pointerdown', { pointerType: 'touch', clientX: 14, clientY: 14 })
+        await page.waitForTimeout(550)
+        await header.dispatchEvent('pointerup', { pointerType: 'touch', clientX: 14, clientY: 14 })
+      } else {
+        await row.getByRole('button', { name: `More actions for ${projectName}` }).click()
+      }
+      const removeItem = page.getByRole('menuitem', { name: 'Remove project…', exact: true })
+      await expect(removeItem).toBeVisible()
+      await removeItem.click()
+      const confirmation = page.getByRole('alertdialog', { name: `Remove project ${projectName}?` })
+      await expect(confirmation).toContainText('Its 1 session keeps running and move to')
+      await expect(confirmation).toContainText(`Files in ~/${root.split('/').at(-1)}/app aren't touched.`)
+      await expect(confirmation).toContainText('This removes it for every account.')
+      await confirmation.getByRole('button', { name: 'Cancel' }).click()
+      await expect(ui.treeItem(projectName)).toBeVisible()
+      expect((await target.run(`tmux list-clients -t ${shq('=' + sessionName)} -F '#{client_pid}'`)).trim()).toBe(clientPID)
+
+      if (profile === 'phone') {
+        const header = ui.treeItem(projectName).locator(':scope > div')
+        await header.dispatchEvent('pointerdown', { pointerType: 'touch', clientX: 14, clientY: 14 })
+        await page.waitForTimeout(550)
+        await header.dispatchEvent('pointerup', { pointerType: 'touch', clientX: 14, clientY: 14 })
+      } else await ui.treeItem(projectName).getByRole('button', { name: `More actions for ${projectName}` }).click()
+      await page.getByRole('menuitem', { name: 'Remove project…', exact: true }).click()
+      await page.getByRole('alertdialog', { name: `Remove project ${projectName}?` }).getByRole('button', { name: 'Remove project' }).click()
+      await expect(ui.treeItem(projectName)).toHaveCount(0)
+      await expect(page.getByRole('group', { name: 'Other sessions' }).getByRole('button', { name: sessionName, exact: true })).toBeVisible()
+      expect((await target.run(`tmux list-clients -t ${shq('=' + sessionName)} -F '#{client_pid}'`)).trim()).toBe(clientPID)
+      expect(await target.run(`test -d ${shq(folder)} && echo exists`)).toContain('exists')
+
+      await page.reload()
+      await ctl.restartApp()
+      await expect.poll(async () => (await request.get('/api/health')).status(), { timeout: 20_000 }).toBe(200)
+      await page.reload()
+      await expect(ui.treeItem(projectName)).toHaveCount(0)
+
+      await page.getByRole('button', { name: 'Browse files' }).click()
+      await page.getByLabel('Current path').fill(root)
+      await page.getByRole('button', { name: 'Go' }).click()
+      await page.getByRole('button', { name: 'Add app as project' }).click()
+      await expect(page.getByText('Project: app')).toBeVisible()
+      const list = await request.get('/api/projects?machine=host')
+      const projects = (await list.json()).projects as { id: string; path: string }[]
+      const recreated = projects.find((item) => item.path === folder)
+      expect(recreated).toBeTruthy()
+      expect(recreated?.id).not.toBe(originalProject.id)
+      const recent = await request.get(`/api/projects/${recreated!.id}/recent-commands`)
+      expect(await recent.json()).toEqual({ commands: [] })
+    })
+
     test('(T5) Other sessions and Save as project', async ({ page, target, request }) => {
       const path = `/home/dev/${uniqueName('e2e-unmatched')}`
       const name = uniqueName('e2e-loose')

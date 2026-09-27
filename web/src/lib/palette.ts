@@ -87,6 +87,7 @@ export function buildPaletteItems(data: PaletteData): PaletteItem[] {
   for (const project of data.projects) {
     actions.push(action(`new-project-session:${project.id}`, `New session in ${project.name}`, project.path))
     actions.push(action(`rename-project:${project.id}`, `Rename ${project.name}`, project.path, 'tree-rename'))
+    actions.push(action(`remove-project:${project.id}`, `Remove project ${project.name}`, project.path))
     actions.push(action(`${project.hidden ? 'unhide' : 'hide'}-project:${project.id}`, `${project.hidden ? 'Unhide' : 'Hide'} ${project.name}`, project.path, 'tree-hide'))
     actions.push(action(`${project.pinned ? 'unpin' : 'pin'}-project:${project.id}`, `${project.pinned ? 'Unpin' : 'Pin'} ${project.name}`, project.path, 'tree-pin'))
   }

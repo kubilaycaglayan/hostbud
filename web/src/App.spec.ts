@@ -8,6 +8,7 @@ import SessionList from './components/SessionList.vue'
 import { panesOf } from './lib/layout'
 import { useLayoutStore } from './stores/layout'
 import { useTreeStore } from './stores/tree'
+import { useProjectsStore } from './stores/projects'
 import { stubFetch } from './test-utils'
 
 // A socket that stays "connecting": the live connection is covered by
@@ -151,7 +152,7 @@ describe('App shell', () => {
           ? { status: 404, body: { error: 'nothing saved yet' } }
           : path === '/api/projects?machine=host'
             ? { status: 200, body: { projects: [project] } }
-            : path === '/api/projects/p1/recent-commands'
+          : path === '/api/projects/p1/recent-commands'
               ? { status: 200, body: { commands: [] } }
               : path === '/api/machines/host/fs/home'
                 ? { status: 200, body: { path: '/home/dev' } }
@@ -168,6 +169,11 @@ describe('App shell', () => {
     const dialogs = [...document.body.querySelectorAll('[role="dialog"]')]
     expect(dialogs.map((d) => d.getAttribute('aria-label') ?? d.querySelector('h2')?.textContent?.trim())).toEqual(['New session here'])
     expect(dialogs[0].textContent).toContain('New session in work')
+
+    useProjectsStore().apply({ type: 'projects.changed', machine: 'host', payload: { action: 'deleted', project } })
+    await flushPromises()
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+    expect(document.body.textContent).toContain('The New session here dialog closed because its project was removed.')
     wrapper.unmount()
   })
 

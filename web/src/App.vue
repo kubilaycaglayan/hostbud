@@ -9,6 +9,7 @@ import ProjectSessionDialog from '@/components/ProjectSessionDialog.vue'
 import TreePanel from '@/components/TreePanel.vue'
 import ShortcutsDialog from '@/components/ShortcutsDialog.vue'
 import CommandPalette from '@/components/CommandPalette.vue'
+import RemoveProjectDialog from '@/components/RemoveProjectDialog.vue'
 import KillSessionDialog from '@/components/KillSessionDialog.vue'
 import HostBanner from '@/components/HostBanner.vue'
 import TabBar from '@/components/TabBar.vue'
@@ -27,10 +28,11 @@ import { useTreeStore } from '@/stores/tree'
 import { useThemeStore } from '@/stores/theme'
 import { useWindowsStore } from '@/stores/windows'
 import { useProjectsStore } from '@/stores/projects'
+import { useToastsStore } from '@/stores/toasts'
 import { useSessionsStore } from '@/stores/sessions'
 import { FolderPlus, Search } from 'lucide-vue-next'
 import { isEditableTarget, isTerminalTarget, isTreeTarget, matchingShortcut, shortcutLabels, shortcutPlatform, shortcuts } from '@/lib/shortcuts'
-import { sessionKey, windowKey } from '@/lib/tree'
+import { projectTree, sessionKey, windowKey } from '@/lib/tree'
 import { dispatchPaletteAction } from '@/lib/paletteActions'
 import { buildPaletteItems } from '@/lib/palette'
 
@@ -43,6 +45,7 @@ const tree = useTreeStore()
 const theme = useThemeStore()
 const windows = useWindowsStore()
 const projects = useProjectsStore()
+const toasts = useToastsStore()
 const sessions = useSessionsStore()
 
 // v1 has one machine: the host.
@@ -56,6 +59,7 @@ const killing = ref(false)
 const drawerOpen = ref(false)
 const swipeStart = ref<{ x: number; y: number } | null>(null)
 const target = ref('') // the session the kill confirmation is about
+const removingProject = ref<Project | null>(null)
 const shortcutsOpen = ref(false)
 const paletteOpen = ref(false)
 const paletteSplitDir = ref<SplitDir | null>(null)
@@ -101,9 +105,38 @@ const paletteItems = computed(() => {
     shortcutHint,
   })
 })
+const removePreview = computed(() => {
+  const project = removingProject.value
+  if (!project) return { count: 0, destinations: 'Other sessions' }
+  const affected = tree.groups.groups.find((group) => group.project.id === project.id)?.sessions ?? []
+  const remaining = projects.items.filter((item) => item.id !== project.id)
+  const projection = projectTree(remaining, affected, tree.order)
+  const destinations = projection.groups
+    .filter((group) => group.sessions.length > 0)
+    .map((group) => `${group.project.name} (${group.sessions.length})`)
+  if (projection.other.length) destinations.push(`Other sessions (${projection.other.length})`)
+  return { count: affected.length, destinations: destinations.join(', ') || 'Other sessions' }
+})
+const removingProjectPath = computed(() => {
+  const path = removingProject.value?.path ?? ''
+  const homePath = host.value?.home ?? ''
+  return homePath && (path === homePath || path.startsWith(homePath + '/')) ? '~' + path.slice(homePath.length) : path
+})
 function askKill(name: string) {
   target.value = name
   killing.value = true
+}
+function askRemoveProject(id: string) {
+  const project = projects.items.find((item) => item.id === id)
+  if (project) removingProject.value = project
+}
+function onProjectRemoved(id: string) {
+  removingProject.value = null
+  if (sessionProject.value?.id === id) {
+    sessionProject.value = null
+    toasts.push({ title: 'Project removed', message: 'The New session here dialog closed because its project was removed.', tone: 'info' })
+  }
+  projects.load(MACHINE).then(() => tree.sync()).catch((error) => console.warn("hostbud: can't refresh projects after removal", error))
 }
 function onKilled(name: string) {
   layout.closeSession(MACHINE, name)
@@ -266,6 +299,7 @@ function selectPaletteItem(id: string) {
     || actionId.startsWith('rename-project:')
     || actionId.startsWith('rename-session:')
     || actionId.startsWith('kill-session:')
+    || actionId.startsWith('remove-project:')
   if (!opensUi) void nextTick(() => paletteReturnFocus?.focus())
   paletteActionSplitDir = null
 }
@@ -289,6 +323,7 @@ const paletteActionHandlers = {
   },
   browseFiles,
   renameProject: (id: string) => revealTreeProject(id, true),
+  removeProject: askRemoveProject,
   renameSession: (name: string) => revealTreeSession(name, true),
   hideProject: (id: string) => tree.hideProject(id),
   unhideProject: (id: string) => tree.unhideProject(id),
@@ -420,6 +455,15 @@ watch(
   },
 )
 
+watch(
+  () => projects.loaded && sessionProject.value !== null && !projects.items.some((item) => item.id === sessionProject.value?.id),
+  (removed) => {
+    if (!removed || !sessionProject.value) return
+    sessionProject.value = null
+    toasts.push({ title: 'Project removed', message: 'The New session here dialog closed because its project was removed.', tone: 'info' })
+  },
+)
+
 // A reload right after a change still finds it saved.
 const flushState = () => {
   layout.flush()
@@ -513,10 +557,10 @@ onUnmounted(() => {
         aria-label="Sessions"
         class="flex w-64 shrink-0 flex-col border-r border-border bg-surface p-3"
       >
-        <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @session-in-project="newProjectSession" @create="newSession" @browse="browseFiles" />
+        <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @remove-project="askRemoveProject" @session-in-project="newProjectSession" @create="newSession" @browse="browseFiles" />
       </aside>
       <main v-if="compact && !hasTabs" class="min-h-0 min-w-0 flex-1 overflow-y-auto bg-surface p-3">
-        <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @session-in-project="newProjectSession" @create="newSession" @browse="browseFiles" />
+        <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @remove-project="askRemoveProject" @session-in-project="newProjectSession" @create="newSession" @browse="browseFiles" />
       </main>
       <main
         v-else
@@ -575,7 +619,7 @@ onUnmounted(() => {
             <DialogClose aria-label="Close project tree" class="min-h-11 min-w-11 rounded border border-border">×</DialogClose>
           </div>
           <DialogDescription class="sr-only">Choose a project or session.</DialogDescription>
-          <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @session-in-project="newProjectSession" @create="newSession" @browse="browseFiles" />
+          <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @remove-project="askRemoveProject" @session-in-project="newProjectSession" @create="newSession" @browse="browseFiles" />
         </DialogContent>
       </DialogPortal>
     </DialogRoot>
@@ -603,6 +647,7 @@ onUnmounted(() => {
       @killed="onKilled"
     />
     <ShortcutsDialog :open="shortcutsOpen" @update:open="closeShortcuts" />
+    <RemoveProjectDialog :project="removingProject" :session-count="removePreview.count" :destinations="removePreview.destinations" :display-path="removingProjectPath" @cancel="removingProject = null" @removed="onProjectRemoved" />
     <CommandPalette
       :open="paletteOpen"
       :items="paletteItems"
