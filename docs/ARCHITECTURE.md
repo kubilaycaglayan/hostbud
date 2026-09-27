@@ -412,6 +412,7 @@ machine_capacity(machine_id PK, max_concurrent_runs)
 - **Startup reachability (M5):** the initial `/api/auth/me` check distinguishes 401 (sign-in), network/timeout and 502/503/504 (the **Can't reach hostbud** view with retry), and other server errors (an explicit server-error message). The unreachable view retries with 1/2/4/8/15-second backoff, plus immediate retries on `online` and page visibility. Sign-in network failures show a connection message and are not counted by the server.
 - **Terminal context menu (M3):** Reka UI `ContextMenu` around the terminal (`TerminalMenu.vue`): Copy (disabled with no selection), Paste, Select all; see §6 *Clipboard*.
 - **Editable text inputs (M8 T5):** Option-click (Alt-click on non-macOS platforms) places the caret at the clicked character/line in single-line and multiline inputs. It must not jump to a different line or position; ordinary click and selection retain their normal behavior.
+- **Terminal scrolling readability (M8 T6):** mouse-wheel movement follows the existing direction and scrollback positions, while rendered text remains visually trackable during motion, including repeated output. Rendering or event handling changes must preserve terminal input, scrollback content, copy mode and touch scrolling.
 - No external CDNs at runtime (fonts and assets bundled).
 
 ---

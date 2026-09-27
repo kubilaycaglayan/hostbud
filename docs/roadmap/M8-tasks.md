@@ -10,6 +10,7 @@ Scope and acceptance: [../ROADMAP.md](../ROADMAP.md#m8--interface-density-and-in
 - Add or update E2E scenarios in the same task as each UI behavior change. Follow the E2E run policy active after M7; do not run the suite early if the M7 full-run checkpoint has not happened yet.
 - During visual implementation, run the app and inspect desktop and phone screenshots of the affected screens before and after. Use those screenshots to tune spacing and verify that names are more prominent, controls are compact, and the file dialog uses the viewport efficiently. This inspection is part of implementation, not an owner check.
 - For the caret-placement issue, first reproduce it in the affected input, identify whether it is a single-line or multiline control, and verify the clicked caret position against the displayed text before and after the fix.
+- For the scrolling issue, inspect a screen recording or repeated live captures of the running terminal while scrolling both directions through distinct and repeated output. Identify the cause before choosing a rendering, event handling or scroll-step adjustment; compare before/after at the same content and input gestures.
 - Keep accessible names, visible focus, keyboard operation and touch usability. Do not shrink hit areas below the app's phone target requirements; use compact visual padding while retaining a usable target.
 - Preserve the existing login screen's password autocomplete behavior exactly. Disable browser autocomplete/autofill on every other application input.
 - Conventional commits, small and focused. No backend, schema, migration or environment changes are expected.
@@ -65,9 +66,19 @@ Scope and acceptance: [../ROADMAP.md](../ROADMAP.md#m8--interface-density-and-in
 
 **E2E:** Add T5 *Option-click caret placement* (desktop): exercise single-line and multiline inputs at several known positions with the platform's Option/Alt-click gesture, assert the caret location and inserted text, and verify ordinary click remains correct.
 
+## T6 — Readable terminal wheel scrolling
+
+- Improve the visual tracking of terminal content during mouse-wheel scrolling. The report is visual: scrolling currently moves in the correct direction and reaches the expected content, but characters can flicker and become difficult to follow, especially in repeated output.
+- Reproduce the issue with both distinct lines and repeated lines, scrolling up and down at typical and faster wheel input. Inspect captures/recording before and after to identify and address the source; don't change scroll semantics or direction to hide the visual issue.
+- Keep terminal input, copy-mode behavior, touch scrolling and the existing scrollback content intact. Avoid adding a setting or control unless implementation demonstrates it is necessary.
+
+**Tests:** U: T6 frontend coverage for wheel-event handling/render updates or the selected scroll-step behavior (Vitest), including direction, bounded movement and no duplicated/skipped scroll requests; I: n/a if the fix stays in xterm/browser rendering (state the specific frontend-only reason in the test); E: T6 *Readable terminal scrolling* verifies distinct and repeated output while scrolling both directions, checks the expected text/position, and records visual comparison at the same wheel gestures.
+
+**E2E:** Add T6 *Readable terminal scrolling* (desktop): print deterministic numbered and repeated lines in the throwaway tmux target, wheel up/down at controlled and rapid intervals, assert movement/direction and visible text, and capture before/after views to compare flicker/readability. Do not use the real host's tmux.
+
 ## Done
 
 - [ ] M8 acceptance criteria and their U/I/E coverage are complete.
 - [ ] `make lint test` and `make gitleaks` are green; E2E scenarios pass under the post-M7 run policy.
-- [ ] Desktop and phone screenshots were inspected during implementation; README/ARCHITECTURE updated only if user-facing behavior or design changes warrant it. T5's affected inputs were reproduced and checked in the running app.
+- [ ] Desktop and phone screenshots were inspected during implementation; README/ARCHITECTURE updated only if user-facing behavior or design changes warrant it. T5's affected inputs were reproduced and checked in the running app; T6's scroll behavior was recorded and compared before/after.
 - [ ] Summary lists changes, any environment variables (expected none), host steps (expected none), and any open owner items.

@@ -41,6 +41,13 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
   - I: n/a: caret positioning is browser-side input behavior and makes no server request.
   - E: T5 *Option-click caret placement* (desktop), asserts caret coordinates and text insertion at the clicked location in representative single-line and multiline app inputs.
 
+## Terminal scrolling readability
+
+- [ ] Mouse-wheel scrolling remains correct in both directions and reaches the expected scrollback positions. Text is easier to track while moving through the terminal buffer, with reduced flicker or visual confusion for both distinct and repeated output. Terminal input, scrollback content, copy mode and touch scrolling remain intact.
+  - U: T6 wheel handling/render update or scroll-step behavior (Vitest), including direction and bounded movement; if the fix changes rendering only, document why no separate state logic applies.
+  - I: n/a when the fix is browser/xterm rendering only; no server or SSH behavior changes.
+  - E: T6 *Readable terminal scrolling* (desktop), with deterministic distinct/repeated target output, both directions, controlled/rapid wheel input, visible text assertions and before/after captures for visual review.
+
 ## Manual checks (owner)
 
 No owner-only check is required. Desktop and phone screenshots and interaction checks are performed during T1–T3 implementation.
