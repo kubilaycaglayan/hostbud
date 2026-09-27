@@ -24,7 +24,7 @@ Update this table in the same commit that finishes a task.
 | T12 Add the current directory as a project | Done |
 | T13 Left bar toggle and icon toolbar | Done |
 | T14 Docs, audit and release | Done |
-| T15 Safe Docker cleanup | Not started |
+| T15 Safe Docker cleanup | Done — removed idle toolbox containers; Docker reported 0 B pruned, container storage fell from 126.9 MB to 124.1 MB; production and test volumes/containers remained intact |
 
 T2 completed with the v2 state migration, guarded persistence, pruning rules, accessible tree behavior and task-tagged scenarios. The pruning regression/fix are in `00f3c29` and `fae320e`; CP1 passed with `make lint test`. E2E scenarios were type-checked only, as required.
 
