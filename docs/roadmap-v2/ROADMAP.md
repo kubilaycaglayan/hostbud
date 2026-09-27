@@ -455,7 +455,9 @@ Scope: v2 §10 *V2-M5*, v2 §2 option 6, v1 ARCHITECTURE §10 *Supervisor LLM*.
 
 **Goal.** For runs that have gone quiet, classify what the pane shows (working, waiting for input, blocked, finished, failed) so the owner knows where to look. **It can flag a run, never advance it**, not even on "finished".
 
-**Switch:** off unless `HOSTBUD_LLM_PROVIDER` is set.
+**Switch:** off unless `HOSTBUD_LLM_PROVIDER` is set, so behavior is V2-M4's (and V2-M1's with the earlier switches off).
+
+Breakdown: [V2-M5-tasks.md](V2-M5-tasks.md) · [V2-M5-acceptance.md](V2-M5-acceptance.md).
 
 ### Tasks
 - **T1 Provider interface:** `internal/llm` with `Classifier`; OpenAI first. Env vars:
@@ -483,10 +485,16 @@ Scope: v2 §10 *V2-M5*, v2 §2 option 6, v1 ARCHITECTURE §10 *Supervisor LLM*.
 - T5 badge on desktop and phone.
 
 **Accept:**
-1. Off unless configured. — U: T1 · I: T1 · E: the V2-M1 suite green with no provider set.
-2. Quiet runs are classified from `capture-pane` and flagged, within budget. — U: T2 · I: T2 (against `test/sshd` and a fake provider) · E: T2/T3.
-3. A classification never advances the queue or changes an item's status. — U: T3 · I: T3 · E: T3 *Completed label never advances*.
-4. No key or pane text in logs at info; scrubbing applied before sending. — U: T4 · I: T1 log-hygiene · E: n/a (logs aren't observable in the browser).
+1. Off unless configured: with no provider, V2-M4 behavior is unchanged (no `capture-pane`, outbound request or new events). — U: T1, T2 · I: T1, T2 · E: T1; the V2-M1–V2-M4 suites green with no provider set.
+2. A missing, partial or invalid provider config turns the supervisor off with an actionable message, never a startup error. — U: T1 · I: T1 · E: T1.
+3. Quiet runs are classified from `capture-pane` and flagged, within budget. — U: T2 · I: T2 (against `test/sshd` and a fake provider) · E: T2/T3.
+4. `capture-pane` runs through `sshx` from argv with a validated exact target, is size-capped, and handles a gone or renamed session. — U: T2 · I: T2 · E: T2.
+5. Only eligible runs are classified (never gated items or ended runs); the budget and quiet timer survive a restart without extra calls. — U: T2 · I: T2 · E: T2.
+6. A classification never advances the queue or changes an item's status (or a run, gate or slot), even when it races a real signal or an owner action. — U: T3 · I: T3 · E: T3 *Completed label never advances*.
+7. Provider failures and prompt injection in pane text end as `unknown` or a bounded retry, never a status change. — U: T1, T3 · I: T1 · E: T3.
+8. No key or pane text in logs at info; scrubbing applied before sending; pane text never stored or shown beyond the label and reason. — U: T1, T4 · I: T1 log-hygiene · E: T4 (logs aren't observable in the browser).
+9. Flags show on desktop and phone and, with notifications on, notify once per run and label within the V2-M3 payload allowlist. — U: T5 · I: n/a (UI and notify builder) · E: T5.
+10. The docs are aligned (T6). — U/I: T6 docs check · E: n/a (documents).
 
 **Manual checks (owner):** one real OpenAI classification of a quiet real agent session; review cost settings.
 
