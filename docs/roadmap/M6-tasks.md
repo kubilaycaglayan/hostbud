@@ -14,7 +14,7 @@ Update this table in the same commit that finishes a task.
 | T2 Tree state v2 and accessible tree | Done |
 | T3 Windows and panes in the tree | Done |
 | T4 Inline rename | Done |
-| T5 Hide and unhide | Not started |
+| T5 Hide and unhide | Done |
 | T6 Pinned projects | Not started |
 | T7 Theme setting | Not started |
 | T8 Keyboard shortcuts | Not started |
@@ -31,6 +31,8 @@ T2 completed with the v2 state migration, guarded persistence, pruning rules, ac
 T3 completed with lazy window/pane loading, event-driven refresh, window selection and persistent expansion. Frontend tests and lint passed; the desktop and phone E2E scenarios were type-checked only, as required.
 
 T4 completed with inline project/session rename, validation and server errors in place, preserved session layout/tree state, menu and long-press entry points, and T4 E2E scenarios type-checked only. `make lint test` passed CP2; browser E2E remains paused until M7.
+
+T5 completed with per-account hide/unhide controls, hidden-row presentation and focus handling, plus desktop and phone scenarios. `make web-test`, `make web-lint`, `make e2e-lint` and `make gitleaks` passed; browser E2E remains paused until M7.
 
 ## Rules for this milestone
 

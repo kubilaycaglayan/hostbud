@@ -32,6 +32,7 @@ const machines = useMachinesStore()
 const windows = useWindowsStore()
 const layout = useLayoutStore()
 const root = ref<HTMLElement>()
+const showHiddenButton = ref<HTMLButtonElement>()
 const focusedKey = ref('')
 const deferredFocusKey = ref('')
 const busySession = ref('')
@@ -40,11 +41,22 @@ const editingKey = ref('')
 const editError = ref('')
 const projectMenuId = ref('')
 const longPressedProjectId = ref('')
+const projectPointerStart = ref<{ x: number; y: number; id: string } | null>(null)
 let projectLongPressTimer: ReturnType<typeof setTimeout> | undefined
 const projectRows = computed({
-  get: () => tree.groups.groups.map((group) => ({ ...group, id: group.project.id })),
+  get: () => tree.groups.groups
+    .filter((group) => tree.order.showHidden || !tree.order.hidden.projects.includes(group.project.id))
+    .map((group) => ({
+      ...group,
+      id: group.project.id,
+      sessions: tree.order.showHidden ? group.sessions : group.sessions.filter((session) => !tree.order.hidden.sessions.includes(sessionKey('host', session.name))),
+    })),
   set: (groups: (ProjectGroup & { id: string })[]) => tree.reorderProjects(groups.map((group) => group.project.id)),
 })
+const otherRows = computed(() => tree.order.showHidden
+  ? tree.groups.other
+  : tree.groups.other.filter((session) => !tree.order.hidden.sessions.includes(sessionKey('host', session.name))))
+const totalRows = computed(() => tree.groups.groups.length + tree.groups.groups.reduce((count, group) => count + group.sessions.length, 0) + tree.groups.other.length)
 const home = computed(() => machines.byId('host')?.home ?? '')
 const visibleKeys = computed(() => {
   const keys: string[] = []
@@ -68,9 +80,9 @@ const visibleKeys = computed(() => {
       appendSessions(group.sessions)
     }
   }
-  if (tree.groups.other.length) {
+  if (otherRows.value.length) {
     keys.push('other')
-    if (!tree.order.collapsed.includes('__other__')) appendSessions(tree.groups.other)
+    if (!tree.order.collapsed.includes('__other__')) appendSessions(otherRows.value)
   }
   return keys
 })
@@ -119,15 +131,22 @@ function focusKey(key: string) {
 function startProjectLongPress(event: PointerEvent, id: string) {
   if (event.pointerType !== 'touch') return
   clearTimeout(projectLongPressTimer)
+  projectPointerStart.value = { x: event.clientX, y: event.clientY, id }
   projectLongPressTimer = setTimeout(() => {
     longPressedProjectId.value = id
     projectMenuId.value = id
   }, 500)
 }
 
+function moveProjectLongPress(event: PointerEvent) {
+  const start = projectPointerStart.value
+  if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > 10) endProjectLongPress()
+}
+
 function endProjectLongPress() {
   clearTimeout(projectLongPressTimer)
   projectLongPressTimer = undefined
+  projectPointerStart.value = null
 }
 
 function projectHeaderClick(id: string) {
@@ -137,6 +156,35 @@ function projectHeaderClick(id: string) {
   }
   focusKey('project:' + id)
   tree.toggleCollapsed(id)
+}
+
+function hideProject(id: string) {
+  projectMenuId.value = ''
+  const key = 'project:' + id
+  const index = visibleKeys.value.indexOf(key)
+  const hidden = tree.order.hidden.projects.includes(id)
+  if (hidden) tree.unhideProject(id)
+  else tree.hideProject(id)
+  if (hidden) focusKey(key)
+  else focusAfterHide(index)
+}
+
+function hideSession(name: string, hidden: boolean) {
+  const key = 'session:' + name
+  const index = visibleKeys.value.indexOf(key)
+  if (hidden) tree.unhideSession('host', name)
+  else tree.hideSession('host', name)
+  if (hidden) focusKey(key)
+  else focusAfterHide(index)
+}
+
+function focusAfterHide(index: number) {
+  void nextTick(() => {
+    const keys = visibleKeys.value
+    const neighbor = keys[Math.min(Math.max(index, 0), keys.length - 1)]
+    if (neighbor) focusKey(neighbor)
+    else showHiddenButton.value?.focus()
+  })
 }
 
 function startRename(key: string) {
@@ -222,6 +270,15 @@ function onTreeKeydown(event: KeyboardEvent) {
   if (event.key === 'F2' && (kind === 'project' || kind === 'session')) {
     event.preventDefault()
     startRename(key)
+    return
+  }
+  if ((event.key === 'h' || event.key === 'H') && (kind === 'project' || kind === 'session')) {
+    event.preventDefault()
+    if (kind === 'project') hideProject(key.slice('project:'.length))
+    else {
+      const name = key.slice('session:'.length)
+      hideSession(name, tree.order.hidden.sessions.includes(sessionKey('host', name)))
+    }
     return
   }
   if (event.type === 'dblclick' && (kind === 'project' || kind === 'session') && window.matchMedia('(pointer: fine)').matches) {
@@ -341,6 +398,16 @@ async function saveAsProject(session: Session) {
 
 <template>
   <nav aria-label="Project and session tree">
+    <button
+      v-if="tree.hiddenCount > 0"
+      ref="showHiddenButton"
+      type="button"
+      class="touch-target mb-2 min-h-11 rounded border border-border px-2 text-sm"
+      :aria-pressed="tree.order.showHidden"
+      @click="tree.toggleShowHidden()"
+    >
+      Show hidden ({{ tree.hiddenCount }})
+    </button>
     <div
       ref="root"
       role="tree"
@@ -371,12 +438,13 @@ async function saveAsProject(session: Session) {
         :aria-level="1"
         :aria-expanded="!tree.order.collapsed.includes(group.project.id)"
         :tabindex="activeFocusKey === ('project:' + group.project.id) ? 0 : -1"
-        :aria-label="group.project.name"
+        :aria-label="group.project.name + (tree.order.hidden.projects.includes(group.project.id) ? ', hidden' : '')"
         :data-tree-key="'project:' + group.project.id"
         data-tree-kind="project"
         class="rounded bg-tree-header px-1"
+        :class="tree.order.hidden.projects.includes(group.project.id) ? 'opacity-50' : ''"
       >
-        <div class="flex min-h-12 items-center gap-1" @click="projectHeaderClick(group.project.id)" @pointerdown="startProjectLongPress($event, group.project.id)" @pointerup="endProjectLongPress" @pointercancel="endProjectLongPress" @pointerleave="endProjectLongPress">
+        <div class="flex min-h-12 items-center gap-1" @click="projectHeaderClick(group.project.id)" @pointerdown="startProjectLongPress($event, group.project.id)" @pointermove="moveProjectLongPress" @pointerup="endProjectLongPress" @pointercancel="endProjectLongPress" @pointerleave="endProjectLongPress">
           <button
             type="button"
             class="touch-target project-drag-handle min-h-11 min-w-8 cursor-grab rounded text-muted"
@@ -415,7 +483,8 @@ async function saveAsProject(session: Session) {
             <DropdownMenuTrigger type="button" class="touch-target min-h-11 rounded px-2 text-muted" :aria-label="'More actions for ' + group.project.name" title="More" tabindex="-1" @click.stop>⋯</DropdownMenuTrigger>
             <DropdownMenuPortal>
               <DropdownMenuContent align="end" :side-offset="4" class="z-30 min-w-48 rounded border border-border bg-surface p-1 text-fg shadow-lg">
-                <DropdownMenuItem class="cursor-pointer rounded px-2 py-1 outline-none data-highlighted:bg-bg" @select="startRename('project:' + group.project.id)">Rename</DropdownMenuItem>
+                <DropdownMenuItem class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 outline-none data-highlighted:bg-bg" @select="startRename('project:' + group.project.id)">Rename</DropdownMenuItem>
+                <DropdownMenuItem class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 outline-none data-highlighted:bg-bg" @select="hideProject(group.project.id)">{{ tree.order.hidden.projects.includes(group.project.id) ? 'Unhide' : 'Hide' }}</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenuPortal>
           </DropdownMenuRoot>
@@ -441,14 +510,15 @@ async function saveAsProject(session: Session) {
             :editing-name="editingKey.startsWith('session:') ? editingKey.slice(8) : ''"
             :edit-error="editError"
             :commit-edit="renameSession"
+            :hidden-group="tree.order.hidden.projects.includes(group.project.id)"
             sortable
             :list-label="'Sessions in ' + group.project.name"
             @select="emit('select', $event)"
             @select-window="(name, window, pane) => emit('selectWindow', name, window, pane)"
             @split="(name, dir) => emit('split', name, dir)"
             @rename="startRename('session:' + $event)"
-            @edit-commit="renameSession"
             @edit-cancel="cancelRename('session:' + $event)"
+            @hide="hideSession"
             @kill="emit('kill', $event)"
             @reorder="tree.reorderSessions(group.project.id, $event)"
           />
@@ -456,7 +526,7 @@ async function saveAsProject(session: Session) {
       </li>
     </VueDraggable>
     <li
-      v-if="tree.groups.other.length"
+      v-if="otherRows.length"
       role="treeitem"
       aria-level="1"
       :aria-expanded="!tree.order.collapsed.includes('__other__')"
@@ -483,7 +553,7 @@ async function saveAsProject(session: Session) {
       </div>
       <div v-if="!tree.order.collapsed.includes('__other__')" role="group" class="ml-3 border-l border-border py-1 pl-3">
         <SessionList
-          :sessions="tree.groups.other"
+          :sessions="otherRows"
           :selected="props.selected"
           :tree-view="true"
           :level="2"
@@ -499,16 +569,16 @@ async function saveAsProject(session: Session) {
           @select-window="(name, window, pane) => emit('selectWindow', name, window, pane)"
           @split="(name, dir) => emit('split', name, dir)"
           @rename="startRename('session:' + $event)"
-          @edit-commit="renameSession"
           @edit-cancel="cancelRename('session:' + $event)"
+          @hide="hideSession"
           @kill="emit('kill', $event)"
           @reorder="tree.reorderSessions('__other__', $event)"
           @save-as-project="saveAsProject"
         />
       </div>
     </li>
-    <p v-if="projectRows.length === 0 && tree.groups.other.length === 0" class="px-2 py-1 text-muted">
-      No tmux sessions yet.
+    <p v-if="projectRows.length === 0 && otherRows.length === 0" class="px-2 py-1 text-muted">
+      {{ totalRows > 0 && !tree.order.showHidden ? 'Everything is hidden.' : 'No tmux sessions yet.' }}
     </p>
     </div>
   </nav>

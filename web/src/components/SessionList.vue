@@ -24,6 +24,7 @@ const props = defineProps<{
   editingName?: string
   editError?: string
   commitEdit?: (from: string, to: string) => Promise<void>
+  hiddenGroup?: boolean
 }>()
 const emit = defineEmits<{
   select: [name: string]
@@ -34,16 +35,18 @@ const emit = defineEmits<{
   reorder: [names: string[]]
   saveAsProject: [session: Session]
   selectWindow: [name: string, window: string, pane?: string]
-  editCommit: [name: string, value: string]
   editCancel: [name: string]
+  hide: [name: string, hidden: boolean]
 }>()
 
-const item = 'cursor-pointer rounded px-2 py-1 outline-none data-highlighted:bg-bg'
+const item = 'touch-target flex min-h-11 items-center cursor-pointer rounded px-2 py-1 outline-none data-highlighted:bg-bg'
 const openMenuName = ref('')
 const tree = props.treeView ? useTreeStore() : undefined
 const windowsStore = props.treeView ? useWindowsStore() : undefined
 
 function windowsFor(name: string) { return windowsStore?.bySession[sessionKey('host', name)] }
+function isSessionHidden(name: string) { return tree?.order.hidden.sessions.includes(sessionKey('host', name)) ?? false }
+function isHidden(name: string) { return Boolean(props.hiddenGroup || isSessionHidden(name)) }
 function isExpanded(key: string) { return tree?.order.expanded.includes(key) ?? false }
 function windowError(name: string) {
   const error = describeError(windowsFor(name)?.error)
@@ -134,13 +137,13 @@ const sortableSessions = computed({
       :aria-level="props.treeView ? (props.level ?? 1) : undefined"
       :aria-selected="props.treeView && s.name === props.selected ? 'true' : undefined"
       :aria-expanded="props.treeView ? isExpanded(sessionKey('host', s.name)) : undefined"
-      :aria-label="props.treeView ? s.name : undefined"
+      :aria-label="props.treeView ? s.name + (isHidden(s.name) ? ', hidden' : '') : undefined"
       :tabindex="props.treeView && props.focusedKey === ('session:' + s.name) ? 0 : props.treeView ? -1 : undefined"
       :data-tree-key="props.treeView ? 'session:' + s.name : undefined"
       :data-tree-kind="props.treeView ? 'session' : undefined"
       :data-tree-group="props.treeView ? props.groupKey : undefined"
       class="flex items-center gap-1 rounded px-1 py-0.5"
-      :class="s.name === props.selected ? 'bg-bg' : ''"
+      :class="[s.name === props.selected ? 'bg-bg' : '', isHidden(s.name) ? 'opacity-50' : '']"
     >
       <button
         v-if="props.treeView"
@@ -222,6 +225,13 @@ const sortableSessions = computed({
               :side-offset="4"
               class="z-30 min-w-48 rounded border border-border bg-surface p-1 text-fg shadow-lg"
             >
+              <DropdownMenuItem
+                v-if="props.treeView"
+                :class="item"
+                @select="emit('hide', s.name, isSessionHidden(s.name))"
+              >
+                {{ isSessionHidden(s.name) ? 'Unhide' : 'Hide' }}
+              </DropdownMenuItem>
               <DropdownMenuItem
                 v-if="props.treeView"
                 :class="item"

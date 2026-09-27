@@ -19,6 +19,30 @@ afterEach(() => {
 })
 
 describe('tree order store', () => {
+  it('stores project and session visibility per account and keeps hidden rows in saved order', () => {
+    const tree = useTreeStore()
+    useProjectsStore().remember(project('c', '/c'))
+    useProjectsStore().remember(project('b', '/b'))
+    useProjectsStore().remember(project('a', '/a'))
+    useSessionsStore().apply({ type: 'snapshot', machines: [], sessions: { host: [session('one', '/a'), session('two', '/a'), session('three', '/a')] } })
+    tree.order.projects = ['a', 'b', 'c']
+    tree.order.sessions.a = ['one', 'two', 'three']
+    tree.hideProject('b')
+    tree.hideSession('host', 'two')
+    expect(tree.hiddenCount).toBe(2)
+    tree.reorderProjects(['c', 'a'])
+    tree.reorderSessions('a', ['three', 'one'])
+    expect(tree.order.projects).toEqual(['c', 'b', 'a'])
+    expect(tree.order.sessions.a).toEqual(['three', 'two', 'one'])
+    tree.setShowHidden(true)
+    expect(tree.order.showHidden).toBe(true)
+    tree.unhideProject('b')
+    tree.unhideSession('host', 'two')
+    expect(tree.hiddenCount).toBe(0)
+    expect(tree.order.projects).toEqual(['c', 'b', 'a'])
+    expect(tree.order.sessions.a).toEqual(['three', 'two', 'one'])
+  })
+
   it('re-keys session ordering, hidden state, expansion and window keys in one update', () => {
     const tree = useTreeStore()
     tree.order.sessions = { group: ['before', 'old', 'after'], __other__: ['old'] }

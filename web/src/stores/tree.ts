@@ -109,13 +109,26 @@ export const useTreeStore = defineStore('tree', () => {
 
   function reorderProjects(ids: string[]) {
     const allowed = new Set(projectsStore.items.map((p) => p.id))
-    order.value.projects = ids.filter((id, i) => allowed.has(id) && ids.indexOf(id) === i)
+    const requested = ids.filter((id, i) => allowed.has(id) && ids.indexOf(id) === i)
+    if (!order.value.showHidden) {
+      const hidden = new Set(order.value.hidden.projects)
+      let index = 0
+      order.value.projects = order.value.projects.map((id) => hidden.has(id) ? id : requested[index++] ?? id)
+      order.value.projects.push(...requested.slice(index))
+    } else order.value.projects = requested
     sync()
   }
   function reorderSessions(group: string, names: string[]) {
     const rows = group === '__other__' ? groups.value.other : groups.value.groups.find((g) => g.project.id === group)?.sessions ?? []
     const allowed = new Set(rows.map((s) => s.name))
-    order.value.sessions[group] = names.filter((name, i) => allowed.has(name) && names.indexOf(name) === i)
+    const requested = names.filter((name, i) => allowed.has(name) && names.indexOf(name) === i)
+    if (!order.value.showHidden) {
+      const hidden = new Set(order.value.hidden.sessions.filter((key) => key.startsWith('host/')).map((key) => key.slice('host/'.length)))
+      const previous = order.value.sessions[group] ?? []
+      let index = 0
+      order.value.sessions[group] = previous.map((name) => hidden.has(name) ? name : requested[index++] ?? name)
+      order.value.sessions[group].push(...requested.slice(index))
+    } else order.value.sessions[group] = requested
     sync()
   }
 
@@ -136,6 +149,24 @@ export const useTreeStore = defineStore('tree', () => {
     }
     order.value = next
   }
+
+  function hideProject(id: string) {
+    if (!order.value.hidden.projects.includes(id)) order.value.hidden.projects = [...order.value.hidden.projects, id]
+  }
+  function unhideProject(id: string) {
+    order.value.hidden.projects = order.value.hidden.projects.filter((item) => item !== id)
+  }
+  function hideSession(machine: string, name: string) {
+    const key = `${machine}/${name}`
+    if (!order.value.hidden.sessions.includes(key)) order.value.hidden.sessions = [...order.value.hidden.sessions, key]
+  }
+  function unhideSession(machine: string, name: string) {
+    const key = `${machine}/${name}`
+    order.value.hidden.sessions = order.value.hidden.sessions.filter((item) => item !== key)
+  }
+  function setShowHidden(show: boolean) { order.value.showHidden = show }
+  function toggleShowHidden() { setShowHidden(!order.value.showHidden) }
+  const hiddenCount = computed(() => order.value.hidden.projects.length + order.value.hidden.sessions.length)
 
   function reset() {
     generation++
@@ -161,5 +192,5 @@ export const useTreeStore = defineStore('tree', () => {
       : order.value.expanded.filter((item) => item !== key)
   }
 
-  return { order, groups, loaded, load, sync, flush, reorderProjects, reorderSessions, renameSession, setCollapsed, toggleCollapsed, setExpanded, reset }
+  return { order, groups, loaded, load, sync, flush, reorderProjects, reorderSessions, renameSession, hideProject, unhideProject, hideSession, unhideSession, setShowHidden, toggleShowHidden, hiddenCount, setCollapsed, toggleCollapsed, setExpanded, reset }
 })

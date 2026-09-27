@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import SessionList from './SessionList.vue'
 import type { Session } from '@/api/types'
+import { useTreeStore } from '@/stores/tree'
 
 const s = (name: string, attached = 0, windows = 1): Session => ({
   id: '$1', name, path: '/home/dev', attached, windows, created: '', activity: '',
@@ -108,6 +109,46 @@ describe('SessionList', () => {
     expect(rename).toBeTruthy()
     rename!.click()
     expect(w.emitted('rename')).toEqual([['a']])
+    w.unmount()
+  })
+
+  it('offers Hide or Unhide in the session actions menu', async () => {
+    setActivePinia(createPinia())
+    const tree = useTreeStore()
+    const w = mount(SessionList, { props: { sessions: [s('a')], treeView: true }, attachTo: document.body })
+    await w.get('button[aria-label="More actions for a"]').trigger('keydown', { key: 'Enter' })
+    await new Promise((resolve) => setTimeout(resolve))
+    let item = [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((node) => node.textContent?.trim() === 'Hide')
+    expect(item).toBeTruthy()
+    expect(item!.classList.contains('touch-target')).toBe(true)
+    item!.click()
+    expect(w.emitted('hide')).toEqual([['a', false]])
+    w.unmount()
+    tree.hideSession('host', 'a')
+    const hidden = mount(SessionList, { props: { sessions: [s('a')], treeView: true }, attachTo: document.body })
+    await hidden.get('button[aria-label="More actions for a"]').trigger('keydown', { key: 'Enter' })
+    await new Promise((resolve) => setTimeout(resolve))
+    item = [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((node) => node.textContent?.trim() === 'Unhide')
+    expect(item).toBeTruthy()
+    hidden.unmount()
+  })
+
+  it('offers Unhide from the long-press menu for a hidden session', async () => {
+    vi.useFakeTimers()
+    setActivePinia(createPinia())
+    useTreeStore().hideSession('host', 'a')
+    const w = mount(SessionList, { props: { sessions: [s('a')], treeView: true }, attachTo: document.body })
+    const row = w.get('button[aria-label="a"]')
+    const down = new Event('pointerdown', { bubbles: true })
+    Object.defineProperties(down, { pointerType: { value: 'touch' }, clientX: { value: 10 }, clientY: { value: 10 } })
+    row.element.dispatchEvent(down)
+    await vi.advanceTimersByTimeAsync(500)
+    await w.vm.$nextTick()
+    const unhide = [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((node) => node.textContent?.trim() === 'Unhide')
+    expect(unhide).toBeTruthy()
+    expect(unhide!.classList.contains('touch-target')).toBe(true)
+    unhide!.click()
+    expect(w.emitted('hide')).toEqual([['a', true]])
     w.unmount()
   })
 
