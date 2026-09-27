@@ -43,7 +43,7 @@ Update this table in the same commit that finishes a task.
 
 | Checkpoint | After | Runs | Status |
 |---|---|---|---|
-| CP1 | T1 + T2 + T3 (config, exec and SFTP bounds) | `make lint test` | Not run |
+| CP1 | T1 + T2 + T3 (config, exec and SFTP bounds) | `make lint test` | Passed |
 | CP2 | T4 + T5 (WebSocket, HTTP and database limits) | `make lint test` | Not run |
 | CP3 | T6 + T7 (headers/CSP, container hardening) | `make lint test`, plus `make build` (the CSP hash is read from the built `index.html`) and `scripts/compose-config.sh` | Not run |
 | CP4 | T8 + T9 (Tailscale allowlist, backup/restore) | `make lint test` | Not run |
