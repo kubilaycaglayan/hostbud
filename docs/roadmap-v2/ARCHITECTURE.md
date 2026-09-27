@@ -203,16 +203,18 @@ run_events(id, run_id FK, source CHECK(source IN ('hook','poller','timer','user'
 type Adapter interface {
     Kind() string                                   // "claude", "codex"
     MinVersion() string
-    BuildCommand(item Item, run Run) ([]string, error) // argv: client, user flags, hook injection, initial prompt
-    ParseHook(event string, body []byte) (Binding, error) // session/thread id, transcript path
-    Arm(ctx context.Context, m Machine, b Binding, run Run, condition string) error // after binding; Claude: no-op
-    ReadGoalState(ctx context.Context, m Machine, b Binding, run Run) (GoalState, error)
+    CheckVersion(ctx context.Context, machine string) (string, error) // via the login shell; actionable error
+    BuildCommand(item store.QueueItem, run store.Run) ([]string, error) // argv: client, user flags, hook injection, initial prompt
+    ParseHook(event string, body []byte) (Binding, error)              // session/thread id, transcript path, source/reason
+    Arm(ctx context.Context, machine string, b Binding, run store.Run, condition string) error // after binding; Claude: no-op
+    ReadGoalState(ctx context.Context, machine string, b Binding, run store.Run, condition string) (GoalState, error)
 }
 type GoalState struct {
     Status    string // achieved | pending | failed | unknown
     Condition string
     At        time.Time
     Reason    string
+    Offset    int64  // transcript bytes read so far (stored as runs.transcript_offset)
 }
 ```
 

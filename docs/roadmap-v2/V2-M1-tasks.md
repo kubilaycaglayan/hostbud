@@ -15,7 +15,7 @@ Update this table in the same commit that finishes a task.
 | T2 Schema migration and store | Done |
 | T3 Run tokens and the hook endpoint | Done (e2e written and type-checked) |
 | T4 Session creation for runs | Done (S8: env through `tmux start-server ; source-file -` on stdin) |
-| T5 Adapter interface and the Claude Code adapter | Not started |
+| T5 Adapter interface and the Claude Code adapter | Done |
 | T6 Codex adapter | Not started |
 | T7 Stub clients on the throwaway target | Not started |
 | T8 Queue service and REST API | Not started |
@@ -62,7 +62,7 @@ The v2 ROADMAP *Rules* and AGENTS.md apply in full. That covers: e2e runs only o
 | Checkpoint | After | Runs | Status |
 |---|---|---|---|
 | CP1 | T0 | `make lint test` | Green (2026-09-27, after aligning two stale session race tests) |
-| CP2 | T2–T4 | `make lint test`, `scripts/compose-config.sh` | Not run |
+| CP2 | T2–T4 | `make lint test`, `scripts/compose-config.sh` | Green (2026-09-27, after fixing five lint findings) |
 | CP3 | T5–T7 | `make lint test`, e2e `tsc` | Not run |
 | CP4 | T8–T9 | `make lint test` **three times in a row** (timers and concurrent signals), e2e `tsc` | Not run |
 | CP5 | T10–T12 | `make lint test`, `vue-tsc`, e2e `tsc`, `make gitleaks`, docs check | Not run |

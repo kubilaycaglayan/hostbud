@@ -702,3 +702,46 @@ func (s *Service) Mkdir(ctx context.Context, parent, name string) (string, error
 	}
 	return child, nil
 }
+
+// RealPath resolves an absolute path's symlinks on the host (V2-M1: the
+// agent adapters check a transcript still lies under the client's data
+// directory after resolution).
+func (s *Service) RealPath(ctx context.Context, p string) (string, error) {
+	if !path.IsAbs(p) {
+		return "", &Error{Op: "resolve path", Err: errors.New("path must be absolute")}
+	}
+	var out string
+	err := s.withClient(ctx, "resolve path", func(c *sftp.Client) error {
+		var err error
+		out, err = c.RealPath(p)
+		return err
+	})
+	return out, err
+}
+
+// ReadRange reads up to limit bytes of a file from offset, opening it
+// read-only. It returns fewer bytes at the end of the file.
+func (s *Service) ReadRange(ctx context.Context, p string, offset int64, limit int) ([]byte, error) {
+	if !path.IsAbs(p) || offset < 0 || limit <= 0 {
+		return nil, &Error{Op: "read file", Err: errors.New("invalid read range")}
+	}
+	var out []byte
+	err := s.withClient(ctx, "read file", func(c *sftp.Client) error {
+		f, err := c.OpenFile(p, os.O_RDONLY)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = f.Close() }()
+		if _, err := f.Seek(offset, io.SeekStart); err != nil {
+			return err
+		}
+		buf := make([]byte, limit)
+		n, err := io.ReadFull(f, buf)
+		if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
+			return err
+		}
+		out = buf[:n]
+		return nil
+	})
+	return out, err
+}
