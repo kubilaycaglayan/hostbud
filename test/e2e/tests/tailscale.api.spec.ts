@@ -3,7 +3,14 @@ import { TS_DOMAIN_STORAGE_STATE } from '../helpers/auth.ts'
 import { ctl } from '../helpers/ctl.ts'
 import { expect, test } from '../helpers/fixtures.ts'
 
-test.use({ baseURL: TS_DOMAIN_URL, ignoreHTTPSErrors: true, storageState: TS_DOMAIN_STORAGE_STATE })
+test.use({
+  baseURL: TS_DOMAIN_URL,
+  ignoreHTTPSErrors: true,
+  storageState: TS_DOMAIN_STORAGE_STATE,
+  // A refused tailnet user gets the app shell with a 403 (the scenario's point).
+  allowedBrowserErrors:
+    /^HTTP 403: GET https:\/\/[^/]+\/(api\/auth\/me)?$|^console error: Failed to load resource: the server responded with a status of 403 .*@ https:\/\/[^/]+\/(api\/auth\/me)?$/,
+})
 test.setTimeout(60_000)
 
 test('(T8) Tailscale allowlist guards the domain path and recovers after the negative cache', async ({ page, request }) => {

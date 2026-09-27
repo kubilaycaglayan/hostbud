@@ -5,6 +5,9 @@ import { emptyTreeState, OTHER_GROUP, ordered, projectTree, validateTreeState, t
 import { useProjectsStore } from './projects'
 import { useSessionsStore } from './sessions'
 import { useMachinesStore } from './machines'
+import { whenOnline } from './whenOnline'
+
+const SAVE_RETRY_MS = 2000
 
 export const useTreeStore = defineStore('tree', () => {
   const order = ref<TreeState>(emptyTreeState())
@@ -13,6 +16,8 @@ export const useTreeStore = defineStore('tree', () => {
   const sessionsStore = useSessionsStore()
   const machinesStore = useMachinesStore()
   let timer: ReturnType<typeof setTimeout> | undefined
+  let cancelDeferred = () => {}
+  let deferred = false // a save waits for the connection
   let generation = 0
 
   const groups = computed(() => projectTree(projectsStore.items, sessionsStore.list('host'), order.value))
@@ -42,9 +47,39 @@ export const useTreeStore = defineStore('tree', () => {
       console.warn('hostbud: saved tree exceeds 60 KiB; keeping the last saved value')
       return
     }
-    putUIState('tree', order.value, { keepalive }).catch((error) => {
-      console.warn("hostbud: can't save the tree", error)
+    if (keepalive) {
+      putUIState('tree', order.value, { keepalive }).catch((error) => console.warn("hostbud: can't save the tree", error))
+      return
+    }
+    sendWhenOnline(() => {
+      const gen = generation
+      putUIState('tree', order.value).catch((error) => {
+        console.warn("hostbud: can't save the tree", error)
+        // The server went away mid-save: try again shortly (persist waits
+        // for the connection), unless a newer save is pending or the user
+        // signed out.
+        if (timer === undefined && gen === generation) timer = setTimeout(() => ((timer = undefined), persist()), SAVE_RETRY_MS)
+      })
     })
+  }
+
+  /** Sends now, or once the events connection is back (whenOnline). */
+  function sendWhenOnline(send: () => void) {
+    cancelDeferred()
+    let ran = false
+    const cancel = whenOnline(() => {
+      ran = true
+      deferred = false
+      cancelDeferred = () => {}
+      send()
+    })
+    if (!ran) {
+      deferred = true
+      cancelDeferred = () => {
+        deferred = false
+        cancel()
+      }
+    }
   }
 
   function saveSoon() {
@@ -59,9 +94,10 @@ export const useTreeStore = defineStore('tree', () => {
 
   /** Sends a pending save now while the page is being hidden or unloaded. */
   function flush() {
-    if (timer === undefined) return
+    if (timer === undefined && !deferred) return
     clearTimeout(timer)
     timer = undefined
+    cancelDeferred()
     persist(true)
   }
 
@@ -206,6 +242,7 @@ export const useTreeStore = defineStore('tree', () => {
     generation++
     clearTimeout(timer)
     timer = undefined
+    cancelDeferred()
     loaded.value = false
     order.value = emptyTreeState()
   }

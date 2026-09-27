@@ -3,6 +3,7 @@ import { computed, ref, shallowRef, watch } from 'vue'
 import { getUIState, putUIState } from '@/api/client'
 import * as L from '@/lib/layout'
 import { useToastsStore } from './toasts'
+import { whenOnline } from './whenOnline'
 
 /** Saves wait this long after the last change. */
 export const SAVE_DEBOUNCE_MS = 500
@@ -22,6 +23,8 @@ export const useLayoutStore = defineStore('layout', () => {
   // the new name before the rename request returns.
   const renames = new Map<string, string>()
   let timer: ReturnType<typeof setTimeout> | undefined
+  let cancelDeferred = () => {}
+  let deferred = false // a save waits for the connection
   let generation = 0
 
   const tabs = computed(() => layout.value.tabs)
@@ -63,6 +66,7 @@ export const useLayoutStore = defineStore('layout', () => {
     generation++
     clearTimeout(timer)
     timer = undefined
+    cancelDeferred()
     renames.clear()
     loaded.value = false
     layout.value = L.emptyLayout()
@@ -70,6 +74,27 @@ export const useLayoutStore = defineStore('layout', () => {
   }
 
   function send(keepalive = false) {
+    if (!keepalive) {
+      // Wait for the events connection: a save during an app restart would
+      // only fail (whenOnline).
+      cancelDeferred()
+      let ran = false
+      const cancel = whenOnline(() => {
+        ran = true
+        cancelDeferred = () => {}
+        deferred = false
+        put(false)
+      })
+      if (!ran) {
+        deferred = true
+        cancelDeferred = () => ((deferred = false), cancel())
+      }
+      return
+    }
+    put(true)
+  }
+
+  function put(keepalive: boolean) {
     const gen = generation
     putUIState('layout', layout.value, { keepalive }).catch((e) => {
       console.warn("hostbud: can't save the layout", e)
@@ -89,9 +114,10 @@ export const useLayoutStore = defineStore('layout', () => {
 
   /** Sends a pending save now (the page is going away). */
   function flush() {
-    if (timer === undefined) return
+    if (timer === undefined && !deferred) return
     clearTimeout(timer)
     timer = undefined
+    cancelDeferred()
     send(true)
   }
 

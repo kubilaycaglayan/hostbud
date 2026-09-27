@@ -14,6 +14,8 @@ test('(T8) Tailscale identity allowlist leaves the loopback path exempt', async 
     await page.goto('/')
     await expect(page.getByRole('complementary', { name: 'Sessions' })).toBeVisible()
   } finally {
+    // Nothing of the page may run into the app's restart below.
+    await page.close()
     await ctl.tsMap('allowed')
     await ctl.restartTSApp()
   }

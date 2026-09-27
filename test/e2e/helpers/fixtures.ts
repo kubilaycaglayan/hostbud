@@ -84,9 +84,13 @@ export const test = base.extend<Fixtures>({
       })
     })
     page.on('pageerror', (e) => report(`uncaught: ${e.message}`))
-    page.on('requestfailed', (r) =>
-      report(`request failed: ${r.method()} ${r.url()} (${r.failure()?.errorText})`),
-    )
+    page.on('requestfailed', (r) => {
+      const error = r.failure()?.errorText ?? ''
+      // Cancelled by the page itself (a reload, or the app's own timeout
+      // abort while the server is unreachable), not refused by the server.
+      if (/^net::ERR_ABORTED$|^Load request cancelled$|^cancelled$/.test(error)) return
+      report(`request failed: ${r.method()} ${r.url()} (${error})`)
+    })
     page.on('response', (r) => {
       if (r.status() >= 400) report(`HTTP ${r.status()}: ${r.request().method()} ${r.url()}`)
     })

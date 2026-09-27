@@ -4,7 +4,9 @@ import { ORIGIN } from '../helpers/api.ts'
 import { owner } from '../helpers/db.ts'
 
 test.use({
-  allowedBrowserErrors: /^request failed: GET .*\/api\/auth\/me|^HTTP 502: GET .*\/api\/auth\/me/,
+  // The browser also logs each refused /api/auth/me as a console error.
+  allowedBrowserErrors:
+    /^request failed: GET .*\/api\/auth\/me|^HTTP 502: GET .*\/api\/auth\/me|^console error: Failed to load resource: .* @ https?:\/\/[^/]+\/api\/auth\/me$/,
 })
 
 // T6: the shell must wait for auth rather than presenting stale sessions or
@@ -34,7 +36,8 @@ test('(T6) Unreachable 502 at start-up recovers through Try again', async ({ pag
 test.describe('offline sign-in', () => {
   test.use({
     storageState: { cookies: [], origins: [] },
-    allowedBrowserErrors: /^request failed: POST .*\/api\/auth\/login|^HTTP 401: GET .*\/api\/auth\/me/,
+    allowedBrowserErrors:
+      /^request failed: POST .*\/api\/auth\/login|^HTTP 401: GET .*\/api\/auth\/me|^console error: Failed to load resource: .* @ https?:\/\/[^/]+\/api\/auth\/(me|login)$/,
   })
   test('(T6) Offline sign-in error is not counted as a failed login', async ({ page, ui }, info) => {
     test.skip(info.project.name !== 'desktop-chromium')
