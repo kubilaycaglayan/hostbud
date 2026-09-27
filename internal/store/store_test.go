@@ -595,8 +595,8 @@ func TestOlderBackupRunsNewMigrationsOnOpen(t *testing.T) {
 	if err := current.db.QueryRowContext(ctx, `SELECT max(version_id) FROM goose_db_version WHERE is_applied`).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 4 {
-		t.Fatalf("migrated version=%d, want 4", version)
+	if latest, err := latestMigrationVersion(); err != nil || int64(version) != latest {
+		t.Fatalf("migrated version=%d, want the latest (%d, %v)", version, latest, err)
 	}
 	var exists bool
 	if err := current.db.QueryRowContext(ctx, `SELECT to_regclass('projects') IS NOT NULL`).Scan(&exists); err != nil {

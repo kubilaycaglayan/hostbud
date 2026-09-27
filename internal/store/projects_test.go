@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -56,22 +57,25 @@ func TestNormalizeRecentCommand(t *testing.T) {
 	}
 }
 
-func TestProjectMigrationIsAppendOnly(t *testing.T) {
+func TestMigrationsAreAppendOnly(t *testing.T) {
 	files, err := fs.Glob(migrations, "migrations/*.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(files) != 4 || files[len(files)-1] != "migrations/0004_projects.sql" {
+	want := []string{"migrations/0001_init.sql", "migrations/0002_machine_home.sql", "migrations/0003_auth.sql", "migrations/0004_projects.sql", "migrations/0005_queues.sql"}
+	if !slices.Equal(files, want) {
 		t.Fatalf("migration sequence = %v", files)
 	}
-	sqlBytes, err := migrations.ReadFile("migrations/0004_projects.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	upper := strings.ToUpper(string(sqlBytes))
-	for _, forbidden := range []string{"DROP TABLE", "DROP COLUMN", "DELETE FROM", "TRUNCATE"} {
-		if strings.Contains(upper, forbidden) {
-			t.Errorf("append-only migration contains %q", forbidden)
+	for _, name := range files[3:] {
+		sqlBytes, err := migrations.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		upper := strings.ToUpper(string(sqlBytes))
+		for _, forbidden := range []string{"DROP TABLE", "DROP COLUMN", "DELETE FROM", "TRUNCATE", "ON DELETE CASCADE"} {
+			if strings.Contains(upper, forbidden) && !(name == "migrations/0004_projects.sql" && forbidden == "ON DELETE CASCADE") {
+				t.Errorf("%s: append-only migration contains %q", name, forbidden)
+			}
 		}
 	}
 }
@@ -286,7 +290,7 @@ func TestUpgradeFromM3PreservesExistingRows(t *testing.T) {
 		t.Fatalf("pre-existing M1–M3 rows changed: machines=%d layouts=%d userLayouts=%d users=%d allowlist=%d authSessions=%d rateLimits=%d", machines, layouts, userLayouts, users, allowlist, authSessions, rateLimits)
 	}
 	var version int64
-	if err := db.QueryRowContext(ctx, `SELECT max(version_id) FROM goose_db_version WHERE is_applied`).Scan(&version); err != nil || version != 4 {
+	if latest, _ := latestMigrationVersion(); db.QueryRowContext(ctx, `SELECT max(version_id) FROM goose_db_version WHERE is_applied`).Scan(&version) != nil || version != latest {
 		t.Fatalf("migration version = %d, %v", version, err)
 	}
 }

@@ -181,13 +181,17 @@ queues(id, machine_id FK, project_id FK, name, status CHECK(status IN ('idle','r
 queue_items(id, queue_id FK, position, agent CHECK(agent IN ('claude','codex')), flags TEXT,
             instruction TEXT, status CHECK(status IN ('queued','running','done','needs_attention','skipped')),
             created_at, updated_at)
-runs(id, item_id FK, machine_id, session_name, agent_session_id NULL, client_version NULL,
-     token_hash, status, started_at, ended_at NULL, last_signal_at NULL, detail TEXT NULL)
+runs(id, item_id FK, machine_id, session_name, agent_session_id NULL, transcript_path NULL,
+     transcript_offset BIGINT NULL, client_version NULL, token_hash BYTEA UNIQUE,
+     status CHECK(status IN ('starting','running','achieved','failed','exited','stale','cancelled')),
+     started_at, ended_at NULL, last_signal_at NULL, detail TEXT NULL)
 run_events(id, run_id FK, source CHECK(source IN ('hook','poller','timer','user','llm')),
            kind, payload_json, created_at)
 ```
 
-- `machine_id` is kept everywhere for multi-machine later.
+- `machine_id` is kept everywhere for multi-machine later, including `queue_items`; composite foreign keys keep every row on its parent's machine.
+- Implemented as `internal/store/migrations/0005_queues.sql` (V2-M1 T2). Design additions: `runs.transcript_path` (the bound transcript) and `runs.transcript_offset` (bytes read so far, for incremental reads, §7); `token_hash` is the 32-byte SHA-256; `run_events.payload_json` has a 64 KiB CHECK; `UNIQUE(queue_id, position)`; indexes on `runs(item_id)`, `runs(status)` and `run_events(run_id, created_at)`.
+- Nothing cascades: deleting a queue deletes its events, runs, items and row in one explicit transaction, and is refused while a run is active. A project with a queue can't be deleted (409) until its queue is.
 - `run_events` stores the forwarded hook JSON with a size cap and with `transcript_path` kept. These are the audit trail for "why did the queue advance?".
 - This replaces the `tasks`/`runs`/`machine_capacity` sketch in ARCHITECTURE §10. Capacity arrives with V2-M2.
 

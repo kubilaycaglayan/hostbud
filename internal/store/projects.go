@@ -179,6 +179,13 @@ func (s *Store) RenameProject(ctx context.Context, id, name string) (Project, er
 
 // DeleteProject removes project metadata; associated links and recents cascade.
 func (s *Store) DeleteProject(ctx context.Context, id string) error {
+	var queues int
+	if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM queues WHERE project_id = $1`, id).Scan(&queues); err != nil {
+		return err
+	}
+	if queues > 0 {
+		return ErrProjectHasQueue
+	}
 	res, err := s.db.ExecContext(ctx, `DELETE FROM projects WHERE id = $1`, id)
 	if err != nil {
 		return err

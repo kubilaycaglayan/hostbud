@@ -12,7 +12,7 @@ Update this table in the same commit that finishes a task.
 |---|---|
 | T0 Prerequisite: start-command bug | Done (e2e written and type-checked; run on demand) |
 | T1 Spike on this host | Done (results in v2 ARCHITECTURE §12; no client dropped) |
-| T2 Schema migration and store | Not started |
+| T2 Schema migration and store | Done |
 | T3 Run tokens and the hook endpoint | Not started |
 | T4 Session creation for runs | Not started |
 | T5 Adapter interface and the Claude Code adapter | Not started |

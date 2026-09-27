@@ -183,6 +183,8 @@ func (s *server) projectError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, store.ErrNotFound):
 		writeError(w, http.StatusNotFound, "project not found", "Refresh the project list and try again.")
+	case errors.Is(err, store.ErrProjectHasQueue):
+		writeError(w, http.StatusConflict, "this project has a queue", "Delete the project's queue in the Queue panel first; its run sessions stay open.")
 	case errors.Is(err, projects.ErrInvalidInput):
 		writeError(w, http.StatusBadRequest, "invalid project", "Use an absolute target path and a non-empty project name up to 255 bytes.")
 	case strings.Contains(err.Error(), "project path must"), strings.Contains(err.Error(), "project name must"), strings.Contains(err.Error(), "session name must"):
