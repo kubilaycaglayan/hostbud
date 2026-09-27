@@ -109,7 +109,7 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
   - U: T4 the menu and long-press items start inline edit on the right row (Vitest).
   - I: n/a (frontend only).
   - E: T4 *Inline rename a session* starts from the ⋯ menu on the phone.
-- [ ] The command palette's Rename action reveals the selected row (expand its project, un-collapse, scroll into view, and open the drawer on compact screens) before starting the same inline edit.
+- [x] The command palette's Rename action reveals the selected row (expand its project, un-collapse, scroll into view, and open the drawer on compact screens) before starting the same inline edit.
   - U: T9 the palette's Rename action reveals the row and starts inline edit (Vitest).
   - I: n/a (frontend only).
   - E: T9 *Palette rename reveals and edits a row* (desktop and `iphone-13-pro`).
@@ -124,7 +124,7 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
   - U: T5 `hiddenCount`, toggle, dimmed rendering and accessible label, unhide position (Vitest); T2 persistence round-trip.
   - I: n/a (frontend only).
   - E: T5 *Hide and unhide* (reload and restart keep hidden rows hidden and the toggle state).
-- [ ] Hidden sessions still count everywhere else: they appear in the command palette marked "hidden", in the split session picker, and in `/api/machines/:id/sessions`. A hidden session that ends is pruned from `hidden` (only from a reachable-host list, per T2).
+- [x] Hidden sessions still count everywhere else: they appear in the command palette marked "hidden", in the split session picker, and in `/api/machines/:id/sessions`. A hidden session that ends is pruned from `hidden` (only from a reachable-host list, per T2).
   - U: T5 pruning; T9 palette includes hidden rows with the marker (Vitest).
   - I: n/a (no server change).
   - E: T5 *Hide and unhide* ends the hidden session from the target and checks that a new session with the same name is **not** hidden.
@@ -177,22 +177,22 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 
 ## Command palette
 
-- [ ] ⌘K (macOS) or Ctrl+Shift+K (everywhere) opens the palette from anywhere, including a focused terminal. Plain Ctrl+K opens it only when focus is outside the terminal; inside the terminal it stays the program's (readline kill-line). A **Command palette** header button opens it on touch screens and in compact layout.
+- [x] ⌘K (macOS) or Ctrl+Shift+K (everywhere) opens the palette from anywhere, including a focused terminal. Plain Ctrl+K opens it only when focus is outside the terminal; inside the terminal it stays the program's (readline kill-line). A **Command palette** header button opens it on touch screens and in compact layout.
   - U: T9 chord handling by focus target and platform; the terminal's key handler doesn't swallow ⌘K/Ctrl+Shift+K and passes plain Ctrl+K through (Vitest).
   - I: n/a (frontend only).
   - E: T9 *Palette opens without stealing Ctrl+K* (desktop; Ctrl+K in a shell deletes to the end of the line, checked with `capture-pane`, and Ctrl+Shift+K opens the palette) · T9 *Palette on the phone* (both phone projects, header button).
-- [ ] The palette is a modal combobox (Reka UI `Dialog` + `Combobox`, labelled "Command palette") that lists sessions (open or focus), windows of expanded sessions, projects (reveal and expand in the tree), and actions: New session, New session in <project>, Browse files, Rename, Hide/Unhide, Pin/Unpin, Collapse all, Expand all, Show hidden, Split right/down, Close tab, Theme: Dark/Light/System, Keyboard shortcuts, Sign out. Kill session is listed but still goes through the confirmation dialog.
+- [x] The palette is a modal combobox (Reka UI `Dialog` + `Combobox`, labelled "Command palette") that lists sessions (open or focus), windows of expanded sessions, projects (reveal and expand in the tree), and actions: New session, New session in <project>, Browse files, Rename, Hide/Unhide, Pin/Unpin, Collapse all, Expand all, Show hidden, Split right/down, Close tab, Theme: Dark/Light/System, Keyboard shortcuts, Sign out. Kill session is listed but still goes through the confirmation dialog.
   - U: T9 item sources, action dispatch to the same store functions the tree uses, Kill opens the confirmation (Vitest).
   - I: n/a (frontend only; actions reuse existing API calls).
   - E: T9 *Palette jumps to a session* (desktop and `iphone-13-pro`) · T9 *Palette runs actions* (desktop; theme change, hide/unhide, new session in a project, kill asks for confirmation).
-- [ ] Fuzzy matching is a pure function (`lib/fuzzy.ts`): case-insensitive subsequence with word-start and contiguity bonuses and a stable tie-break by list order (no recency sort). ↑/↓ move, Enter runs, Escape closes and restores the previous focus, results are capped at 50, and hidden rows show a "hidden" marker. Each action shows its shortcut from the T8 registry.
+- [x] Fuzzy matching is a pure function (`lib/fuzzy.ts`): case-insensitive subsequence with word-start and contiguity bonuses and a stable tie-break by list order (no recency sort). ↑/↓ move, Enter runs, Escape closes and restores the previous focus, results are capped at 50, and hidden rows show a "hidden" marker. Each action shows its shortcut from the T8 registry.
   - U: T9 `fuzzy` ranking table, stability, cap; keyboard handling and focus restore (Vitest).
   - I: n/a (frontend only).
   - E: T9 *Palette jumps to a session* (typing part of a session name and Enter focuses its tab; Escape returns focus to the terminal).
 
 ## Keyboard shortcuts
 
-- [ ] One registry (`lib/shortcuts.ts`) defines every app shortcut, its label and platform variants; the global handler, the help dialog and the palette hints all read it. The set: command palette (⌘K / Ctrl+Shift+K), keyboard shortcuts help (⌘/ / Ctrl+Shift+/, and `?` outside text fields and the terminal), focus tree ↔ terminal (⌘⇧E / Ctrl+Shift+E), next/previous tab (Ctrl+Shift+] / Ctrl+Shift+[ on every platform), plus the tree keys from T2, T4, T5 and T6.
+- [x] One registry (`lib/shortcuts.ts`) defines every app shortcut, its label and platform variants; the global handler, the help dialog and the palette hints all read it. The set: command palette (⌘K / Ctrl+Shift+K), keyboard shortcuts help (⌘/ / Ctrl+Shift+/, and `?` outside text fields and the terminal), focus tree ↔ terminal (⌘⇧E / Ctrl+Shift+E), next/previous tab (Ctrl+Shift+] / Ctrl+Shift+[ on every platform), plus the tree keys from T2, T4, T5 and T6.
   - U: T8 registry is the only source (the help dialog renders every entry; the palette hint matches); platform formatting (⌘ vs Ctrl) (Vitest).
   - I: n/a (frontend only).
   - E: T8 *Keyboard shortcuts help* (desktop).
@@ -307,11 +307,11 @@ Profiles: `desktop-chromium`, `iphone-13-pro` (`http://localhost:9055`) and `iph
 - [x] **(T8) Switch tabs from the keyboard:** with three tabs open and the last one focused, Ctrl+Shift+] wraps to the first tab and Ctrl+Shift+[ wraps back to the last; after each switch, typing in the terminal reaches that tab's shell (`capture-pane`); with one tab, the chords leave it focused and send nothing to the shell (desktop; authored and type-checked, browser run at M7).
 - [x] **(T8) Toggle to the last tab:** with three tabs, select tab 1 then tab 3: Ctrl+Shift+D focuses tab 1, again focuses tab 3, and typing after each reaches that tab's shell (`capture-pane`); after closing tab 1 it goes to the next most recent open tab; with one tab it does nothing and sends nothing to the shell (desktop; authored and type-checked, browser run at M7).
 - [x] **(T8) Shortcuts don't reach the program:** with vim in one tab and a shell in another, Ctrl+Shift+] / [ switch tabs, and vim's buffer and mode are unchanged; Ctrl+Shift+E moves focus to the tree and back (desktop; authored and type-checked, browser run at M7).
-- [ ] **(T9) Palette opens without stealing Ctrl+K:** in a shell, Ctrl+K deletes to the end of the line (`capture-pane`); Ctrl+Shift+K opens the palette (desktop).
-- [ ] **(T9) Palette jumps to a session:** type part of a name, Enter → its tab is focused (or opened) and the terminal is focused; Escape without choosing returns focus (desktop and `iphone-13-pro`).
-- [ ] **(T9) Palette runs actions:** Theme: Light applies; Hide then Unhide a session; New session in <project> lands under the project; Kill asks for confirmation and Cancel leaves the session alive (desktop).
-- [ ] **(T9) Palette rename reveals and edits a row:** select Rename for a session in a collapsed project, including on the phone; the tree reveals it and opens the inline editor (desktop and `iphone-13-pro`).
-- [ ] **(T9) Palette on the phone:** the header button opens it; picking a session closes it and shows the terminal (both phone projects).
+- [x] **(T9) Palette opens without stealing Ctrl+K:** in a shell, Ctrl+K deletes to the end of the line (`capture-pane`); Ctrl+Shift+K opens the palette (desktop; authored and type-checked, browser run at M7).
+- [x] **(T9) Palette jumps to a session:** type part of a name, Enter → its tab is focused (or opened) and the terminal is focused; Escape without choosing returns focus (desktop and `iphone-13-pro`; authored and type-checked, browser run at M7).
+- [x] **(T9) Palette runs actions:** Theme: Light applies; Hide then Unhide a session; New session in <project> lands under the project; Kill asks for confirmation and Cancel leaves the session alive (desktop; authored and type-checked, browser run at M7).
+- [x] **(T9) Palette rename reveals and edits a row:** select Rename for a session in a collapsed project, including on the phone; the tree reveals it and opens the inline editor (desktop and `iphone-13-pro`; authored and type-checked, browser run at M7).
+- [x] **(T9) Palette on the phone:** the header button opens it; picking a session closes it and shows the terminal (both phone projects; authored and type-checked, browser run at M7).
 - [ ] **(T10) Taken name gets a number:** with a target session `<n>`, New session named `<n>` opens a tab `<n>-1`, the toast names it, and both exist on the target; New session here in a project with the same name gives `<n>-2` under that project (desktop).
 - [ ] **(T10) Create with a taken name:** `POST` twice with the same name → 201 both times, the second named `<n>-1`; renaming another session to `<n>` → 409 (API).
 - [ ] **(T11) Remove a project:** a project with a session open in a tab; Remove → Cancel leaves it; Remove → confirm: the header is gone, the session is under Other sessions, the tab keeps its tmux client PID, the folder still exists on the target; reload and restart → still removed; adding the folder again gives a fresh project with no recent commands (desktop and `iphone-13-pro` via long-press).

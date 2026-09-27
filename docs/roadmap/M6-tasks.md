@@ -18,7 +18,7 @@ Update this table in the same commit that finishes a task.
 | T6 Pinned projects | Done |
 | T7 Theme setting | Done |
 | T8 Keyboard shortcuts | Done |
-| T9 Command palette | Not started |
+| T9 Command palette | Done |
 | T10 Taken session names get a number | Not started |
 | T11 Remove a project | Not started |
 | T12 Add the current directory as a project | Not started |
@@ -36,9 +36,11 @@ T5 completed with per-account hide/unhide controls, hidden-row presentation and 
 
 T6 completed with per-account pinning, separate ordered sections, section-bounded drag and keyboard moves, and desktop/phone persistence and account-isolation scenarios. The Go handler rejects attempts to set the global `pinned` field. CP3 passed with `make lint test`; E2E scenarios were type-checked only, as required.
 
-T7 completed with Dark / Light / System account settings, per-account persistence, first-paint theme boot, contrast-checked UI and terminal palettes, live terminal/search updates and typed desktop/phone scenarios. Go API and PostgreSQL coverage, `make web-test`, `make web-lint`, `make web-build`, `make go-test` and `make e2e-lint` passed. The command palette theme action is T9; CP4 remains pending until T9.
+T7 completed with Dark / Light / System account settings, per-account persistence, first-paint theme boot, contrast-checked UI and terminal palettes, live terminal/search updates and typed desktop/phone scenarios. Go API and PostgreSQL coverage, `make web-test`, `make web-lint`, `make web-build`, `make go-test` and `make e2e-lint` passed. The command palette theme action landed in T9; CP4 passed after T9.
 
-T8 completed with the shared shortcut registry and help dialog, global tab/focus chords, in-memory recent-tab switching, tree new-session shortcut and xterm interception. Unit coverage, frontend tests/lint and E2E type-check passed; browser E2E remains paused until M7. CP4 remains pending until T9.
+T8 completed with the shared shortcut registry and help dialog, global tab/focus chords, in-memory recent-tab switching, tree new-session shortcut and xterm interception. Unit coverage, frontend tests/lint and E2E type-check passed; browser E2E remains paused until M7. CP4 passed after T9.
+
+T9 completed with session/window/project search, fuzzy ranking, action dispatch, rename reveal, terminal focus restoration and compact-screen palette access. `make lint test`, `make build`, `make gitleaks` and `make e2e-lint` passed; browser E2E remains paused until M7. T9 scenarios are authored and type-checked. CP4 passed.
 
 ## Rules for this milestone
 
@@ -60,7 +62,7 @@ T8 completed with the shared shortcut registry and help dialog, global tab/focus
 | CP1 | T1 + T2 (windows API, tree state and tree view) | `make lint test` | Passed |
 | CP2 | T3 + T4 (windows in the tree, inline rename) | `make lint test` | Passed |
 | CP3 | T5 + T6 (hide/unhide, pins) | `make lint test` | Passed |
-| CP4 | T7 + T8 + T9 (theme, shortcuts, palette) | `make lint test`, plus `make build` so `check-dist` sees the real theme boot script | Not run |
+| CP4 | T7 + T8 + T9 (theme, shortcuts, palette) | `make lint test`, plus `make build` so `check-dist` sees the real theme boot script | Passed |
 | CP5 | T10 + T11 + T12 + T13 + T14 (taken names, remove project, add current directory, left bar toolbar, audit) | `make lint test`, `make gitleaks`, e2e `tsc` | Not run |
 
 **What e2e can and can't reach.**

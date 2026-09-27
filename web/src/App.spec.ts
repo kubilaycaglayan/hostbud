@@ -34,6 +34,8 @@ const terminalFocusStub = defineComponent({
   },
 })
 
+Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: () => {} })
+
 beforeEach(() => {
   setActivePinia(createPinia())
   IdleSocket.instances = []
@@ -343,6 +345,14 @@ describe('tabs', () => {
     await wrapper.vm.$nextTick()
     expect(wrapper.find('main nav[aria-label="Project and session tree"]').exists()).toBe(true)
     expect(wrapper.find('terminal-view-stub').exists()).toBe(false)
+    expect(wrapper.get('button[aria-label="Command palette"]').classes()).toContain('touch-target')
+    await wrapper.get('button[aria-label="Command palette"]').trigger('click')
+    await flushPromises()
+    expect(document.body.querySelector('[role="dialog"][aria-label="Command palette"]')).not.toBeNull()
+    expect(document.querySelector<HTMLInputElement>('input[aria-label="Command palette"]')?.className).toContain('text-base')
+    document.querySelector<HTMLInputElement>('input[aria-label="Command palette"]')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await flushPromises()
+    expect(document.body.querySelector('[role="dialog"][aria-label="Command palette"]')).toBeNull()
 
     await wrapper.get('button[aria-label="acc-a"]').trigger('click')
     const terminal = wrapper.get('terminal-view-stub').element

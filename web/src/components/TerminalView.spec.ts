@@ -406,6 +406,8 @@ describe('TerminalView', () => {
     const t = h.terms[0]
     expect(t.keyHandler(new KeyboardEvent('keydown', { key: ']', code: 'BracketRight', ctrlKey: true, shiftKey: true }))).toBe(false)
     expect(t.keyHandler(new KeyboardEvent('keydown', { key: 'd', ctrlKey: true, shiftKey: true }))).toBe(false)
+    expect(t.keyHandler(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, shiftKey: true }))).toBe(false)
+    expect(t.keyHandler(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))).toBe(true)
     expect(t.keyHandler(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))).toBe(true)
     expect(t.keyHandler(new KeyboardEvent('keydown', { key: 'b', altKey: true }))).toBe(true)
   })

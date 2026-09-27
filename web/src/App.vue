@@ -8,6 +8,7 @@ import FileBrowserDialog from '@/components/FileBrowserDialog.vue'
 import ProjectSessionDialog from '@/components/ProjectSessionDialog.vue'
 import TreePanel from '@/components/TreePanel.vue'
 import ShortcutsDialog from '@/components/ShortcutsDialog.vue'
+import CommandPalette from '@/components/CommandPalette.vue'
 import KillSessionDialog from '@/components/KillSessionDialog.vue'
 import HostBanner from '@/components/HostBanner.vue'
 import TabBar from '@/components/TabBar.vue'
@@ -26,8 +27,12 @@ import { useTreeStore } from '@/stores/tree'
 import { useThemeStore } from '@/stores/theme'
 import { useWindowsStore } from '@/stores/windows'
 import { useProjectsStore } from '@/stores/projects'
-import { FolderPlus } from 'lucide-vue-next'
-import { isEditableTarget, isTerminalTarget, isTreeTarget, matchingShortcut, shortcutPlatform } from '@/lib/shortcuts'
+import { useSessionsStore } from '@/stores/sessions'
+import { FolderPlus, Search } from 'lucide-vue-next'
+import { isEditableTarget, isTerminalTarget, isTreeTarget, matchingShortcut, shortcutLabels, shortcutPlatform, shortcuts } from '@/lib/shortcuts'
+import { sessionKey, windowKey } from '@/lib/tree'
+import { dispatchPaletteAction } from '@/lib/paletteActions'
+import { buildPaletteItems } from '@/lib/palette'
 
 const app = useAppStore()
 const auth = useAuthStore()
@@ -38,6 +43,7 @@ const tree = useTreeStore()
 const theme = useThemeStore()
 const windows = useWindowsStore()
 const projects = useProjectsStore()
+const sessions = useSessionsStore()
 
 // v1 has one machine: the host.
 const MACHINE = 'host'
@@ -51,7 +57,11 @@ const drawerOpen = ref(false)
 const swipeStart = ref<{ x: number; y: number } | null>(null)
 const target = ref('') // the session the kill confirmation is about
 const shortcutsOpen = ref(false)
+const paletteOpen = ref(false)
+const paletteSplitDir = ref<SplitDir | null>(null)
+let paletteActionSplitDir: SplitDir | null = null
 let shortcutReturnFocus: HTMLElement | null = null
+let paletteReturnFocus: HTMLElement | null = null
 let focusTreeOnNextDrawerOpen = false
 let focusTerminalOnNextDrawerClose = false
 const themeChoices = [
@@ -59,6 +69,38 @@ const themeChoices = [
   { mode: 'light', label: 'Light' },
   { mode: 'system', label: 'System' },
 ] as const
+const coarsePointer = useMediaQuery('(pointer: coarse)')
+let activeTreePanel: InstanceType<typeof TreePanel> | undefined
+function setTreePanel(panel: unknown) {
+  if (panel && typeof panel === 'object' && 'revealProject' in panel) activeTreePanel = panel as InstanceType<typeof TreePanel>
+}
+
+function shortcutHint(id: string) {
+  const entry = shortcuts.find((item) => item.id === id)
+  return entry ? shortcutLabels(entry, shortcutPlatform())[0] : undefined
+}
+
+const paletteItems = computed(() => {
+  const projectGroups = tree.groups.groups
+  const orderedSessions = [...projectGroups.flatMap((group) => group.sessions.map((session) => ({ session, group }))), ...tree.groups.other.map((session) => ({ session, group: undefined }))]
+  return buildPaletteItems({
+    sessions: orderedSessions.map(({ session, group }) => {
+      const hidden = tree.order.hidden.sessions.includes(sessionKey(MACHINE, session.name)) || Boolean(group && tree.order.hidden.projects.includes(group.project.id))
+      return { name: session.name, path: session.path, projectName: group?.project.name, hidden, windows: windows.bySession[sessionKey(MACHINE, session.name)] }
+    }),
+    projects: projectGroups.map(({ project }) => ({
+      id: project.id,
+      name: project.name,
+      path: project.path,
+      hidden: tree.order.hidden.projects.includes(project.id),
+      pinned: tree.order.pinned.includes(project.id),
+    })),
+    showHidden: tree.order.showHidden,
+    hasActiveTab: Boolean(layout.activeTab),
+    selectingSplitTarget: Boolean(paletteSplitDir.value),
+    shortcutHint,
+  })
+})
 function askKill(name: string) {
   target.value = name
   killing.value = true
@@ -143,6 +185,133 @@ function closeShortcuts(open: boolean) {
   if (!open) void nextTick(() => shortcutReturnFocus?.focus())
 }
 
+function openPalette() {
+  paletteReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
+  paletteSplitDir.value = null
+  paletteOpen.value = true
+}
+
+function closePalette(open: boolean, restoreFocus = true) {
+  paletteOpen.value = open
+  if (!open && restoreFocus) void nextTick(() => paletteReturnFocus?.focus())
+}
+
+function revealTreeProject(id: string, rename = false) {
+  if (compact.value && hasTabs.value) drawerOpen.value = true
+  void nextTick(() => activeTreePanel?.revealProject(id, rename))
+}
+
+function revealTreeSession(name: string, rename = false) {
+  if (compact.value && hasTabs.value) drawerOpen.value = true
+  void nextTick(() => activeTreePanel?.revealSession(name, rename))
+}
+
+function collapseAll() {
+  for (const project of projects.items.filter((item) => item.machineId === MACHINE)) tree.setCollapsed(project.id, true)
+  tree.setCollapsed('__other__', true)
+  for (const key of [...tree.order.expanded]) tree.setExpanded(key, false)
+}
+
+function expandAll() {
+  for (const key of [...tree.order.collapsed]) tree.setCollapsed(key, false)
+  for (const key of [...tree.order.expanded]) tree.setExpanded(key, false)
+  const expanded = new Set<string>()
+  for (const session of sessions.list(MACHINE)) {
+    const key = sessionKey(MACHINE, session.name)
+    expanded.add(key)
+    const entry = windows.bySession[key]
+    if (entry?.status === 'ok') {
+      for (const item of entry.windows) {
+        if (item.panes.length > 1) expanded.add(windowKey(MACHINE, session.name, item.id))
+      }
+    }
+  }
+  for (const key of expanded) tree.setExpanded(key, true)
+  for (const session of sessions.list(MACHINE)) void windows.ensure(MACHINE, session.name)
+}
+
+function selectPaletteItem(id: string) {
+  if (id === 'action:split-right' || id === 'action:split-down') {
+    dispatchPaletteAction(id.slice('action:'.length), { ...paletteActionHandlers, split: (dir) => { paletteSplitDir.value = dir } })
+    return
+  }
+  const splitDir = paletteSplitDir.value
+  paletteSplitDir.value = null
+  closePalette(false, false)
+  if (id.startsWith('session:')) {
+    const name = id.slice('session:'.length)
+    if (splitDir) openInSplit(name, splitDir)
+    else openSession(name)
+    void nextTick(focusActiveTerminal)
+    return
+  }
+  if (id.startsWith('window:')) {
+    const encoded = id.slice('window:'.length)
+    const separator = encoded.lastIndexOf(':')
+    if (separator < 0) return
+    openAtWindow(encoded.slice(0, separator), encoded.slice(separator + 1))
+    void nextTick(focusActiveTerminal)
+    return
+  }
+  if (id.startsWith('project:')) {
+    revealTreeProject(id.slice('project:'.length))
+    return
+  }
+  if (!id.startsWith('action:')) return
+  paletteActionSplitDir = splitDir
+  const actionId = id.slice('action:'.length)
+  dispatchPaletteAction(actionId, paletteActionHandlers)
+  const opensUi = ['new-session', 'browse-files', 'shortcuts', 'sign-out', 'close-tab', 'next-tab', 'previous-tab'].includes(actionId)
+    || actionId.startsWith('new-project-session:')
+    || actionId.startsWith('rename-project:')
+    || actionId.startsWith('rename-session:')
+    || actionId.startsWith('kill-session:')
+  if (!opensUi) void nextTick(() => paletteReturnFocus?.focus())
+  paletteActionSplitDir = null
+}
+
+const paletteActionHandlers = {
+  newSession: () => {
+    if (paletteActionSplitDir && layout.focused) {
+      splitTarget.value = { pane: layout.focused.id, dir: paletteActionSplitDir }
+      drawerOpen.value = false
+      creating.value = true
+    } else newSession()
+  },
+  newProjectSession: (id: string) => {
+    const project = projects.items.find((item) => item.id === id)
+    if (!project) return
+    if (paletteActionSplitDir && layout.focused) {
+      splitTarget.value = { pane: layout.focused.id, dir: paletteActionSplitDir }
+      drawerOpen.value = false
+      sessionProject.value = project
+    } else newProjectSession(project)
+  },
+  browseFiles,
+  renameProject: (id: string) => revealTreeProject(id, true),
+  renameSession: (name: string) => revealTreeSession(name, true),
+  hideProject: (id: string) => tree.hideProject(id),
+  unhideProject: (id: string) => tree.unhideProject(id),
+  hideSession: (name: string) => tree.hideSession(MACHINE, name),
+  unhideSession: (name: string) => tree.unhideSession(MACHINE, name),
+  pinProject: (id: string) => tree.pinProject(id),
+  unpinProject: (id: string) => tree.unpinProject(id),
+  killSession: askKill,
+  collapseAll,
+  expandAll,
+  setShowHidden: (show: boolean) => tree.setShowHidden(show),
+  split: (dir: SplitDir) => { paletteSplitDir.value = dir },
+  closeTab: () => { if (layout.activeTab) closeTab(layout.activeTab.id) },
+  nextTab: () => { layout.cycleTab(1) },
+  previousTab: () => { layout.cycleTab(-1) },
+  setTheme: (mode: 'dark' | 'light' | 'system') => { void theme.setMode(mode) },
+  shortcuts: () => {
+    shortcutReturnFocus = paletteReturnFocus
+    shortcutsOpen.value = true
+  },
+  signOut: () => { void auth.logout() },
+}
+
 async function toggleTreeTerminalFocus() {
   if (isTreeTarget(document.activeElement)) {
     const closesCompactDrawer = compact.value && hasTabs.value
@@ -199,13 +368,18 @@ function onShortcutKeydown(event: KeyboardEvent) {
     else if (global.id === 'previous-tab') layout.cycleTab(-1)
     else if (global.id === 'last-tab') layout.toggleLastTab()
     else if (global.id === 'focus-tree-terminal') void toggleTreeTerminalFocus()
-    else if (global.id === 'palette') { event.preventDefault(); return } // T9 installs the action in this shared registry slot.
+    else if (global.id === 'palette') openPalette()
     else return
     event.preventDefault()
     return
   }
   if (isTerminalTarget(event.target) || isEditableTarget(event.target)) return
   const outside = matchingShortcut(event, platform, 'outside-terminal')
+  if (outside?.id === 'palette') {
+    event.preventDefault()
+    openPalette()
+    return
+  }
   if (outside?.id === 'help') {
     event.preventDefault()
     openShortcuts()
@@ -285,6 +459,16 @@ onUnmounted(() => {
         hostbud
       </h1>
       <button
+        v-if="compact || coarsePointer"
+        type="button"
+        aria-label="Command palette"
+        title="Command palette"
+        class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border"
+        @click="openPalette"
+      >
+        <Search :size="18" aria-hidden="true" />
+      </button>
+      <button
         type="button"
         class="min-h-11 rounded px-2"
         aria-label="Show project tree"
@@ -329,10 +513,10 @@ onUnmounted(() => {
         aria-label="Sessions"
         class="flex w-64 shrink-0 flex-col border-r border-border bg-surface p-3"
       >
-        <TreePanel :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @session-in-project="newProjectSession" @create="newSession" @browse="browseFiles" />
+        <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @session-in-project="newProjectSession" @create="newSession" @browse="browseFiles" />
       </aside>
       <main v-if="compact && !hasTabs" class="min-h-0 min-w-0 flex-1 overflow-y-auto bg-surface p-3">
-        <TreePanel :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @session-in-project="newProjectSession" @create="newSession" @browse="browseFiles" />
+        <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @session-in-project="newProjectSession" @create="newSession" @browse="browseFiles" />
       </main>
       <main
         v-else
@@ -391,7 +575,7 @@ onUnmounted(() => {
             <DialogClose aria-label="Close project tree" class="min-h-11 min-w-11 rounded border border-border">×</DialogClose>
           </div>
           <DialogDescription class="sr-only">Choose a project or session.</DialogDescription>
-          <TreePanel :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @session-in-project="newProjectSession" @create="newSession" @browse="browseFiles" />
+          <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @session-in-project="newProjectSession" @create="newSession" @browse="browseFiles" />
         </DialogContent>
       </DialogPortal>
     </DialogRoot>
@@ -419,6 +603,13 @@ onUnmounted(() => {
       @killed="onKilled"
     />
     <ShortcutsDialog :open="shortcutsOpen" @update:open="closeShortcuts" />
+    <CommandPalette
+      :open="paletteOpen"
+      :items="paletteItems"
+      :placeholder="paletteSplitDir ? 'Choose a session to split…' : undefined"
+      @update:open="closePalette"
+      @select="selectPaletteItem"
+    />
   </div>
   <ToastRegion />
 </template>

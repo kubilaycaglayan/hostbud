@@ -132,6 +132,25 @@ function focusKey(key: string) {
   })
 }
 
+async function revealProject(id: string, rename = false) {
+  tree.setShowHidden(true)
+  tree.setCollapsed(id, false)
+  await nextTick()
+  focusKey('project:' + id)
+  if (rename) startRename('project:' + id)
+}
+
+async function revealSession(name: string, rename = false) {
+  tree.setShowHidden(true)
+  const group = tree.groups.groups.find((candidate) => candidate.sessions.some((session) => session.name === name))
+  tree.setCollapsed(group?.project.id ?? '__other__', false)
+  await nextTick()
+  focusKey('session:' + name)
+  if (rename) startRename('session:' + name)
+}
+
+defineExpose({ revealProject, revealSession })
+
 function startProjectLongPress(event: PointerEvent, id: string) {
   if (event.pointerType !== 'touch') return
   clearTimeout(projectLongPressTimer)

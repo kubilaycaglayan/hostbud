@@ -52,6 +52,7 @@ describe('shortcut registry', () => {
 
   it('intercepts global chords but leaves outside-terminal Ctrl+K and Alt+B to the terminal', () => {
     expect(shouldInterceptGlobalShortcut(key('k', { ctrlKey: true, shiftKey: true }), 'other')).toBe(true)
+    expect(shouldInterceptGlobalShortcut(key('k', { metaKey: true }), 'mac')).toBe(true)
     expect(shouldInterceptGlobalShortcut(key('k', { ctrlKey: true }), 'other')).toBe(false)
     expect(shouldInterceptGlobalShortcut(key('b', { altKey: true }), 'other')).toBe(false)
   })
@@ -77,5 +78,8 @@ describe('shortcut scope targets', () => {
     expect(matchingShortcutForTarget(key('n'), 'other', row)?.id).toBe('tree-new-session')
     expect(matchingShortcutForTarget(key('n'), 'other', document.body)).toBeUndefined()
     expect(matchingShortcutForTarget(key('k', { ctrlKey: true, shiftKey: true }), 'other', field)?.id).toBe('palette')
+    expect(matchingShortcutForTarget(key('k', { ctrlKey: true }), 'other', document.body)?.id).toBe('palette')
+    expect(matchingShortcutForTarget(key('k', { ctrlKey: true }), 'other', terminal)).toBeUndefined()
+    expect(matchingShortcutForTarget(key('k', { ctrlKey: true }), 'other', field)).toBeUndefined()
   })
 })

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { FolderPlus } from 'lucide-vue-next'
 import SessionTree from './SessionTree.vue'
+import { ref } from 'vue'
 import type { SplitDir } from '@/lib/layout'
 import type { Project } from '@/api/types'
 
@@ -14,6 +15,11 @@ const emit = defineEmits<{
   create: []
   browse: []
 }>()
+const tree = ref<InstanceType<typeof SessionTree>>()
+defineExpose({
+  revealProject: (id: string, rename = false) => tree.value?.revealProject(id, rename),
+  revealSession: (name: string, rename = false) => tree.value?.revealSession(name, rename),
+})
 </script>
 
 <template>
@@ -32,6 +38,7 @@ const emit = defineEmits<{
     </p>
     <div class="mt-3 min-h-0 flex-1 overflow-y-auto">
       <SessionTree
+        ref="tree"
         :selected="selected"
         @select="emit('select', $event)"
         @select-window="(name, window, pane) => emit('selectWindow', name, window, pane)"
