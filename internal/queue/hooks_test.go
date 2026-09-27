@@ -204,10 +204,10 @@ func TestHookLogsNeverHoldTokensOrBodies(t *testing.T) {
 		h, _, _, tokenA, tokenB := hookFixture(t)
 		var out logBuffer
 		h.log = slog.New(slog.NewTextHandler(&out, &slog.HandlerOptions{Level: level}))
-		secret := `{"session_id":"sess-canary","transcript_path":"/home/dev/.claude/projects/canary/x.jsonl"}`
-		_ = h.Receive(context.Background(), runA, "turn_end", "Bearer "+tokenB, strings.NewReader(secret))
+		body := `{"session_id":"sess-canary","transcript_path":"/home/dev/.claude/projects/canary/x.jsonl"}`
+		_ = h.Receive(context.Background(), runA, "turn_end", "Bearer "+tokenB, strings.NewReader(body))
 		for range HookBurst + 1 {
-			_ = h.Receive(context.Background(), runA, "turn_end", "Bearer "+tokenA, strings.NewReader(secret))
+			_ = h.Receive(context.Background(), runA, "turn_end", "Bearer "+tokenA, strings.NewReader(body))
 		}
 		logs := out.buf.String()
 		for _, canary := range []string{tokenA, tokenB, "sess-canary", "canary/x.jsonl"} {

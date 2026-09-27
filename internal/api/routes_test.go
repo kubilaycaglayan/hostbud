@@ -64,7 +64,7 @@ func TestRouteInventoryMatchesRouter(t *testing.T) {
 		}
 		// The exemption matcher accepts exactly the token-auth routes.
 		sample := strings.NewReplacer("{machine}", "host", "{name}", "x", "{id}", "x", "{key}", "layout", "{run}", "01ARZ3NDEKTSV4RRFFQ69G5FAV", "{event}", "turn_end").Replace(route.Path)
-		if got := tokenAuthRoute(httptest.NewRequest(route.Method, sample, nil)); got != route.TokenAuth {
+		if got := tokenAuthRoute(httptest.NewRequestWithContext(t.Context(), route.Method, sample, nil)); got != route.TokenAuth {
 			t.Errorf("%s: tokenAuthRoute = %v, want %v", key, got, route.TokenAuth)
 		}
 		if route.AuthRequired != wantAuth {

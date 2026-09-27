@@ -16,7 +16,7 @@ import (
 const (
 	EnvURL   = "HOSTBUD_URL"
 	EnvRunID = "HOSTBUD_RUN_ID"
-	EnvToken = "HOSTBUD_RUN_TOKEN"
+	EnvToken = "HOSTBUD_RUN_TOKEN" //nolint:gosec // the variable name, not a credential
 )
 
 // RunAgent is what starting a run needs from the item's agent adapter.

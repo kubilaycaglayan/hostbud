@@ -123,7 +123,7 @@ func procCmdlines() string {
 	paths, _ := filepath.Glob("/proc/[0-9]*/cmdline")
 	var b strings.Builder
 	for _, p := range paths {
-		data, _ := os.ReadFile(p)
+		data, _ := os.ReadFile(p) //nolint:gosec // /proc/<pid>/cmdline from a fixed glob
 		b.Write(data)
 		b.WriteByte('\n')
 	}

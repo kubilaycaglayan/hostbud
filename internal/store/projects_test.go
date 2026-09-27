@@ -73,7 +73,8 @@ func TestMigrationsAreAppendOnly(t *testing.T) {
 		}
 		upper := strings.ToUpper(string(sqlBytes))
 		for _, forbidden := range []string{"DROP TABLE", "DROP COLUMN", "DELETE FROM", "TRUNCATE", "ON DELETE CASCADE"} {
-			if strings.Contains(upper, forbidden) && !(name == "migrations/0004_projects.sql" && forbidden == "ON DELETE CASCADE") {
+			allowed := name == "migrations/0004_projects.sql" && forbidden == "ON DELETE CASCADE" // v1 links and recents
+			if strings.Contains(upper, forbidden) && !allowed {
 				t.Errorf("%s: append-only migration contains %q", name, forbidden)
 			}
 		}
