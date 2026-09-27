@@ -59,7 +59,7 @@ export const test = base.extend<Fixtures>({
   // Fails the test on console errors, uncaught exceptions, failed requests
   // and HTTP error responses the page ran into. Every test starts with the
   // shared account's default state (resetAccountState).
-  page: async ({ page, allowedBrowserErrors, baseURL }, use) => {
+  page: async ({ page, allowedBrowserErrors, baseURL, target }, use) => {
     const problems: string[] = []
     const report = (line: string) => {
       if (!allowedBrowserErrors?.test(line) && !NEW_ACCOUNT_UI_STATE.test(line)) problems.push(line)
@@ -94,6 +94,9 @@ export const test = base.extend<Fixtures>({
     page.on('response', (r) => {
       if (r.status() >= 400) report(`HTTP ${r.status()}: ${r.request().method()} ${r.url()}`)
     })
+    // The target is disposable and the suite runs on one worker: every
+    // browser test starts without tmux sessions left by earlier tests.
+    await target.resetTmux()
     await resetAccountState(page, baseURL)
     await use(page)
     expect(problems, 'browser console errors or failed requests').toEqual([])
