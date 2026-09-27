@@ -397,7 +397,7 @@ func TestEmptySessionListWithProjectPlacementIsArray(t *testing.T) {
 		cfg:      Config{Projects: placementResolverFake{}, Log: slog.New(slog.DiscardHandler)},
 		machines: map[string]Snapshotter{"host": e.m},
 	}
-	req := httptest.NewRequest(http.MethodGet, "/api/machines/host/sessions", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/machines/host/sessions", nil)
 	req.SetPathValue("machine", "host")
 	rec := httptest.NewRecorder()
 	s.listSessions(rec, req)

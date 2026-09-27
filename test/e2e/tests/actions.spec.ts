@@ -84,7 +84,7 @@ test.describe('refusals', () => {
 })
 
 // Rename (T16; M8 tree behavior)
-test('rename: the new name is in tmux ls and in the list', async ({ page, ui, target }) => {
+test('rename: the new name is in tmux ls and in the list', async ({ ui, target }) => {
   const name = uniqueName('e2e-old')
   const renamed = uniqueName('e2e-new')
   await target.tmux('new-session', '-d', '-s', name)
