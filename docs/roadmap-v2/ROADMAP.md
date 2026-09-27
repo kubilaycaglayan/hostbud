@@ -404,7 +404,9 @@ Scope: v2 §10 *V2-M4*, and the "evaluator talked into met" risk in v2 §2.
 
 **Goal.** Before an achieved item counts as done, optionally require a **verify command** that exits 0 and/or the owner's **approval**.
 
-**Switch:** per item; both gates empty by default, so behavior is V2-M1's.
+**Switch:** per item; both gates empty by default, so behavior is V2-M3's (and V2-M1's with the earlier switches off).
+
+Breakdown: [V2-M4-tasks.md](V2-M4-tasks.md) · [V2-M4-acceptance.md](V2-M4-acceptance.md).
 
 ### Tasks
 - **T1 Schema:** append-only migration adding `queue_items.verify_command TEXT NULL` and `queue_items.requires_approval BOOL DEFAULT false`, plus new item states `verifying` and `awaiting_approval` (a new migration replaces the CHECK constraint; no data changes).
@@ -427,16 +429,21 @@ Scope: v2 §10 *V2-M4*, and the "evaluator talked into met" risk in v2 §2.
 - **T8 Safe Docker cleanup:** as in *Rules*.
 
 **E2E** (stubs):
-- T2 *Verify fails then passes*: verify `test -f done.flag` fails ⇒ needs attention, and the output is shown; the runner creates the file on the target; Re-run verify ⇒ done and the queue advances;
+- T2 *Verify fails then passes*: verify `test -f done.flag` fails ⇒ needs attention, and the output is shown; the runner creates the file on the target; Re-run verify ⇒ done, and after Resume the queue advances (owner actions keep the queue paused, V2-M1);
 - T2 *Verify timeout* (a short timeout);
 - T3 *Approval*: the queue waits in `awaiting_approval`; Approve advances; Reject ⇒ needs attention;
 - T5 panel on desktop and phone.
 
 **Accept:**
-1. With no gates, V2-M1 behavior is unchanged. — U: T2 · I: T2 · E: the V2-M1 suite green.
+1. With no gates, V2-M3 behavior is unchanged. — U: T2 · I: T2 · E: the V2-M1–V2-M3 suites green.
 2. A verify command gates advancement on exit 0, with a timeout and visible output. — U: T2 · I: T2 (against `test/sshd`) · E: T2.
 3. Approval gates advancement. — U: T3 · I: n/a (no host interaction) · E: T3.
 4. Verify runs in the project directory from argv through `sshx`, never through `send-keys`. — U: T2 · I: T2 · E: n/a (the command path isn't visible to the browser; I covers it).
+5. The migration is append-only: it adds columns and widens the CHECKs, existing rows stay valid, a second apply is a no-op. — U: T1 · I: T1 · E: n/a (indirect through T2).
+6. A restart never loses a gated item or runs verify twice, and racing owner actions apply once. — U: T2, T3, T4 · I: T2 · E: T2, T3, T4.
+7. Gates interact with slots and notifications as decided in the breakdown. — U: T2, T3 · I: n/a (dispatcher logic over the store; U uses the test database) · E: T2, T3.
+8. Gates are editable per a defined rule and usable on desktop and phone; the new routes are Origin-checked. — U: T1, T5 · I: T1 · E: T1, T5.
+9. The docs are aligned (T6). — U/I: T6 docs check · E: n/a (documents).
 
 **Manual checks (owner):** a real item gated by the project's own `make test`.
 
