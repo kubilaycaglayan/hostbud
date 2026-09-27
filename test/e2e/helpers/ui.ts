@@ -194,11 +194,17 @@ export class UI {
     return ((await tab.textContent()) ?? '').trim()
   }
 
+  /** Focuses the focused pane's input, as a click on the terminal does.
+   * Opening a terminal doesn't focus it (M8 T8). */
+  async focusTerminal(): Promise<void> {
+    await this.page.locator('section[data-focused="true"]').getByRole('textbox', { name: 'Terminal input' }).focus()
+  }
+
   /** Types into the terminal (focusing its input, without clicking: a
    * click would reach mouse-aware programs like vim), then Enter if asked. */
   async type(text: string, enter = false): Promise<void> {
     // The focused pane's input (splits show several terminals at once).
-    await this.page.locator('section[data-focused="true"]').getByRole('textbox', { name: 'Terminal input' }).focus()
+    await this.focusTerminal()
     await this.page.keyboard.type(text)
     if (enter) await this.page.keyboard.press('Enter')
   }

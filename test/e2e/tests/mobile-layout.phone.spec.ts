@@ -101,8 +101,20 @@ test('(T2) Single terminal view and rotation', async ({ page, target, ui }) => {
     return rows.split('\n').map((x) => x.trim()).find((x) => x.endsWith(`|${third}`)) ?? ''
   }
   await expect.poll(client).not.toBe('')
+  // Wait for the portrait layout to settle (fonts, key bar) before taking
+  // its size: the same size three reads in a row, 200ms apart.
+  const size = async () => (await client()).split('|')[1]
+  let portraitSize = ''
+  await expect.poll(async () => {
+    const reads: string[] = []
+    for (let i = 0; i < 3; i++) {
+      reads.push(await size())
+      await page.waitForTimeout(200)
+    }
+    portraitSize = reads[0]
+    return reads.every((read) => read === reads[0])
+  }).toBe(true)
   const [pid] = (await client()).split('|')
-  const portraitSize = (await client()).split('|')[1]
   await page.setViewportSize(LANDSCAPE)
   await expect.poll(async () => (await client()).split('|')[1]).not.toBe(portraitSize)
   expect((await client()).split('|')[0]).toBe(pid)
@@ -117,7 +129,8 @@ test('(T2) Account menu on the phone', async ({ page, ui }) => {
   const header = page.locator('header')
   const trigger = header.getByRole('button', { name: 'Account' })
   await expect(trigger).toBeVisible()
-  await expect(page.locator('header button[aria-controls="sessions-sidebar"]')).toHaveAttribute('aria-expanded', 'false')
+  // No tab is open, so the tree fills the screen and there is no drawer toggle.
+  await expect(page.locator('header button[aria-controls="sessions-sidebar"]')).toHaveCount(0)
   await trigger.tap()
   await expect(header.getByText(/@/)).toBeVisible()
   await expect(header.getByRole('button', { name: 'Sign out' })).toBeVisible()

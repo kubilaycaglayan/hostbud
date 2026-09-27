@@ -155,6 +155,7 @@ test('(T3) No browser autocomplete outside login password', async ({ browser, ba
 
   // A terminal (xterm's input) and its search bar.
   await ui.openTerminal(name)
+  await ui.focusTerminal()
   await page.keyboard.press('Control+Shift+F')
   await expect(page.getByRole('textbox', { name: 'Find' })).toBeVisible()
   expect(await autocompleteOffenders(page)).toEqual([])
