@@ -122,7 +122,7 @@ Press ⌘/ (Mac), Ctrl+Shift+/ or `?` to open **Keyboard shortcuts**. ⌘⇧E / 
 
 ### Theme
 
-Choose **Dark**, **Light** or **System** from the Account menu or command palette. The choice applies to the interface and open terminals and is saved to your account. Before sign-in, the browser uses its own last theme mirror to avoid a flash; a new account starts in System mode.
+Choose **Dark**, **Light** or **System** from the Account menu or command palette. The choice applies to the interface and open terminals and is saved to your account. Programs that picked their own colors for the old theme (Codex's prompt box, for example) keep them until restarted; hostbud still keeps their text readable by enforcing a minimum contrast, and restarting the program (for Codex, quit and `codex resume`) or using a fixed Dark/Light theme gives it matching colors. Before sign-in, the browser uses its own last theme mirror to avoid a flash; a new account starts in System mode.
 
 ### Terminal
 - **Tabs:** click a session to open it in a tab (clicking it again brings its tab back); **New session** opens its session in a new tab. Tabs stay attached in the background, so switching is instant. Close a tab with ×, a middle click, or Delete on the focused tab: that only detaches the view, and the session keeps running. Drag a tab to change the order (on a phone, touch and hold it first); the order is saved with your tabs, and new tabs still open at the end. Renaming a session relabels its tabs; a session killed anywhere closes its tabs with a notice. Up to 16 terminals can be open at once, and each holds its own connection to the host.

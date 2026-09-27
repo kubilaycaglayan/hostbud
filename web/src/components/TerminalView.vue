@@ -20,7 +20,7 @@ import { registerPane, unregisterPane } from '@/lib/e2eHooks'
 import { hyperlinkHandler, openLink, type LinkHover } from '@/lib/links'
 import { keepScrollback, WHEEL_SMOOTH_SCROLL_MS } from '@/lib/scrollback'
 import { cellAt, moveCaret, settleAfterWrites } from '@/lib/altClick'
-import { darkTerminalTheme, lightTerminalTheme } from '@/lib/theme'
+import { darkTerminalTheme, lightTerminalTheme, TERMINAL_MIN_CONTRAST } from '@/lib/theme'
 import type { SplitDir, Tab } from '@/lib/layout'
 import { clipboardKey, editingKey, searchKey } from '@/lib/terminalKeys'
 import { applyModifiers, createModifiers } from '@/lib/keyBar'
@@ -279,6 +279,8 @@ onMounted(async () => {
     linkHandler: hyperlinkHandler((h) => (linkHover.value = h)),
     scrollback: 5000,
     smoothScrollDuration: WHEEL_SMOOTH_SCROLL_MS,
+    // Legible text on backgrounds a program chose for another theme (M8 T7).
+    minimumContrastRatio: TERMINAL_MIN_CONTRAST,
     theme: theme.resolved === 'dark' ? darkTerminalTheme : lightTerminalTheme,
   })
   fit = new FitAddon()

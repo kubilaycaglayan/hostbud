@@ -16,7 +16,7 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 | T4 Drag to reorder open tabs | Implemented; e2e written, not run yet |
 | T5 Reliable Option-click caret placement | Implemented; e2e written, not run yet |
 | T6 Readable terminal wheel scrolling | Implemented; e2e written, not run yet |
-| T7 Contrast in long-lived terminal clients | Not started |
+| T7 Contrast in long-lived terminal clients | Implemented; e2e written, not run yet |
 
 **Progress note (T2–T4, 2026-09-27):** Vitest (447 tests), eslint, `vue-tsc` and the e2e `tsc` passed; deployed to the host from a clean checkout of `f664bb8` (a pre-deploy `pg_dump` is in `backups/`), and the stack came up healthy. Still open for these tasks:
 - **E2E runs:** the scenarios *(T2) Compact tree*, *(T3) Compact file browser*, *(T3) No browser autocomplete outside login password* and *(T4) Custom tab order* type-check but haven't run: e2e stays paused until M7 T13. The T2 commit also updated two M6 scenarios that expanded single-window sessions (*(T4) Inline rename a session*, *(T3) Window rows follow the real terminal*).

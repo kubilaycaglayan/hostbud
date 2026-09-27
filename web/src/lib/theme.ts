@@ -19,6 +19,31 @@ export const lightTerminalTheme: ITheme = {
   brightBlack: '#57606a', brightRed: '#a40e26', brightGreen: '#116329', brightYellow: '#633c01', brightBlue: '#033d8b', brightMagenta: '#6639ba', brightCyan: '#0550ae', brightWhite: '#1f2328',
 }
 
+/**
+ * xterm raises (or lowers) a cell's foreground until it reaches this WCAG
+ * contrast ratio against the cell's actual background (M8 T7; 4.5 is WCAG AA
+ * and VS Code's terminal default). Long-lived clients keep colors they
+ * computed for the old theme: Codex queries the default colors (OSC 10/11)
+ * once and paints its prompt with an explicit background derived from them,
+ * while its text uses the default foreground. After a System switch from
+ * dark to light that text turned dark on the still-dark prompt; with this it
+ * stays legible without hostbud overriding the client's own colors.
+ */
+export const TERMINAL_MIN_CONTRAST = 4.5
+
+/** WCAG 2 contrast ratio between two #rrggbb colors. */
+export function contrastRatio(a: string, b: string): number {
+  const lum = (hex: string) => {
+    const [r, g, bl] = [1, 3, 5].map((i) => {
+      const c = parseInt(hex.slice(i, i + 2), 16) / 255
+      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+    })
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl
+  }
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x)
+  return (hi + 0.05) / (lo + 0.05)
+}
+
 export const searchDecorations = {
   dark: { matchBackground: '#264f78', matchOverviewRuler: '#5fb3f9', activeMatchBackground: '#9a6700', activeMatchColorOverviewRuler: '#f0c674' },
   light: { matchBackground: '#b6d7ff', matchOverviewRuler: '#0969da', activeMatchBackground: '#ffdf5d', activeMatchColorOverviewRuler: '#9a6700' },

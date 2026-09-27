@@ -61,6 +61,7 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
   - U: T7 mounted-terminal palette update, contrast pairs and attached-session invariant across theme changes (Vitest).
   - I: n/a: theme and terminal color rendering are frontend-only; tmux/SSH attachment state is unchanged.
   - E: T7 *Long-lived terminal contrast* (desktop), representative prompt-like TUI on the throwaway target across System dark/light changes, attached-session and palette assertions, with screenshots. Real Codex-specific rendering is recorded as an owner check if Codex is unavailable in the throwaway target.
+  - Status (2026-09-27): diagnosed as client-owned (Codex queries OSC 10/11 and paints an explicit composer background computed for the start-up theme; default-colored text on it measured 1.16:1 after dark → light). hostbud enforces `minimumContrastRatio` 4.5; before/after verified in headless Chromium with xterm 6 (`rgb(31,35,40)` → `rgb(150,151,155)` on the dark composer). U written and passing (`web/src/lib/theme.spec.ts`, `TerminalView.spec.ts`); E `test/e2e/tests/theme.contrast.spec.ts` written and type-checked, run pending (paused until M7 T13). Real Codex remains the open owner check below. Not ticked until the e2e run passes.
 
 ## Manual checks (owner)
 
