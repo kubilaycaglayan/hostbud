@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { DropdownMenuContent, DropdownMenuItem, DropdownMenuPortal, DropdownMenuRoot, DropdownMenuTrigger } from 'reka-ui'
 import { VueDraggable } from 'vue-draggable-plus'
-import { computed, onScopeDispose, ref } from 'vue'
+import { computed, onScopeDispose, ref, watch } from 'vue'
 import { ChevronRight } from 'lucide-vue-next'
 import type { Session } from '@/api/types'
 import type { SplitDir } from '@/lib/layout'
@@ -94,6 +94,12 @@ function moveLongPress(event: PointerEvent) {
 function finishLongPress() {
   clearLongPress()
 }
+
+// The click that ends a long press is swallowed (selectSession). If it
+// never comes, closing the menu ends the gesture so the next tap works.
+watch(openMenuName, (name) => {
+  if (!name) longPressedName.value = ''
+})
 
 function selectSession(name: string) {
   if (longPressedName.value === name) {

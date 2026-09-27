@@ -43,7 +43,8 @@ test('(T3) Touch targets', async ({ page, target, ui }) => {
   await ui.showList()
   await ui.sessionAction(session, 'Rename', true)
   await assertTouchTargets(page)
-  await page.getByRole('button', { name: 'Cancel' }).tap()
+  // Rename is inline (M5 T4): Escape cancels it.
+  await page.getByRole('textbox', { name: `Rename ${session}` }).press('Escape')
   await ui.sessionAction(session, 'Kill…', true)
   await assertTouchTargets(page)
   await page.getByRole('button', { name: 'Cancel' }).tap()
