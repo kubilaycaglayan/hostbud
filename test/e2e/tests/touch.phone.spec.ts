@@ -40,10 +40,10 @@ test('(T3) Touch targets', async ({ page, target, ui }) => {
   await page.getByRole('button', { name: 'Cancel' }).tap()
 
   await ui.showList()
-  await page.getByRole('button', { name: `Rename ${session}` }).tap()
+  await ui.sessionAction(session, 'Rename', true)
   await assertTouchTargets(page)
   await page.getByRole('button', { name: 'Cancel' }).tap()
-  await page.getByRole('button', { name: `Kill ${session}` }).tap()
+  await ui.sessionAction(session, 'Kill…', true)
   await assertTouchTargets(page)
   await page.getByRole('button', { name: 'Cancel' }).tap()
 
@@ -138,7 +138,7 @@ test('(T14) Touch targets and zoom for M6 controls', async ({ page, target, ui }
   await assertTouchTargets(page)
   await hiddenMenu.getByRole('menuitem', { name: 'Unhide', exact: true }).click()
 
-  await ui.treeItem(session).getByRole('button', { name: `Rename ${session}` }).click()
+  await ui.sessionAction(session, 'Rename')
   const editor = page.getByRole('textbox', { name: `Rename ${session}` })
   await expect(editor).toHaveCSS('font-size', '16px')
   for (const viewport of [PORTRAIT, LANDSCAPE]) {

@@ -35,14 +35,13 @@ describe('SessionList', () => {
     expect(w.get('button[aria-label="Drag to reorder session b"]').attributes('title')).toBe('Drag to reorder sessions')
     expect(w.get('button[aria-label="Drag to reorder session b"]').classes()).toContain('touch-target')
     expect(w.get('button[aria-label="b"]').classes()).toContain('touch-target')
-    expect(w.get('button[aria-label="Kill b"]').classes()).toContain('touch-target')
-    expect(w.get('button[aria-label="Rename b"]').classes()).toContain('touch-target')
+    expect(w.get('button[aria-label="More actions for b"]').classes()).toContain('touch-target')
     // Compact rows (M8 T2): no vertical row padding; touch-target keeps 44 px on phones.
     expect(w.get('li').classes().filter((c) => /^py-/.test(c))).toEqual([])
     expect(w.get('button[aria-label="b"]').classes()).toContain('min-h-7')
   })
 
-  it('leads with the session name, then its status and the kill/menu/rename actions; the drag handle comes last (M8 T2)', () => {
+  it('leads with the session name, then its status and the actions menu (Kill and Rename live inside it); the drag handle comes last (M8 T2)', () => {
     const w = mount(SessionList, { props: { sessions: [s('a')], sortable: true } })
     const row = w.get('li')
     const first = row.element.firstElementChild as HTMLElement
@@ -55,8 +54,10 @@ describe('SessionList', () => {
     const actions = first.nextElementSibling?.nextElementSibling
     expect(actions?.tagName).toBe('SPAN')
     expect([...actions!.querySelectorAll('button')].map((button) => button.getAttribute('aria-label'))).toEqual([
-      'Kill a', 'More actions for a', 'Rename a',
+      'More actions for a',
     ])
+    expect(w.find('button[aria-label="Kill a"]').exists()).toBe(false)
+    expect(w.find('button[aria-label="Rename a"]').exists()).toBe(false)
     expect(row.element.lastElementChild?.getAttribute('aria-label')).toBe('Drag to reorder session a')
   })
 
@@ -96,12 +97,22 @@ describe('SessionList', () => {
     expect(short.emitted('select')).toEqual([['b']])
   })
 
-  it('offers rename and kill per session', async () => {
-    const w = mount(SessionList, { props: { sessions: [s('a')] } })
-    await w.get('button[aria-label="Rename a"]').trigger('click')
-    await w.get('button[aria-label="Kill a"]').trigger('click')
-    expect(w.emitted('rename')).toEqual([['a']])
-    expect(w.emitted('kill')).toEqual([['a']])
+  it('offers rename and kill per session in the actions menu', async () => {
+    for (const treeView of [false, true]) {
+      setActivePinia(createPinia())
+      const w = mount(SessionList, { props: { sessions: [s('a')], treeView }, attachTo: document.body })
+      for (const label of ['Rename', 'Kill…']) {
+        await w.get('button[aria-label="More actions for a"]').trigger('keydown', { key: 'Enter' })
+        await new Promise((resolve) => setTimeout(resolve))
+        const item = [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((node) => node.textContent?.trim() === label)
+        expect(item).toBeTruthy()
+        item!.click()
+        await new Promise((resolve) => setTimeout(resolve))
+      }
+      expect(w.emitted('rename')).toEqual([['a']])
+      expect(w.emitted('kill')).toEqual([['a']])
+      w.unmount()
+    }
   })
 
   it('offers Rename in the long-press tree menu', async () => {

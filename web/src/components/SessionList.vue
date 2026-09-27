@@ -200,16 +200,6 @@ const sortableSessions = computed({
         <ChevronRight :size="16" class="transition-transform" :class="isExpanded(sessionKey('host', s.name)) ? 'rotate-90' : ''" aria-hidden="true" />
       </button>
       <span class="flex shrink-0 items-center">
-        <button
-          type="button"
-          :aria-label="`Kill ${s.name}`"
-          title="Kill"
-          :tabindex="props.treeView ? -1 : undefined"
-          class="touch-target inline-flex min-h-7 min-w-6 items-center justify-center rounded text-muted hover:text-danger"
-          @click="emit('kill', s.name)"
-        >
-          ✕
-        </button>
         <DropdownMenuRoot :open="openMenuName === s.name" @update:open="(open) => openMenuName = open ? s.name : ''">
           <DropdownMenuTrigger
             :aria-label="`More actions for ${s.name}`"
@@ -233,7 +223,6 @@ const sortableSessions = computed({
                 {{ isSessionHidden(s.name) ? 'Unhide' : 'Hide' }}
               </DropdownMenuItem>
               <DropdownMenuItem
-                v-if="props.treeView"
                 :class="item"
                 @select="emit('rename', s.name)"
               >
@@ -258,19 +247,15 @@ const sortableSessions = computed({
               >
                 Save as project
               </DropdownMenuItem>
+              <DropdownMenuItem
+                :class="[item, 'text-danger']"
+                @select="emit('kill', s.name)"
+              >
+                Kill…
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenuPortal>
         </DropdownMenuRoot>
-        <button
-          type="button"
-          :aria-label="`Rename ${s.name}`"
-          title="Rename"
-          :tabindex="props.treeView ? -1 : undefined"
-          class="touch-target inline-flex min-h-7 min-w-6 items-center justify-center rounded text-muted hover:text-fg"
-          @click="emit('rename', s.name)"
-        >
-          ✎
-        </button>
       </span>
       <button
         v-if="props.sortable"

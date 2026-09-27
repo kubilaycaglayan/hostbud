@@ -86,7 +86,7 @@ test.describe('custom tree on iPhone 13 Pro', () => {
     await target.run(`tmux new-session -d -s ${shq(session)} -c ${shq(path)}`)
     await page.reload()
     await ui.showList()
-    await ui.treeItem(oldName).getByRole('button', { name: `Rename ${oldName}` }).click()
+    await ui.sessionAction(oldName, 'Rename')
     const input = page.getByRole('textbox', { name: `Rename ${oldName}` })
     await input.fill(nextName)
     await input.press('Enter')

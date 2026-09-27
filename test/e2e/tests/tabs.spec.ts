@@ -95,7 +95,7 @@ test.describe('desktop', () => {
     await openAll(ui, target, [a, b, c])
 
     const renamed = uniqueName('e2e-rn')
-    await ui.session(a).getByRole('button', { name: `Rename ${a}` }).click()
+    await ui.sessionAction(a, 'Rename')
     const dialog = page.getByRole('dialog', { name: 'Rename session' })
     await dialog.getByLabel('New name').fill(renamed)
     await dialog.getByRole('button', { name: 'Rename' }).click()

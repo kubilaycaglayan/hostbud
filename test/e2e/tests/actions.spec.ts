@@ -91,7 +91,7 @@ test('rename: the new name is in tmux ls and in the list', async ({ page, ui, ta
   await ui.open()
   await expect(ui.session(name)).toBeVisible(soon)
 
-  await ui.session(name).getByRole('button', { name: `Rename ${name}` }).click()
+  await ui.sessionAction(name, 'Rename')
   const dialog = page.getByRole('dialog', { name: 'Rename session' })
   await expect(dialog.getByLabel('New name')).toHaveValue(name)
   await dialog.getByLabel('New name').fill(renamed)
@@ -109,7 +109,7 @@ test('kill asks first: Cancel keeps the session, Confirm removes it', async ({ p
   await ui.open()
   await expect(ui.session(name)).toBeVisible(soon)
 
-  await ui.session(name).getByRole('button', { name: `Kill ${name}` }).click()
+  await ui.sessionAction(name, 'Kill…')
   const confirm = page.getByRole('alertdialog', { name: `Kill session ${name}?` })
   await expect(confirm).toBeVisible()
   await confirm.getByRole('button', { name: 'Cancel' }).click()
@@ -117,7 +117,7 @@ test('kill asks first: Cancel keeps the session, Confirm removes it', async ({ p
   expect(await target.sessions()).toContain(name)
   await expect(ui.session(name)).toBeVisible()
 
-  await ui.session(name).getByRole('button', { name: `Kill ${name}` }).click()
+  await ui.sessionAction(name, 'Kill…')
   await page.getByRole('alertdialog', { name: `Kill session ${name}?` }).getByRole('button', { name: 'Kill session' }).click()
   await expect(ui.session(name)).toHaveCount(0, soon)
   expect(await target.sessions()).not.toContain(name)

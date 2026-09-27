@@ -78,6 +78,14 @@ export class UI {
     return this.treeItem(name)
   }
 
+  /** Picks Rename or Kill… from a session row's ⋯ actions menu. */
+  async sessionAction(name: string, action: 'Rename' | 'Kill…', tap = false): Promise<void> {
+    const trigger = this.session(name).getByRole('button', { name: `More actions for ${name}` })
+    await (tap ? trigger.tap() : trigger.click())
+    const item = this.page.getByRole('menu').getByRole('menuitem', { name: action, exact: true })
+    await (tap ? item.tap() : item.click())
+  }
+
   /** Session names shown in the project tree. */
   async sessionNames(): Promise<string[]> {
     return this.treeView().locator('[role="treeitem"][data-tree-kind="session"]')

@@ -82,7 +82,7 @@ test('(T5) Linked session rename and cleanup', async ({ page, target, request, u
     return data.sessions.find((session: { name: string }) => session.name === sessionName)?.path
   }).toBe(root)
   await ui.showList()
-  await page.getByRole('button', { name: `Rename ${sessionName}` }).click()
+  await ui.sessionAction(sessionName, 'Rename')
   await page.getByRole('dialog', { name: 'Rename session' }).getByLabel('New name').fill(`${sessionName}-renamed`)
   await page.getByRole('dialog', { name: 'Rename session' }).getByRole('button', { name: 'Rename' }).click()
   await expect(page.getByRole('group', { name: `Sessions in ${projectName}` }).getByRole('button', { name: `${sessionName}-renamed`, exact: true })).toBeVisible()
@@ -250,7 +250,7 @@ for (const profile of ['desktop', 'phone'] as const) {
       await expect.poll(orderedTestProjects).toEqual([secondName, firstName, thirdName])
     })
 
-    test('(T5) Left bar session actions', async ({ page, target }) => {
+    test('(T5) Left bar session actions', async ({ page, target, ui }) => {
       const name = uniqueName('e2e-actions')
       const path = `/home/dev/${name}`
       await target.run(`mkdir -p ${shq(path)}`)
@@ -262,20 +262,22 @@ for (const profile of ['desktop', 'phone'] as const) {
       const actionsFollowTitle = await row.evaluate((element) => {
         const title = element.querySelector('[data-session-row]')
         const actions = title?.nextElementSibling
-        return actions?.tagName === 'SPAN' && actions.querySelectorAll('button').length === 3
+        return actions?.tagName === 'SPAN' && actions.querySelectorAll('button').length === 1
       })
       expect(actionsFollowTitle).toBe(true)
       const labels = await row.locator('button').evaluateAll((buttons) => buttons.map((button) => button.getAttribute('aria-label')).filter(Boolean))
-      expect(labels?.slice(-3)).toEqual([`Kill ${name}`, `More actions for ${name}`, `Rename ${name}`])
+      expect(labels?.slice(-1)).toEqual([`More actions for ${name}`])
+      expect(labels).not.toContain(`Kill ${name}`)
+      expect(labels).not.toContain(`Rename ${name}`)
       await row.getByRole('button', { name: `More actions for ${name}` }).click()
       await expect(page.getByRole('menuitem', { name: 'Open in split right' })).toBeVisible()
-      await page.keyboard.press('Escape')
-      await row.getByRole('button', { name: `Rename ${name}` }).click()
+      await expect(page.getByRole('menuitem', { name: 'Kill…' })).toBeVisible()
+      await page.getByRole('menuitem', { name: 'Rename', exact: true }).click()
       const dialog = page.getByRole('dialog', { name: 'Rename session' })
       await dialog.getByLabel('New name').fill(`${name}-renamed`)
       await dialog.getByRole('button', { name: 'Rename' }).click()
       await expect(page.locator(`[data-session-row][aria-label="${name}-renamed"]`)).toBeVisible()
-      await page.getByRole('button', { name: `Kill ${name}-renamed` }).click()
+      await ui.sessionAction(`${name}-renamed`, 'Kill…')
       await expect(page.getByRole('alertdialog', { name: `Kill session ${name}-renamed?` })).toBeVisible()
       await page.getByRole('alertdialog').getByRole('button', { name: 'Cancel' }).click()
     })
