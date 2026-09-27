@@ -15,7 +15,7 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 | T3 Compact file browser and autocomplete policy | Implemented; e2e written, not run yet |
 | T4 Drag to reorder open tabs | Implemented; e2e written, not run yet |
 | T5 Reliable Option-click caret placement | Not started |
-| T6 Readable terminal wheel scrolling | Not started |
+| T6 Readable terminal wheel scrolling | In progress (direct touch scrolling implemented; wheel readability work remains) |
 | T7 Contrast in long-lived terminal clients | Not started |
 
 **Progress note (T2–T4, 2026-09-27):** Vitest (447 tests), eslint, `vue-tsc` and the e2e `tsc` passed; deployed to the host from a clean checkout of `f664bb8` (a pre-deploy `pg_dump` is in `backups/`), and the stack came up healthy. Still open for these tasks:
@@ -91,10 +91,11 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 - Improve the visual tracking of terminal content during mouse-wheel scrolling. The report is visual: scrolling currently moves in the correct direction and reaches the expected content, but characters can flicker and become difficult to follow, especially in repeated output.
 - Reproduce the issue with both distinct lines and repeated lines, scrolling up and down at typical and faster wheel input. Inspect captures/recording before and after to identify and address the source; don't change scroll semantics or direction to hide the visual issue.
 - Keep terminal input, copy-mode behavior, touch scrolling and the existing scrollback content intact. Avoid adding a setting or control unless implementation demonstrates it is necessary.
+- On touch devices, a vertical swipe directly on the terminal enters copy mode and applies that swipe to scroll history; users don't need to press the Scroll history button first. Keep the button and its explicit controls available.
 
-**Tests:** U: T6 frontend coverage for wheel-event handling/render updates or the selected scroll-step behavior (Vitest), including direction, bounded movement and no duplicated/skipped scroll requests; I: n/a if the fix stays in xterm/browser rendering (state the specific frontend-only reason in the test); E: T6 *Readable terminal scrolling* verifies distinct and repeated output while scrolling both directions, checks the expected text/position, and records visual comparison at the same wheel gestures.
+**Tests:** U: T6 frontend coverage for wheel-event handling/render updates or the selected scroll-step behavior (Vitest), including direction, bounded movement and no duplicated/skipped scroll requests; also cover direct touch swipe entering copy mode and applying the initial scroll; I: n/a if the fix stays in xterm/browser rendering (state the specific frontend-only reason in the test); E: T6 *Readable terminal scrolling* verifies distinct and repeated output while scrolling both directions, checks the expected text/position, and records visual comparison at the same wheel gestures; *Touch swipe scrolls history directly* verifies direct up/down gestures on a phone.
 
-**E2E:** Add T6 *Readable terminal scrolling* (desktop): print deterministic numbered and repeated lines in the throwaway tmux target, wheel up/down at controlled and rapid intervals, assert movement/direction and visible text, and capture before/after views to compare flicker/readability. Do not use the real host's tmux.
+**E2E:** Add T6 *Readable terminal scrolling* (desktop): print deterministic numbered and repeated lines in the throwaway tmux target, wheel up/down at controlled and rapid intervals, assert movement/direction and visible text, and capture before/after views to compare flicker/readability. Add T6 *Touch swipe scrolls history directly* (phone): swipe up/down on the terminal, confirm copy mode starts and the same gesture scrolls the throwaway target's history. Do not use the real host's tmux.
 
 ## T7 — Contrast in long-lived terminal clients
 

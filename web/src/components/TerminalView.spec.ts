@@ -327,6 +327,31 @@ describe('TerminalView', () => {
     w.unmount()
   })
 
+  it('enters scrollback and applies a vertical touch swipe directly', async () => {
+    const requests: { action: string; lines?: number }[] = []
+    vi.stubGlobal('fetch', vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as { action: string; lines?: number }
+      requests.push(body)
+      const state = body.action === 'enter'
+        ? { inMode: true, scrollPosition: 0, historySize: 150 }
+        : { inMode: true, scrollPosition: 12, historySize: 150 }
+      return new Response(JSON.stringify(state), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    }))
+    const w = await mountTerm()
+    const terminal = w.get('[data-testid="terminal"]')
+    const down = new Event('pointerdown', { bubbles: true, cancelable: true })
+    Object.defineProperties(down, { pointerType: { value: 'touch' }, clientX: { value: 80 }, clientY: { value: 180 } })
+    terminal.element.dispatchEvent(down)
+    expect(terminal.classes()).toContain('touch-none')
+    const up = new Event('pointerup', { bubbles: true, cancelable: true })
+    Object.defineProperties(up, { pointerType: { value: 'touch' }, clientX: { value: 80 }, clientY: { value: 20 } })
+    terminal.element.dispatchEvent(up)
+    await vi.waitFor(() => expect(requests.map((request) => request.action)).toEqual(['enter', 'scroll-up']))
+    expect(requests[1].lines).toBeGreaterThan(0)
+    expect(w.find('[data-testid="scroll-bar"]').exists()).toBe(true)
+    w.unmount()
+  })
+
   it('an unfocused pane of the active tab: focused once its pane is', async () => {
     const w = await mountTerm({ focused: false })
     FakeWS.all[0].onopen?.({} as Event)

@@ -33,6 +33,27 @@ test('(T5) Scroll into history', async ({ page, target, ui }) => {
   await expect.poll(async () => Number(await target.display(name, '#{scroll_position}'))).toBeGreaterThan(position)
 })
 
+test('(T6) Touch swipe scrolls history directly', async ({ page, target, ui }) => {
+  const name = uniqueName('e2e-touch-scroll')
+  await target.tmux('new-session', '-d', '-s', name, '-c', '/home/dev')
+  await target.tmux('send-keys', '-t', name, 'seq 1 400', 'Enter')
+  await expect.poll(() => target.capture(name)).toContain('400')
+  await ui.open()
+  await ui.openTerminal(name)
+
+  const terminal = page.getByTestId('terminal')
+  await terminal.dispatchEvent('pointerdown', { pointerType: 'touch', pointerId: 1, clientX: 180, clientY: 520 })
+  await terminal.dispatchEvent('pointerup', { pointerType: 'touch', pointerId: 1, clientX: 180, clientY: 200 })
+  await expect.poll(() => target.display(name, '#{pane_in_mode}')).toBe('1')
+  await expect.poll(async () => Number(await target.display(name, '#{scroll_position}'))).toBeGreaterThan(0)
+  await expect.poll(() => ui.termText(name)).toMatch(/(?:^|\n)(?:[1-9]\d?|[12]\d{2}|3[0-5]\d)(?:\n|$)/)
+
+  const position = Number(await target.display(name, '#{scroll_position}'))
+  await terminal.dispatchEvent('pointerdown', { pointerType: 'touch', pointerId: 2, clientX: 180, clientY: 200 })
+  await terminal.dispatchEvent('pointerup', { pointerType: 'touch', pointerId: 2, clientX: 180, clientY: 360 })
+  await expect.poll(async () => Number(await target.display(name, '#{scroll_position}'))).toBeLessThan(position)
+})
+
 test('(T5) Leave scroll mode', async ({ page, target, ui }) => {
   const name = await session(page, target, ui, 'e2e-scroll-exit')
   await page.getByRole('button', { name: 'Scroll history' }).tap()

@@ -99,8 +99,7 @@ function scrollAction(action: Parameters<typeof copyMode.action>[0], lines?: num
 
 function startScrollGesture(event: PointerEvent) {
   touchScrollStart = null
-  if (!copyMode.inMode.value || event.pointerType !== 'touch') return
-  event.preventDefault()
+  if (event.pointerType !== 'touch') return
   touchScrollStart = { x: event.clientX, y: event.clientY }
 }
 
@@ -111,7 +110,16 @@ function finishScrollGesture(event: PointerEvent) {
   const screen = term.value?.element?.querySelector('.xterm-screen')?.getBoundingClientRect()
   const cellHeight = screen && term.value ? screen.height / term.value.rows : 16
   const movement = swipeDelta(start, { x: event.clientX, y: event.clientY }, cellHeight)
-  if (movement) copyMode.swipe(movement.direction, movement.lines)
+  if (!movement) return
+  if (copyMode.inMode.value) {
+    copyMode.swipe(movement.direction, movement.lines)
+    return
+  }
+  // A vertical touch swipe is the mobile scroll gesture: enter tmux copy mode
+  // on demand, then apply this same swipe so the user can scroll immediately.
+  void copyMode.action('enter').then((entered) => {
+    if (entered) copyMode.swipe(movement.direction, movement.lines)
+  })
 }
 
 function cancelScrollGesture() {
@@ -426,7 +434,7 @@ defineExpose({ refit, reconnect, showKeyboard })
         <div
           ref="el"
           data-testid="terminal"
-          class="min-h-0 flex-1 touch-manipulation overflow-hidden bg-bg p-1"
+          class="min-h-0 flex-1 touch-none overflow-hidden bg-bg p-1"
           @pointerdown="startScrollGesture"
           @pointerup="finishScrollGesture"
           @pointercancel="cancelScrollGesture"

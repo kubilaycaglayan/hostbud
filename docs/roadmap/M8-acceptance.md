@@ -47,10 +47,10 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
 
 ## Terminal scrolling readability
 
-- [ ] Mouse-wheel scrolling remains correct in both directions and reaches the expected scrollback positions. Text is easier to track while moving through the terminal buffer, with reduced flicker or visual confusion for both distinct and repeated output. Terminal input, scrollback content, copy mode and touch scrolling remain intact.
-  - U: T6 wheel handling/render update or scroll-step behavior (Vitest), including direction and bounded movement; if the fix changes rendering only, document why no separate state logic applies.
+- [ ] Mouse-wheel scrolling remains correct in both directions and reaches the expected scrollback positions. Text is easier to track while moving through the terminal buffer, with reduced flicker or visual confusion for both distinct and repeated output. A vertical touch swipe directly on the terminal enters copy mode and scrolls by that gesture; terminal input, scrollback content and explicit copy-mode controls remain intact.
+  - U: T6 wheel handling/render update or scroll-step behavior (Vitest), including direction and bounded movement; direct touch swipe enters copy mode and applies its initial movement. If the wheel fix changes rendering only, document why no separate state logic applies.
   - I: n/a when the fix is browser/xterm rendering only; no server or SSH behavior changes.
-  - E: T6 *Readable terminal scrolling* (desktop), with deterministic distinct/repeated target output, both directions, controlled/rapid wheel input, visible text assertions and before/after captures for visual review.
+  - E: T6 *Readable terminal scrolling* (desktop), with deterministic distinct/repeated target output, both directions, controlled/rapid wheel input, visible text assertions and before/after captures for visual review; T6 *Touch swipe scrolls history directly* (phone), both directions against the throwaway target.
 
 ## Long-lived terminal theme contrast
 
