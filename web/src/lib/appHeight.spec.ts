@@ -53,22 +53,32 @@ describe('trackAppHeight', () => {
     expect(prop('--app-pad-bottom')).toBe('')
   })
 
-  it('fills the whole screen in an iOS home-screen app that reports a viewport without the status bar', () => {
+  it('drops the bottom padding in an iOS home-screen app whose page stops short of the screen', () => {
     const vv = new FakeVisualViewport()
     vv.height = 797
     stop = trackAppHeight(fakeWindow(vv, { innerHeight: 797, standalone: true }))
+    expect(prop('--app-height')).toBe('797px')
+    expect(prop('--app-pad-bottom')).toBe('0px')
+  })
+
+  it('keeps the bottom padding in an iOS home-screen app that reaches the screen bottom', () => {
+    const vv = new FakeVisualViewport()
+    vv.height = 844
+    stop = trackAppHeight(fakeWindow(vv, { innerHeight: 844, standalone: true }))
     expect(prop('--app-height')).toBe('844px')
-    vv.height = 430 // keyboard up: follow the visual viewport again
+    expect(prop('--app-pad-bottom')).toBe('')
+    vv.height = 430 // keyboard up
     vv.dispatchEvent(new Event('resize'))
     expect(prop('--app-height')).toBe('430px')
     expect(prop('--app-pad-bottom')).toBe('0px')
   })
 
-  it('keeps the visual viewport height outside a home-screen app', () => {
+  it('keeps the bottom padding outside a home-screen app', () => {
     const vv = new FakeVisualViewport()
     vv.height = 797
     stop = trackAppHeight(fakeWindow(vv, { innerHeight: 797 }))
     expect(prop('--app-height')).toBe('797px')
+    expect(prop('--app-pad-bottom')).toBe('')
   })
 
   it('stops following and clears the variables', () => {

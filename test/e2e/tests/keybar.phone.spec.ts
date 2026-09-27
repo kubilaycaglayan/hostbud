@@ -46,6 +46,17 @@ test('(T4) Arrows recall history', async ({ page, target, ui }) => {
   await expect.poll(() => target.capture(name)).toContain('abXc')
 })
 
+test('(T4) Slash is pinned at the right edge of the key bar', async ({ page, target, ui }) => {
+  await session(page, target, ui, 'e2e-slash')
+  const slash = page.getByRole('button', { name: 'Slash', exact: true })
+  const bar = await page.getByTestId('key-bar').boundingBox()
+  const box = await slash.boundingBox()
+  expect(bar && box).toBeTruthy()
+  // Visible without scrolling the key bar, as its rightmost key.
+  expect(box!.x + box!.width).toBeLessThanOrEqual(bar!.x + bar!.width)
+  expect(bar!.x + bar!.width - (box!.x + box!.width)).toBeLessThan(16)
+})
+
 test('(T4) Tab, Alt and symbols', async ({ page, target, ui }) => {
   const name = await session(page, target, ui, 'e2e-keybar')
   await ui.type('ech')

@@ -20,9 +20,10 @@ const keys: { key: KeyBarKey; label: string; text: string }[] = [
   { key: 'ArrowRight', label: 'Right arrow', text: '→' },
   { key: '|', label: 'Pipe', text: '|' },
   { key: '~', label: 'Tilde', text: '~' },
-  { key: '/', label: 'Slash', text: '/' },
   { key: '-', label: 'Hyphen', text: '-' },
 ]
+// Pinned outside the scrolling keys so it's always in reach.
+const pinnedKey: { key: KeyBarKey; label: string; text: string } = { key: '/', label: 'Slash', text: '/' }
 let repeatTimer: ReturnType<typeof setTimeout> | null = null
 let repeatInterval: ReturnType<typeof setInterval> | null = null
 
@@ -86,83 +87,95 @@ onBeforeUnmount(stopRepeat)
     >
       ⌃ Show key bar
     </button>
-    <div v-else class="flex min-h-12 items-center gap-1 overflow-x-auto px-1">
+    <div v-else class="flex min-h-12 items-center gap-1 pr-1">
+      <div class="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-1">
+        <button
+          v-for="item in leadingKeys"
+          :key="item.key"
+          type="button"
+          class="touch-target shrink-0 rounded border border-border px-2"
+          :aria-label="item.label"
+          tabindex="-1"
+          @pointerdown="press($event, item.key)"
+          @pointerup="stopRepeat"
+          @pointercancel="stopRepeat"
+          @pointerleave="stopRepeat"
+          @mousedown.prevent
+        >
+          {{ item.text }}
+        </button>
+        <button
+          type="button"
+          class="touch-target shrink-0 rounded border border-border px-2"
+          aria-label="Control"
+          :aria-pressed="props.modifiers.ctrl.armed"
+          :class="props.modifiers.ctrl.armed ? 'bg-accent text-bg' : ''"
+          tabindex="-1"
+          @pointerdown="arm($event, 'ctrl')"
+          @mousedown.prevent
+        >
+          Ctrl
+        </button>
+        <button
+          type="button"
+          class="touch-target shrink-0 rounded border border-border px-2"
+          aria-label="Alt"
+          :aria-pressed="props.modifiers.alt.armed"
+          :class="props.modifiers.alt.armed ? 'bg-accent text-bg' : ''"
+          tabindex="-1"
+          @pointerdown="arm($event, 'alt')"
+          @mousedown.prevent
+        >
+          Alt
+        </button>
+        <button
+          v-for="item in keys"
+          :key="item.key"
+          type="button"
+          class="touch-target shrink-0 rounded border border-border px-2"
+          :aria-label="item.label"
+          tabindex="-1"
+          @pointerdown="press($event, item.key)"
+          @pointerup="stopRepeat"
+          @pointercancel="stopRepeat"
+          @pointerleave="stopRepeat"
+          @mousedown.prevent
+        >
+          {{ item.text }}
+        </button>
+        <button
+          v-if="props.scrollEnabled"
+          type="button"
+          class="touch-target shrink-0 rounded border border-border px-2"
+          aria-label="Scroll history"
+          :disabled="props.busy"
+          tabindex="-1"
+          @pointerdown="scroll"
+          @mousedown.prevent
+        >
+          Scroll
+        </button>
+        <button
+          type="button"
+          class="touch-target ml-auto shrink-0 rounded px-2 text-muted"
+          aria-label="Hide key bar"
+          tabindex="-1"
+          @pointerdown.prevent="collapsed = true"
+          @mousedown.prevent
+          @click="collapsed = true"
+        >
+          ⌄
+        </button>
+      </div>
       <button
-        v-for="item in leadingKeys"
-        :key="item.key"
         type="button"
         class="touch-target shrink-0 rounded border border-border px-2"
-        :aria-label="item.label"
+        :aria-label="pinnedKey.label"
         tabindex="-1"
-        @pointerdown="press($event, item.key)"
-        @pointerup="stopRepeat"
-        @pointercancel="stopRepeat"
-        @pointerleave="stopRepeat"
+        @pointerdown="press($event, pinnedKey.key)"
         @mousedown.prevent
       >
-        {{ item.text }}
-      </button>
-      <button
-        type="button"
-        class="touch-target shrink-0 rounded border border-border px-2"
-        aria-label="Control"
-        :aria-pressed="props.modifiers.ctrl.armed"
-        :class="props.modifiers.ctrl.armed ? 'bg-accent text-bg' : ''"
-        tabindex="-1"
-        @pointerdown="arm($event, 'ctrl')"
-        @mousedown.prevent
-      >
-        Ctrl
-      </button>
-      <button
-        type="button"
-        class="touch-target shrink-0 rounded border border-border px-2"
-        aria-label="Alt"
-        :aria-pressed="props.modifiers.alt.armed"
-        :class="props.modifiers.alt.armed ? 'bg-accent text-bg' : ''"
-        tabindex="-1"
-        @pointerdown="arm($event, 'alt')"
-        @mousedown.prevent
-      >
-        Alt
-      </button>
-      <button
-        v-for="item in keys"
-        :key="item.key"
-        type="button"
-        class="touch-target shrink-0 rounded border border-border px-2"
-        :aria-label="item.label"
-        tabindex="-1"
-        @pointerdown="press($event, item.key)"
-        @pointerup="stopRepeat"
-        @pointercancel="stopRepeat"
-        @pointerleave="stopRepeat"
-        @mousedown.prevent
-      >
-        {{ item.text }}
-      </button>
-      <button
-        v-if="props.scrollEnabled"
-        type="button"
-        class="touch-target shrink-0 rounded border border-border px-2"
-        aria-label="Scroll history"
-        :disabled="props.busy"
-        tabindex="-1"
-        @pointerdown="scroll"
-        @mousedown.prevent
-      >
-        Scroll
-      </button>
-      <button
-        type="button"
-        class="touch-target ml-auto shrink-0 rounded px-2 text-muted"
-        aria-label="Hide key bar"
-        tabindex="-1"
-        @pointerdown.prevent="collapsed = true"
-        @mousedown.prevent
-        @click="collapsed = true"
-      >
-        ⌄
+        {{ pinnedKey.text }}
       </button>
     </div>
   </section>

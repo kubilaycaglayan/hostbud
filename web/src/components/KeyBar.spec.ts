@@ -33,7 +33,7 @@ describe('KeyBar', () => {
     expect(wrapper.find('[aria-label="On-screen key bar"]').exists()).toBe(true)
     const names = wrapper.findAll('button').map((button) => button.attributes('aria-label'))
     expect(names).toEqual([
-      'Escape', 'Tab', 'Control', 'Alt', 'Left arrow', 'Up arrow', 'Down arrow', 'Right arrow', 'Pipe', 'Tilde', 'Slash', 'Hyphen', 'Scroll history', 'Hide key bar',
+      'Escape', 'Tab', 'Control', 'Alt', 'Left arrow', 'Up arrow', 'Down arrow', 'Right arrow', 'Pipe', 'Tilde', 'Hyphen', 'Scroll history', 'Hide key bar', 'Slash',
     ])
     expect(wrapper.findAll('button').every((button) => button.classes().includes('touch-target'))).toBe(true)
   })

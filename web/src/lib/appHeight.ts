@@ -4,8 +4,10 @@
  * keyboard opens, the visual viewport shrinks (iOS doesn't resize the layout
  * viewport), so the app — and the terminal, through its ResizeObserver —
  * shrinks with it instead of hiding its bottom rows under the keyboard.
- * While the keyboard is up, --app-pad-bottom drops the home-indicator inset
- * (iOS keeps reporting it although the keyboard covers that area).
+ * --app-pad-bottom drops the home-indicator inset when nothing is drawn over
+ * the home indicator: while the keyboard is up (iOS keeps reporting the inset
+ * although the keyboard covers that area), and in an iOS home-screen app whose
+ * page stops short of the screen bottom (it can't paint there anyway).
  * Without the visualViewport API the CSS fallback (100dvh) applies.
  * Returns a function that stops tracking.
  */
@@ -19,11 +21,10 @@ export function trackAppHeight(win: Window = window): () => void {
     const height = vv.height * (vv.scale || 1)
     const full = standaloneScreenHeight(win)
     const keyboard = Math.max(win.innerHeight, full) - height > KEYBOARD_MIN_HEIGHT
-    // An iOS home-screen app reports its viewport without the status bar,
-    // leaving that much blank space under the app; it really fills the screen.
-    root.style.setProperty('--app-height', `${keyboard ? height : Math.max(height, full)}px`)
+    const shortOfScreen = full - win.innerHeight > SHORT_OF_SCREEN
+    root.style.setProperty('--app-height', `${height}px`)
     root.style.setProperty('--app-top', `${vv.offsetTop}px`)
-    if (keyboard) root.style.setProperty('--app-pad-bottom', '0px')
+    if (keyboard || shortOfScreen) root.style.setProperty('--app-pad-bottom', '0px')
     else root.style.removeProperty('--app-pad-bottom')
   }
   update()
@@ -40,6 +41,9 @@ export function trackAppHeight(win: Window = window): () => void {
 
 /** Viewport shrinkage (CSS px) above which the on-screen keyboard is up. */
 const KEYBOARD_MIN_HEIGHT = 150
+
+/** How far (CSS px) the page may end above the screen bottom and still reach the home indicator. */
+const SHORT_OF_SCREEN = 20
 
 /** The screen's height in the current orientation for an iOS home-screen app, else 0. */
 function standaloneScreenHeight(win: Window): number {
