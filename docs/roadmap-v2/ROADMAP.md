@@ -309,19 +309,20 @@ Each line: criterion — coverage.
 
 ## V2-M2 — Multiple queues and parallel runs (opt-in)
 
-Scope: v2 §10 *V2-M2*, v2 §3.3 and §3.9.
+Scope: v2 §10 *V2-M2*, v2 §3.3 and §3.9. Breakdown: [V2-M2-tasks.md](V2-M2-tasks.md) · [V2-M2-acceptance.md](V2-M2-acceptance.md).
 
 **Goal.** Several queues can run at once. Each queue stays strictly sequential. An optional per-machine cap limits how many runs are active at the same time.
 
-**Switch:** multiple queues are enabled per installation. With the switch off, the V2-M1 one-queue limit stays.
+**Switch:** multiple queues are enabled per installation (`HOSTBUD_PARALLEL_QUEUES`, default `false`). With the switch off, the V2-M1 one-queue limit stays and V2-M1 behavior is unchanged.
 
 ### Tasks
-- **T1 Schema:** append-only migration adding `machine_capacity(machine_id PK, max_concurrent_runs NULL)` (NULL = no cap), as noted in v2 §6.
+- **T1 Schema:** append-only migration adding `machine_capacity(machine_id PK, max_concurrent_runs NULL)` (NULL = no cap), as noted in v2 §6, plus `queues.waiting_since` for slot order.
 - **T2 Several queues:** lift the one-queue limit when enabled. A project may have more than one queue. The panel warns when two running queues share a project directory, because agents may edit the same files.
 - **T3 Session naming:** `<project>-q<position>` collides across queues of one project. Switch to `<project>-<queue>-q<position>` for queues after the first (the first keeps the V2-M1 name), still collision-suffixed.
 - **T4 Dispatcher with slots:** one active run per queue as before, plus a machine-wide count of active runs (`starting`, `running`, `stale`; stale still occupies the slot because the session is alive).
   - When the cap is reached, the next item stays `queued` with the reason "waiting for a free slot".
-  - Slots go to queues in the order they were started (FIFO), so no queue starves.
+  - Slots go to queues in the order they started waiting (queue start or resume, or its previous run ending; FIFO), so no queue starves.
+  - The cap holds under concurrent signals and after a restart.
   - Owner action on a stale run frees its slot.
 - **T5 API and panel:**
   - queue list and switcher, create/rename/delete queue;
@@ -336,13 +337,18 @@ Scope: v2 §10 *V2-M2*, v2 §3.3 and §3.9.
 - T2/T5 *Two queues in parallel*: both queues' first items run at once, and each queue stays sequential;
 - T4 *Cap of one*: the second queue waits with "waiting for a free slot" and starts when the first queue's run achieves;
 - T3 *Name collision*: two queues on one project get distinct session names;
+- T2 *Same-directory warning*; T4 *Slots in start order*, *Stale holds a slot*, *Cap after restart*;
 - T5 panel on desktop and phone.
 
 **Accept:**
 1. With the switch on, two queues advance independently, each sequential. — U: T4 · I: T4 · E: T2/T5 *Two queues in parallel*.
-2. The cap is respected, and fairness is FIFO by queue start. — U: T4 · I: T4 · E: T4 *Cap of one*.
+2. The cap is respected (a stale run holds its slot; also under concurrent signals and after a restart), and slots go FIFO by the order queues started waiting, so none starves. — U: T4 · I: T4 · E: T4 *Cap of one*, *Slots in start order*, *Stale holds a slot*, *Cap after restart*.
 3. With the switch off, V2-M1 behavior is unchanged. — U: T2 · I: T2 · E: the V2-M1 suite still green.
-4. Session names never collide across queues. — U: T3 · I: T3 · E: T3 *Name collision*.
+4. Session names never collide across queues; the first queue keeps the V2-M1 name. — U: T3 · I: T3 · E: T3 *Name collision*.
+5. The migration is append-only and keeps V2-M1 data. — U: T1 · I: T1 · E: n/a (indirect through T4).
+6. Two running queues on one project directory show a warning. — U: T2, T5 · I: n/a (pure logic over stored paths) · E: T2 *Same-directory warning*, T5.
+7. Queues and the cap are manageable from desktop and phone; the cap route is Origin-checked; the UI updates from events. — U: T5 · I: T5 · E: T5.
+8. Docs aligned. — U/I: T6 docs check · E: n/a.
 
 **Manual checks (owner):** two real agents in parallel on separate projects.
 
