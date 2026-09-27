@@ -4,6 +4,25 @@ Goal: make the main controls, project tree and file browser compact and easy to 
 
 Scope and acceptance: [../ROADMAP.md](../ROADMAP.md#m8--interface-density-and-input-behavior) · checklist: [M8-acceptance.md](M8-acceptance.md).
 
+## Progress
+
+Update this table in the same commit that finishes a task. T2–T4 were done early, alongside M7, at the owner's request (2026-09-27); T1 and T5–T7 haven't started.
+
+| Task | Status |
+|---|---|
+| T1 Header action placement and compact controls | Not started |
+| T2 Compact, name-first project tree | Implemented; e2e written, not run yet |
+| T3 Compact file browser and autocomplete policy | Implemented; e2e written, not run yet |
+| T4 Drag to reorder open tabs | Implemented; e2e written, not run yet |
+| T5 Reliable Option-click caret placement | Not started |
+| T6 Readable terminal wheel scrolling | Not started |
+| T7 Contrast in long-lived terminal clients | Not started |
+
+**Progress note (T2–T4, 2026-09-27):** Vitest (447 tests), eslint, `vue-tsc` and the e2e `tsc` passed; deployed to the host from a clean checkout of `f664bb8` (a pre-deploy `pg_dump` is in `backups/`), and the stack came up healthy. Still open for these tasks:
+- **E2E runs:** the scenarios *(T2) Compact tree*, *(T3) Compact file browser*, *(T3) No browser autocomplete outside login password* and *(T4) Custom tab order* type-check but haven't run: e2e stays paused until M7 T13. The T2 commit also updated two M6 scenarios that expanded single-window sessions (*(T4) Inline rename a session*, *(T3) Window rows follow the real terminal*).
+- **Screenshot inspection:** not done yet. The only running app is production, and signing in there would need a new whitelisted account in the owner's database. The e2e scenarios save desktop and phone screenshots (`file-browser-*.png`, `tree-*.png`); inspect them at the first e2e run and tune spacing then.
+- **Decisions to review:** the login screen's email field is now `autocomplete="off"` (the literal policy: only the password is exempt), and a single-window session has no chevron until its windows are loaded (the inventory reports window counts, not pane counts).
+
 ## Rules for this milestone
 
 - Work top to bottom. Before each task, read its U/I/E coverage in [M8-acceptance.md](M8-acceptance.md) and write those tests/scenarios with the behavior.

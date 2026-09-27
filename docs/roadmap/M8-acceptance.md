@@ -15,6 +15,7 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
   - U: T2 row structure, affordance visibility, name-first layout, action wiring and compact styling (Vitest).
   - I: n/a: presentation-only; tree data and APIs are unchanged.
   - E: T2 *Compact tree* (desktop and phone), including actual reorder/collapse/open behavior.
+  - Status (2026-09-27): U written and passing (`web/src/components/SessionList.spec.ts`, `SessionTree.spec.ts`; e2e `tests/tree.compact.spec.ts`); E written and type-checked, run pending (paused until M7 T13). Not ticked until the e2e run passes.
 
 ## File browser and browser autocomplete
 
@@ -22,10 +23,12 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
   - U: T3 dialog/item density classes, bounds-related responsive classes and action wiring (Vitest).
   - I: n/a: layout is frontend-only; existing M4 file-browser API integration coverage remains applicable.
   - E: T3 *Compact file browser* (desktop and phone), screenshot/bounds plus navigation and item actions.
+  - Status (2026-09-27): U written and passing (`web/src/components/FileBrowserDialog.spec.ts`, `web/src/lib/autocomplete.spec.ts`; e2e `tests/files.compact.spec.ts`); E written and type-checked, run pending (paused until M7 T13). Not ticked until the e2e run passes.
 - [ ] Browser autocomplete/autofill is disabled on all application inputs except the login-screen password input, whose current autocomplete behavior and markup remain unchanged.
   - U: T3 rendered form attribute audit, with explicit login-password exception regression (Vitest).
   - I: n/a: browser form markup; no server behavior changes.
   - E: T3 *No browser autocomplete outside login password* (desktop): inspect all application form controls and preserve login password behavior.
+  - Status (2026-09-27): U written and passing (`web/src/components/FileBrowserDialog.spec.ts`, `web/src/lib/autocomplete.spec.ts`; e2e `tests/files.compact.spec.ts`); E written and type-checked, run pending (paused until M7 T13). Not ticked until the e2e run passes.
 
 ## Open tab ordering
 
@@ -33,6 +36,7 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
   - U: T4 layout-store reorder/restore/append behavior and active/pane invariants (Vitest); drag/drop interaction updates order without changing the active tab or mounting terminals (component test).
   - I: n/a: this uses the existing `ui_state/layout` persistence route with no server changes; M3 covers its authenticated persistence integration.
   - E: T4 *Custom tab order* (desktop and phone), including persistence after reload and restart and unchanged appearance.
+  - Status (2026-09-27): U written and passing (`web/src/lib/layout.spec.ts`, `stores/layout.spec.ts`, `components/TabBar.spec.ts`, `App.spec.ts`; e2e `tests/tabs.order.spec.ts`); E written and type-checked, run pending (paused until M7 T13). Not ticked until the e2e run passes.
 
 ## Text input caret placement
 
