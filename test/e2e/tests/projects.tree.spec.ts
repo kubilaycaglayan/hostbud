@@ -163,7 +163,7 @@ for (const profile of ['desktop', 'phone'] as const) {
 
       await ui.openFileBrowser()
       await page.getByLabel('Current path').fill(root)
-      await page.getByRole('button', { name: 'Go' }).click()
+      await page.getByRole('button', { name: 'Go', exact: true }).click()
       await page.getByRole('button', { name: 'Add app as project' }).click()
       await expect(page.getByText('Project: app')).toBeVisible()
       const list = await request.get('/api/projects?machine=host')

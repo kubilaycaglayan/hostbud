@@ -88,7 +88,7 @@ test('(T14) Touch targets and zoom for M6 controls', async ({ page, target, ui }
 
   const browser = await ui.openFileBrowser()
   await browser.getByLabel('Current path').fill(path)
-  await browser.getByRole('button', { name: 'Go' }).click()
+  await browser.getByRole('button', { name: 'Go', exact: true }).click()
   await browser.getByRole('button', { name: 'Add this directory as project' }).click()
   await browser.getByRole('button', { name: 'Close file browser' }).click()
   await ui.openTerminal(session)

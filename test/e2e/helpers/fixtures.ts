@@ -47,6 +47,11 @@ async function resetAccountState(page: Page, baseURL: string | undefined): Promi
 const NEW_ACCOUNT_UI_STATE =
   /^HTTP 404: GET https?:\/\/[^/]+\/api\/ui-state\/(layout|tree|theme)$|^console error: Failed to load resource: the server responded with a status of 404 .*@ https?:\/\/[^/]+\/api\/ui-state\/(layout|tree|theme)$/
 
+// A signed-out page (ui.dropSession) asks who is signed in and gets 401,
+// the API's normal answer before sign-in.
+const SIGNED_OUT_ME =
+  /^HTTP 401: GET https?:\/\/[^/]+\/api\/auth\/me$|^console error: Failed to load resource: the server responded with a status of 401 .*@ https?:\/\/[^/]+\/api\/auth\/me$/
+
 export const test = base.extend<Fixtures>({
   allowedBrowserErrors: [undefined, { option: true }],
 
@@ -62,7 +67,7 @@ export const test = base.extend<Fixtures>({
   page: async ({ page, allowedBrowserErrors, baseURL, target }, use) => {
     const problems: string[] = []
     const report = (line: string) => {
-      if (!allowedBrowserErrors?.test(line) && !NEW_ACCOUNT_UI_STATE.test(line)) problems.push(line)
+      if (!allowedBrowserErrors?.test(line) && !NEW_ACCOUNT_UI_STATE.test(line) && !SIGNED_OUT_ME.test(line)) problems.push(line)
     }
     page.on('console', (m) => {
       // A failed load names its URL only in the location.

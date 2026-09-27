@@ -49,7 +49,7 @@ test('(T10) Taken session names get a number from New session and New session he
 
   await ui.createSession({ name })
   await expect(page.getByRole('region', { name: `Terminal: ${name}-1` })).toBeVisible(withinPoll)
-  await expect(page.locator('section[aria-label="Notifications"] [role="status"]')).toContainText(`Named "${name}-1": "${name}" was already taken.`)
+  await expect(page.locator('section[aria-label="Notifications"] [role="status"]').filter({ hasText: `Named "${name}-1"` })).toContainText(`Named "${name}-1": "${name}" was already taken.`)
   expect(await target.sessions()).toEqual(expect.arrayContaining([name, `${name}-1`]))
 
   await ui.showList()
@@ -62,7 +62,7 @@ test('(T10) Taken session names get a number from New session and New session he
   await dialog.getByLabel('Name', { exact: true }).fill(name)
   await dialog.getByRole('button', { name: 'Create session' }).click()
   await expect(page.getByRole('region', { name: `Terminal: ${name}-2` })).toBeVisible(withinPoll)
-  await expect(page.locator('section[aria-label="Notifications"] [role="status"]')).toContainText(`Named "${name}-2": "${name}" was already taken.`)
+  await expect(page.locator('section[aria-label="Notifications"] [role="status"]').filter({ hasText: `Named "${name}-2"` })).toContainText(`Named "${name}-2": "${name}" was already taken.`)
   await expect(ui.treeItem(projectName).getByRole('treeitem', { name: `${name}-2` })).toBeVisible()
 })
 

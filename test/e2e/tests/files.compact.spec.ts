@@ -34,7 +34,7 @@ test('(T3) Compact file browser', async ({ page, request, target, ui, isMobile }
   await page.goto('/')
   const dialog = await ui.openFileBrowser()
   await dialog.getByLabel('Current path').fill(`/home/dev/${parent}`)
-  await dialog.getByRole('button', { name: 'Go' }).click()
+  await dialog.getByRole('button', { name: 'Go', exact: true }).click()
   const list = dialog.getByRole('list', { name: 'Directory entries' })
   await expect(list.getByRole('listitem')).toHaveCount(folders.length)
 
