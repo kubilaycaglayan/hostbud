@@ -185,10 +185,6 @@ func (s *Service) Create(ctx context.Context, spec Spec) (string, error) {
 			break
 		}
 		if isDuplicate(err) {
-			if spec.Name != "" {
-				return "", errorf(CodeDuplicate, "Pick another name, or open the existing session.",
-					"a session named %q already exists", name)
-			}
 			if attempt < 20 {
 				reserved = append(reserved, tmux.Session{Name: name})
 				name = uniqueName(baseName, reserved)

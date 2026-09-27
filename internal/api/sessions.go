@@ -72,7 +72,7 @@ func (s *server) withProjectPlacement(ctx context.Context, machine string, sessi
 	if !ok {
 		return sessions
 	}
-	placed := append([]tmux.Session(nil), sessions...)
+	placed := append([]tmux.Session{}, sessions...)
 	for i := range placed {
 		placement, err := resolver.Place(ctx, machine, placed[i].Name, placed[i].Path)
 		if err != nil {

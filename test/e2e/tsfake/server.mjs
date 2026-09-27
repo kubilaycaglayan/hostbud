@@ -15,7 +15,7 @@ const socketServer = createUnixServer((socket) => {
     const mapping = requireMap()
     const status = mapping === 'unknown' ? '404 Not Found' : mapping === 'error' ? '500 Internal Server Error' : '200 OK'
     const body = mapping === 'unknown' ? 'no match' : mapping === 'error' ? 'fake error' : JSON.stringify({ UserProfile: { LoginName: mapping === 'stranger' ? 'stranger@example.com' : 'allowed@example.com' } })
-    const response = `${status}\r\nContent-Type: application/json\r\nContent-Length: ${Buffer.byteLength(body)}\r\nConnection: close\r\n\r\n${body}`
+    const response = `HTTP/1.1 ${status}\r\nContent-Type: application/json\r\nContent-Length: ${Buffer.byteLength(body)}\r\nConnection: close\r\n\r\n${body}`
     if (!path.startsWith('/localapi/v0/whois?')) socket.end('404 Not Found\r\nContent-Length: 0\r\n\r\n')
     else socket.end(response)
   })

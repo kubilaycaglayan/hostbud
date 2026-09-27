@@ -300,6 +300,8 @@ services:
       # Caddyfile (which adds the test domain's HTTPS site and :9056).
       - ../../deploy/caddy/hostbud.caddy:/etc/caddy/hostbud.caddy:ro
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
 
   # Failure switches for the runner (restart the app, stop/start sshd) via
   # the Docker socket; fixed commands only (ctl/server.mjs).
@@ -348,6 +350,8 @@ networks:
     name: hostbud-e2e
 
 volumes:
+  caddy-data: { name: hostbud-e2e-caddy-data }
+  caddy-config: { name: hostbud-e2e-caddy-config }
   keys: { name: hostbud-e2e-keys }
   hostpub: { name: hostbud-e2e-hostpub }
   agent: { name: hostbud-e2e-agent }

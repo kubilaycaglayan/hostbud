@@ -172,6 +172,11 @@ func TestContainerHardeningAndE2EParity(t *testing.T) {
 	}
 	e2eCaddy := e2e.Services["hostbud-e2e-caddy"]
 	assertCaddyHardening(t, "hostbud-e2e-caddy", e2eCaddy)
+	for _, target := range []string{"/data", "/config"} {
+		if !hasWritableVolume(e2eCaddy.Volumes, target) {
+			t.Errorf("hostbud-e2e-caddy must mount writable state at %s for its read-only root filesystem", target)
+		}
+	}
 	if caddy.ReadOnly != e2eCaddy.ReadOnly || !slices.Equal(caddy.Tmpfs, e2eCaddy.Tmpfs) ||
 		!slices.Equal(caddy.CapDrop, e2eCaddy.CapDrop) || !slices.Equal(caddy.CapAdd, e2eCaddy.CapAdd) ||
 		!slices.Equal(caddy.SecurityOpt, e2eCaddy.SecurityOpt) || caddy.Logging.Driver != e2eCaddy.Logging.Driver || !mapsEqual(caddy.Logging.Options, e2eCaddy.Logging.Options) {
@@ -184,6 +189,15 @@ func TestContainerHardeningAndE2EParity(t *testing.T) {
 		postgres.Logging.Driver != e2ePostgres.Logging.Driver || !mapsEqual(postgres.Logging.Options, e2ePostgres.Logging.Options) {
 		t.Error("hostbud-e2e-postgres doesn't mirror production Postgres hardening")
 	}
+}
+
+func hasWritableVolume(volumes []volume, target string) bool {
+	for _, v := range volumes {
+		if v.Type == "volume" && v.Target == target && !v.ReadOnly {
+			return true
+		}
+	}
+	return false
 }
 
 func TestProductionServicesHaveNoDangerousHostMounts(t *testing.T) {
