@@ -57,8 +57,9 @@ test('(T10) Taken session names get a number from New session and New session he
   const palette = page.getByRole('dialog', { name: 'Command palette' })
   await palette.getByRole('combobox', { name: 'Command palette' }).fill(`New session in ${projectName}`)
   await page.keyboard.press('Enter')
-  const dialog = page.getByRole('dialog', { name: `New session in ${projectName}` })
-  await dialog.getByLabel('Name').fill(name)
+  const dialog = page.getByRole('dialog', { name: 'New session here' })
+  await expect(dialog).toContainText(`New session in ${projectName}`)
+  await dialog.getByLabel('Name', { exact: true }).fill(name)
   await dialog.getByRole('button', { name: 'Create session' }).click()
   await expect(page.getByRole('region', { name: `Terminal: ${name}-2` })).toBeVisible(withinPoll)
   await expect(page.locator('section[aria-label="Notifications"] [role="status"]')).toContainText(`Named "${name}-2": "${name}" was already taken.`)
@@ -72,7 +73,6 @@ test('attached state and window count follow the real terminal', async ({ ui, ta
   await ui.open()
   const item = ui.session(name)
   await expect(item.getByRole('img', { name: 'detached' })).toBeVisible(withinPoll)
-  await expect(item).toContainText('1 window')
 
   const detach = target.attachClient(name)
   try {
@@ -82,8 +82,10 @@ test('attached state and window count follow the real terminal', async ({ ui, ta
   }
   await expect(item.getByRole('img', { name: 'detached' })).toBeVisible({ timeout: 10_000 })
 
+  // Rows show no window counts (M4 T5); a second window makes the row expandable.
   await target.tmux('new-window', '-t', `=${name}:`)
-  await expect(item).toContainText('2 windows', withinPoll)
+  await expect(item.getByRole('button', { name: `Expand ${name}` })).toBeVisible(withinPoll)
+  await expect(item).not.toContainText(/\b\d+ windows?\b/)
 })
 
 test.describe('recovery', () => {
