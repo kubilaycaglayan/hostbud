@@ -22,7 +22,7 @@ Update this table in the same commit that finishes a task.
 | T10 Taken session names get a number | Done |
 | T11 Remove a project | Done |
 | T12 Add the current directory as a project | Done |
-| T13 Left bar toggle and icon toolbar | Not started |
+| T13 Left bar toggle and icon toolbar | Done |
 | T14 Docs, audit and release | Not started |
 | T15 Safe Docker cleanup | Not started |
 
@@ -47,6 +47,8 @@ T10 completed with typed-name collision numbering, 64-character suffix trimming,
 T11 completed with account-wide project removal, cascading links and command history, immediate path-based session re-placement, confirmation from the tree and command palette, and a close-and-toast path for an open New session here dialog. Go/PostgreSQL/test-sshd integration, frontend tests/lint and E2E TypeScript checks passed; desktop and phone browser scenarios are authored and remain paused until M7. No migration or environment variable was added.
 
 T12 completed with an accessible Add/Open action in the file browser path bar, reusing the row actions' deduplicating project logic. It follows navigation, stays disabled until project data is loaded and while listings load or fail, and supports starting a session at the selected path. FileBrowser unit tests and frontend/E2E type checks pass; desktop and phone browser scenarios are authored and remain paused until M7. No new environment variable or server route was added.
+
+T13 completed with the accessible header sidebar toggle, reload-persistent desktop visibility, icon-only New session/Add project toolbar in the tree panel, and updated legacy selectors. Vitest passed (417 tests), frontend lint passed, and E2E lint/TypeScript checking passed; desktop and both phone-profile scenarios are authored and remain paused until M7. No new environment variable or route was added.
 
 ## Rules for this milestone
 

@@ -91,10 +91,20 @@ export class UI {
 
   /** On compact screens, open the project-tree drawer over the terminal. */
   async showList(): Promise<void> {
-    const trigger = this.page.getByRole('button', { name: 'Show project tree' })
+    const trigger = this.page.locator('header button[aria-controls="sessions-sidebar"]')
     const terminal = this.page.getByRole('region', { name: /^Terminal: / }).first()
-    if (await terminal.isVisible() && (await trigger.getAttribute('aria-expanded')) !== 'true') await trigger.click()
+    const treeVisible = await this.tree().isVisible()
+    if ((await terminal.isVisible() || !treeVisible) && (await trigger.getAttribute('aria-expanded')) !== 'true') await trigger.click()
     await expect(this.tree()).toBeVisible()
+  }
+
+  /** Opens the shared file browser from the icon toolbar. */
+  async openFileBrowser() {
+    if (!(await this.tree().isVisible())) await this.showList()
+    await this.page.getByRole('button', { name: 'Add project' }).click()
+    const dialog = this.page.getByRole('dialog', { name: 'Browse files' })
+    await expect(dialog).toBeVisible()
+    return dialog
   }
 
   /** Clicks a session and waits for its terminal (e2e build hook ready). */

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { FolderPlus } from 'lucide-vue-next'
+import { FolderPlus, SquareTerminal } from 'lucide-vue-next'
 import SessionTree from './SessionTree.vue'
 import { ref } from 'vue'
 import type { SplitDir } from '@/lib/layout'
@@ -25,12 +25,11 @@ defineExpose({
 
 <template>
   <section class="flex min-h-0 flex-1 flex-col" aria-label="Sessions">
-    <h2 class="mb-2 px-1 text-sm font-semibold">Projects &amp; sessions</h2>
     <div class="flex items-center gap-2">
-      <button type="button" class="touch-target min-h-10 min-w-0 whitespace-nowrap rounded border border-border px-2 text-xs" @click="emit('create')">
-        New session
+      <button type="button" aria-label="New session" title="New session" class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border focus-visible:ring-2 focus-visible:ring-accent" @click="emit('create')">
+        <SquareTerminal :size="18" aria-hidden="true" />
       </button>
-      <button type="button" aria-label="Browse files" title="Browse files" class="touch-target inline-flex min-h-10 min-w-10 items-center justify-center rounded border border-border" @click="emit('browse')">
+      <button type="button" aria-label="Add project" title="Add project" class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border focus-visible:ring-2 focus-visible:ring-accent" @click="emit('browse')">
         <FolderPlus :size="18" aria-hidden="true" />
       </button>
     </div>

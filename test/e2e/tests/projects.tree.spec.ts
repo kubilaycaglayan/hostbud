@@ -26,7 +26,7 @@ async function openProjectSession(page: import('@playwright/test').Page, name: s
 }
 
 async function returnToTree(page: import('@playwright/test').Page, profile: 'desktop' | 'phone') {
-  const trigger = page.getByRole('button', { name: 'Show project tree' })
+  const trigger = page.locator('header button[aria-controls="sessions-sidebar"]')
   if (profile === 'phone' && (await trigger.getAttribute('aria-expanded')) !== 'true') await trigger.click()
 }
 
@@ -147,7 +147,7 @@ for (const profile of ['desktop', 'phone'] as const) {
       await page.reload()
       await expect(ui.treeItem(projectName)).toHaveCount(0)
 
-      await page.getByRole('button', { name: 'Browse files' }).click()
+      await ui.openFileBrowser()
       await page.getByLabel('Current path').fill(root)
       await page.getByRole('button', { name: 'Go' }).click()
       await page.getByRole('button', { name: 'Add app as project' }).click()
@@ -300,7 +300,7 @@ for (const profile of ['desktop', 'phone'] as const) {
       await expect(header.getByRole('button', { name: 'Sign out' })).toBeVisible()
       await page.getByRole('button', { name, exact: true }).click()
       await expect(page.getByRole('region', { name: `Terminal: ${name}` })).toBeVisible()
-      if (profile === 'desktop') await page.getByRole('button', { name: 'Show project tree' }).click()
+      if (profile === 'desktop') await page.getByRole('button', { name: 'Hide sidebar' }).click()
       if (profile === 'desktop') await expect(ui.tree()).toBeHidden()
       await ui.expectAccountEmail(/@/)
       await ui.signOut()
@@ -344,7 +344,7 @@ for (const profile of ['desktop', 'phone'] as const) {
   })
 }
 
-test('(T6) Recent commands are project-scoped and require selection', async ({ page, target, request }) => {
+test('(T6) Recent commands are project-scoped and require selection', async ({ page, target, request, ui }) => {
   const firstPath = `/home/dev/${uniqueName('e2e-recent-one')}`
   const secondPath = `/home/dev/${uniqueName('e2e-recent-two')}`
   const firstName = uniqueName('recent-one')
@@ -358,13 +358,13 @@ test('(T6) Recent commands are project-scoped and require selection', async ({ p
   await first.getByLabel('Start command').fill('sleep 30')
   await first.getByRole('button', { name: 'Create session' }).click()
   await expect.poll(async () => (await (await request.get(`/api/projects?machine=${MACHINE}`)).json()).projects.length).toBeGreaterThanOrEqual(2)
-  await page.getByRole('button', { name: 'Show project tree' }).click()
+  await ui.showList()
   const before = (await (await request.get(`/api/machines/${MACHINE}/sessions`)).json()).sessions.length
   const second = await openProjectSession(page, secondName)
   await expect(second.getByRole('button', { name: /^Use recent command/ })).toHaveCount(0)
   expect((await (await request.get(`/api/machines/${MACHINE}/sessions`)).json()).sessions).toHaveLength(before)
   await second.getByRole('button', { name: 'Cancel' }).click()
-  await page.getByRole('button', { name: 'Show project tree' }).click()
+  await ui.showList()
   const firstAgain = await openProjectSession(page, firstName)
   const suggestion = firstAgain.getByRole('button', { name: 'Use recent command sleep 30' })
   await suggestion.click()

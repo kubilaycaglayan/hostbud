@@ -240,15 +240,15 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 
 ## Left bar toggle and icon toolbar
 
-- [ ] The header's **Projects** text button and the left bar's **Projects & sessions** heading are gone; the left bar stays named "Sessions" for assistive technology, and the phone drawer's title is visually hidden but still labels the dialog.
+- [x] The header's **Projects** text button and the left bar's **Projects & sessions** heading are gone; the left bar stays named "Sessions" for assistive technology, and the phone drawer's title is visually hidden but still labels the dialog.
   - U: T13 neither text renders; the `aside` label and the drawer's `sr-only` title (Vitest).
   - I: n/a: frontend only.
   - E: T13 *Left bar toggle and toolbar* (desktop and both phone projects).
-- [ ] One icon button in the header opens and closes the left bar: `PanelLeftClose` "Hide sidebar" when open, `PanelLeftOpen` "Show sidebar" when closed, with `aria-expanded`/`aria-controls`. Desktop: toggles the sidebar and the state survives reload. Compact: opens the drawer, whose close button is the same *Hide sidebar* icon; swipe and Escape still close it.
+- [x] One icon button in the header opens and closes the left bar: `PanelLeftClose` "Hide sidebar" when open, `PanelLeftOpen` "Show sidebar" when closed, with `aria-expanded`/`aria-controls`. Desktop: toggles the sidebar and the state survives reload. Compact: opens the drawer, whose close button is the same *Hide sidebar* icon; swipe and Escape still close it.
   - U: T13 icon, name and `aria-expanded` follow the state; desktop toggle vs compact drawer (Vitest).
   - I: n/a: frontend only.
   - E: T13 *Left bar toggle and toolbar*.
-- [ ] The top of the left bar (sidebar, compact tree screen and drawer) has icon-only **New session** (`SquareTerminal`) and **Add project** (`FolderPlus`, opens the file browser dialog) buttons with accessible names and tooltips, 44×44 px targets on coarse pointers and visible focus. The header's separate Browse files button is removed.
+- [x] The top of the left bar (sidebar, compact tree screen and drawer) has icon-only **New session** (`SquareTerminal`) and **Add project** (`FolderPlus`, opens the file browser dialog) buttons with accessible names and tooltips, 44×44 px targets on coarse pointers and visible focus. The header's separate Browse files button is removed.
   - U: T13 icon-only buttons with names and titles open the create dialog and the file browser; no header Browse files button; touch-target classes (Vitest).
   - I: n/a: frontend only.
   - E: T13 *Left bar toggle and toolbar*; the M4/M5 scenarios that used the old names are updated in T13.
@@ -317,7 +317,7 @@ Profiles: `desktop-chromium`, `iphone-13-pro` (`http://localhost:9055`) and `iph
 - [x] **(T11) Remove a project:** a project with a session open in a tab; Remove → Cancel leaves it; Remove → confirm: the header is gone, the session is under Other sessions, the tab keeps its tmux client PID, the folder still exists on the target; reload and restart → still removed; adding the folder again gives a fresh project with no recent commands (desktop and `iphone-13-pro` via long-press; authored and type-checked, browser run at M7).
 - [x] **(T11) Delete project API:** signed out → 401, foreign Origin → 403, unknown id → 404, delete → 204 then 404; the list no longer has it (API; authored and type-checked, browser run at M7).
 - [x] **(T12) Add the current directory as project:** at home, *Add this directory as project* → the home project appears with a `~` path and the button reads *Open project*; a subfolder is added the same way; *New session here* lands under it; a second click makes no duplicate (desktop and `iphone-13-pro`; authored and type-checked, browser run at M7).
-- [ ] **(T13) Left bar toggle and toolbar:** no "Projects & sessions" or "Projects" text; *Hide sidebar* hides the left bar and becomes *Show sidebar*, which survives reload and brings it back; the *New session* icon creates a session; the *Add project* icon opens the file browser (desktop). On phones the toggle opens the drawer, its *Hide sidebar* closes it, and both icon buttons meet the touch-target size (both phone projects).
+- [x] **(T13) Left bar toggle and toolbar:** no "Projects & sessions" or "Projects" text; *Hide sidebar* hides the left bar and becomes *Show sidebar*, which survives reload and brings it back; the *New session* icon creates a session; the *Add project* icon opens the file browser (desktop). On phones the toggle opens the drawer, its *Hide sidebar* closes it, and both icon buttons meet the touch-target size (both phone projects; authored and type-checked, browser run at M7).
 - [ ] **(T14) Touch targets and zoom for M6 controls:** M5's *Touch targets* and *Usable without zoom* checks extended to chevrons, window rows, Pinned, Show hidden, inline rename, the palette button and the theme menu (both phone projects).
 
 ## Manual checks (owner, T14)

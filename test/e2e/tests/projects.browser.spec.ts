@@ -16,8 +16,7 @@ for (const profile of ['desktop', 'phone'] as const) {
       forbidInLogs(folderName, folderPath, sessionName)
       await target.run(`mkdir -p ${shq(folderPath)}`)
       await page.goto('/')
-      await page.getByRole('button', { name: 'Browse files' }).click()
-      const dialog = page.getByRole('dialog', { name: 'Browse files' })
+      const dialog = await ui.openFileBrowser()
 
       const homeAction = dialog.getByRole('button', { name: 'Add this directory as project' })
       await expect(homeAction).toHaveAttribute('title', 'Add this directory as project')
@@ -31,8 +30,7 @@ for (const profile of ['desktop', 'phone'] as const) {
       await expect(ui.treeItem('dev')).toBeVisible()
       await expect(ui.treeItem('dev')).toContainText('/home/dev')
 
-      await page.getByRole('button', { name: 'Browse files' }).click()
-      const reopened = page.getByRole('dialog', { name: 'Browse files' })
+      const reopened = await ui.openFileBrowser()
       await expect(reopened.getByRole('button', { name: 'Open project' })).toBeVisible()
       await reopened.getByLabel('Current path').fill(folderPath)
       await reopened.getByRole('button', { name: 'Go' }).click()
@@ -61,16 +59,15 @@ for (const profile of ['desktop', 'phone'] as const) {
       expect((await mutate(request, 'DELETE', `/api/projects/${homeProjects[0].id}`)).status()).toBe(204)
     })
 
-    test('(T4) File browser dialog and icon actions', async ({ page, target }) => {
+    test('(T4) File browser dialog and icon actions', async ({ page, target, ui }) => {
       const name = uniqueName('e2e-browser-dialog')
       const dir = `/home/dev/${name}`
       await target.run(`mkdir -p ${shq(dir)}`)
       await page.goto('/')
       await expect(page.getByRole('navigation', { name: 'Project and session tree' })).toBeVisible()
-      await page.getByRole('button', { name: 'Browse files' }).click()
-      const dialog = page.getByRole('dialog', { name: 'Browse files' })
+      const dialog = await ui.openFileBrowser()
       await expect(dialog).toBeVisible()
-      await expect(page.getByRole('navigation', { name: 'Project and session tree' })).toContainText('Projects & sessions')
+      await expect(page.getByRole('navigation', { name: 'Project and session tree' })).not.toContainText('Projects & sessions')
       await dialog.getByLabel('Current path').fill('/home/dev')
       await dialog.getByRole('button', { name: 'Go' }).click()
       const row = dialog.getByRole('list', { name: 'Directory entries' }).getByRole('listitem').filter({ hasText: name })
@@ -83,12 +80,12 @@ for (const profile of ['desktop', 'phone'] as const) {
       await expect(dialog).toBeHidden()
     })
 
-    test('(T4) Path autocomplete and invalid paths', async ({ page, target }) => {
+    test('(T4) Path autocomplete and invalid paths', async ({ page, target, ui }) => {
       const name = uniqueName('e2e-browser')
       const dir = `/home/dev/${name}`
       await target.run(`mkdir -p ${shq(`${dir}/child`)}; touch ${shq(`${dir}/not-a-directory`)}`)
       await page.goto('/')
-      await page.getByRole('button', { name: 'Browse files' }).click()
+      await ui.openFileBrowser()
       await page.getByLabel('Current path').fill(`${dir}/chi`)
       await page.getByRole('option').filter({ hasText: `${dir}/child` }).click()
       await expect(page.getByLabel('Current path')).toHaveValue(`${dir}/child`)
@@ -108,7 +105,7 @@ for (const profile of ['desktop', 'phone'] as const) {
       const dir = `/home/dev/${name}`
       await target.run(`mkdir -p ${shq(dir)}`)
       await page.goto('/')
-      await page.getByRole('button', { name: 'Browse files' }).click()
+      await ui.openFileBrowser()
       await page.getByLabel('Current path').fill(dir)
       await page.getByRole('button', { name: 'Go' }).click()
       await page.getByLabel('New folder name').fill('../escape')
@@ -169,13 +166,13 @@ test('(T4) Project persists and updates live', async ({ page, request, target, u
   await auth.password.fill(account.password)
   await auth.submit('Create account').click()
   await expect(page.getByRole('navigation', { name: 'Project and session tree' })).toBeVisible()
-  await page.getByRole('button', { name: 'Browse files' }).click()
+  await ui.openFileBrowser()
   await page.getByLabel('Current path').fill('/home/dev')
   await page.getByRole('button', { name: 'Go' }).click()
   // Create from the browser in another tab context; the first view receives projects.changed.
   const second = await page.context().newPage()
   await second.goto('/')
-  await second.getByRole('button', { name: 'Browse files' }).click()
+  await second.getByRole('button', { name: 'Add project' }).click()
   await second.getByLabel('Current path').fill('/home/dev')
   await second.getByRole('button', { name: 'Go' }).click()
   const row = second.getByRole('list', { name: 'Directory entries' }).getByRole('listitem').filter({ hasText: name })
@@ -202,7 +199,7 @@ test('(T4) Project persists and updates live', async ({ page, request, target, u
   await expect(page.getByRole('heading', { name, exact: true })).toBeVisible()
 })
 
-test('(T4) Hidden toggle and lazy symlink status in the browser', async ({ page, target }) => {
+test('(T4) Hidden toggle and lazy symlink status in the browser', async ({ page, target, ui }) => {
   const name = uniqueName('e2e-browser-links')
   const dir = `/home/dev/${name}`
   await target.run(`mkdir -p ${shq(dir)}; touch ${shq(`${dir}/.hidden`)} ${shq(`${dir}/target`)}; ` +
@@ -210,7 +207,7 @@ test('(T4) Hidden toggle and lazy symlink status in the browser', async ({ page,
     `ln -s loop-link ${shq(`${dir}/loop-link`)}`)
   try {
     await page.goto('/')
-    await page.getByRole('button', { name: 'Browse files' }).click()
+    await ui.openFileBrowser()
     await page.getByLabel('Current path').fill(dir)
     await page.getByRole('button', { name: 'Go' }).click()
     await expect(page.getByText('resolved-link (unresolved)')).toBeVisible()

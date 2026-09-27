@@ -28,7 +28,7 @@ test('(T3) Touch targets', async ({ page, target, ui }) => {
   await ui.openTerminal(session)
   await assertTouchTargets(page)
 
-  await page.getByRole('button', { name: 'Show project tree' }).tap()
+  await ui.showList()
   await assertTouchTargets(page)
   await page.getByRole('button', { name: 'New session', exact: true }).tap()
   const create = page.getByRole('dialog', { name: 'New session' })
@@ -36,7 +36,7 @@ test('(T3) Touch targets', async ({ page, target, ui }) => {
   await assertTouchTargets(page)
   await page.getByRole('button', { name: 'Cancel' }).tap()
 
-  await page.getByRole('button', { name: 'Show project tree' }).tap()
+  await ui.showList()
   await page.getByRole('button', { name: `Rename ${session}` }).tap()
   await assertTouchTargets(page)
   await page.getByRole('button', { name: 'Cancel' }).tap()
@@ -44,7 +44,7 @@ test('(T3) Touch targets', async ({ page, target, ui }) => {
   await assertTouchTargets(page)
   await page.getByRole('button', { name: 'Cancel' }).tap()
 
-  await page.getByRole('button', { name: 'Browse files' }).tap()
+  await ui.openFileBrowser()
   await expect(page.getByRole('dialog', { name: 'Browse files' })).toBeVisible()
   await assertTouchTargets(page)
 })

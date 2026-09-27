@@ -30,7 +30,7 @@ import { useWindowsStore } from '@/stores/windows'
 import { useProjectsStore } from '@/stores/projects'
 import { useToastsStore } from '@/stores/toasts'
 import { useSessionsStore } from '@/stores/sessions'
-import { FolderPlus, Search } from 'lucide-vue-next'
+import { PanelLeftClose, PanelLeftOpen, Search } from 'lucide-vue-next'
 import { isEditableTarget, isTerminalTarget, isTreeTarget, matchingShortcut, shortcutLabels, shortcutPlatform, shortcuts } from '@/lib/shortcuts'
 import { projectTree, sessionKey, windowKey } from '@/lib/tree'
 import { dispatchPaletteAction } from '@/lib/paletteActions'
@@ -423,6 +423,7 @@ function onShortcutKeydown(event: KeyboardEvent) {
 
 const compact = useMediaQuery(COMPACT_QUERY)
 const hasTabs = computed(() => layout.loaded && layout.tabs.length > 0)
+const sidebarExpanded = computed(() => compact.value && hasTabs.value ? drawerOpen.value : app.sidebarOpen)
 
 function closeTab(id: string) {
   layout.closeTab(id)
@@ -499,6 +500,19 @@ onUnmounted(() => {
   >
     <HostBanner :machine="host" />
     <header class="flex min-h-12 items-center gap-3 border-b border-border bg-surface px-3">
+      <button
+        v-if="!compact || hasTabs"
+        type="button"
+        :aria-label="sidebarExpanded ? 'Hide sidebar' : 'Show sidebar'"
+        :title="sidebarExpanded ? 'Hide sidebar' : 'Show sidebar'"
+        aria-controls="sessions-sidebar"
+        :aria-expanded="sidebarExpanded"
+        class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border focus-visible:ring-2 focus-visible:ring-accent"
+        @click="showTree"
+      >
+        <PanelLeftClose v-if="sidebarExpanded" :size="18" aria-hidden="true" />
+        <PanelLeftOpen v-else :size="18" aria-hidden="true" />
+      </button>
       <h1 class="font-bold text-accent">
         hostbud
       </h1>
@@ -511,28 +525,6 @@ onUnmounted(() => {
         @click="openPalette"
       >
         <Search :size="18" aria-hidden="true" />
-      </button>
-      <button
-        type="button"
-        class="min-h-11 rounded px-2"
-        aria-label="Show project tree"
-        :aria-expanded="compact && hasTabs ? drawerOpen : app.sidebarOpen"
-        @click="showTree"
-      >
-        ☰
-      </button>
-      <button
-        v-if="!compact"
-        type="button"
-        aria-label="Browse files"
-        title="Browse files"
-        class="inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border"
-        @click="browseFiles"
-      >
-        <FolderPlus
-          :size="18"
-          aria-hidden="true"
-        />
       </button>
       <div class="ml-auto min-w-0 text-sm text-muted">
         <details class="relative">
@@ -554,12 +546,13 @@ onUnmounted(() => {
     <div class="flex min-h-0 flex-1">
       <aside
         v-if="!compact && app.sidebarOpen"
+        id="sessions-sidebar"
         aria-label="Sessions"
         class="flex w-64 shrink-0 flex-col border-r border-border bg-surface p-3"
       >
         <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @remove-project="askRemoveProject" @session-in-project="newProjectSession" @create="newSession" @browse="browseFiles" />
       </aside>
-      <main v-if="compact && !hasTabs" class="min-h-0 min-w-0 flex-1 overflow-y-auto bg-surface p-3">
+      <main v-if="compact && !hasTabs" id="sessions-sidebar" class="min-h-0 min-w-0 flex-1 overflow-y-auto bg-surface p-3">
         <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @remove-project="askRemoveProject" @session-in-project="newProjectSession" @create="newSession" @browse="browseFiles" />
       </main>
       <main
@@ -608,6 +601,7 @@ onUnmounted(() => {
       <DialogPortal>
         <DialogOverlay class="fixed inset-0 z-40 bg-overlay" />
         <DialogContent
+          id="sessions-sidebar"
           class="fixed inset-y-0 left-0 z-50 flex w-[min(85vw,20rem)] flex-col border-r border-border bg-surface p-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] pl-[max(0.75rem,env(safe-area-inset-left))] text-fg shadow-xl"
           @pointerdown="onDrawerPointerDown"
           @pointerup="onDrawerPointerUp"
@@ -615,8 +609,10 @@ onUnmounted(() => {
           @close-auto-focus="onDrawerCloseAutoFocus"
         >
           <div class="mb-2 flex items-center justify-between">
-            <DialogTitle class="text-base font-bold">Project tree</DialogTitle>
-            <DialogClose aria-label="Close project tree" class="min-h-11 min-w-11 rounded border border-border">×</DialogClose>
+            <DialogTitle class="sr-only">Project tree</DialogTitle>
+            <DialogClose aria-label="Hide sidebar" title="Hide sidebar" class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border focus-visible:ring-2 focus-visible:ring-accent">
+              <PanelLeftClose :size="18" aria-hidden="true" />
+            </DialogClose>
           </div>
           <DialogDescription class="sr-only">Choose a project or session.</DialogDescription>
           <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @remove-project="askRemoveProject" @session-in-project="newProjectSession" @create="newSession" @browse="browseFiles" />
