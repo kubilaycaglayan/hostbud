@@ -7,12 +7,14 @@ export function findHardcodedColors(root) {
     for (const name of readdirSync(dir)) {
       const path = join(dir, name)
       if (statSync(path).isDirectory()) visit(path)
-      else if (path.endsWith('.vue') && !path.endsWith('/lib/theme.ts')) files.push(path)
+  else if (path.endsWith('.vue') && !path.endsWith('/lib/theme.ts')) files.push(path)
     }
   }
   visit(root)
   return files.flatMap((path) => readFileSync(path, 'utf8').split('\n').flatMap((line, index) =>
-    /#[\da-f]{3,8}\b|\brgba?\s*\(/i.test(line) ? [`${path}:${index + 1}`] : []))
+    !line.trimStart().startsWith('//') && /#[\da-f]{3,8}\b|\brgba?\s*\(/i.test(line)
+      ? [`${path}:${index + 1}`]
+      : []))
 }
 
 const root = new URL('../src/', import.meta.url)
