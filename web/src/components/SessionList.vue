@@ -9,6 +9,7 @@ import { sessionKey, windowKey } from '@/lib/tree'
 import { useTreeStore } from '@/stores/tree'
 import { useWindowsStore } from '@/stores/windows'
 import { describeError } from '@/stores/toasts'
+import InlineRename from './InlineRename.vue'
 
 const props = defineProps<{
   sessions: Session[]
@@ -20,6 +21,9 @@ const props = defineProps<{
   level?: number
   focusedKey?: string
   groupKey?: string
+  editingName?: string
+  editError?: string
+  commitEdit?: (from: string, to: string) => Promise<void>
 }>()
 const emit = defineEmits<{
   select: [name: string]
@@ -30,6 +34,8 @@ const emit = defineEmits<{
   reorder: [names: string[]]
   saveAsProject: [session: Session]
   selectWindow: [name: string, window: string, pane?: string]
+  editCommit: [name: string, value: string]
+  editCancel: [name: string]
 }>()
 
 const item = 'cursor-pointer rounded px-2 py-1 outline-none data-highlighted:bg-bg'
@@ -83,6 +89,14 @@ function selectSession(name: string) {
     return
   }
   emit('select', name)
+}
+
+function commitRename(name: string, value: string) {
+  return props.commitEdit ? props.commitEdit(name, value) : Promise.resolve()
+}
+
+function renameOnDoubleClick(name: string) {
+  if (props.treeView && window.matchMedia('(pointer: fine)').matches) emit('rename', name)
 }
 
 onScopeDispose(clearLongPress)
@@ -157,7 +171,15 @@ const sortableSessions = computed({
         class="inline-block size-2 shrink-0 rounded-full"
         :class="s.attached > 0 ? 'bg-ok' : 'border border-muted'"
       />
+      <InlineRename
+        v-if="props.treeView && props.editingName === s.name"
+        :name="s.name"
+        :error="props.editError"
+        :commit="(value) => commitRename(s.name, value)"
+        @cancel="emit('editCancel', s.name)"
+      />
       <button
+        v-else
         type="button"
         data-session-row
         :aria-label="s.name"
@@ -170,6 +192,7 @@ const sortableSessions = computed({
         @pointercancel="finishLongPress"
         @pointerleave="finishLongPress"
         @click="selectSession(s.name)"
+        @dblclick="renameOnDoubleClick(s.name)"
       >
         {{ s.name }}
       </button>
@@ -199,6 +222,13 @@ const sortableSessions = computed({
               :side-offset="4"
               class="z-30 min-w-48 rounded border border-border bg-surface p-1 text-fg shadow-lg"
             >
+              <DropdownMenuItem
+                v-if="props.treeView"
+                :class="item"
+                @select="emit('rename', s.name)"
+              >
+                Rename
+              </DropdownMenuItem>
               <DropdownMenuItem
                 :class="item"
                 @select="emit('split', s.name, 'row')"

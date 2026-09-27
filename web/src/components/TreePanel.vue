@@ -9,7 +9,6 @@ const emit = defineEmits<{
   select: [name: string]
   selectWindow: [name: string, window: string, pane?: string]
   split: [name: string, dir: SplitDir]
-  rename: [name: string]
   kill: [name: string]
   sessionInProject: [project: Project]
   create: []
@@ -37,7 +36,6 @@ const emit = defineEmits<{
         @select="emit('select', $event)"
         @select-window="(name, window, pane) => emit('selectWindow', name, window, pane)"
         @split="(name, dir) => emit('split', name, dir)"
-        @rename="emit('rename', $event)"
         @kill="emit('kill', $event)"
         @session-in-project="emit('sessionInProject', $event)"
       />

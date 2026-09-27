@@ -93,22 +93,26 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 
 ## Inline rename
 
-- [ ] Projects and sessions rename inline in the tree: the pencil, F2 on a focused row, or a double-click on the name (fine pointer) turns the name into a text field with the current name selected. Enter or blur saves, Escape cancels, and an unchanged or empty value cancels without a request. The row keeps its position and focus returns to it.
+- [x] Projects and sessions rename inline in the tree: the pencil, F2 on a focused row, or a double-click on the name (fine pointer) turns the name into a text field with the current name selected. Enter or blur saves, Escape cancels, and an unchanged or empty value cancels without a request. The row keeps its position and focus returns to it.
   - U: T4 `InlineRename` component: start paths, Enter/blur/Escape, unchanged/empty cancel, focus return, one request per commit even when Enter is followed by blur (Vitest).
   - I: n/a for the component (frontend only); the endpoints' integration tests are M1 (session rename) and M4 T3 (project rename).
   - E: T4 *Inline rename a project* and *Inline rename a session* (desktop and `iphone-13-pro` in the drawer).
-- [ ] Session renames use the existing `PATCH /api/machines/:id/sessions/:name` and validate the name client-side with the server's rule (`^[A-Za-z0-9_-]{1,64}$`) before sending. A server error (taken name, invalid name, session gone) keeps the field open with the message inline, and the old name stays. On success, every open pane relabels without re-attaching (M3), the session link follows (M4), and its tree order, hidden and expanded keys move to the new name.
+- [x] Session renames use the existing `PATCH /api/machines/:id/sessions/:name` and validate the name client-side with the server's rule (`^[A-Za-z0-9_-]{1,64}$`) before sending. A server error (taken name, invalid name, session gone) keeps the field open with the message inline, and the old name stays. On success, every open pane relabels without re-attaching (M3), the session link follows (M4), and its tree order, hidden and expanded keys move to the new name.
   - U: T4 validation messages; error keeps editing; `tree.renameSession` re-keys order/hidden/expanded (including window keys) in one change (Vitest).
   - I: M1's rename integration and M4 T3's link rename stay authoritative; n/a for new server behavior (none).
   - E: T4 *Inline rename a session* (the target shows the new name, the open terminal's tmux client PID is unchanged, the row stays in place and stays hidden/expanded as before; a taken name shows the inline error).
-- [ ] Project renames use the existing `PATCH /api/projects/:id` (`{name}`, trimmed, 1–255 bytes); other signed-in browsers update from the `projects.changed` event. Renaming a project never changes its path or its sessions' placement.
+- [x] Project renames use the existing `PATCH /api/projects/:id` (`{name}`, trimmed, 1–255 bytes); other signed-in browsers update from the `projects.changed` event. Renaming a project never changes its path or its sessions' placement.
   - U: T4 trimming, byte-length validation, error display (Vitest).
   - I: M4 T3's project rename integration; n/a beyond it.
   - E: T4 *Inline rename a project* (a second page sees the new name without reload; the project's sessions stay under it; reload and restart keep the name).
-- [ ] The old Rename dialog is no longer used from the tree. Rename from other entry points (the ⋯ menu, the M5 long-press menu, the command palette) starts the same inline edit, revealing and expanding the row first (in compact layout it opens the drawer).
-  - U: T4 the menu item starts inline edit on the right row; T9 the palette's Rename action does too (Vitest).
+- [x] The old Rename dialog is removed. The tree's ⋯ and long-press menus start the same inline edit.
+  - U: T4 the menu and long-press items start inline edit on the right row (Vitest).
   - I: n/a (frontend only).
   - E: T4 *Inline rename a session* starts from the ⋯ menu on the phone.
+- [ ] The command palette's Rename action reveals the selected row (expand its project, un-collapse, scroll into view, and open the drawer on compact screens) before starting the same inline edit.
+  - U: T9 the palette's Rename action reveals the row and starts inline edit (Vitest).
+  - I: n/a (frontend only).
+  - E: T9 *Palette rename reveals and edits a row* (desktop and `iphone-13-pro`).
 
 ## Hide and unhide
 
@@ -289,8 +293,8 @@ Profiles: `desktop-chromium`, `iphone-13-pro` (`http://localhost:9055`) and `iph
 - [x] **(T3) Windows load when a session is expanded:** no `/windows` request before expanding; expanding shows the target's windows and a split window's panes; reload and restart → still expanded with rows loaded (desktop and `iphone-13-pro`).
 - [x] **(T3) Window rows follow the real terminal:** `tmux new-window` / `kill-window` on the target add/remove the row within one poll interval, without a reload (desktop).
 - [x] **(T3) Open at a window and pane:** clicking window 2's row opens the session at window 2, and a pane row makes that pane active (`display -p` on the target, and a marker printed there shows in the browser terminal) (desktop and `iphone-13-pro`).
-- [ ] **(T4) Inline rename a project:** pencil → type → Enter; a second page sees the name without reload; Escape cancels another edit; reload and restart keep the name; its sessions stay under it (desktop and `iphone-13-pro`).
-- [ ] **(T4) Inline rename a session:** F2 (desktop) / ⋯ → Rename (phone); the target has the new name, the open terminal's client PID is unchanged, the row keeps its position and its expanded state; a taken name shows the inline error and keeps the old name (desktop and `iphone-13-pro`).
+- [x] **(T4) Inline rename a project:** pencil → type → Enter; a second page sees the name without reload; Escape cancels another edit; reload and restart keep the name; its sessions stay under it (desktop and `iphone-13-pro`).
+- [x] **(T4) Inline rename a session:** F2 (desktop) / ⋯ → Rename (phone); the target has the new name, the open terminal's client PID is unchanged, the row keeps its position and its expanded state; a taken name shows the inline error and keeps the old name (desktop and `iphone-13-pro`).
 - [ ] **(T5) Hide and unhide:** hide a session and a project; they leave the tree, their terminal stays attached and the target still has them; Show hidden shows them dimmed; Unhide restores the saved position; reload and restart keep all of it; a hidden session that ends and is recreated with the same name is visible (desktop and `iphone-13-pro`).
 - [ ] **(T6) Pin projects:** pin two projects → a Pinned section in their manual order; unpin → back at the end of the unpinned section; a drag across the boundary changes nothing (desktop and `iphone-13-pro`).
 - [ ] **(T6) Every customization survives reload and restart:** drag to reorder, rename, hide/unhide, pin, collapse and expand, then reload **and** restart → everything is as the user left it (desktop and `iphone-13-pro`).
@@ -306,6 +310,7 @@ Profiles: `desktop-chromium`, `iphone-13-pro` (`http://localhost:9055`) and `iph
 - [ ] **(T9) Palette opens without stealing Ctrl+K:** in a shell, Ctrl+K deletes to the end of the line (`capture-pane`); Ctrl+Shift+K opens the palette (desktop).
 - [ ] **(T9) Palette jumps to a session:** type part of a name, Enter → its tab is focused (or opened) and the terminal is focused; Escape without choosing returns focus (desktop and `iphone-13-pro`).
 - [ ] **(T9) Palette runs actions:** Theme: Light applies; Hide then Unhide a session; New session in <project> lands under the project; Kill asks for confirmation and Cancel leaves the session alive (desktop).
+- [ ] **(T9) Palette rename reveals and edits a row:** select Rename for a session in a collapsed project, including on the phone; the tree reveals it and opens the inline editor (desktop and `iphone-13-pro`).
 - [ ] **(T9) Palette on the phone:** the header button opens it; picking a session closes it and shows the terminal (both phone projects).
 - [ ] **(T10) Taken name gets a number:** with a target session `<n>`, New session named `<n>` opens a tab `<n>-1`, the toast names it, and both exist on the target; New session here in a project with the same name gives `<n>-2` under that project (desktop).
 - [ ] **(T10) Create with a taken name:** `POST` twice with the same name → 201 both times, the second named `<n>-1`; renaming another session to `<n>` → 409 (API).

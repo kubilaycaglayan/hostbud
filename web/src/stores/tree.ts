@@ -119,6 +119,24 @@ export const useTreeStore = defineStore('tree', () => {
     sync()
   }
 
+  /** Re-key a session's saved position and expansion state as one tree update. */
+  function renameSession(machine: string, from: string, to: string) {
+    const oldKey = `${machine}/${from}`
+    const newKey = `${machine}/${to}`
+    const replacePrefix = (key: string) => key === oldKey || key.startsWith(oldKey + '/')
+      ? newKey + key.slice(oldKey.length)
+      : key
+    const next: TreeState = {
+      ...order.value,
+      sessions: Object.fromEntries(Object.entries(order.value.sessions).map(([group, names]) => [
+        group, names.map((name) => name === from ? to : name),
+      ])),
+      hidden: { ...order.value.hidden, sessions: order.value.hidden.sessions.map(replacePrefix) },
+      expanded: order.value.expanded.map(replacePrefix),
+    }
+    order.value = next
+  }
+
   function reset() {
     generation++
     clearTimeout(timer)
@@ -143,5 +161,5 @@ export const useTreeStore = defineStore('tree', () => {
       : order.value.expanded.filter((item) => item !== key)
   }
 
-  return { order, groups, loaded, load, sync, flush, reorderProjects, reorderSessions, setCollapsed, toggleCollapsed, setExpanded, reset }
+  return { order, groups, loaded, load, sync, flush, reorderProjects, reorderSessions, renameSession, setCollapsed, toggleCollapsed, setExpanded, reset }
 })

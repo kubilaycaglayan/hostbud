@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { flushPromises, mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import type { Project, Session } from '@/api/types'
 import { useProjectsStore } from '@/stores/projects'
 import { useSessionsStore } from '@/stores/sessions'
@@ -32,7 +33,10 @@ beforeEach(async () => {
   tree.sync()
 })
 
-afterEach(() => useTreeStore().reset())
+afterEach(() => {
+  useTreeStore().reset()
+  vi.useRealTimers()
+})
 
 describe('SessionTree', () => {
   it('moves groups and session rows in the explicit order', async () => {
@@ -109,6 +113,127 @@ describe('SessionTree', () => {
     expect(wrapper.emitted('select')).toEqual([['loose']])
     await loose.trigger('keydown', { key: 'Delete' })
     expect(wrapper.emitted('kill')).toEqual([['loose']])
+    wrapper.unmount()
+  })
+
+  it('starts inline rename from F2, project pencil and the project menu, then restores tree focus on Escape', async () => {
+    const wrapper = mount(SessionTree, { attachTo: document.body })
+    const session = wrapper.get('[data-tree-key="session:one"]')
+    await session.trigger('keydown', { key: 'F2' })
+    expect(wrapper.find('input[aria-label="Rename one"]').exists()).toBe(true)
+    await wrapper.get('input[aria-label="Rename one"]').trigger('keydown.esc')
+    await flushPromises()
+    expect(document.activeElement).toBe(wrapper.get('[data-tree-key="session:one"]').element)
+
+    await wrapper.get('button[aria-label="Rename a"]').trigger('click')
+    expect(wrapper.find('input[aria-label="Rename a"]').exists()).toBe(true)
+    await wrapper.get('input[aria-label="Rename a"]').trigger('keydown.esc')
+    await wrapper.get('button[aria-label="More actions for a"]').trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+    const rename = [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((node) => node.textContent?.trim() === 'Rename')
+    expect(rename).toBeTruthy()
+    rename!.click()
+    await flushPromises()
+    expect(wrapper.find('input[aria-label="Rename a"]').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('keeps invalid and rejected session names in the inline field with an accessible error', async () => {
+    const wrapper = mount(SessionTree, { attachTo: document.body })
+    await wrapper.get('[data-tree-key="session:one"]').trigger('keydown', { key: 'F2' })
+    const input = wrapper.get('input[aria-label="Rename one"]')
+    await input.setValue('bad.name')
+    await input.trigger('keydown.enter')
+    await flushPromises()
+    expect(input.attributes('aria-describedby')).toBe('inline-rename-error')
+    expect(wrapper.text()).toContain("Use only letters, digits, '-' and '_'.")
+    expect(fetchMock.mock.calls.some(([url, init]) => String(url).includes('/sessions/one') && (init as RequestInit | undefined)?.method === 'PATCH')).toBe(false)
+
+    await input.setValue('valid-new-name')
+    await input.trigger('keydown.enter')
+    await flushPromises()
+    expect(wrapper.find('input[aria-label="Rename one"]').exists()).toBe(true)
+    expect(wrapper.get('input[aria-label="Rename one"]').attributes('aria-describedby')).toBe('inline-rename-error')
+    expect(wrapper.text()).toContain('Request failed (404).')
+    wrapper.unmount()
+  })
+
+  it('commits a valid rename, preserves its saved position, and restores focus after the inventory event', async () => {
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (String(url) === '/api/machines/host/sessions/one' && init?.method === 'PATCH') {
+        return { ok: true, status: 200, headers: new Headers(), text: async () => JSON.stringify({ name: 'renamed' }) }
+      }
+      return { ok: false, status: 404, headers: new Headers(), text: async () => '' }
+    })
+    const wrapper = mount(SessionTree, { attachTo: document.body })
+    const oldRow = wrapper.get('[data-tree-key="session:one"]')
+    ;(oldRow.element as HTMLElement).focus()
+    await oldRow.trigger('keydown', { key: 'F2' })
+    const input = wrapper.get('input[aria-label="Rename one"]')
+    await input.setValue('renamed')
+    await input.trigger('keydown.enter')
+    await flushPromises()
+    expect(fetchMock).toHaveBeenCalledWith('/api/machines/host/sessions/one', expect.objectContaining({ method: 'PATCH' }))
+    expect(useTreeStore().order.sessions.a).toEqual(['renamed', 'two'])
+    useSessionsStore().apply({
+      type: 'sessions.changed', machine: 'host',
+      payload: { sessions: [session('renamed', '/work/a'), session('two', '/work/a'), session('loose', '/outside')] },
+    })
+    await flushPromises()
+    await nextTick()
+    expect(wrapper.get('[data-tree-key="session:renamed"]').attributes('tabindex')).toBe('0')
+    expect((document.activeElement as HTMLElement).dataset.treeKey).toBe('session:renamed')
+    wrapper.unmount()
+  })
+
+  it('trims a project name before PATCH and keeps the project path and session placement', async () => {
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (String(url) === '/api/projects/a' && init?.method === 'PATCH') {
+        const renamedProject = { ...project('a', '/work/a'), name: 'renamed project' }
+        return { ok: true, status: 200, headers: new Headers(), text: async () => JSON.stringify(renamedProject) }
+      }
+      return { ok: false, status: 404, headers: new Headers(), text: async () => '' }
+    })
+    const wrapper = mount(SessionTree)
+    await wrapper.get('button[aria-label="Rename a"]').trigger('click')
+    const input = wrapper.get('input[aria-label="Rename a"]')
+    await input.setValue('  renamed project  ')
+    await input.trigger('keydown.enter')
+    await flushPromises()
+    expect(fetchMock).toHaveBeenCalledWith('/api/projects/a', expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ name: 'renamed project' }) }))
+    expect(useProjectsStore().byPath('/work/a')?.name).toBe('renamed project')
+    expect(useTreeStore().groups.groups.find((group) => group.project.id === 'a')?.sessions.map((row) => row.name)).toEqual(['one', 'two'])
+    wrapper.unmount()
+  })
+
+  it('starts double-click rename only when the pointer is fine', async () => {
+    const original = window.matchMedia
+    window.matchMedia = vi.fn().mockReturnValue({ matches: false }) as unknown as typeof window.matchMedia
+    const wrapper = mount(SessionTree)
+    const title = wrapper.get('[data-tree-key="session:one"] [data-session-row]')
+    await title.trigger('dblclick')
+    expect(wrapper.find('input[aria-label="Rename one"]').exists()).toBe(false)
+    window.matchMedia = vi.fn().mockReturnValue({ matches: true }) as unknown as typeof window.matchMedia
+    await title.trigger('dblclick')
+    expect(wrapper.find('input[aria-label="Rename one"]').exists()).toBe(true)
+    wrapper.unmount()
+    window.matchMedia = original
+  })
+
+  it('opens the project Rename action from its long-press menu', async () => {
+    vi.useFakeTimers()
+    const wrapper = mount(SessionTree, { attachTo: document.body })
+    const row = wrapper.get('[data-tree-key="project:a"] > div')
+    const down = new Event('pointerdown', { bubbles: true })
+    Object.defineProperties(down, { pointerType: { value: 'touch' }, clientX: { value: 10 }, clientY: { value: 10 } })
+    row.element.dispatchEvent(down)
+    await vi.advanceTimersByTimeAsync(500)
+    await flushPromises()
+    const rename = [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((node) => node.textContent?.trim() === 'Rename')
+    expect(rename).toBeTruthy()
+    rename!.click()
+    await flushPromises()
+    expect(wrapper.find('input[aria-label="Rename a"]').exists()).toBe(true)
     wrapper.unmount()
   })
 

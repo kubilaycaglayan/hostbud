@@ -1,25 +1,28 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { VueDraggable } from 'vue-draggable-plus'
+import { DropdownMenuContent, DropdownMenuItem, DropdownMenuPortal, DropdownMenuRoot, DropdownMenuTrigger } from 'reka-ui'
 import { ChevronRight, Folder, List } from 'lucide-vue-next'
 import type { Project, Session } from '@/api/types'
-import { projectsApi } from '@/api/client'
+import { projectsApi, sessionsApi } from '@/api/client'
 import { useMachinesStore } from '@/stores/machines'
 import { useProjectsStore } from '@/stores/projects'
 import { useTreeStore } from '@/stores/tree'
 import { useWindowsStore } from '@/stores/windows'
 import { describeError } from '@/stores/toasts'
+import { projectNameError, sessionNameError } from '@/lib/names'
+import { useLayoutStore } from '@/stores/layout'
 import type { SplitDir } from '@/lib/layout'
 import type { ProjectGroup } from '@/lib/tree'
 import { sessionKey, windowKey } from '@/lib/tree'
 import SessionList from './SessionList.vue'
+import InlineRename from './InlineRename.vue'
 
 const props = defineProps<{ selected?: string }>()
 const emit = defineEmits<{
   select: [name: string]
   selectWindow: [name: string, window: string, pane?: string]
   split: [name: string, dir: SplitDir]
-  rename: [name: string]
   kill: [name: string]
   sessionInProject: [project: Project]
 }>()
@@ -27,10 +30,17 @@ const tree = useTreeStore()
 const projects = useProjectsStore()
 const machines = useMachinesStore()
 const windows = useWindowsStore()
+const layout = useLayoutStore()
 const root = ref<HTMLElement>()
 const focusedKey = ref('')
+const deferredFocusKey = ref('')
 const busySession = ref('')
 const error = ref<{ message: string; hint?: string } | null>(null)
+const editingKey = ref('')
+const editError = ref('')
+const projectMenuId = ref('')
+const longPressedProjectId = ref('')
+let projectLongPressTimer: ReturnType<typeof setTimeout> | undefined
 const projectRows = computed({
   get: () => tree.groups.groups.map((group) => ({ ...group, id: group.project.id })),
   set: (groups: (ProjectGroup & { id: string })[]) => tree.reorderProjects(groups.map((group) => group.project.id)),
@@ -65,9 +75,15 @@ const visibleKeys = computed(() => {
   return keys
 })
 const activeFocusKey = computed(() => visibleKeys.value.includes(focusedKey.value) ? focusedKey.value : (visibleKeys.value[0] ?? ''))
+onUnmounted(endProjectLongPress)
 
 watch(visibleKeys, (keys) => {
-  if (focusedKey.value && !keys.includes(focusedKey.value)) {
+  if (deferredFocusKey.value && keys.includes(deferredFocusKey.value)) {
+    const pending = deferredFocusKey.value
+    deferredFocusKey.value = ''
+    focusKey(pending)
+  }
+  if (focusedKey.value && !keys.includes(focusedKey.value) && deferredFocusKey.value !== focusedKey.value) {
     let fallback = ''
     if (focusedKey.value.startsWith('pane:')) {
       fallback = 'window:' + focusedKey.value.slice('pane:'.length).split('/').slice(0, 3).join('/')
@@ -80,7 +96,7 @@ watch(visibleKeys, (keys) => {
     focusedKey.value = fallback ?? ''
     if (fallback) focusKey(fallback)
   }
-})
+}, { flush: 'post' })
 
 function shortPath(path: string): string {
   if (!home.value) return path
@@ -90,10 +106,96 @@ function shortPath(path: string): string {
 
 function focusKey(key: string) {
   focusedKey.value = key
+  deferredFocusKey.value = key
   void nextTick(() => {
     const target = [...(root.value?.querySelectorAll<HTMLElement>('[data-tree-key]') ?? [])].find((item) => item.dataset.treeKey === key)
-    target?.focus()
+    if (target) {
+      if (deferredFocusKey.value === key) deferredFocusKey.value = ''
+      target.focus()
+    }
   })
+}
+
+function startProjectLongPress(event: PointerEvent, id: string) {
+  if (event.pointerType !== 'touch') return
+  clearTimeout(projectLongPressTimer)
+  projectLongPressTimer = setTimeout(() => {
+    longPressedProjectId.value = id
+    projectMenuId.value = id
+  }, 500)
+}
+
+function endProjectLongPress() {
+  clearTimeout(projectLongPressTimer)
+  projectLongPressTimer = undefined
+}
+
+function projectHeaderClick(id: string) {
+  if (longPressedProjectId.value === id) {
+    longPressedProjectId.value = ''
+    return
+  }
+  focusKey('project:' + id)
+  tree.toggleCollapsed(id)
+}
+
+function startRename(key: string) {
+  editingKey.value = key
+  editError.value = ''
+}
+
+function startRenameOnFinePointer(key: string) {
+  if (window.matchMedia('(pointer: fine)').matches) startRename(key)
+}
+
+function cancelRename(key: string) {
+  if (editingKey.value !== key) return
+  editingKey.value = ''
+  editError.value = ''
+  focusKey(key)
+}
+
+async function renameSession(from: string, raw: string) {
+  const to = raw.trim()
+  const invalid = sessionNameError(to, true)
+  if (invalid) { editError.value = invalid; throw new Error(invalid) }
+  if (to === from) { cancelRename('session:' + from); return }
+  layout.expectRename('host', from, to)
+  try {
+    await sessionsApi.rename('host', from, to)
+    tree.renameSession('host', from, to)
+    if (windows.bySession[`host/${from}`]) {
+      windows.bySession[`host/${to}`] = windows.bySession[`host/${from}`]
+      delete windows.bySession[`host/${from}`]
+    }
+    layout.renamed('host', from, to)
+    editingKey.value = ''
+    editError.value = ''
+    focusKey('session:' + to)
+  } catch (e) {
+    layout.renameAbandoned('host', from)
+    editError.value = [describeError(e).message, describeError(e).hint].filter(Boolean).join(' ')
+    throw e
+  }
+}
+
+async function renameProject(id: string, raw: string) {
+  const name = raw.trim()
+  const invalid = projectNameError(name)
+  if (invalid) {
+    editError.value = invalid
+    throw new Error(editError.value)
+  }
+  try {
+    projects.remember(await projectsApi.rename(id, name))
+    editingKey.value = ''
+    editError.value = ''
+    focusKey('project:' + id)
+  } catch (e) {
+    const detail = describeError(e)
+    editError.value = [detail.message, detail.hint].filter(Boolean).join(' ')
+    throw e
+  }
 }
 
 function focusIn(event: FocusEvent) {
@@ -117,6 +219,15 @@ function onTreeKeydown(event: KeyboardEvent) {
   const windowID = item.dataset.treeWindow ?? ''
   const items = visibleItems()
   const index = items.indexOf(item)
+  if (event.key === 'F2' && (kind === 'project' || kind === 'session')) {
+    event.preventDefault()
+    startRename(key)
+    return
+  }
+  if (event.type === 'dblclick' && (kind === 'project' || kind === 'session') && window.matchMedia('(pointer: fine)').matches) {
+    startRename(key)
+    return
+  }
   const moveFocus = (to: number) => {
     if (to >= 0 && to < items.length) focusKey(items[to].dataset.treeKey ?? '')
   }
@@ -265,7 +376,7 @@ async function saveAsProject(session: Session) {
         data-tree-kind="project"
         class="rounded bg-tree-header px-1"
       >
-        <div class="flex min-h-12 items-center gap-1" @click="focusKey('project:' + group.project.id); tree.toggleCollapsed(group.project.id)">
+        <div class="flex min-h-12 items-center gap-1" @click="projectHeaderClick(group.project.id)" @pointerdown="startProjectLongPress($event, group.project.id)" @pointerup="endProjectLongPress" @pointercancel="endProjectLongPress" @pointerleave="endProjectLongPress">
           <button
             type="button"
             class="touch-target project-drag-handle min-h-11 min-w-8 cursor-grab rounded text-muted"
@@ -288,10 +399,26 @@ async function saveAsProject(session: Session) {
             <ChevronRight :size="16" class="transition-transform" :class="!tree.order.collapsed.includes(group.project.id) ? 'rotate-90' : ''" aria-hidden="true" />
           </button>
           <Folder :size="16" class="shrink-0 text-muted" aria-hidden="true" />
-          <span class="min-w-0 flex-1">
+          <InlineRename
+            v-if="editingKey === 'project:' + group.project.id"
+            :name="group.project.name"
+            :error="editError"
+            :commit="(value) => renameProject(group.project.id, value)"
+            @cancel="cancelRename('project:' + group.project.id)"
+          />
+          <span v-else class="min-w-0 flex-1" @dblclick.stop="startRenameOnFinePointer('project:' + group.project.id)">
             <span class="block truncate font-semibold">{{ group.project.name }}</span>
             <span class="block truncate text-xs text-muted" :title="group.project.path">{{ shortPath(group.project.path) }}</span>
           </span>
+          <button type="button" class="touch-target min-h-11 rounded px-2" :aria-label="'Rename ' + group.project.name" title="Rename" tabindex="-1" @click.stop="startRename('project:' + group.project.id)">✎</button>
+          <DropdownMenuRoot :open="projectMenuId === group.project.id" @update:open="(open) => projectMenuId = open ? group.project.id : ''">
+            <DropdownMenuTrigger type="button" class="touch-target min-h-11 rounded px-2 text-muted" :aria-label="'More actions for ' + group.project.name" title="More" tabindex="-1" @click.stop>⋯</DropdownMenuTrigger>
+            <DropdownMenuPortal>
+              <DropdownMenuContent align="end" :side-offset="4" class="z-30 min-w-48 rounded border border-border bg-surface p-1 text-fg shadow-lg">
+                <DropdownMenuItem class="cursor-pointer rounded px-2 py-1 outline-none data-highlighted:bg-bg" @select="startRename('project:' + group.project.id)">Rename</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenuPortal>
+          </DropdownMenuRoot>
           <button
             type="button"
             class="touch-target min-h-11 rounded px-2"
@@ -311,12 +438,17 @@ async function saveAsProject(session: Session) {
             :level="2"
             :focused-key="activeFocusKey"
             :group-key="group.project.id"
+            :editing-name="editingKey.startsWith('session:') ? editingKey.slice(8) : ''"
+            :edit-error="editError"
+            :commit-edit="renameSession"
             sortable
             :list-label="'Sessions in ' + group.project.name"
             @select="emit('select', $event)"
             @select-window="(name, window, pane) => emit('selectWindow', name, window, pane)"
             @split="(name, dir) => emit('split', name, dir)"
-            @rename="emit('rename', $event)"
+            @rename="startRename('session:' + $event)"
+            @edit-commit="renameSession"
+            @edit-cancel="cancelRename('session:' + $event)"
             @kill="emit('kill', $event)"
             @reorder="tree.reorderSessions(group.project.id, $event)"
           />
@@ -356,6 +488,9 @@ async function saveAsProject(session: Session) {
           :tree-view="true"
           :level="2"
           :focused-key="activeFocusKey"
+          :editing-name="editingKey.startsWith('session:') ? editingKey.slice(8) : ''"
+          :edit-error="editError"
+          :commit-edit="renameSession"
           group-key="__other__"
           sortable
           can-save-as-project
@@ -363,7 +498,9 @@ async function saveAsProject(session: Session) {
           @select="emit('select', $event)"
           @select-window="(name, window, pane) => emit('selectWindow', name, window, pane)"
           @split="(name, dir) => emit('split', name, dir)"
-          @rename="emit('rename', $event)"
+          @rename="startRename('session:' + $event)"
+          @edit-commit="renameSession"
+          @edit-cancel="cancelRename('session:' + $event)"
           @kill="emit('kill', $event)"
           @reorder="tree.reorderSessions('__other__', $event)"
           @save-as-project="saveAsProject"

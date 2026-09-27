@@ -19,6 +19,19 @@ afterEach(() => {
 })
 
 describe('tree order store', () => {
+  it('re-keys session ordering, hidden state, expansion and window keys in one update', () => {
+    const tree = useTreeStore()
+    tree.order.sessions = { group: ['before', 'old', 'after'], __other__: ['old'] }
+    tree.order.hidden.sessions = ['host/old']
+    tree.order.expanded = ['host/old', 'host/old/@2']
+    const previous = tree.order
+    tree.renameSession('host', 'old', 'new')
+    expect(tree.order).not.toBe(previous)
+    expect(tree.order.sessions).toEqual({ group: ['before', 'new', 'after'], __other__: ['new'] })
+    expect(tree.order.hidden.sessions).toEqual(['host/new'])
+    expect(tree.order.expanded).toEqual(['host/new', 'host/new/@2'])
+  })
+
   it('keeps saved session order before the host has a reachable session snapshot', async () => {
     stubFetch((method, path) => path === '/api/ui-state/tree' && method === 'GET'
       ? { status: 200, body: { version: 1, projects: [], sessions: { __other__: ['saved-session'] } } }

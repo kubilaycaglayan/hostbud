@@ -1,4 +1,5 @@
 import { mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import SessionList from './SessionList.vue'
 import type { Session } from '@/api/types'
@@ -91,6 +92,23 @@ describe('SessionList', () => {
     await w.get('button[aria-label="Kill a"]').trigger('click')
     expect(w.emitted('rename')).toEqual([['a']])
     expect(w.emitted('kill')).toEqual([['a']])
+  })
+
+  it('offers Rename in the long-press tree menu', async () => {
+    vi.useFakeTimers()
+    setActivePinia(createPinia())
+    const w = mount(SessionList, { props: { sessions: [s('a')], treeView: true }, attachTo: document.body })
+    const row = w.get('button[aria-label="a"]')
+    const down = new Event('pointerdown', { bubbles: true })
+    Object.defineProperties(down, { pointerType: { value: 'touch' }, clientX: { value: 10 }, clientY: { value: 10 } })
+    row.element.dispatchEvent(down)
+    await vi.advanceTimersByTimeAsync(500)
+    await w.vm.$nextTick()
+    const rename = [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((node) => node.textContent?.trim() === 'Rename')
+    expect(rename).toBeTruthy()
+    rename!.click()
+    expect(w.emitted('rename')).toEqual([['a']])
+    w.unmount()
   })
 
   it.each([

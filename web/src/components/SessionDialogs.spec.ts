@@ -3,9 +3,8 @@ import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import CreateSessionDialog from './CreateSessionDialog.vue'
 import KillSessionDialog from './KillSessionDialog.vue'
-import RenameSessionDialog from './RenameSessionDialog.vue'
 import ToastRegion from './ToastRegion.vue'
-import { sessionNameError } from '@/lib/names'
+import { projectNameError, sessionNameError } from '@/lib/names'
 import { stubFetch } from '@/test-utils'
 
 beforeEach(() => setActivePinia(createPinia()))
@@ -44,21 +43,28 @@ describe('session name rule', () => {
   })
 })
 
+describe('project name rule', () => {
+  it('trims names and measures the 255-byte limit in UTF-8', () => {
+    expect(projectNameError('  project  ')).toBe('')
+    expect(projectNameError('界'.repeat(85))).toBe('')
+    expect(projectNameError('界'.repeat(86))).toBe('Use 255 bytes or fewer.')
+    expect(projectNameError('   ')).toBe('Enter a name.')
+  })
+})
+
 describe('CreateSessionDialog', () => {
-  it('renders compact create, rename and kill dialogs as bottom sheets', async () => {
+  it('renders compact create and kill dialogs as bottom sheets', async () => {
     const create = mountOpen(CreateSessionDialog, { machine: 'host', compact: true })
-    const rename = mountOpen(RenameSessionDialog, { machine: 'host', session: 'old', compact: true })
     const kill = mountOpen(KillSessionDialog, { machine: 'host', session: 'old', compact: true })
     await flushPromises()
     expect($('[role="dialog"]')?.className).toContain('bottom-0')
     expect($('[role="alertdialog"]')?.className).toContain('bottom-0')
     const dialogs = [...document.body.querySelectorAll('[role="dialog"]')]
-    expect(dialogs.length).toBeGreaterThanOrEqual(2)
+    expect(dialogs.length).toBe(1)
     expect(dialogs.every((dialog) => dialog.className.includes('bottom-0'))).toBe(true)
     expect([...document.body.querySelectorAll('button')].every((button) => button.classList.contains('touch-target'))).toBe(true)
     expect([...document.body.querySelectorAll('input')].every((field) => field.classList.contains('text-base'))).toBe(true)
     create.unmount()
-    rename.unmount()
     kill.unmount()
   })
 
@@ -112,30 +118,6 @@ describe('CreateSessionDialog', () => {
     expect(toast.textContent).toContain('A session named "web" already exists.')
     expect(toast.textContent).toContain('Pick another name')
     expect(w.emitted('update:open')).toBeUndefined()
-  })
-})
-
-describe('RenameSessionDialog', () => {
-  it('prefills the name and renames', async () => {
-    const calls = stubFetch(() => ({ status: 200, body: { name: 'new' } }))
-    const w = mountOpen(RenameSessionDialog, { machine: 'host', session: 'old' })
-    await flushPromises()
-    expect(input('name').value).toBe('old')
-    await type('name', 'new')
-    await click('Rename')
-    expect(calls).toEqual([{ method: 'PATCH', path: '/api/machines/host/sessions/old', body: { name: 'new' } }])
-    expect(w.emitted('renamed')).toEqual([['old', 'new']])
-  })
-
-  it('blocks invalid names', async () => {
-    const calls = stubFetch(() => ({ status: 200, body: {} }))
-    mountOpen(RenameSessionDialog, { machine: 'host', session: 'old' })
-    await flushPromises()
-    await type('name', 'x.y')
-    expect(($('button[type=submit]') as HTMLButtonElement).disabled).toBe(true)
-    await type('name', '')
-    expect($('#rename-name-error')?.textContent).toBe('Enter a name.')
-    expect(calls).toEqual([])
   })
 })
 

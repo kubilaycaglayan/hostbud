@@ -13,7 +13,7 @@ Update this table in the same commit that finishes a task.
 | T1 Windows and panes API | Done |
 | T2 Tree state v2 and accessible tree | Done |
 | T3 Windows and panes in the tree | Done |
-| T4 Inline rename | Not started |
+| T4 Inline rename | Done |
 | T5 Hide and unhide | Not started |
 | T6 Pinned projects | Not started |
 | T7 Theme setting | Not started |
@@ -28,7 +28,9 @@ Update this table in the same commit that finishes a task.
 
 T2 completed with the v2 state migration, guarded persistence, pruning rules, accessible tree behavior and task-tagged scenarios. The pruning regression/fix are in `00f3c29` and `fae320e`; CP1 passed with `make lint test`. E2E scenarios were type-checked only, as required.
 
-T3 completed with lazy window/pane loading, event-driven refresh, window selection and persistent expansion. Frontend tests and lint passed; the desktop and phone E2E scenarios were type-checked only, as required. CP2 runs after T4.
+T3 completed with lazy window/pane loading, event-driven refresh, window selection and persistent expansion. Frontend tests and lint passed; the desktop and phone E2E scenarios were type-checked only, as required.
+
+T4 completed with inline project/session rename, validation and server errors in place, preserved session layout/tree state, menu and long-press entry points, and T4 E2E scenarios type-checked only. `make lint test` passed CP2; browser E2E remains paused until M7.
 
 ## Rules for this milestone
 
@@ -47,8 +49,8 @@ T3 completed with lazy window/pane loading, event-driven refresh, window selecti
 
 | Checkpoint | After | Runs | Status |
 |---|---|---|---|
-| CP1 | T1 + T2 (windows API, tree state and tree view) | `make lint test` | Not run |
-| CP2 | T3 + T4 (windows in the tree, inline rename) | `make lint test` | Not run |
+| CP1 | T1 + T2 (windows API, tree state and tree view) | `make lint test` | Passed |
+| CP2 | T3 + T4 (windows in the tree, inline rename) | `make lint test` | Passed |
 | CP3 | T5 + T6 (hide/unhide, pins) | `make lint test` | Not run |
 | CP4 | T7 + T8 + T9 (theme, shortcuts, palette) | `make lint test`, plus `make build` so `check-dist` sees the real theme boot script | Not run |
 | CP5 | T10 + T11 + T12 + T13 + T14 (taken names, remove project, add current directory, left bar toolbar, audit) | `make lint test`, `make gitleaks`, e2e `tsc` | Not run |
@@ -157,7 +159,7 @@ Rename projects and sessions in place in the tree, replacing the rename dialog t
 
 **E2E:** add to `tree.custom.spec.ts` and `tree.custom.phone.spec.ts` (desktop and `iphone-13-pro`): **(T4) Inline rename a project** (pencil → type → Enter; a second page shows the new name without reload; start another edit and Escape cancels it; reload and restart keep the name; its sessions stay under it); **(T4) Inline rename a session** (F2 on desktop, ⋯ → Rename on the phone; the target has the new name; the open terminal's `#{client_pid}` is unchanged; the row keeps its position and its expanded windows; renaming to an existing session's name shows the inline error and keeps the old name). Type-check only.
 
-**Done:** projects and sessions rename in place from every entry point, errors keep the edit open, renamed rows keep position and state, and the scenarios compile.
+**Done:** tree entry points rename projects and sessions in place; errors keep the edit open; renamed rows keep their position and state. T9 will connect the palette's reveal action to this editor.
 
 ## T5 — Hide and unhide
 
@@ -250,9 +252,9 @@ Jump to any session, window or project, and run any app action, from one box.
 - In compact layout, running an item that shows a terminal closes the palette and the drawer and doesn't re-attach other terminals (M5 rule).
 - README: the palette. ARCHITECTURE §11: the palette's sources, matching and focus rules (replacing the one-line "Command palette (⌘/Ctrl-K)").
 
-**Tests:** U (Vitest): `fuzzy` ranking table (word start beats mid-word, contiguous beats scattered, stable ties, no match excluded, Unicode case-folding), the 50 cap; sources (hidden marker, windows only when loaded, projects reveal); each action dispatches to the tree/theme/layout store function (spied) and Kill opens the confirmation instead of calling the API; opening from each chord and the header button; Escape restores the previous focus; Enter on a session focuses its terminal; compact layout closes the drawer; the header button's touch-target class and the 16 px input. I: n/a (frontend only; actions reuse existing API calls whose integration tests exist).
+**Tests:** U (Vitest): `fuzzy` ranking table (word start beats mid-word, contiguous beats scattered, stable ties, no match excluded, Unicode case-folding), the 50 cap; sources (hidden marker, windows only when loaded, projects reveal); each action dispatches to the tree/theme/layout store function (spied), including Rename revealing the row and starting T4's inline editor, and Kill opens the confirmation instead of calling the API; opening from each chord and the header button; Escape restores the previous focus; Enter on a session focuses its terminal; compact layout closes the drawer; the header button's touch-target class and the 16 px input. I: n/a (frontend only; actions reuse existing API calls whose integration tests exist).
 
-**E2E:** add in `palette.spec.ts` (desktop) and `palette.phone.spec.ts` (both phone projects): **(T9) Palette opens without stealing Ctrl+K** (desktop: type `echo abcdef` in a shell, move the cursor left 3, Ctrl+K → `capture-pane` shows `echo abc`; Ctrl+Shift+K opens the palette); **(T9) Palette jumps to a session** (desktop and `iphone-13-pro`: with two tabs open, type part of the other session's name, Enter → its tab is focused and typing reaches it; open again and Escape → focus back in the terminal); **(T9) Palette runs actions** (desktop: Theme: Light applies; Hide <session> then Unhide <session>; New session in <project> lands under that project; Kill <session> shows the confirmation and Cancel leaves it alive on the target); **(T9) Palette on the phone** (both phone projects: the header button opens it; picking a session closes it and the drawer and shows the terminal). Type-check only.
+**E2E:** add in `palette.spec.ts` (desktop) and `palette.phone.spec.ts` (both phone projects): **(T9) Palette opens without stealing Ctrl+K** (desktop: type `echo abcdef` in a shell, move the cursor left 3, Ctrl+K → `capture-pane` shows `echo abc`; Ctrl+Shift+K opens the palette); **(T9) Palette jumps to a session** (desktop and `iphone-13-pro`: with two tabs open, type part of the other session's name, Enter → its tab is focused and typing reaches it; open again and Escape → focus back in the terminal); **(T9) Palette runs actions** (desktop: Theme: Light applies; Hide <session> then Unhide <session>; New session in <project> lands under that project; Kill <session> shows the confirmation and Cancel leaves it alive on the target); **(T9) Palette rename reveals and edits a row** (desktop and `iphone-13-pro`: a Rename action for a session in a collapsed project expands the project, opens the drawer on the phone and focuses the same inline editor); **(T9) Palette on the phone** (both phone projects: the header button opens it; picking a session closes it and the drawer and shows the terminal). Type-check only.
 
 **Done:** the palette finds sessions, windows, projects and actions with stable fuzzy matching, runs everything through the existing store functions (kill still confirms), respects the terminal's Ctrl+K, works on phones, and the scenarios compile.
 

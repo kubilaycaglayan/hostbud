@@ -8,3 +8,11 @@ export function sessionNameError(name: string, required = false): string {
   if (!SESSION_NAME_RE.test(name)) return "Use only letters, digits, '-' and '_'."
   return ''
 }
+
+/** Project names are trimmed and limited by UTF-8 byte length on the server. */
+export function projectNameError(name: string): string {
+  const trimmed = name.trim()
+  if (!trimmed) return 'Enter a name.'
+  if (new TextEncoder().encode(trimmed).byteLength > 255) return 'Use 255 bytes or fewer.'
+  return ''
+}

@@ -8,7 +8,6 @@ import FileBrowserDialog from '@/components/FileBrowserDialog.vue'
 import ProjectSessionDialog from '@/components/ProjectSessionDialog.vue'
 import TreePanel from '@/components/TreePanel.vue'
 import KillSessionDialog from '@/components/KillSessionDialog.vue'
-import RenameSessionDialog from '@/components/RenameSessionDialog.vue'
 import HostBanner from '@/components/HostBanner.vue'
 import TabBar from '@/components/TabBar.vue'
 import TabView from '@/components/TabView.vue'
@@ -43,16 +42,10 @@ const host = computed(() => machines.byId(MACHINE))
 const creating = ref(false)
 const browsing = ref(false)
 const sessionProject = ref<Project | null>(null) // the project a New session here dialog is for
-const renaming = ref(false)
 const killing = ref(false)
 const drawerOpen = ref(false)
 const swipeStart = ref<{ x: number; y: number } | null>(null)
-const target = ref('') // the session a rename/kill dialog is about
-
-function askRename(name: string) {
-  target.value = name
-  renaming.value = true
-}
+const target = ref('') // the session the kill confirmation is about
 function askKill(name: string) {
   target.value = name
   killing.value = true
@@ -237,10 +230,10 @@ onUnmounted(() => {
         aria-label="Sessions"
         class="flex w-64 shrink-0 flex-col border-r border-border bg-surface p-3"
       >
-        <TreePanel :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @rename="askRename" @kill="askKill" @session-in-project="newProjectSession" @create="newSession" @browse="browseFiles" />
+        <TreePanel :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @session-in-project="newProjectSession" @create="newSession" @browse="browseFiles" />
       </aside>
       <main v-if="compact && !hasTabs" class="min-h-0 min-w-0 flex-1 overflow-y-auto bg-surface p-3">
-        <TreePanel :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @rename="askRename" @kill="askKill" @session-in-project="newProjectSession" @create="newSession" @browse="browseFiles" />
+        <TreePanel :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @session-in-project="newProjectSession" @create="newSession" @browse="browseFiles" />
       </main>
       <main
         v-else
@@ -297,7 +290,7 @@ onUnmounted(() => {
             <DialogClose aria-label="Close project tree" class="min-h-11 min-w-11 rounded border border-border">×</DialogClose>
           </div>
           <DialogDescription class="sr-only">Choose a project or session.</DialogDescription>
-          <TreePanel :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @rename="askRename" @kill="askKill" @session-in-project="newProjectSession" @create="newSession" @browse="browseFiles" />
+          <TreePanel :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @session-in-project="newProjectSession" @create="newSession" @browse="browseFiles" />
         </DialogContent>
       </DialogPortal>
     </DialogRoot>
@@ -316,15 +309,6 @@ onUnmounted(() => {
     <ProjectSessionDialog
       v-model:project="sessionProject"
       @created="onCreated"
-    />
-    <RenameSessionDialog
-      v-model:open="renaming"
-      :machine="MACHINE"
-      :compact="compact"
-      :session="target"
-      @renaming="(from, to) => layout.expectRename(MACHINE, from, to)"
-      @renamed="(from, to) => layout.renamed(MACHINE, from, to)"
-      @update:open="(o) => o || layout.renameAbandoned(MACHINE, target)"
     />
     <KillSessionDialog
       v-model:open="killing"
