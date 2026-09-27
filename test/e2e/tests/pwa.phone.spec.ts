@@ -2,7 +2,9 @@ import { expect, test } from '../helpers/fixtures.ts'
 
 test('(T7) Theme and status-bar metadata are present on phones', async ({ page }) => {
   await page.goto('/')
-  await expect(page.locator('meta[name="theme-color"]')).toHaveCount(2)
+  // One meta the app updates to the resolved theme (M6 T7 replaced M5's two media variants).
+  await expect(page.locator('meta[name="theme-color"]')).toHaveCount(1)
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', /^#(0f1115|ffffff)$/)
   await expect(page.locator('meta[name="mobile-web-app-capable"]')).toHaveAttribute('content', 'yes')
   await expect(page.locator('meta[name="apple-mobile-web-app-capable"]')).toHaveAttribute('content', 'yes')
   await expect(page.locator('meta[name="apple-mobile-web-app-title"]')).toHaveAttribute('content', 'hostbud')
