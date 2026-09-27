@@ -413,6 +413,7 @@ machine_capacity(machine_id PK, max_concurrent_runs)
 - **Terminal context menu (M3):** Reka UI `ContextMenu` around the terminal (`TerminalMenu.vue`): Copy (disabled with no selection), Paste, Select all; see §6 *Clipboard*.
 - **Editable text inputs (M8 T5):** Option-click (Alt-click on non-macOS platforms) places the caret at the clicked character/line in single-line and multiline inputs. It must not jump to a different line or position; ordinary click and selection retain their normal behavior.
 - **Terminal scrolling readability (M8 T6):** mouse-wheel movement follows the existing direction and scrollback positions, while rendered text remains visually trackable during motion, including repeated output. Rendering or event handling changes must preserve terminal input, scrollback content, copy mode and touch scrolling.
+- **Long-lived terminal theme contrast (M8 T7):** System theme changes update the mounted xterm palette without reattaching its tmux client. This guarantees hostbud-controlled terminal colors update; a terminal application that writes explicit foreground/background colors may own its own contrast and may not respond to hostbud or OS theme changes. Diagnose that boundary before changing the palette, and document a supported workaround if the client owns the colors.
 - No external CDNs at runtime (fonts and assets bundled).
 
 ---

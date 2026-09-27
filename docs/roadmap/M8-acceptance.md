@@ -48,6 +48,13 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
   - I: n/a when the fix is browser/xterm rendering only; no server or SSH behavior changes.
   - E: T6 *Readable terminal scrolling* (desktop), with deterministic distinct/repeated target output, both directions, controlled/rapid wheel input, visible text assertions and before/after captures for visual review.
 
+## Long-lived terminal theme contrast
+
+- [ ] With a terminal client left running across an OS System theme change, hostbud's xterm palette updates without detaching the session and hostbud-controlled text/background colors remain legible in both dark and light themes. Diagnose the reported Codex prompt contrast (dark prompt surface with dark text after a dark-to-light change): identify whether the colors are hostbud/xterm palette colors or explicit Codex colors. If Codex owns the colors and cannot adapt live, document that boundary and an actionable supported workaround; do not claim a hostbud palette change fixes client-owned colors.
+  - U: T7 mounted-terminal palette update, contrast pairs and attached-session invariant across theme changes (Vitest).
+  - I: n/a: theme and terminal color rendering are frontend-only; tmux/SSH attachment state is unchanged.
+  - E: T7 *Long-lived terminal contrast* (desktop), representative prompt-like TUI on the throwaway target across System dark/light changes, attached-session and palette assertions, with screenshots. Real Codex-specific rendering is recorded as an owner check if Codex is unavailable in the throwaway target.
+
 ## Manual checks (owner)
 
-No owner-only check is required. Desktop and phone screenshots and interaction checks are performed during T1–T3 implementation.
+Manual check (owner): if Codex cannot run in the throwaway E2E target, verify the reported “Ask Codex to do anything” prompt surface through a dark-to-light OS theme change with the long-running session still attached. This remains open owner backlog and does not block M8.

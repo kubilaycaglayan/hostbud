@@ -11,6 +11,7 @@ Scope and acceptance: [../ROADMAP.md](../ROADMAP.md#m8--interface-density-and-in
 - During visual implementation, run the app and inspect desktop and phone screenshots of the affected screens before and after. Use those screenshots to tune spacing and verify that names are more prominent, controls are compact, and the file dialog uses the viewport efficiently. This inspection is part of implementation, not an owner check.
 - For the caret-placement issue, first reproduce it in the affected input, identify whether it is a single-line or multiline control, and verify the clicked caret position against the displayed text before and after the fix.
 - For the scrolling issue, inspect a screen recording or repeated live captures of the running terminal while scrolling both directions through distinct and repeated output. Identify the cause before choosing a rendering, event handling or scroll-step adjustment; compare before/after at the same content and input gestures.
+- For the terminal contrast issue, use the reported timeline: start a Codex client in a dark System theme, leave its session attached for an extended period, then switch the OS to light and inspect the prompt surface (including “Ask Codex to do anything”) and its text. Determine whether the colors come from xterm's palette or explicit colors chosen by the terminal client before selecting a fix. Do not assume Codex supports live theme changes.
 - Keep accessible names, visible focus, keyboard operation and touch usability. Do not shrink hit areas below the app's phone target requirements; use compact visual padding while retaining a usable target.
 - Preserve the existing login screen's password autocomplete behavior exactly. Disable browser autocomplete/autofill on every other application input.
 - Conventional commits, small and focused. No backend, schema, migration or environment changes are expected.
@@ -76,9 +77,20 @@ Scope and acceptance: [../ROADMAP.md](../ROADMAP.md#m8--interface-density-and-in
 
 **E2E:** Add T6 *Readable terminal scrolling* (desktop): print deterministic numbered and repeated lines in the throwaway tmux target, wheel up/down at controlled and rapid intervals, assert movement/direction and visible text, and capture before/after views to compare flicker/readability. Do not use the real host's tmux.
 
+## T7 — Contrast in long-lived terminal clients
+
+- This is a follow-up to M6 T7 (Theme setting), prompted by a real Codex-in-tmux report; M6's completed theme-setting work remains recorded as done.
+- Investigate the reported low-contrast Codex UI after a System theme switch: Codex starts in a dark hostbud/xterm theme at night, remains running for many hours, then the OS switches to light; the prompt area (reported as “Ask Codex to do anything”) can remain dark while its text is dark too.
+- Separate hostbud-controlled xterm palette colors from colors explicitly rendered by Codex or another terminal client. Verify the theme change reaches an already-mounted terminal without detaching/restarting its tmux client. Improve palette or rendering behavior where hostbud controls the cause; when the client explicitly chooses colors hostbud cannot safely override, record that boundary and an actionable supported workaround instead of claiming the client updates live.
+- Compare dark-to-light and light-to-dark changes with the same long-lived terminal, and inspect screenshots of the prompt surface and ordinary terminal text for readable contrast. Do not change user tmux configuration.
+
+**Tests:** U: T7 tests palette updates and contrast for foreground/background pairs across Dark/Light/System changes, including a mounted terminal that stays attached (Vitest); I: n/a: color rendering and theme state are frontend-only and do not alter SSH/tmux state; E: T7 *Long-lived terminal contrast* changes the emulated OS theme with a running representative prompt-like TUI, asserts the terminal stays attached and hostbud palette changes, and captures the prompt/text colors in both themes. Real Codex-specific colors are recorded as a manual owner check if the e2e target cannot run Codex.
+
+**E2E:** Add T7 *Long-lived terminal contrast* (desktop): run a deterministic prompt-like ANSI TUI on the throwaway target, leave the terminal mounted while switching System light/dark, assert palette and contrast tokens change without reconnecting, and capture both states. Never use the real host's tmux. Record the real Codex “Ask Codex to do anything” surface as a manual owner check if Codex itself is unavailable in the e2e target.
+
 ## Done
 
 - [ ] M8 acceptance criteria and their U/I/E coverage are complete.
 - [ ] `make lint test` and `make gitleaks` are green; E2E scenarios pass under the post-M7 run policy.
-- [ ] Desktop and phone screenshots were inspected during implementation; README/ARCHITECTURE updated only if user-facing behavior or design changes warrant it. T5's affected inputs were reproduced and checked in the running app; T6's scroll behavior was recorded and compared before/after.
+- [ ] Desktop and phone screenshots were inspected during implementation; README/ARCHITECTURE updated only if user-facing behavior or design changes warrant it. T5's affected inputs were reproduced and checked in the running app; T6's scroll behavior was recorded and compared before/after; T7's long-lived terminal theme change and contrast were inspected and the palette-vs-client color ownership was recorded.
 - [ ] Summary lists changes, any environment variables (expected none), host steps (expected none), and any open owner items.
