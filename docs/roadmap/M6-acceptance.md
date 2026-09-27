@@ -334,10 +334,10 @@ On a desktop browser (port forward, a Mac if available) and the owner's iPhone o
 
 ## Definition of done
 
-- [ ] Every functional and security criterion above is satisfied: its U/I tests pass and its E scenario exists and type-checks.
-- [ ] M6 scenarios are part of the M7 full e2e run; no e2e run happened during M6.
-- [ ] `make lint test` and `make gitleaks` are green (CP1–CP5); no secrets, real hostnames, IPs or owner paths are tracked.
-- [ ] README has the tree customization, windows, palette, shortcuts and theme sections; ARCHITECTURE §5.1, §8, §9, §11 and §13.1 match what was built; `.env.example` is unchanged (or updated if a variable was really needed); no new migration.
-- [ ] *(host)* `make deploy` done; the owner's manual checks are recorded above or listed as open.
-- [ ] T15 safe Docker cleanup done: the production stack and all volumes intact and healthy, nothing outside hostbud touched, reclaimed space reported.
-- [ ] Summary delivered: what changed, new env vars (expected none), manual steps on the host, desktop and phone.
+- [x] Every functional and security criterion above is satisfied: its U/I tests pass and its E scenario exists and type-checks.
+- [x] M6 scenarios are part of the M7 full e2e run; no e2e run happened during M6.
+- [x] `make lint test` and `make gitleaks` are green (CP1–CP5); no secrets, real hostnames, IPs or owner paths are tracked.
+- [x] README has the tree customization, windows, palette, shortcuts and theme sections; ARCHITECTURE §5.1, §8, §9, §11 and §13.1 match what was built; `.env.example` is unchanged (or updated if a variable was really needed); no new migration.
+- [x] *(host)* `make deploy` done; the owner's manual checks are recorded above or listed as open.
+- [x] T15 safe Docker cleanup done: the production stack and all volumes intact and healthy, nothing outside hostbud touched, reclaimed space reported.
+- [x] Summary delivered: what changed, new env vars (expected none), manual steps on the host, desktop and phone.
