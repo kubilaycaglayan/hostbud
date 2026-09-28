@@ -2,6 +2,7 @@ package main
 
 import (
 	"hostbud/internal/config"
+	"hostbud/internal/llm"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +12,20 @@ import (
 	"testing"
 	"time"
 )
+
+func TestLLMSupervisorIsNotConstructedUnlessProviderIsValid(t *testing.T) {
+	for _, cfg := range []llm.Config{{}, {Provider: "openai", Model: "test-model", QuietAfter: time.Minute, MaxPerRunHour: 2}} {
+		supervisor, status := newLLMSupervisor(cfg, nil, nil, nil, nil)
+		if supervisor != nil || status.Enabled || status.Reason == "" {
+			t.Fatalf("partial config constructed supervisor: supervisor=%v status=%+v", supervisor, status)
+		}
+	}
+	cfg := llm.Config{Provider: "openai", Model: "test-model", APIKey: "test-key", QuietAfter: 20 * time.Minute, MaxPerRunHour: 2, Scrub: true, ScrubValid: true}
+	supervisor, status := newLLMSupervisor(cfg, nil, nil, nil, nil)
+	if supervisor == nil || !status.Enabled {
+		t.Fatalf("valid opt-in config did not construct supervisor: supervisor=%v status=%+v", supervisor, status)
+	}
+}
 
 func TestBuildDepsWiresRemoteTimeouts(t *testing.T) {
 	dataDir, keysDir := t.TempDir(), t.TempDir()

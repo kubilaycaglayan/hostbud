@@ -176,14 +176,7 @@ func run() error {
 	)
 	queues := queue.NewService(st, adapters, bus)
 	llmConfig := llm.Config{Provider: cfg.LLMProvider, Model: cfg.LLMModel, APIKey: cfg.OpenAIAPIKey, BaseURL: cfg.LLMBaseURL, QuietAfter: cfg.LLMQuietAfter, MaxPerRunHour: cfg.LLMMaxPerRunHour, Scrub: cfg.LLMScrub, ScrubValid: !cfg.LLMScrubInvalid}
-	supervisorStatus, _ := llm.Check(llmConfig)
-	if cfg.LLMProvider != "" && !supervisorStatus.Enabled {
-		log.Warn(supervisorStatus.Reason)
-	}
-	var llmSupervisor *llm.Supervisor
-	if supervisorStatus.Enabled {
-		llmSupervisor = llm.NewSupervisor(st, ssh, llm.NewOpenAI(llmConfig), bus, cfg.LLMQuietAfter, cfg.LLMMaxPerRunHour, cfg.LLMScrub, log)
-	}
+	llmSupervisor, supervisorStatus := newLLMSupervisor(llmConfig, st, ssh, bus, log)
 	queues.SetParallelQueues(cfg.ParallelQueues)
 	queues.SetVerifyTimeout(cfg.VerifyTimeout)
 	if err := queues.LoadParallelQueues(ctx); err != nil {
@@ -328,6 +321,17 @@ func backup(cfg config.Config, dest string) error {
 	}
 	defer func() { _ = st.Close() }()
 	return st.Backup(ctx, dest)
+}
+
+func newLLMSupervisor(c llm.Config, st llm.SupervisorStore, ssh llm.Capture, bus *events.Bus, log *slog.Logger) (*llm.Supervisor, llm.Status) {
+	status, _ := llm.Check(c)
+	if c.Provider != "" && !status.Enabled && log != nil {
+		log.Warn(status.Reason)
+	}
+	if !status.Enabled {
+		return nil, status
+	}
+	return llm.NewSupervisor(st, ssh, llm.NewOpenAI(c), bus, c.QuietAfter, c.MaxPerRunHour, c.Scrub, log), status
 }
 
 func restoreCheck(cfg config.Config, dump string) error {

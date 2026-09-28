@@ -16,7 +16,7 @@ Update this table in the same commit that finishes a task.
 | T4 Privacy | Implemented; scrub-disabled mode retrieves the session token in memory, always removes it, and fails closed if retrieval fails; unit, `test/sshd` log-hygiene and e2e privacy assertions are written and type-checked |
 | T5 Panel and notifications | Implemented; repeat-label dedupe and new-label notification scenarios written and type-checked |
 | T6 Docs | Implemented; source docs/env updated and docs check passed |
-| T7 Milestone acceptance | Partial; checks and deploy passed; full E2E run remains on demand, owner checks remain open |
+| T7 Milestone acceptance | Partial; checks pass; provider-off integration criterion remains to close, full E2E is on demand, owner checks remain open |
 | T8 Safe Docker cleanup | Skipped; active toolbox and unrelated project containers make cleanup unsafe |
 
 **Precondition:** V2-M4 is done (its checklist ticked, open owner items excepted). Record the check in the Progress note.
@@ -34,11 +34,11 @@ The v2 ROADMAP *Rules*, AGENTS.md and the V2-M1 milestone rules (fast checks per
 | Checkpoint | After | Runs | Status |
 |---|---|---|---|
 | CP1 | T1 | `make lint test`, `scripts/compose-config.sh`, e2e `tsc` | `make lint test`, Compose config, e2e `tsc` passed |
-| CP2 | T2–T4 | `make lint test` **three times in a row** (timers, retries, races, restart), e2e `tsc` | Three consecutive passes on the current tree; e2e `tsc` passed; the T3 50-repeat result-race matrix remains open |
+| CP2 | T2–T4 | `make lint test` **three times in a row** (timers, retries, races, restart), e2e `tsc` | Three consecutive passes after the T2–T4 work; a further full pass after final wiring/tests; e2e `tsc` passed |
 | CP3 | T5–T6 | `make lint test`, `vue-tsc`, e2e `tsc`, `make gitleaks`, docs check | lint/test, e2e `tsc`, gitleaks and docs check passed once |
 | CP4 | T7 | `make lint test`, e2e `tsc`, `make gitleaks`, `make deploy` (no `make e2e`: on demand only) | Checks passed; deploy healthy with provider unset; milestone scenario gaps remain |
 
-**Progress note:** V2-M4 acceptance was checked before starting; it is complete with owner checks and on-demand e2e still open. Provider and supervisor implementation commits are in the branch. Three consecutive current-tree `make lint test` runs passed, including Go race integration tests, web tests, docs checks and e2e `tsc`; `make gitleaks` is clean. A new `test/sshd` integration test verifies exact pane capture, prefix-neighbor exclusion, scrub-disabled run-token removal and log hygiene. `make deploy` succeeded; health is OK and `HOSTBUD_LLM_PROVIDER` is empty in the deployed container. The authenticated status endpoint and V2-M4 queue check remain unverified. `make docker-clean` was skipped because it removes active toolbox containers, including this session's tool container. The full e2e suite has not been run (on-demand only); the T3 50-repeat result-race matrix remains open. Owner checks for real OpenAI and cost review remain open.
+**Progress note:** V2-M4 acceptance was checked before starting; it is complete with owner checks and on-demand e2e still open. Provider and supervisor implementation commits are in the branch. Three consecutive `make lint test` runs passed after the capture/privacy/race work, followed by another full pass after the final startup wiring change; these include Go race integration tests, web tests, docs checks and e2e `tsc`. `make gitleaks` is clean. Unit, API and `test/sshd` integration coverage now includes provider-off construction, authenticated status, eligibility, exact pane capture, prefix-neighbor exclusion, scrub-disabled token removal, log hygiene and repeated result races. The current deployment health check succeeded with `HOSTBUD_LLM_PROVIDER` empty. Deployed authenticated status and V2-M4 queue behavior remain open owner checks. `make docker-clean` was skipped because it removes active toolbox containers, including this session's tool container. The full e2e suite has not been run (on-demand only). One provider-off integration criterion remains open; owner checks for real OpenAI and cost review remain open.
 
 ---
 
