@@ -165,6 +165,7 @@ func run() error {
 	)
 	queues := queue.NewService(st, adapters, bus)
 	queues.SetParallelQueues(cfg.ParallelQueues)
+	queues.SetVerifyTimeout(cfg.VerifyTimeout)
 	if err := queues.LoadParallelQueues(ctx); err != nil {
 		log.Warn("parallel-queues setting unreadable; using HOSTBUD_PARALLEL_QUEUES", "err", err)
 	}

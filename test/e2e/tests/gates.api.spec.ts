@@ -2,7 +2,7 @@ import { expect, test } from '../helpers/fixtures.ts'
 import { forbidInLogs, mutate } from '../helpers/api.ts'
 import { ctl } from '../helpers/ctl.ts'
 import { queues } from '../helpers/db.ts'
-import { addItem, control, createQueue, gateAction, getQueue, itemOf, newProject, type QueueItem } from '../helpers/queues.ts'
+import { addItem, control, createQueue, gateAction, getQueue, itemOf, newProject, override, type QueueItem } from '../helpers/queues.ts'
 import { Stubs, type StubBehavior } from '../helpers/stubs.ts'
 import { shq, type Target } from '../helpers/target.ts'
 
@@ -250,5 +250,49 @@ test.describe('completion gates', () => {
     expect((await itemOf(request, queue.id, items[1].id)).status).toBe('queued')
     expect((await gateAction(request, items[0].id, 'approve')).status()).toBe(200)
     await waitItem(request, queue.id, items[1].id, 'done')
+  })
+
+  test('(V2-M4 T4) Owner actions race', async ({ request, target }) => {
+    const { queue, items } = await gatedQueue(request, target, 'e2e-gate-race', [
+      { condition: 'e2e gate race', verifyCommand: 'test -f never.flag' },
+    ])
+    expect((await control(request, queue.id, 'start')).status()).toBe(200)
+    await waitItem(request, queue.id, items[0].id, 'needs_attention')
+    const [reverify, skip] = await Promise.all([gateAction(request, items[0].id, 'reverify'), override(request, items[0].id, 'skip')])
+    expect([reverify.status(), skip.status()].sort()).toEqual([200, 409])
+    const loser = reverify.status() === 409 ? reverify : skip
+    expect((await loser.json() as { error: string }).error).toMatch(/this item is|it is .* now/)
+    const item = await itemOf(request, queue.id, items[0].id)
+    if (skip.status() === 200) {
+      expect(item.status).toBe('skipped')
+      expect(item.verify?.attempt).toBe(1)
+    } else {
+      // The re-run attempt fails again: needs attention, one more attempt.
+      const again = await waitItem(request, queue.id, items[0].id, 'needs_attention')
+      expect(again.verify?.attempt).toBe(2)
+    }
+    // Owner actions keep the queue paused.
+    expect((await getQueue(request, queue.id)).status).toBe('paused')
+  })
+
+  test('(V2-M4 T4) Retry re-applies gates', async ({ request, target }) => {
+    const { project, queue, items } = await gatedQueue(request, target, 'e2e-gate-retry', [
+      { condition: 'e2e gate retry', verifyCommand: 'test -f done.flag', requiresApproval: true },
+    ])
+    expect((await control(request, queue.id, 'start')).status()).toBe(200)
+    const failed = await waitItem(request, queue.id, items[0].id, 'needs_attention')
+    // Retry from the gates' refusal: Retry, Skip and Mark done wait while
+    // gated; after a failed verify they apply.
+    await target.run(`touch ${shq(`${project.path}/done.flag`)}`)
+    expect((await override(request, items[0].id, 'retry')).status()).toBe(200)
+    expect((await control(request, queue.id, 'resume')).status()).toBe(200)
+    const again = await waitItem(request, queue.id, items[0].id, 'awaiting_approval')
+    expect(again.run?.id).not.toBe(failed.run?.id)
+    expect(again.verify).toMatchObject({ attempt: 1, outcome: 'passed' })
+    const refused = await override(request, items[0].id, 'mark-done')
+    expect(refused.status()).toBe(409)
+    expect((await refused.json() as { error: string }).error).toContain('awaiting approval')
+    expect((await gateAction(request, items[0].id, 'approve')).status()).toBe(200)
+    await expect.poll(async () => (await getQueue(request, queue.id)).status).toBe('finished')
   })
 })

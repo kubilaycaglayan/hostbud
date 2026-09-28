@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"hostbud/internal/session"
 	"hostbud/internal/store"
 )
 
@@ -175,4 +176,11 @@ func (m *memStore) ResolveApproval(_ context.Context, itemID, runID, to, kind st
 		m.outbox = append(m.outbox, *n)
 	}
 	return it, nil
+}
+
+// created returns the session specs created so far.
+func (f *fakeSessions) created() []session.Spec {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.specs)
 }

@@ -183,3 +183,51 @@ func TestIntegrationRestartDuringVerifyRunsItOnce(t *testing.T) {
 		t.Fatalf("verify ran %d times, want 1", n)
 	}
 }
+
+// V2-M4 T4: Re-run verify runs the command again on the host without a new
+// run or tmux session.
+func TestIntegrationReverifyStartsNoSession(t *testing.T) {
+	c := verifyTarget(t)
+	ctx := context.Background()
+	e := newITEnv(t)
+	p, _ := e.st.CreateProject(ctx, store.HostMachineID, verifyDir, "verify")
+	q, _ := e.st.CreateQueue(ctx, p.ID, "Verify")
+	it, _ := e.st.AddQueueItem(ctx, q.ID, "claude", "", "/goal reverify", store.ItemGates{VerifyCommand: `sh -c 'echo x >> reverify'`})
+	run, _ := e.st.CreateRun(ctx, it.ID, HashToken("reverify-it"), time.Now())
+	ended := time.Now()
+	_, _ = e.st.TransitionRun(ctx, run.ID, store.ActiveRunStatuses, store.RunAchieved, "", &ended)
+	_, _ = e.st.TransitionQueueItem(ctx, it.ID, []string{store.ItemQueued}, store.ItemNeedsAttention)
+	_, _ = e.st.TransitionQueue(ctx, q.ID, []string{store.QueueIdle}, store.QueuePaused)
+
+	bus := events.NewBus()
+	svc := NewService(e.st, agents.NewRegistry(agents.NewClaude(nil, nil, nil), agents.NewCodex(nil, 0)), bus)
+	d := NewDispatcher(e.st, adapterMap{}, NewStarter(e.st, e.sessions, "", nil), svc, bus, time.Hour, nil)
+	d.SetVerifier(NewVerifier(c, 30*time.Second))
+	dctx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() { d.Run(dctx); close(done) }()
+	defer func() { cancel(); <-done }()
+	if _, err := svc.Reverify(ctx, it.ID); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		d.Sync()
+		if got, _ := e.st.QueueItem(ctx, it.ID); got.Status == store.ItemDone {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("reverify never finished")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if out := testenv.Sh(t, c, "cat "+verifyDir+"/reverify"); out != "x\n" {
+		t.Fatalf("verify output file %q", out)
+	}
+	if sessions := testenv.Sh(t, c, "tmux ls 2>/dev/null | wc -l"); strings.TrimSpace(sessions) != "0" {
+		t.Fatalf("reverify created tmux sessions: %s", sessions)
+	}
+	if latest, _ := e.st.LatestRunForItem(ctx, it.ID); latest.ID != run.ID {
+		t.Fatalf("reverify created a run: %s", latest.ID)
+	}
+}

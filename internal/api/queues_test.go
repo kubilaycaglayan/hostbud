@@ -86,6 +86,10 @@ func (f *fakeQueues) Reject(_ context.Context, id string, actor queue.Actor) (qu
 	f.rec("reject " + id + " by " + actor.ID)
 	return queue.View{}, f.err
 }
+func (f *fakeQueues) Reverify(_ context.Context, id string) (queue.View, error) {
+	f.rec("reverify " + id)
+	return queue.View{}, f.err
+}
 func (f *fakeQueues) Override(_ context.Context, id, action string) (queue.View, error) {
 	f.rec(action + " " + id)
 	return queue.View{}, f.err
@@ -296,8 +300,9 @@ func TestQueueApprovalRoutes(t *testing.T) {
 	q := &fakeQueues{}
 	h := queueEnv(t, q)
 	for path, call := range map[string]string{
-		"/api/queue-items/item_a/approve": "approve item_a by u1",
-		"/api/queue-items/item_a/reject":  "reject item_a by u1",
+		"/api/queue-items/item_a/approve":  "approve item_a by u1",
+		"/api/queue-items/item_a/reject":   "reject item_a by u1",
+		"/api/queue-items/item_a/reverify": "reverify item_a",
 	} {
 		q.calls = nil
 		if rec := queueRequest(t, h, "POST", path, "", nil); rec.Code != 200 || len(q.calls) != 1 || q.calls[0] != call {

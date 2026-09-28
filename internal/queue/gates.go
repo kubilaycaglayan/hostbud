@@ -321,3 +321,35 @@ func (d *Dispatcher) resolveApproval(ctx context.Context, itemID string, approve
 	d.gateAttention(ctx, item.QueueID, nil)
 	return nil
 }
+
+// Reverify starts a new verify attempt for a needs-attention item whose
+// latest run achieved, on the dispatcher goroutine (the owner's Re-run
+// verify). store.ErrConflict: the item left needs_attention first.
+func (d *Dispatcher) Reverify(ctx context.Context, itemID string) error {
+	done := make(chan error, 1)
+	d.enqueue(func(ctx context.Context) {
+		item, err := d.store.QueueItem(ctx, itemID)
+		if err != nil {
+			done <- err
+			return
+		}
+		run, err := d.store.LatestRunForItem(ctx, itemID)
+		switch {
+		case err != nil:
+			done <- err
+		case item.Status != store.ItemNeedsAttention || run.Status != store.RunAchieved || item.VerifyCommand == "":
+			done <- store.ErrConflict
+		case !d.startVerify(ctx, run, itemID, item.QueueID, []string{store.ItemNeedsAttention}):
+			done <- store.ErrConflict
+		default:
+			d.log.Info("verify re-run by the owner", "item", itemID)
+			done <- nil
+		}
+	})
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}

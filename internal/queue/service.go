@@ -90,6 +90,9 @@ type Control interface {
 	// ResolveApproval applies Approve or Reject (V2-M4); store.ErrConflict
 	// when the item left awaiting_approval first.
 	ResolveApproval(ctx context.Context, itemID string, approve bool, actor Actor) error
+	// Reverify starts a new verify attempt for a needs-attention item whose
+	// run achieved (V2-M4); store.ErrConflict when it changed first.
+	Reverify(ctx context.Context, itemID string) error
 }
 
 // RunSummary is an item's latest run, as the panel shows it.
@@ -179,7 +182,13 @@ type Service struct {
 	dispatch  Control
 	machine   string
 	parallel  atomic.Bool
+	// verifyTimeout is HOSTBUD_VERIFY_TIMEOUT, for the owner's messages.
+	verifyTimeout time.Duration
 }
+
+// SetVerifyTimeout records HOSTBUD_VERIFY_TIMEOUT for the owner's messages
+// ("wait for verify, at most 10m").
+func (s *Service) SetVerifyTimeout(d time.Duration) { s.verifyTimeout = d }
 
 // NewService returns the queue service for the host machine.
 func NewService(st Store, validator ItemValidator, bus *events.Bus) *Service {
@@ -857,7 +866,13 @@ func (s *Service) Override(ctx context.Context, itemID, action string) (View, er
 	if to == "" {
 		return View{}, notFound("unknown action", "")
 	}
-	if it.Status != store.ItemNeedsAttention {
+	switch it.Status {
+	case store.ItemNeedsAttention:
+	case store.ItemVerifying:
+		return View{}, conflict("this item is verifying; wait for verify"+s.atMost()+", then "+actionWords(action)+" it if it needs attention", hintReload)
+	case store.ItemAwaitingApproval:
+		return View{}, conflict("this item is awaiting approval; Approve it, or Reject it first to "+actionWords(action)+" it", hintReload)
+	default:
 		return View{}, conflict("this item is "+statusWords(it.Status)+"; "+actionWords(action)+" is only for items that need attention", hintReload)
 	}
 	if s.dispatch != nil {
@@ -866,11 +881,53 @@ func (s *Service) Override(ctx context.Context, itemID, action string) (View, er
 		}
 	}
 	if _, err := s.store.TransitionQueueItem(ctx, itemID, []string{store.ItemNeedsAttention}, to); errors.Is(err, store.ErrConflict) {
-		return View{}, conflict("the item changed meanwhile", hintReload)
+		now, _ := s.store.QueueItem(ctx, itemID)
+		return View{}, conflict("the item changed meanwhile; it is "+statusWords(now.Status)+" now", hintReload)
 	} else if err != nil {
 		return View{}, err
 	}
 	return s.changed(ctx, "item_"+action, it.QueueID)
+}
+
+// Reverify runs a needs-attention item's verify command again, without
+// rerunning the agent (V2-M4): only when its latest run achieved and it has
+// a verify command. The approval gate follows if set. Like every owner
+// action, the queue stays paused until Resume.
+func (s *Service) Reverify(ctx context.Context, itemID string) (View, error) {
+	it, err := s.item(ctx, itemID)
+	if err != nil {
+		return View{}, err
+	}
+	switch {
+	case it.Status != store.ItemNeedsAttention:
+		return View{}, conflict("this item is "+statusWords(it.Status)+"; Re-run verify is only for items that need attention", hintReload)
+	case it.VerifyCommand == "":
+		return View{}, conflict("this item has no verify command", "Edit its gates to add one, or use Retry to rerun the agent.")
+	}
+	runs, err := s.store.LatestRuns(ctx, it.QueueID)
+	if err != nil {
+		return View{}, err
+	}
+	if r, ok := runs[it.ID]; !ok || r.Status != store.RunAchieved {
+		return View{}, conflict("the item's run didn't achieve its goal, so there is nothing to verify", "Retry reruns the agent.")
+	}
+	if s.dispatch == nil {
+		return View{}, conflict("the queue runner isn't available", hintReload)
+	}
+	if err := s.dispatch.Reverify(ctx, itemID); errors.Is(err, store.ErrConflict) {
+		now, _ := s.store.QueueItem(ctx, itemID)
+		return View{}, conflict("the item changed meanwhile; it is "+statusWords(now.Status)+" now", hintReload)
+	} else if err != nil {
+		return View{}, err
+	}
+	return s.Get(ctx, it.QueueID)
+}
+
+func (s *Service) atMost() string {
+	if s.verifyTimeout <= 0 {
+		return ""
+	}
+	return ", at most " + formatTimeout(s.verifyTimeout)
 }
 
 // Approve marks an item awaiting approval done; its queue then advances

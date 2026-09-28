@@ -40,6 +40,8 @@ func (d *recordingDispatch) ResolveApproval(context.Context, string, bool, Actor
 	return nil
 }
 
+func (d *recordingDispatch) Reverify(context.Context, string) error { return nil }
+
 func (d *recordingDispatch) EndActiveRun(_ context.Context, item store.QueueItem, action string) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()

@@ -29,6 +29,7 @@ type QueueService interface {
 	Override(ctx context.Context, itemID, action string) (queue.View, error)
 	Approve(ctx context.Context, itemID string, actor queue.Actor) (queue.View, error)
 	Reject(ctx context.Context, itemID string, actor queue.Actor) (queue.View, error)
+	Reverify(ctx context.Context, itemID string) (queue.View, error)
 	ParallelQueues() bool
 	Capacity(ctx context.Context) (*int, error)
 	SetCapacity(ctx context.Context, maxRuns *int) (*int, error)
@@ -54,6 +55,7 @@ func mountQueueRoutes(s *server, addFunc func(string, http.HandlerFunc)) {
 	// V2-M4: the approval gate's owner actions.
 	addFunc("POST /api/queue-items/{id}/approve", s.queueApproval(true))
 	addFunc("POST /api/queue-items/{id}/reject", s.queueApproval(false))
+	addFunc("POST /api/queue-items/{id}/reverify", s.queueReverify)
 	// V2-M2: the per-machine cap on active runs (Settings).
 	addFunc("GET /api/machines/{machine}/capacity", s.getCapacity)
 	addFunc("PUT /api/machines/{machine}/capacity", s.putCapacity)
@@ -357,4 +359,13 @@ func (s *server) queueApproval(approve bool) http.HandlerFunc {
 		}
 		writeJSON(w, http.StatusOK, v)
 	}
+}
+
+func (s *server) queueReverify(w http.ResponseWriter, r *http.Request) {
+	v, err := s.cfg.Queues.Reverify(r.Context(), r.PathValue("id"))
+	if err != nil {
+		s.queueError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, v)
 }

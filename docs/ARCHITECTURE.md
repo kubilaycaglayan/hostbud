@@ -339,20 +339,22 @@ GET    /api/projects/:id/recent-commands — the project's recent start-command 
 GET|PUT /api/ui-state/:key            the account's JSON (GET 404 before the first PUT; PUT 204)
 GET    /api/health
 
-# v2 agent queue (V2-M1, V2-M2; docs/roadmap-v2)
+# v2 agent queue (V2-M1, V2-M2, V2-M4; docs/roadmap-v2)
 GET    /api/queues                    {queues: [queue], parallelQueues} — each queue with its project, items (each with its latest run summary and, V2-M2, waitingForSlot) and warnings (shared_directory)
 POST   /api/queues                    {projectId, name} — 201; with parallel queues off one queue (a second → 409 naming V2-M2), on: several, names unique per project (409)
 GET    /api/queues/:id
 PATCH  /api/queues/:id                {name}
-DELETE /api/queues/:id                204; refused (409) while a run is active; run sessions stay open
-POST   /api/queues/:id/items          {agent, flags, instruction} — appended; agent claude|codex, flags split like a shell, instruction "/goal <condition>"
-PATCH  /api/queue-items/:id           any subset of {agent, flags, instruction}; queued items only (409 otherwise)
+DELETE /api/queues/:id                204; refused (409) while a run is active or an item is verifying; run sessions stay open
+POST   /api/queues/:id/items          {agent, flags, instruction, verifyCommand?, requiresApproval?} — appended; agent claude|codex, flags split like a shell, instruction "/goal <condition>"; V2-M4 gates: verifyCommand splits like flags, ≤ 4096 bytes, one line ("" = none)
+PATCH  /api/queue-items/:id           any subset of {agent, flags, instruction, verifyCommand, requiresApproval}; queued items only, or only the two gate fields on a needs_attention item (V2-M4); 409 otherwise
 DELETE /api/queue-items/:id           queued items only
 PUT    /api/queues/:id/order          {itemIds} — exactly the queued items, in their new order
 POST   /api/queues/:id/start|pause|resume        an invalid transition → 409 naming the current state; switch off: 409 while another queue is active; the response carries warnings
 GET|PUT /api/machines/:id/capacity    {maxConcurrentRuns: 1–32 | null} — the per-machine cap on active runs (V2-M2; PUT out of range or not a whole number → 400; publishes queue.changed)
 PUT    /api/machines/:id/parallel-queues {parallelQueues: bool} — the parallel-queues switch (Queue panel), stored in machine_capacity.parallel_queues over the HOSTBUD_PARALLEL_QUEUES default; publishes queue.changed (each payload carries parallelQueues); switching off stops no run
 POST   /api/queue-items/:id/retry|skip|mark-done needs_attention items only (409 otherwise); an active run is cancelled first
+POST   /api/queue-items/:id/approve|reject      V2-M4: awaiting_approval items only (409 naming the state otherwise); approve ⇒ done and the queue advances, reject ⇒ needs_attention and the queue pauses
+POST   /api/queue-items/:id/reverify           V2-M4: Re-run verify on a needs_attention item whose latest run achieved and that has a verify command (409 otherwise); no new run or session
 POST   /api/hooks/:run_id/:event      token-authenticated run hook (session_start|turn_end|session_end): 204/401/404/410/429/413/400
 
 # v2 notifications (V2-M3, opt-in per account; docs/roadmap-v2)
@@ -465,6 +467,9 @@ M7 also configures the exec and SFTP deadlines and terminal attachment caps:
 `HOSTBUD_EXEC_TIMEOUT` (10 s, 2 s–2 min), `HOSTBUD_SFTP_TIMEOUT` (10 s,
 2 s–2 min), `HOSTBUD_UPLOAD_TIMEOUT` (5 min, 30 s–10 min; M8 T10), `HOSTBUD_MAX_TERMINALS_PER_USER` (32, 1–256), and
 `HOSTBUD_MAX_TERMINALS` (128, 1–1024). See §15 for the full inventory.
+v2 queues add `HOSTBUD_RUN_STALE_AFTER` (2 h, 10 s–24 h), `HOSTBUD_PARALLEL_QUEUES`
+(V2-M2), the `HOSTBUD_VAPID_*` keys (V2-M3) and `HOSTBUD_VERIFY_TIMEOUT` (V2-M4:
+10 min, 5 s–2 h; the bound on an item's verify command, see §15 and v2 §5.6).
 The optional domain identity gate uses `HOSTBUD_ALLOWED_TS_USERS` and
 `TAILSCALED_SOCKET` only when `deploy/compose.tailscale.yml` is enabled.
 
@@ -601,6 +606,7 @@ Every bound is recorded here with its enforcement point and the result when it i
 | v2 run hook rate | Token bucket per run: 60 a minute, burst 20 | `queue.Hooks` | 429 with no side effect; logged at info with the run id only | n/a | No |
 | v2 goal-state reads | Claude transcript: SFTP, 4 MiB per read from the stored offset, `HOSTBUD_SFTP_TIMEOUT`; Codex: one `codex app-server proxy` JSON-RPC call bounded by `HOSTBUD_EXEC_TIMEOUT`; follow-up reads 2/5/15/30/60 s after a pending turn end | `agents.Claude`, `agents.Codex`, `queue.Dispatcher` | A failed read is retried on the next signal or follow-up | Run stays running; unknown formats set needs attention | Via the SFTP and exec timeouts |
 | v2 stale window | `HOSTBUD_RUN_STALE_AFTER` default 2 h, 10 s–24 h, from the last signal (or start) | `queue.Dispatcher` stale timer | One last read, then the run is `stale`, its item needs attention and the queue pauses; nothing is killed | Needs-attention badge with the reason | Yes: `HOSTBUD_RUN_STALE_AFTER` |
+| V2-M4 verify command | `HOSTBUD_VERIFY_TIMEOUT` default 10 min, 5 s–2 h, by the remote `timeout -k 10s`; local deadline + 15 s; preflight 30 s; 16 KiB output tail; command 4096 bytes, one line | `queue.Verifier`, `sshx.Client.ExecTo`, `store.NormalizeVerifyCommand` | Remote `timeout` stops the command's process group (SIGKILL 10 s later); the item needs attention and the queue pauses; only the tail is kept | "verify timed out after 10m" as the item's reason; the output tail with a "truncated" note | Yes: `HOSTBUD_VERIFY_TIMEOUT` |
 | V2-M3 notification payload | 1 KiB JSON; allowlisted fields only; project name 80 characters | `notify.Build`, `Payload.JSON`, `notification_outbox` CHECK | The name is cut; nothing else can enter the payload | n/a | No |
 | Push delivery | 10 s per POST (dial, TLS, headers); no redirects; public addresses only; at most 3 retries on network errors, 429 and 5xx (1/5/25 s, `Retry-After` up to 60 s); 4 devices at a time | `notify.Sender` | 404/410 delete the subscription; other 4xx and exhausted retries mark the delivery failed; a claimed delivery is never re-sent | The notification doesn't arrive; Settings → Send test notification checks a device | No |
 | Push message lifetime | `TTL` 24 h; `Topic` = hashed dedupe key; `Urgency: high` for needs attention | `notify.Sender` | The push service drops it after 24 h and keeps one per key | n/a | No |
