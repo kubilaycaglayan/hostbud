@@ -135,4 +135,22 @@ func TestIntegrationCapacityRouteUsesPostgres(t *testing.T) {
 	if status, body := call("GET", "/api/queues", "", "", true); status != 200 || !strings.Contains(body, `"parallelQueues":true`) {
 		t.Fatalf("GET /api/queues: %d %s", status, body)
 	}
+
+	// The parallel-queues switch: stored, reported, and a refused request
+	// changes nothing.
+	if status, _ := call("PUT", "/api/machines/host/parallel-queues", `{"parallelQueues":false}`, "http://evil.example.com", true); status != http.StatusForbidden {
+		t.Fatalf("switch with a bad Origin: %d", status)
+	}
+	if v, _ := repo.ParallelQueuesSetting(ctx, store.HostMachineID); v != nil {
+		t.Fatalf("a refused request stored the switch: %v", *v)
+	}
+	if status, body := call("PUT", "/api/machines/host/parallel-queues", `{"parallelQueues":false}`, origin, true); status != 200 || body != `{"parallelQueues":false}` {
+		t.Fatalf("switch off: %d %s", status, body)
+	}
+	if v, _ := repo.ParallelQueuesSetting(ctx, store.HostMachineID); v == nil || *v {
+		t.Fatalf("stored switch %v", v)
+	}
+	if status, body := call("GET", "/api/queues", "", "", true); status != 200 || !strings.Contains(body, `"parallelQueues":false`) {
+		t.Fatalf("GET /api/queues after switch off: %d %s", status, body)
+	}
 }

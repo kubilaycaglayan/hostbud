@@ -167,7 +167,7 @@ A **queue** runs coding agents one after another in one project: each item start
 
 ### Parallel queues (opt-in)
 
-Set `HOSTBUD_PARALLEL_QUEUES=true` in `.env` and run `make deploy` to allow several queues that run at the same time. Each queue stays strictly sequential. Off (the default) keeps one queue; queues created while it was on stay listed, but only one runs at a time (starting another says which queue to pause first). Switching it off never stops a run.
+Tick **Run queues in parallel** in the Queue panel to allow several queues that run at the same time; it applies at once, no redeploy. Each queue stays strictly sequential. Off keeps one queue; queues created while it was on stay listed, but only one runs at a time (starting another says which queue to pause first). Switching it off never stops a run. `HOSTBUD_PARALLEL_QUEUES` in `.env` (default `false`) is only the initial value until you use the switch.
 
 - **New queue** in the Queue panel creates another one (names are unique per project). The switcher shows every queue: buttons on a desktop, a select on the phone. **Rename** and **Delete queue** (asks first; refused while a run is active) act on the queue shown.
 - **Same directory**: when two running queues work in the same project directory, both show a warning, because their agents may edit the same files. hostbud doesn't block it.

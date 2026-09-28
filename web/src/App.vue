@@ -699,6 +699,7 @@ onUnmounted(() => {
     <QueuePanel
       v-model:open="queueOpen"
       :compact="compact"
+      :machine="MACHINE"
       @open-session="openQueueSession"
     />
     <SettingsDialog v-model:open="settingsOpen" :compact="compact" :machine="MACHINE" />

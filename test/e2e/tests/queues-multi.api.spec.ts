@@ -190,12 +190,45 @@ test.describe('parallel queues switched off', () => {
     const refused = await control(request, leftoverId, 'start')
     expect(refused.status()).toBe(409)
     expect((await refused.json()).error).toBe(
-      'Parallel queues are off — pause queue Alpha and wait for its run to end, or set `HOSTBUD_PARALLEL_QUEUES=true`',
+      'Parallel queues are off — pause queue Alpha and wait for its run to end, or turn on Run queues in parallel in the Queue panel',
     )
     // Nothing was cancelled: Alpha's run finishes on its own, then the
     // leftover queue may start.
     await expect.poll(async () => (await getQueue(request, a.queue.id)).status, { timeout: 30_000 }).toBe('finished')
     expect((await control(request, leftoverId, 'start')).status()).toBe(200)
     await expect.poll(async () => (await getQueue(request, leftoverId)).status, { timeout: 30_000 }).toBe('finished')
+  })
+})
+
+// The owner's switch (Queue panel) on the switch-off app: turning it on
+// allows a second queue without a redeploy; turning it off stops nothing.
+test.describe('parallel queues switch', () => {
+  test('(parallel toggle) Switch on and off without a redeploy', async ({ request, target }) => {
+    await queues.deleteAll() // also clears the stored switch
+    try {
+      const p = await newProject(request, target, 'e2e-toggle')
+      await createQueue(request, p.id, 'Alpha')
+      expect((await mutate(request, 'POST', '/api/queues', { projectId: p.id, name: 'Beta' })).status()).toBe(409)
+
+      const path = '/api/machines/host/parallel-queues'
+      expect((await mutate(request, 'PUT', path, { parallelQueues: true }, 'http://evil.example.com')).status()).toBe(403)
+      expect((await (await request.get('/api/queues')).json()).parallelQueues).toBe(false)
+      const on = await mutate(request, 'PUT', path, { parallelQueues: true })
+      expect(await on.json()).toEqual({ parallelQueues: true })
+      expect((await (await request.get('/api/queues')).json()).parallelQueues).toBe(true)
+      await createQueue(request, p.id, 'Beta')
+      expect((await mutate(request, 'PUT', path, {})).status()).toBe(400)
+      expect((await mutate(request, 'PUT', '/api/machines/server-a/parallel-queues', { parallelQueues: true })).status()).toBe(404)
+
+      const off = await mutate(request, 'PUT', path, { parallelQueues: false })
+      expect(await off.json()).toEqual({ parallelQueues: false })
+      const list = await (await request.get('/api/queues')).json()
+      expect(list.parallelQueues).toBe(false)
+      expect(list.queues.map((q: { name: string }) => q.name).sort()).toEqual(['Alpha', 'Beta'])
+    } finally {
+      // The app keeps the switch in memory too: switch it off through the API.
+      await mutate(request, 'PUT', '/api/machines/host/parallel-queues', { parallelQueues: false })
+      await queues.deleteAll()
+    }
   })
 })

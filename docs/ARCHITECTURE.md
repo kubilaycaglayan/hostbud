@@ -341,7 +341,7 @@ GET    /api/health
 
 # v2 agent queue (V2-M1, V2-M2; docs/roadmap-v2)
 GET    /api/queues                    {queues: [queue], parallelQueues} — each queue with its project, items (each with its latest run summary and, V2-M2, waitingForSlot) and warnings (shared_directory)
-POST   /api/queues                    {projectId, name} — 201; with HOSTBUD_PARALLEL_QUEUES off one queue (a second → 409 naming V2-M2), on: several, names unique per project (409)
+POST   /api/queues                    {projectId, name} — 201; with parallel queues off one queue (a second → 409 naming V2-M2), on: several, names unique per project (409)
 GET    /api/queues/:id
 PATCH  /api/queues/:id                {name}
 DELETE /api/queues/:id                204; refused (409) while a run is active; run sessions stay open
@@ -351,6 +351,7 @@ DELETE /api/queue-items/:id           queued items only
 PUT    /api/queues/:id/order          {itemIds} — exactly the queued items, in their new order
 POST   /api/queues/:id/start|pause|resume        an invalid transition → 409 naming the current state; switch off: 409 while another queue is active; the response carries warnings
 GET|PUT /api/machines/:id/capacity    {maxConcurrentRuns: 1–32 | null} — the per-machine cap on active runs (V2-M2; PUT out of range or not a whole number → 400; publishes queue.changed)
+PUT    /api/machines/:id/parallel-queues {parallelQueues: bool} — the parallel-queues switch (Queue panel), stored in machine_capacity.parallel_queues over the HOSTBUD_PARALLEL_QUEUES default; publishes queue.changed (each payload carries parallelQueues); switching off stops no run
 POST   /api/queue-items/:id/retry|skip|mark-done needs_attention items only (409 otherwise); an active run is cancelled first
 POST   /api/hooks/:run_id/:event      token-authenticated run hook (session_start|turn_end|session_end): 204/401/404/410/429/413/400
 
@@ -466,7 +467,9 @@ stale and its queue pauses, and `HOSTBUD_HOOK_BASE_URL` (empty = Caddy's
 loopback site `http://127.0.0.1:${HOSTBUD_LOCAL_PORT}`), the `HOSTBUD_URL`
 a run session's hooks call. Both reach only the `hostbud` service.
 V2-M2 adds `HOSTBUD_PARALLEL_QUEUES` (`true` or `false`, default `false`, also
-only for `hostbud`): several queues and parallel runs. The per-machine run cap
+only for `hostbud`): several queues and parallel runs. It is only the default:
+the Queue panel's switch (`PUT /api/machines/:id/parallel-queues`) is stored
+in the database and wins once set. The per-machine run cap
 is not an env var; it is set in Settings (`PUT /api/machines/:id/capacity`).
 
 ---

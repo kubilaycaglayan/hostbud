@@ -99,6 +99,14 @@ func (f *fakeQueues) SetCapacity(_ context.Context, maxRuns *int) (*int, error) 
 	return maxRuns, f.err
 }
 
+func (f *fakeQueues) SetParallel(_ context.Context, on bool) (bool, error) {
+	f.rec(fmt.Sprintf("set-parallel %v", on))
+	if f.err == nil {
+		f.parallel = on
+	}
+	return f.parallel, f.err
+}
+
 func queueEnv(t *testing.T, q *fakeQueues) http.Handler {
 	t.Helper()
 	return New(Config{
@@ -214,6 +222,12 @@ func TestCapacityRouteAndParallelFlag(t *testing.T) {
 		{"PUT", "/api/machines/host/capacity", `{"maxConcurrentRuns":2,"extra":1}`, 400, "", ""},
 		{"PUT", "/api/machines/server-a/capacity", `{"maxConcurrentRuns":2}`, 404, "", ""},
 		{"GET", "/api/machines/server-a/capacity", "", 404, "", ""},
+		{"PUT", "/api/machines/host/parallel-queues", `{"parallelQueues":false}`, 200, "set-parallel false", `{"parallelQueues":false}`},
+		{"PUT", "/api/machines/host/parallel-queues", `{"parallelQueues":true}`, 200, "set-parallel true", `{"parallelQueues":true}`},
+		{"PUT", "/api/machines/host/parallel-queues", `{}`, 400, "", ""},
+		{"PUT", "/api/machines/host/parallel-queues", `{"parallelQueues":"true"}`, 400, "", ""},
+		{"PUT", "/api/machines/host/parallel-queues", `{"parallelQueues":true,"extra":1}`, 400, "", ""},
+		{"PUT", "/api/machines/server-a/parallel-queues", `{"parallelQueues":true}`, 404, "", ""},
 	} {
 		q.calls = nil
 		rec := queueRequest(t, h, c.method, c.path, c.body, nil)

@@ -145,3 +145,35 @@ func (s *Store) CreateRunInSlot(ctx context.Context, itemID string, tokenHash []
 	})
 	return r, err
 }
+
+// ParallelQueuesSetting returns the owner's parallel-queues switch for the
+// machine; nil means not set (the HOSTBUD_PARALLEL_QUEUES default applies).
+func (s *Store) ParallelQueuesSetting(ctx context.Context, machineID string) (*bool, error) {
+	var v sql.NullBool
+	err := s.db.QueryRowContext(ctx, `SELECT parallel_queues FROM machine_capacity WHERE machine_id = $1`, machineID).Scan(&v)
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && !v.Valid) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	on := v.Bool
+	return &on, nil
+}
+
+// SetParallelQueuesSetting stores the owner's parallel-queues switch; the
+// machine's cap is kept.
+func (s *Store) SetParallelQueuesSetting(ctx context.Context, machineID string, on bool) error {
+	res, err := s.db.ExecContext(ctx, `
+		INSERT INTO machine_capacity (machine_id, parallel_queues, updated_at)
+		SELECT id, $2, $3 FROM machines WHERE id = $1
+		ON CONFLICT (machine_id) DO UPDATE SET parallel_queues = EXCLUDED.parallel_queues, updated_at = EXCLUDED.updated_at`,
+		machineID, on, s.now())
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}

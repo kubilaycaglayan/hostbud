@@ -74,6 +74,6 @@ describe('SettingsDialog', () => {
 
   it('explains that the cap waits for the parallel-queues switch', async () => {
     await mountSettings(null, false)
-    expect($$('[data-testid="parallel-off"]')[0].textContent).toContain('HOSTBUD_PARALLEL_QUEUES')
+    expect($$('[data-testid="parallel-off"]')[0].textContent).toContain('Run queues in parallel')
   })
 })

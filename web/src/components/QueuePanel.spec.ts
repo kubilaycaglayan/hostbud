@@ -216,8 +216,26 @@ describe('QueuePanel', () => {
     expect($$('nav[aria-label="Queues"] button')).toHaveLength(2)
     const newButton = $$('button').find((b) => b.textContent?.trim() === 'New queue') as HTMLButtonElement
     expect(newButton.disabled).toBe(true)
-    expect(newButton.title).toContain('HOSTBUD_PARALLEL_QUEUES=true')
-    expect($$('[data-testid="parallel-off"]')[0].textContent).toContain('HOSTBUD_PARALLEL_QUEUES=true')
+    expect(newButton.title).toContain('Run queues in parallel')
+    expect($$('[data-testid="parallel-off"]')[0].textContent).toContain('One queue at a time')
+    expect(($$('[data-testid="parallel-toggle"]')[0] as HTMLInputElement).checked).toBe(false)
+  })
+
+  it('turns parallel queues on and off from the panel, no redeploy', async () => {
+    const calls = stubFetch((_m, _p, body) => ({ status: 200, body }))
+    await mountPanel([queue([queued], 'idle')], false, false)
+    const toggle = () => $$('[data-testid="parallel-toggle"]')[0] as HTMLInputElement
+    toggle().click()
+    await flushPromises()
+    expect(calls).toEqual([{ method: 'PUT', path: '/api/machines/host/parallel-queues', body: { parallelQueues: true } }])
+    expect(useQueuesStore().parallelQueues).toBe(true)
+    expect(toggle().checked).toBe(true)
+    expect($$('[data-testid="parallel-off"]')).toHaveLength(0)
+    expect(($$('button').find((b) => b.textContent?.trim() === 'New queue') as HTMLButtonElement).disabled).toBe(false)
+    toggle().click()
+    await flushPromises()
+    expect(calls[1]).toEqual({ method: 'PUT', path: '/api/machines/host/parallel-queues', body: { parallelQueues: false } })
+    expect(useQueuesStore().parallelQueues).toBe(false)
   })
 
   it('renames the queue', async () => {

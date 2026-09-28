@@ -60,7 +60,7 @@ Written in T2–T5 and type-checked; run on demand (desktop and `iphone-13-pro`)
 ## Manual checks (owner; backlog, not blockers)
 
 - [ ] Two real agents in parallel on separate projects (ROADMAP).
-- [ ] Decide whether to set `HOSTBUD_PARALLEL_QUEUES=true` in production (safe default: off).
+- [ ] Decide whether to turn on parallel queues in production (Queue panel → Run queues in parallel, no redeploy; safe default: off).
 
 ## Definition of done
 

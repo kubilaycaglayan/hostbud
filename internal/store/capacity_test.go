@@ -231,3 +231,40 @@ func TestCreateRunInSlotHoldsTheCapUnderConcurrency(t *testing.T) {
 		t.Fatalf("an ended run frees its slot: %v", err)
 	}
 }
+
+// The parallel-queues setting: unset by default, stored per machine, and
+// independent of the cap (setting one keeps the other).
+func TestParallelQueuesSetting(t *testing.T) {
+	ctx := context.Background()
+	s, _ := queueFixture(t)
+	if v, err := s.ParallelQueuesSetting(ctx, HostMachineID); err != nil || v != nil {
+		t.Fatalf("no row: %v %v, want nil (env default)", v, err)
+	}
+	two := 2
+	if err := s.SetMachineCapacity(ctx, HostMachineID, &two); err != nil {
+		t.Fatal(err)
+	}
+	if v, err := s.ParallelQueuesSetting(ctx, HostMachineID); err != nil || v != nil {
+		t.Fatalf("cap only: %v %v, want nil", v, err)
+	}
+	for _, on := range []bool{true, false, true} {
+		if err := s.SetParallelQueuesSetting(ctx, HostMachineID, on); err != nil {
+			t.Fatal(err)
+		}
+		if v, err := s.ParallelQueuesSetting(ctx, HostMachineID); err != nil || v == nil || *v != on {
+			t.Fatalf("set %v read back as %v, %v", on, v, err)
+		}
+	}
+	if c, err := s.MachineCapacity(ctx, HostMachineID); err != nil || c == nil || *c != 2 {
+		t.Fatalf("the switch changed the cap: %v %v", c, err)
+	}
+	if err := s.SetMachineCapacity(ctx, HostMachineID, nil); err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := s.ParallelQueuesSetting(ctx, HostMachineID); v == nil || !*v {
+		t.Fatalf("clearing the cap changed the switch: %v", v)
+	}
+	if err := s.SetParallelQueuesSetting(ctx, "server-a", true); !errors.Is(err, ErrNotFound) {
+		t.Errorf("unknown machine: %v, want ErrNotFound", err)
+	}
+}

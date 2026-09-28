@@ -88,7 +88,7 @@ async function save() {
               How many queue runs may be active at once on this machine. A run that went stale still counts until you act on it. Leave it empty for no cap.
             </p>
             <p v-if="!queues.parallelQueues" data-testid="parallel-off" class="text-sm text-muted">
-              Parallel queues are off (<span class="font-mono">HOSTBUD_PARALLEL_QUEUES</span>), so one queue runs at a time; the cap applies once they're on.
+              Parallel queues are off (Queue panel → Run queues in parallel), so one queue runs at a time; the cap applies once they're on.
             </p>
             <label class="block">Maximum parallel runs
               <input

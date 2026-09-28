@@ -76,6 +76,7 @@ cp "$tmp/routes.json" "$fixture/internal/api/testdata/routes.json"
 grep -q '^HOSTBUD_PARALLEL_QUEUES=false$' "$repo/.env.example" || { echo 'HOSTBUD_PARALLEL_QUEUES missing from .env.example' >&2; exit 1; }
 grep -q 'HOSTBUD_PARALLEL_QUEUES' "$repo/README.md" || { echo 'README misses HOSTBUD_PARALLEL_QUEUES' >&2; exit 1; }
 grep -q '^GET|PUT /api/machines/:id/capacity' "$repo/docs/ARCHITECTURE.md" || { echo 'ARCHITECTURE §9 misses the capacity route' >&2; exit 1; }
+grep -q '^PUT    /api/machines/:id/parallel-queues' "$repo/docs/ARCHITECTURE.md" || { echo 'ARCHITECTURE §9 misses the parallel-queues route' >&2; exit 1; }
 
 printf '\nAlso run `make missing-target`.\n' >>"$fixture/README.md"
 assert_fail sh "$fixture/scripts/check-docs.sh" "$fixture"

@@ -33,7 +33,7 @@ export const useQueuesStore = defineStore('queues', () => {
   const queues = ref<Queue[]>([])
   const loaded = ref(false)
   const loadError = ref('')
-  /** HOSTBUD_PARALLEL_QUEUES (V2-M2): several queues, parallel runs. */
+  /** The parallel-queues switch (V2-M2): several queues, parallel runs. */
   const parallelQueues = ref(false)
   let loading: Promise<void> | null = null
 
@@ -62,6 +62,7 @@ export const useQueuesStore = defineStore('queues', () => {
         break
       case 'queue.changed':
         queues.value = applyQueueChanged(queues.value, e.payload)
+        if (typeof e.payload.parallelQueues === 'boolean') parallelQueues.value = e.payload.parallelQueues
         break
       case 'run.changed':
         queues.value = applyRunChanged(queues.value, e.payload)

@@ -120,7 +120,7 @@ func TestSwitchOffRefusesSecondActiveQueue(t *testing.T) {
 	if _, err := e.svc.Start(ctx, a.ID); err != nil {
 		t.Fatal(err)
 	}
-	want := "Parallel queues are off — pause queue Alpha and wait for its run to end, or set `HOSTBUD_PARALLEL_QUEUES=true`"
+	want := "Parallel queues are off — pause queue Alpha and wait for its run to end, or turn on Run queues in parallel in the Queue panel"
 	if _, err := e.svc.Start(ctx, b.ID); queueStatus(err) != http.StatusConflict || err.Error() != want {
 		t.Fatalf("start while Alpha runs: %v", err)
 	}
@@ -232,5 +232,61 @@ func TestSharedDirectoryWarning(t *testing.T) {
 				t.Errorf("Alpha still warned after Beta paused: %v", got.Warnings)
 			}
 		})
+	}
+}
+
+// The owner's switch (Queue panel): stored, applied at once, loaded over
+// the env default at startup; every queue hears the new value; switching
+// on hands out slots, switching off stops nothing.
+func TestSetParallelStoresAndPublishes(t *testing.T) {
+	e := newServiceEnv(t)
+	ctx := context.Background()
+	a, _ := e.svc.Create(ctx, "project_a", "Alpha")
+	if _, err := e.svc.Create(ctx, "project_a", "Beta"); queueStatus(err) != http.StatusConflict {
+		t.Fatalf("second queue while off: %v", err)
+	}
+	e.drain()
+	if on, err := e.svc.SetParallel(ctx, true); err != nil || !on || !e.svc.ParallelQueues() {
+		t.Fatalf("switch on: %v %v", on, err)
+	}
+	if got := e.drain(); len(got) != 1 || got[0].QueueID != a.ID || !got[0].ParallelQueues {
+		t.Fatalf("queue.changed after switch on: %+v", got)
+	}
+	if e.dispatch.capacityChanges != 1 {
+		t.Fatalf("switch on handed out slots %d times, want 1", e.dispatch.capacityChanges)
+	}
+	if _, err := e.svc.Create(ctx, "project_a", "Beta"); err != nil {
+		t.Fatalf("second queue while on: %v", err)
+	}
+	_, _ = e.svc.AddItem(ctx, a.ID, "claude", "", "/goal a1")
+	if _, err := e.svc.Start(ctx, a.ID); err != nil {
+		t.Fatal(err)
+	}
+	e.drain()
+	if on, err := e.svc.SetParallel(ctx, false); err != nil || on || e.svc.ParallelQueues() {
+		t.Fatalf("switch off: %v %v", on, err)
+	}
+	got := e.drain()
+	if len(got) != 2 || got[0].ParallelQueues || got[1].ParallelQueues {
+		t.Fatalf("queue.changed after switch off: %+v", got)
+	}
+	if q, _ := e.svc.Get(ctx, a.ID); q.Status != store.QueueRunning {
+		t.Fatalf("switch off changed a running queue: %s", q.Status)
+	}
+	if e.dispatch.capacityChanges != 1 {
+		t.Fatalf("switch off handed out slots")
+	}
+
+	// A restart: the env default is on, the stored switch (off) wins.
+	restarted := NewService(e.st, nil, nil)
+	restarted.SetParallelQueues(true)
+	if err := restarted.LoadParallelQueues(ctx); err != nil || restarted.ParallelQueues() {
+		t.Fatalf("stored off over env on: %v %v", restarted.ParallelQueues(), err)
+	}
+	// Nothing stored: the env default holds.
+	fresh := NewService(newMemStore(), nil, nil)
+	fresh.SetParallelQueues(true)
+	if err := fresh.LoadParallelQueues(ctx); err != nil || !fresh.ParallelQueues() {
+		t.Fatalf("env default lost: %v %v", fresh.ParallelQueues(), err)
 	}
 }

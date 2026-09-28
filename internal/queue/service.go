@@ -8,6 +8,7 @@ import (
 	"path"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"hostbud/internal/events"
@@ -30,7 +31,7 @@ func conflict(msg, hint string) *Error { return &Error{http.StatusConflict, msg,
 // Messages the owner sees (V2-M1 T8).
 const (
 	msgOneQueue    = "V2-M1 supports one queue; several queues arrive with V2-M2"
-	msgParallelOff = "Parallel queues are off — pause queue %s and wait for its run to end, or set `HOSTBUD_PARALLEL_QUEUES=true`"
+	msgParallelOff = "Parallel queues are off — pause queue %s and wait for its run to end, or turn on Run queues in parallel in the Queue panel"
 	msgDuplicate   = "a queue named %q already exists in this project"
 	hintDuplicate  = "Pick another name; queue names are unique per project (case doesn't matter)."
 	msgActiveRun   = "A run is still active in this queue — pause it and wait for the run to end, or mark its item done/skip it first"
@@ -59,6 +60,8 @@ type Store interface {
 	MachineCapacity(ctx context.Context, machineID string) (*int, error)
 	SetMachineCapacity(ctx context.Context, machineID string, maxRuns *int) error
 	CountActiveRuns(ctx context.Context, machineID string) (int, error)
+	ParallelQueuesSetting(ctx context.Context, machineID string) (*bool, error)
+	SetParallelQueuesSetting(ctx context.Context, machineID string, on bool) error
 }
 
 // ItemValidator checks an item's agent, flags and instruction
@@ -130,6 +133,9 @@ type Changed struct {
 	Action  string `json:"action"`
 	QueueID string `json:"queueId"`
 	Queue   *View  `json:"queue,omitempty"`
+	// ParallelQueues is the switch at the time of the change, so every
+	// open panel follows a toggle.
+	ParallelQueues bool `json:"parallelQueues"`
 }
 
 // Service is the queue CRUD and control surface (v2 §4). Every change
@@ -140,7 +146,7 @@ type Service struct {
 	bus       *events.Bus
 	dispatch  Control
 	machine   string
-	parallel  bool
+	parallel  atomic.Bool
 }
 
 // NewService returns the queue service for the host machine.
@@ -151,12 +157,46 @@ func NewService(st Store, validator ItemValidator, bus *events.Bus) *Service {
 // SetDispatcher connects the dispatcher (T9).
 func (s *Service) SetDispatcher(d Control) { s.dispatch = d }
 
-// SetParallelQueues sets the V2-M2 switch (HOSTBUD_PARALLEL_QUEUES): on,
-// a project may have several queues and they run in parallel.
-func (s *Service) SetParallelQueues(on bool) { s.parallel = on }
+// SetParallelQueues sets the V2-M2 switch without storing it (the
+// HOSTBUD_PARALLEL_QUEUES default at startup, and tests): on, a project may
+// have several queues and they run in parallel.
+func (s *Service) SetParallelQueues(on bool) { s.parallel.Store(on) }
 
 // ParallelQueues reports the V2-M2 switch.
-func (s *Service) ParallelQueues() bool { return s.parallel }
+func (s *Service) ParallelQueues() bool { return s.parallel.Load() }
+
+// LoadParallelQueues applies the owner's stored switch (Queue panel), if
+// any, over the HOSTBUD_PARALLEL_QUEUES default.
+func (s *Service) LoadParallelQueues(ctx context.Context) error {
+	on, err := s.store.ParallelQueuesSetting(ctx, s.machine)
+	if err != nil {
+		return err
+	}
+	if on != nil {
+		s.parallel.Store(*on)
+	}
+	return nil
+}
+
+// SetParallel stores and applies the owner's switch. Switching off stops
+// no run: queues keep their state and only one may start at a time again
+// (the switch-off 409). Switching on hands out slots at once. Every queue
+// gets a queue.changed carrying the new switch.
+func (s *Service) SetParallel(ctx context.Context, on bool) (bool, error) {
+	if err := s.store.SetParallelQueuesSetting(ctx, s.machine, on); err != nil {
+		return s.ParallelQueues(), err
+	}
+	s.parallel.Store(on)
+	if on && s.dispatch != nil {
+		s.dispatch.CapacityChanged()
+	}
+	if queues, err := s.store.Queues(ctx, s.machine); err == nil && s.bus != nil {
+		for _, q := range queues {
+			s.publishOne(ctx, "parallel_changed", q.ID)
+		}
+	}
+	return on, nil
+}
 
 // List returns the machine's queues with their items.
 func (s *Service) List(ctx context.Context) ([]View, error) {
@@ -334,7 +374,7 @@ func (s *Service) view(ctx context.Context, q store.Queue) (View, error) {
 // waitingForSlot returns the id of q's head item when it waits for a free
 // slot, else "".
 func (s *Service) waitingForSlot(ctx context.Context, q store.Queue) (string, error) {
-	if !s.parallel || q.Status != store.QueueRunning {
+	if !s.ParallelQueues() || q.Status != store.QueueRunning {
 		return "", nil
 	}
 	items, err := s.store.QueueItems(ctx, q.ID)
@@ -352,7 +392,7 @@ func (s *Service) waitingForSlot(ctx context.Context, q store.Queue) (string, er
 // active run waits for a slot while the machine's active runs reach its
 // cap. Derived on every read, never stored.
 func (s *Service) waitingFor(ctx context.Context, q store.Queue, items []store.QueueItem, runs map[string]store.Run) (string, error) {
-	if !s.parallel || q.Status != store.QueueRunning {
+	if !s.ParallelQueues() || q.Status != store.QueueRunning {
 		return "", nil
 	}
 	head := ""
@@ -419,7 +459,7 @@ func (s *Service) Publish(ctx context.Context, action, queueID string) {
 }
 
 func (s *Service) publishOne(ctx context.Context, action, queueID string) *View {
-	payload := Changed{Action: action, QueueID: queueID}
+	payload := Changed{Action: action, QueueID: queueID, ParallelQueues: s.ParallelQueues()}
 	if q, err := s.store.Queue(ctx, queueID); err == nil {
 		if v, err := s.view(ctx, q); err == nil {
 			_ = s.addWarnings(ctx, &v)
@@ -442,7 +482,7 @@ func (s *Service) Create(ctx context.Context, projectID, name string) (View, err
 	if err != nil {
 		return View{}, err
 	}
-	if len(queues) > 0 && !s.parallel {
+	if len(queues) > 0 && !s.ParallelQueues() {
 		return View{}, conflict(msgOneQueue, "Add more items to the existing queue.")
 	}
 	named := name != ""
@@ -503,7 +543,7 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 		return err
 	}
 	if s.bus != nil {
-		s.bus.Publish(events.Event{Type: events.QueueChanged, Machine: s.machine, Payload: Changed{Action: "deleted", QueueID: id}})
+		s.bus.Publish(events.Event{Type: events.QueueChanged, Machine: s.machine, Payload: Changed{Action: "deleted", QueueID: id, ParallelQueues: s.ParallelQueues()}})
 		for _, peer := range peers {
 			s.publishOne(ctx, "peer_changed", peer)
 		}
@@ -644,7 +684,7 @@ func (s *Service) transition(ctx context.Context, q store.Queue, from []string, 
 	if !slices.Contains(from, q.Status) {
 		return View{}, conflict(fmt.Sprintf("the queue is %s; it can't be %s", q.Status, action), hintReload)
 	}
-	if to == store.QueueRunning && !s.parallel {
+	if to == store.QueueRunning && !s.ParallelQueues() {
 		if err := s.checkOnlyActive(ctx, q.ID); err != nil {
 			return View{}, err
 		}

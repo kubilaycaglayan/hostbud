@@ -60,6 +60,16 @@ describe('queues store', () => {
     expect(calls).toHaveLength(0)
   })
 
+  it('follows the parallel-queues switch from queue.changed', () => {
+    const store = useQueuesStore()
+    store.apply({ type: 'queue.changed', machine: 'host', payload: { action: 'parallel_changed', queueId: 'q1', queue: q1, parallelQueues: true } })
+    expect(store.parallelQueues).toBe(true)
+    store.apply({ type: 'queue.changed', machine: 'host', payload: { action: 'created', queueId: 'q1', queue: q1 } })
+    expect(store.parallelQueues).toBe(true)
+    store.apply({ type: 'queue.changed', machine: 'host', payload: { action: 'parallel_changed', queueId: 'q1', queue: q1, parallelQueues: false } })
+    expect(store.parallelQueues).toBe(false)
+  })
+
   it('keeps a load error for the panel', async () => {
     stubFetch(() => ({ status: 503, body: { error: 'database unavailable', hint: 'Try again.' } }))
     const store = useQueuesStore()

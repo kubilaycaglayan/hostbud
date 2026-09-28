@@ -25,6 +25,7 @@ type memStore struct {
 	// seen at once.
 	capacity  *int
 	maxActive int
+	parallel  *bool
 }
 
 func newMemStore() *memStore { return &memStore{runs: map[string]store.Run{}} }
@@ -85,6 +86,19 @@ func (m *memStore) SetMachineCapacity(_ context.Context, _ string, maxRuns *int)
 	}
 	v := *maxRuns
 	m.capacity = &v
+	return nil
+}
+
+func (m *memStore) ParallelQueuesSetting(context.Context, string) (*bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.parallel, nil
+}
+
+func (m *memStore) SetParallelQueuesSetting(_ context.Context, _ string, on bool) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.parallel = &on
 	return nil
 }
 

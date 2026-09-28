@@ -1,7 +1,7 @@
 // Typed client for hostbud's JSON API. Errors carry the server's
 // {error, hint} shape (and Retry-After for 429s).
 
-import type { Capacity, Machine, Project, Queue, QueueItem, QueueList, Session, TmuxWindows } from './types'
+import type { Capacity, Machine, ParallelQueues, Project, Queue, QueueItem, QueueList, Session, TmuxWindows } from './types'
 
 export class ApiError extends Error {
   constructor(
@@ -250,6 +250,8 @@ export const queuesApi = {
   capacity: (machine: string) => request<Capacity>('GET', `/api/machines/${q(machine)}/capacity`),
   setCapacity: (machine: string, maxConcurrentRuns: number | null) =>
     request<Capacity>('PUT', `/api/machines/${q(machine)}/capacity`, { maxConcurrentRuns }),
+  setParallel: (machine: string, parallelQueues: boolean) =>
+    request<ParallelQueues>('PUT', `/api/machines/${q(machine)}/parallel-queues`, { parallelQueues }),
   create: (projectId: string, name: string) => request<Queue>('POST', '/api/queues', { projectId, name }),
   rename: (id: string, name: string) => request<Queue>('PATCH', `/api/queues/${q(id)}`, { name }),
   remove: (id: string) => request<void>('DELETE', `/api/queues/${q(id)}`),

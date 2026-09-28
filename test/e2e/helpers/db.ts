@@ -106,9 +106,11 @@ export const queues = {
     sql(`SELECT source, kind, payload_json FROM run_events WHERE run_id = $1 ORDER BY id`, [runId]) as Promise<
       { source: string; kind: string; payload_json: string }[]
     >,
-  /** Deletes every queue with its items, runs and events (the tests' shared
-   * reset; the app refuses to delete a project that has a queue). */
+  /** Deletes every queue with its items, runs and events, and clears the
+   * stored parallel-queues switch (the tests' shared reset; the app refuses
+   * to delete a project that has a queue). */
   deleteAll: async () => {
+    await sql(`UPDATE machine_capacity SET parallel_queues = NULL`)
     await sql(`DELETE FROM run_events`)
     await sql(`DELETE FROM runs`)
     await sql(`DELETE FROM queue_items`)

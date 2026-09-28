@@ -110,7 +110,12 @@ export interface Queue {
 /** GET /api/queues. */
 export interface QueueList {
   queues: Queue[]
-  /** HOSTBUD_PARALLEL_QUEUES (V2-M2). */
+  /** The parallel-queues switch (V2-M2; Queue panel, default HOSTBUD_PARALLEL_QUEUES). */
+  parallelQueues: boolean
+}
+
+/** PUT /api/machines/:id/parallel-queues. */
+export interface ParallelQueues {
   parallelQueues: boolean
 }
 
@@ -123,6 +128,8 @@ export interface QueueChanged {
   action: string
   queueId: string
   queue?: Queue
+  /** The parallel-queues switch at the time of the change. */
+  parallelQueues?: boolean
 }
 
 export interface RunChanged {

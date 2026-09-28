@@ -20,7 +20,7 @@ import { describeError } from '@/stores/toasts'
 // switcher (a list on desktop, a select on the phone), rename, the
 // shared-directory warning and "waiting for a free slot". It updates from
 // /ws/events (queue.changed, run.changed) only.
-const props = defineProps<{ compact?: boolean }>()
+const props = withDefaults(defineProps<{ compact?: boolean; machine?: string }>(), { machine: 'host' })
 const open = defineModel<boolean>('open', { default: false })
 const emit = defineEmits<{ openSession: [name: string] }>()
 
@@ -58,6 +58,14 @@ async function act(title: string, fn: () => Promise<unknown>) {
   } finally {
     busy.value = false
   }
+}
+
+/** The parallel-queues switch: stored on the server, no redeploy.
+ * Switching off stops no run. */
+function toggleParallel(on: boolean) {
+  void act("Couldn't change parallel queues", async () => {
+    store.parallelQueues = (await queuesApi.setParallel(props.machine, on)).parallelQueues
+  })
 }
 
 watch(open, (isOpen) => { if (isOpen && !store.loaded) void store.load() })
@@ -273,14 +281,26 @@ const badge: Record<QueueItem['status'], string> = {
               type="button"
               :disabled="busy || !store.parallelQueues || addingQueue"
               class="touch-target inline-flex min-h-8 items-center gap-1 rounded border border-border px-2 text-sm"
-              :title="store.parallelQueues ? 'Create another queue' : 'Several queues need HOSTBUD_PARALLEL_QUEUES=true'"
+              :title="store.parallelQueues ? 'Create another queue' : 'Turn on Run queues in parallel to create another queue'"
               @click="newQueue"
             >
               <Plus :size="14" aria-hidden="true" />New queue
             </button>
           </div>
-          <p v-if="store.queues.length && !store.parallelQueues" data-testid="parallel-off" class="mt-1 text-sm text-muted">
-            One queue at a time: set <span class="font-mono">HOSTBUD_PARALLEL_QUEUES=true</span> in <span class="font-mono">.env</span> and redeploy to run several queues in parallel.
+          <label v-if="store.queues.length" class="mt-1 flex min-h-8 items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              data-testid="parallel-toggle"
+              autocomplete="off"
+              class="size-4"
+              :checked="store.parallelQueues"
+              :disabled="busy"
+              @change="toggleParallel(($event.target as HTMLInputElement).checked)"
+            >
+            Run queues in parallel
+          </label>
+          <p v-if="store.queues.length && !store.parallelQueues" data-testid="parallel-off" class="text-sm text-muted">
+            One queue at a time. Turn this on to create and run several queues at once (each stays sequential).
           </p>
 
           <form v-if="showCreate" class="mt-2 flex flex-col gap-3" aria-label="Create queue" @submit.prevent="createQueue">

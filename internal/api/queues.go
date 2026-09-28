@@ -30,6 +30,7 @@ type QueueService interface {
 	ParallelQueues() bool
 	Capacity(ctx context.Context) (*int, error)
 	SetCapacity(ctx context.Context, maxRuns *int) (*int, error)
+	SetParallel(ctx context.Context, on bool) (bool, error)
 }
 
 func mountQueueRoutes(s *server, addFunc func(string, http.HandlerFunc)) {
@@ -51,6 +52,8 @@ func mountQueueRoutes(s *server, addFunc func(string, http.HandlerFunc)) {
 	// V2-M2: the per-machine cap on active runs (Settings).
 	addFunc("GET /api/machines/{machine}/capacity", s.getCapacity)
 	addFunc("PUT /api/machines/{machine}/capacity", s.putCapacity)
+	// The parallel-queues switch (Queue panel), over HOSTBUD_PARALLEL_QUEUES.
+	addFunc("PUT /api/machines/{machine}/parallel-queues", s.putParallelQueues)
 }
 
 func (s *server) queueError(w http.ResponseWriter, err error) {
@@ -139,6 +142,33 @@ func (s *server) putCapacity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, capacityBody{MaxConcurrentRuns: c})
+}
+
+// parallelBody is the parallel-queues route's body and answer.
+type parallelBody struct {
+	ParallelQueues bool `json:"parallelQueues"`
+}
+
+func (s *server) putParallelQueues(w http.ResponseWriter, r *http.Request) {
+	if !s.capacityMachine(w, r) {
+		return
+	}
+	var req struct {
+		ParallelQueues *bool `json:"parallelQueues"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	if req.ParallelQueues == nil {
+		writeError(w, http.StatusBadRequest, "parallelQueues is required", "Send true or false.")
+		return
+	}
+	on, err := s.cfg.Queues.SetParallel(r.Context(), *req.ParallelQueues)
+	if err != nil {
+		s.queueError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, parallelBody{ParallelQueues: on})
 }
 
 func (s *server) getQueue(w http.ResponseWriter, r *http.Request) {
