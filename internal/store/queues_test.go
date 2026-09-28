@@ -377,6 +377,31 @@ func TestLLMClaimsBudgetAndGuardedFlagOnlyResult(t *testing.T) {
 	}
 }
 
+func TestLLMStaleRunRespectsQuietAfterACompletedClaim(t *testing.T) {
+	ctx := context.Background()
+	s, p := queueFixture(t)
+	q, _ := s.CreateQueue(ctx, p.ID, "llm-stale-quiet")
+	item, _ := s.AddQueueItem(ctx, q.ID, "claude", "", "goal")
+	run, _ := s.CreateRun(ctx, item.ID, tokenHash("llm-stale-quiet"), time.Now().Add(-time.Hour))
+	_, _ = s.TransitionRun(ctx, run.ID, []string{RunStarting}, RunRunning, "", nil)
+	_, _ = s.TransitionQueueItem(ctx, item.ID, []string{ItemQueued}, ItemRunning)
+	if claimed, err := s.ClaimLLM(ctx, run.ID, nil, 2, time.Hour); err != nil || !claimed {
+		t.Fatalf("initial running claim=%v err=%v", claimed, err)
+	}
+	if _, err := s.TransitionRun(ctx, run.ID, []string{RunRunning}, RunStale, "", nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.TransitionQueueItem(ctx, item.ID, []string{ItemRunning}, ItemNeedsAttention); err != nil {
+		t.Fatal(err)
+	}
+	if inserted, _, _, err := s.FinishLLM(ctx, run.ID, nil, []byte(`{"label":"waiting_input","reason":"waiting"}`)); err != nil || !inserted {
+		t.Fatalf("finish=%v err=%v", inserted, err)
+	}
+	if claimed, err := s.ClaimLLM(ctx, run.ID, nil, 2, time.Hour); err != nil || claimed {
+		t.Fatalf("stale run was reclaimed before quiet interval: claim=%v err=%v", claimed, err)
+	}
+}
+
 func TestLLMResultAfterNewSignalIsDiscardedWithoutQueueMutation(t *testing.T) {
 	ctx := context.Background()
 	s, p := queueFixture(t)
