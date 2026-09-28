@@ -175,7 +175,7 @@ func TestIntegrationRunSessionCreation(t *testing.T) {
 		remote, _ = e.c.Exec(ctx, sshx.HostMachineID, "sh", "-c", `end=$(($(date +%s)+3)); while [ "$(date +%s)" -lt "$end" ]; do ps -eo args; done`)
 	}()
 	time.Sleep(300 * time.Millisecond)
-	run, err := starter.Start(ctx, store.SourceUser, e.project, item, agent)
+	run, err := starter.Start(ctx, store.SourceUser, e.project, "", item, agent)
 	time.Sleep(200 * time.Millisecond)
 	close(stop)
 	wg.Wait()
@@ -209,5 +209,76 @@ func TestIntegrationRunSessionCreation(t *testing.T) {
 	}
 	if after := checksum(); after != before {
 		t.Fatalf("client configs changed:\n%s\n%s", before, after)
+	}
+}
+
+// V2-M2 T3: runs created at the same moment whose session names collide
+// (a second queue "Docs" on project app, and the first queue of a project
+// named app-Docs, both at position 1) get distinct sessions: the session
+// service retries the next suffix when tmux reports a duplicate.
+func TestIntegrationConcurrentRunSessionsGetDistinctNames(t *testing.T) {
+	e := newITEnv(t)
+	ctx := context.Background()
+	testenv.Sh(t, e.c, "mkdir -p ~/runs-it/app-docs")
+	other, err := e.st.CreateProject(ctx, store.HostMachineID, "/home/dev/runs-it/app-docs", "app-Docs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	docs, err := e.st.CreateQueue(ctx, e.project.ID, "Docs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherQueue, err := e.st.CreateQueue(ctx, other.ID, "Queue")
+	if err != nil {
+		t.Fatal(err)
+	}
+	type start struct {
+		project store.Project
+		label   string
+		queue   store.Queue
+	}
+	starts := []start{{e.project, "Docs", docs}, {other, "", otherQueue}, {e.project, "Docs", docs}, {other, "", otherQueue}}
+	items := make([]store.QueueItem, len(starts))
+	for i, s := range starts {
+		if items[i], err = e.st.AddQueueItem(ctx, s.queue.ID, "claude", "", fmt.Sprintf("/goal concurrent %d", i)); err != nil {
+			t.Fatal(err)
+		}
+		items[i].Position = 1 // every run asks for <...>-q1
+	}
+	if got := RunSessionName(e.project.Name, "Docs", 1); got != RunSessionName(other.Name, "", 1) {
+		t.Fatalf("the fixture names don't collide: %q", got)
+	}
+	agent := &fakeAgent{version: "2.1.283", argv: []string{"sleep", "300"}}
+	starter := NewStarter(e.st, e.sessions, "http://hostbud-e2e-caddy:9055", nil)
+	names := make([]string, len(starts))
+	errs := make([]error, len(starts))
+	var wg sync.WaitGroup
+	for i, s := range starts {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			run, err := starter.Start(ctx, store.SourceUser, s.project, s.label, items[i], agent)
+			names[i], errs[i] = run.SessionName, err
+			if err == nil && run.Status != store.RunStarting {
+				errs[i] = fmt.Errorf("run %s: %s", run.Status, run.Detail)
+			}
+		}()
+	}
+	wg.Wait()
+	seen := map[string]bool{}
+	for i, name := range names {
+		if errs[i] != nil {
+			t.Fatalf("start %d: %v", i, errs[i])
+		}
+		if !strings.HasPrefix(name, "app-Docs-q1") || seen[name] {
+			t.Fatalf("session names %v are not distinct app-Docs-q1[-n]", names)
+		}
+		seen[name] = true
+	}
+	out := testenv.Sh(t, e.c, "tmux list-sessions -F '#{session_name}'")
+	for name := range seen {
+		if !strings.Contains("\n"+out+"\n", "\n"+name+"\n") {
+			t.Errorf("session %q missing from tmux: %q", name, out)
+		}
 	}
 }

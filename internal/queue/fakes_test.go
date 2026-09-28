@@ -157,6 +157,7 @@ type fakeAgent struct {
 	versionErr error
 	argv       []string
 	buildErr   error
+	mu         sync.Mutex
 	built      []store.Run
 }
 
@@ -165,6 +166,8 @@ func (a *fakeAgent) CheckVersion(context.Context, string) (string, error) {
 }
 
 func (a *fakeAgent) BuildCommand(_ store.QueueItem, run store.Run) ([]string, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	a.built = append(a.built, run)
 	return a.argv, a.buildErr
 }

@@ -12,6 +12,7 @@ import (
 
 	"hostbud/internal/session"
 	"hostbud/internal/store"
+	"hostbud/internal/tmux"
 )
 
 var (
@@ -21,17 +22,31 @@ var (
 
 func TestRunSessionName(t *testing.T) {
 	for _, c := range []struct {
-		project string
-		pos     int
-		want    string
+		project, queue string
+		pos            int
+		want           string
 	}{
-		{"hostbud", 1, "hostbud-q1"},
-		{"My App.v2", 12, "My-App-v2-q12"},
-		{"", 3, "session-q3"},
-		{strings.Repeat("x", 80), 7, strings.Repeat("x", 57) + "-q7"},
+		// The first queue ("" label) keeps V2-M1's names.
+		{"hostbud", "", 1, "hostbud-q1"},
+		{"My App.v2", "", 12, "My-App-v2-q12"},
+		{"", "", 3, "session-q3"},
+		{strings.Repeat("x", 80), "", 7, strings.Repeat("x", 57) + "-q7"},
+		// Other queues add their sanitized name (V2-M2 T3).
+		{"hostbud", "Docs", 1, "hostbud-Docs-q1"},
+		{"hostbud", "release notes", 2, "hostbud-release-notes-q2"},
+		{"hostbud", "Überprüfung ✓", 1, "hostbud-berpr-fung-q1"},
+		{"hostbud", "日本語", 1, "hostbud-session-q1"},
+		{"hostbud", "a.b", 1, "hostbud-a-b-q1"},
+		{"hostbud", "a b", 1, "hostbud-a-b-q1"}, // sanitizes alike: the session service suffixes
+		{strings.Repeat("p", 40), strings.Repeat("q", 40), 3, strings.Repeat("p", 40) + "-" + strings.Repeat("q", 16) + "-q3"},
+		{strings.Repeat("p", 56), "x", 1, strings.Repeat("p", 56) + "-q1"},
 	} {
-		if got := RunSessionName(c.project, c.pos); got != c.want {
-			t.Errorf("RunSessionName(%q, %d) = %q, want %q", c.project, c.pos, got, c.want)
+		got := RunSessionName(c.project, c.queue, c.pos)
+		if got != c.want {
+			t.Errorf("RunSessionName(%q, %q, %d) = %q, want %q", c.project, c.queue, c.pos, got, c.want)
+		}
+		if len(got) > 60 || tmux.ValidateName(got) != nil {
+			t.Errorf("RunSessionName(%q, %q, %d) = %q is not a valid session name", c.project, c.queue, c.pos, got)
 		}
 	}
 }
@@ -41,7 +56,7 @@ func TestStartCreatesTheSessionThroughTheService(t *testing.T) {
 	agent := &fakeAgent{version: "2.1.283", argv: []string{"claude", "--model", "opus 4", "--settings", `{"hooks":{}}`, "/goal ship M2"}}
 	var logs bytes.Buffer
 	s := NewStarter(st, sessions, "http://127.0.0.1:9055", slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug})))
-	run, err := s.Start(context.Background(), store.SourceUser, testProject, testItem, agent)
+	run, err := s.Start(context.Background(), store.SourceUser, testProject, "", testItem, agent)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,8 +95,8 @@ func TestStartRetriedItemGetsNewTokenAndSuffixedSession(t *testing.T) {
 	st, sessions := newMemStore(), &fakeSessions{}
 	s := NewStarter(st, sessions, "http://127.0.0.1:9055", nil)
 	agent := &fakeAgent{version: "0.157.1", argv: []string{"codex", "ship M2"}}
-	first, _ := s.Start(context.Background(), store.SourceUser, testProject, testItem, agent)
-	second, _ := s.Start(context.Background(), store.SourceUser, testProject, testItem, agent)
+	first, _ := s.Start(context.Background(), store.SourceUser, testProject, "", testItem, agent)
+	second, _ := s.Start(context.Background(), store.SourceUser, testProject, "", testItem, agent)
 	if first.ID == second.ID || bytes.Equal(first.TokenHash, second.TokenHash) || sessions.specs[0].Env[EnvToken] == sessions.specs[1].Env[EnvToken] {
 		t.Fatal("a retry reused the run id or token")
 	}
@@ -107,7 +122,7 @@ func TestStartFailuresFailTheRunWithADetail(t *testing.T) {
 	} {
 		st, sessions := newMemStore(), &fakeSessions{err: c.sessErr}
 		s := NewStarter(st, sessions, "http://127.0.0.1:9055", nil)
-		run, err := s.Start(context.Background(), store.SourceUser, testProject, testItem, c.agent)
+		run, err := s.Start(context.Background(), store.SourceUser, testProject, "", testItem, c.agent)
 		if err != nil {
 			t.Fatalf("%s: %v", c.name, err)
 		}

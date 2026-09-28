@@ -124,7 +124,7 @@ Both clients the owner uses have a native `/goal` command. It keeps the agent wo
 3. It calls the single session-create service:
    - `machine`: host;
    - `path`: the queue's project path;
-   - `name`: `<project>-q<position>` (collisions are resolved as in v1);
+   - `name`: `<project>-q<position>` for the project's first (oldest) queue, and `<project>-<queue>-q<position>` for any other (V2-M2), each part sanitized as a tmux name. Collisions are resolved as in v1; a duplicate reported by `new-session` retries the next suffix (bounded). The name is stored on the run, so renaming a queue never renames a run's session;
    - `env`: `HOSTBUD_URL`, `HOSTBUD_RUN_ID`, `HOSTBUD_RUN_TOKEN`;
    - `startCommand`: `adapter.BuildCommand(item, run)`.
 4. The run is `starting` until the `SessionStart` hook arrives. hostbud records that hook's `session_id` / thread id as the run's **binding**, and the run becomes `running`.

@@ -3,7 +3,8 @@ import { multiDb, queues } from '../helpers/db.ts'
 import { addItem, control, createQueue, getQueue, itemOf, listQueues, newProject, type QueueItem } from '../helpers/queues.ts'
 import { Stubs, type StubBehavior } from '../helpers/stubs.ts'
 import type { APIRequestContext } from '@playwright/test'
-import type { Target } from '../helpers/target.ts'
+import { shq, type Target } from '../helpers/target.ts'
+import { mutate } from '../helpers/api.ts'
 
 // V2-M2: several queues and parallel runs on hostbud-e2e-app-multi
 // (HOSTBUD_PARALLEL_QUEUES=true), with the stub clients on the shared
@@ -120,6 +121,24 @@ test.describe('parallel queues', () => {
       await expect.poll(async () => (await getQueue(multi, q.queue.id)).status, { timeout: 40_000 }).toBe('finished')
     }
     for (const q of await listQueues(multi)) expect(q.warnings ?? []).toEqual([])
+  })
+
+  test('(V2-M2 T3) Name collision', async ({ multi, target }) => {
+    const p = await project(multi, target, 'e2e-names')
+    const first = await queueOn(multi, p.id, 'Alpha', [{ condition: 'e2e names a1', behavior: 'slow:6' }])
+    const docs = await queueOn(multi, p.id, 'Docs', [{ condition: 'e2e names d1', behavior: 'slow:6' }])
+    const late = await queueOn(multi, p.id, 'Late', [{ condition: 'e2e names l1', behavior: 'slow:6' }])
+    // A leftover session already holds the third queue's name.
+    await target.run(`tmux new-session -d -s ${shq(`${p.name}-Late-q1`)}`)
+    for (const q of [first, docs, late]) expect((await control(multi, q.queue.id, 'start')).status()).toBe(200)
+    await expect.poll(async () => Promise.all([first, docs, late].map(async (q) => (await itemOf(multi, q.queue.id, q.items[0].id)).run?.sessionName ?? '')), { timeout: 20_000 })
+      .toEqual([`${p.name}-q1`, `${p.name}-Docs-q1`, `${p.name}-Late-q1-1`])
+    const sessions = await target.sessions()
+    for (const name of [`${p.name}-q1`, `${p.name}-Docs-q1`, `${p.name}-Late-q1`, `${p.name}-Late-q1-1`]) expect(sessions).toContain(name)
+    // Renaming a queue never renames its run's session.
+    const renamed = await mutate(multi, 'PATCH', `/api/queues/${docs.queue.id}`, { name: 'Changelog' })
+    expect(renamed.status()).toBe(200)
+    expect((await itemOf(multi, docs.queue.id, docs.items[0].id)).run!.sessionName).toBe(`${p.name}-Docs-q1`)
   })
 })
 

@@ -286,7 +286,7 @@ func (d *Dispatcher) advance(ctx context.Context, queueID, source string) {
 	if a := d.adapters.Get(item.Agent); a != nil {
 		adapter = a
 	}
-	run, err := d.starter.Start(ctx, source, project, item, adapter)
+	run, err := d.starter.Start(ctx, source, project, d.sessionLabel(ctx, q), item, adapter)
 	if err != nil {
 		d.log.Error("queue: start run", "err", err)
 		if run.ID == "" {
@@ -300,6 +300,24 @@ func (d *Dispatcher) advance(ctx context.Context, queueID, source string) {
 	}
 	d.armStale(run)
 	d.service.Publish(ctx, "run_started", q.ID)
+}
+
+// sessionLabel is "" for the project's first (oldest) queue, which keeps
+// V2-M1's session names, and the queue's name for any other (V2-M2 T3).
+func (d *Dispatcher) sessionLabel(ctx context.Context, q store.Queue) string {
+	queues, err := d.store.Queues(ctx, q.MachineID)
+	if err != nil {
+		return ""
+	}
+	for _, other := range queues { // oldest first (created_at, id)
+		if other.ProjectID == q.ProjectID {
+			if other.ID == q.ID {
+				return ""
+			}
+			return q.Name
+		}
+	}
+	return ""
 }
 
 // ---------------------------------------------------------------- signals

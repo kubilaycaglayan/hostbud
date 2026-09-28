@@ -296,7 +296,7 @@ func TestDispatcherRunsItemsInOrder(t *testing.T) {
 	e.startQueue()
 	for n := 1; n <= 3; n++ {
 		r := e.run(n)
-		if r.Status != store.RunStarting || e.activeRuns() != 1 || r.SessionName != RunSessionName("app", n) {
+		if r.Status != store.RunStarting || e.activeRuns() != 1 || r.SessionName != RunSessionName("app", "", n) {
 			t.Fatalf("item %d: run %+v, %d active", n, r, e.activeRuns())
 		}
 		want := make([]string, 3)

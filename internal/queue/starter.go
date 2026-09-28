@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"strconv"
+	"strings"
 	"time"
 
 	"hostbud/internal/session"
@@ -58,14 +59,20 @@ func NewStarter(st StarterStore, sessions SessionCreator, hookURL string, log *s
 	return &Starter{store: st, sessions: sessions, hookURL: hookURL, log: log, now: time.Now}
 }
 
-// RunSessionName is a run's session name: <project>-q<position>, the
-// project name sanitized like a directory name. Collisions get the v1
-// suffixes (-1, -2, …) from the session service.
-func RunSessionName(projectName string, position int) string {
+// RunSessionName is a run's session name: <project>-q<position> for the
+// project's first queue (queueName ""; V2-M1's name), else
+// <project>-<queue>-q<position> (V2-M2), each part sanitized like a
+// directory name and the whole capped at 60 bytes. Collisions get the v1
+// suffixes (-1, -2, …) from the session service, which retries (bounded)
+// when tmux reports a duplicate at creation.
+func RunSessionName(projectName, queueName string, position int) string {
 	suffix := "-q" + strconv.Itoa(position)
 	base := session.SanitizeName(projectName)
+	if queueName != "" {
+		base += "-" + session.SanitizeName(queueName)
+	}
 	if len(base)+len(suffix) > 60 {
-		base = base[:60-len(suffix)]
+		base = strings.TrimRight(base[:60-len(suffix)], "-")
 	}
 	return base + suffix
 }
@@ -76,7 +83,10 @@ func RunSessionName(projectName string, position int) string {
 // session through the single session-create service. A failure at any
 // step leaves the run failed with an actionable detail; nothing retries.
 // The error is only for store failures.
-func (s *Starter) Start(ctx context.Context, source string, project store.Project, item store.QueueItem, agent RunAgent) (store.Run, error) {
+//
+// queueName is "" for the project's first queue, else the queue's name for
+// the session name (RunSessionName).
+func (s *Starter) Start(ctx context.Context, source string, project store.Project, queueName string, item store.QueueItem, agent RunAgent) (store.Run, error) {
 	token, hash, err := NewToken()
 	if err != nil {
 		return store.Run{}, err
@@ -105,7 +115,7 @@ func (s *Starter) Start(ctx context.Context, source string, project store.Projec
 	}
 	name, err := s.sessions.Create(ctx, session.Spec{
 		Machine:   project.MachineID,
-		Name:      RunSessionName(project.Name, item.Position),
+		Name:      RunSessionName(project.Name, queueName, item.Position),
 		Path:      project.Path,
 		Env:       map[string]string{EnvURL: s.hookURL, EnvRunID: run.ID, EnvToken: token},
 		StartArgv: argv,
