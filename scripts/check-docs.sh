@@ -33,8 +33,14 @@ config_vars=$(sed -nE 's/.*(get|getenv|duration|durationRange|count|countRange)\
 example_vars=$(sed -nE 's/^([A-Z][A-Z0-9_]*)=.*/\1/p' .env.example | sort -u)
 compose_vars=$(sed -n '/^  hostbud:/,/^  hostbud-postgres:/p' docker-compose.yml deploy/compose.tailscale.yml | grep -Eo '[A-Z][A-Z0-9_]+' | sort -u)
 
+# e2e-only vars: documented in .env.example, never passed to production.
+e2e_only_vars="HOSTBUD_PUSH_TEST_ENDPOINT"
 for var in $config_vars; do
 	printf '%s\n' "$example_vars" | grep -Fxq "$var" || fail "$var is read by internal/config but missing from .env.example"
+	if printf '%s\n' $e2e_only_vars | grep -Fxq "$var"; then
+		printf '%s\n' "$compose_vars" | grep -Fxq "$var" && fail "$var is e2e only but reaches the production hostbud service"
+		continue
+	fi
 	printf '%s\n' "$compose_vars" | grep -Fxq "$var" || fail "$var is read by internal/config but missing from hostbud Compose environment"
 done
 

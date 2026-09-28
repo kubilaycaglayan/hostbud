@@ -10,7 +10,7 @@ Update this table in the same commit that finishes a task.
 
 | Task | Status |
 |---|---|
-| T0 Schema, switch and VAPID config | Not started |
+| T0 Schema, switch and VAPID config | Done |
 | T1 In-app notifications | Not started |
 | T2 Web Push | Not started |
 | T3 Outbound delivery | Not started |
@@ -37,7 +37,9 @@ The v2 ROADMAP *Rules*, AGENTS.md and the V2-M1 milestone rules (fast checks per
 | CP3 | T4–T5 | `make lint test`, `vue-tsc`, e2e `tsc`, `make gitleaks`, docs check | Not run |
 | CP4 | T6 | `make lint test`, e2e `tsc`, `make gitleaks`, `make deploy` (no `make e2e`: on demand only) | Not run |
 
-**Progress note:** (precondition and checkpoint results go here.)
+**Progress note:**
+- **Precondition** (2026-09-28): V2-M2 is done: every criterion ticked; only its on-demand e2e run and owner checks are open (allowed).
+- **T0** (2026-09-28): `0008_notifications.sql` (prefs, subscriptions, outbox, deliveries); `store` prefs get/put and `NotificationsEnabled`; `config.CheckVAPID` (none/partial/invalid ⇒ push off with the reason, never a startup error; one warn log naming the vars); `internal/notify` settings service; `GET`/`PUT /api/notifications/settings` (caller's account only, in `routes.json` and v1 ARCHITECTURE §9); `hostbud vapid-keys` / `make vapid-keys`; the VAPID vars on the `hostbud` service only and `HOSTBUD_PUSH_TEST_ENDPOINT` e2e-only (docs check exemption). e2e: `notifications.api.spec.ts` *Settings API* and *Push unavailable* (multi app), the shared reset turns every account off.
 
 ---
 

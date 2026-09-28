@@ -65,6 +65,8 @@ type Config struct {
 	Hooks HookReceiver
 	// Queues is the v2 queue service (/api/queues, /api/queue-items).
 	Queues QueueService
+	// Notifications is the V2-M3 notifier (/api/notifications/*).
+	Notifications NotificationService
 }
 
 // HookReceiver checks and records one run hook (queue.Hooks). It returns a
@@ -229,6 +231,9 @@ func mountRoutes(s *server, mux *http.ServeMux) {
 	}
 	if cfg.Queues != nil {
 		mountQueueRoutes(s, addFunc)
+	}
+	if cfg.Notifications != nil {
+		mountNotificationRoutes(s, addFunc)
 	}
 	add("GET /", spaHandler(cfg.Dist))
 }

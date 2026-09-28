@@ -652,7 +652,9 @@ func TestRestoreCheckCleansTemporaryDatabaseOnSuccessAndSanityFailure(t *testing
 	checkNoTemporaryDBs()
 
 	bad := filepath.Join(t.TempDir(), "missing-users.dump")
-	args := []string{"--format=custom", "--no-password", "--host", cfg.Host, "--port", fmt.Sprint(cfg.Port), "--username", cfg.User, "--dbname", cfg.Name, "--schema", cfg.Schema, "--exclude-table=" + cfg.Schema + ".users", "--exclude-table=" + cfg.Schema + ".auth_sessions", "--file", bad}
+	args := []string{"--format=custom", "--no-password", "--host", cfg.Host, "--port", fmt.Sprint(cfg.Port), "--username", cfg.User, "--dbname", cfg.Name, "--schema", cfg.Schema, "--exclude-table=" + cfg.Schema + ".users", "--exclude-table=" + cfg.Schema + ".auth_sessions",
+		// V2-M3: the tables that reference users go with it.
+		"--exclude-table=" + cfg.Schema + ".notification_*", "--exclude-table=" + cfg.Schema + ".push_subscriptions", "--file", bad}
 	cmd := exec.CommandContext(ctx, "pg_dump", args...) //nolint:gosec // fixed test tool and separate arguments against isolated integration database
 	cmd.Env = backupEnv(os.Environ(), cfg.Password, cfg.SSLMode)
 	if output, err := cmd.CombinedOutput(); err != nil {

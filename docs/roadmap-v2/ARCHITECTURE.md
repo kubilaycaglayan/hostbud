@@ -208,6 +208,7 @@ run_events(id, run_id FK, source CHECK(source IN ('hook','poller','timer','user'
 - `run_events` stores the forwarded hook JSON with a size cap and with `transcript_path` kept. These are the audit trail for "why did the queue advance?".
 - This replaces the `tasks`/`runs`/`machine_capacity` sketch in ARCHITECTURE §10.
 - V2-M2 adds `internal/store/migrations/0006_parallel_queues.sql` (additions only): `machine_capacity(machine_id PK FK, max_concurrent_runs INT NULL CHECK 1–32, updated_at)`, `queues.waiting_since TIMESTAMPTZ NULL` and the unique index `queues_project_name` on `(project_id, lower(name))` (§5.5).
+- V2-M3 adds `internal/store/migrations/0008_notifications.sql` (additions only): `notification_prefs(user_id PK FK, enabled DEFAULT false, on_done, on_attention, on_finished DEFAULT true)` (no row = off), `push_subscriptions(id, user_id, endpoint UNIQUE, p256dh, auth, created_at)`, `notification_outbox(id, user_id, dedupe_key, payload_json ≤ 1 KiB, created_at, UNIQUE(user_id, dedupe_key))` and `notification_deliveries(outbox_id, subscription_id, status, claimed_at, finished_at, PK(outbox_id, subscription_id))`. Outbox and delivery rows are operational and pruned after 7 days.
 
 ---
 

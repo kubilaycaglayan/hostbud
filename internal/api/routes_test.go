@@ -11,6 +11,7 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"hostbud/internal/config"
 	"hostbud/internal/events"
 )
 
@@ -39,7 +40,8 @@ func TestRouteInventoryMatchesRouter(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg := Config{Dist: fstest.MapFS{}, Bus: events.NewBus(), Auth: &fakeAuth{}, Sessions: &fakeService{},
-		Projects: &fakeProjects{}, FileSystem: &fakeFileBrowser{}, Terminal: routeOnlyTerminal{}, UIState: &fakeUIState{}, Hooks: &fakeHooks{}, Queues: &fakeQueues{}}
+		Projects: &fakeProjects{}, FileSystem: &fakeFileBrowser{}, Terminal: routeOnlyTerminal{}, UIState: &fakeUIState{}, Hooks: &fakeHooks{}, Queues: &fakeQueues{},
+		Notifications: newNotifier(config.Push{})}
 	s := &server{cfg: cfg}
 	mountRoutes(s, http.NewServeMux())
 	want := make([]string, 0, len(routes))
@@ -88,6 +90,7 @@ func TestRouteInventoryMatchesRouter(t *testing.T) {
 		"POST /api/queues":                 true, "PATCH /api/queues/{id}": true, "POST /api/queues/{id}/items": true,
 		"PUT /api/queues/{id}/order": true, "PATCH /api/queue-items/{id}": true,
 		"PUT /api/machines/{machine}/capacity": true, "PUT /api/machines/{machine}/parallel-queues": true,
+		"PUT /api/notifications/settings": true,
 	}
 	for _, route := range routes {
 		key := route.Method + " " + route.Path

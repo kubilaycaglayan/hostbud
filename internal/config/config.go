@@ -52,6 +52,13 @@ type Config struct {
 	HookBaseURL         string        // HOSTBUD_HOOK_BASE_URL (optional: HOSTBUD_URL inside run sessions)
 	RunStaleAfter       time.Duration // HOSTBUD_RUN_STALE_AFTER (v2: no-signal window before a run is stale)
 	ParallelQueues      bool          // HOSTBUD_PARALLEL_QUEUES (V2-M2 opt-in: several queues, parallel runs)
+
+	// Web Push (V2-M3). Missing or invalid keys never fail startup: Push()
+	// reports push as unavailable, with the reason.
+	VAPIDPublicKey   string // HOSTBUD_VAPID_PUBLIC_KEY
+	VAPIDPrivateKey  string // HOSTBUD_VAPID_PRIVATE_KEY
+	VAPIDSubject     string // HOSTBUD_VAPID_SUBJECT
+	PushTestEndpoint string // HOSTBUD_PUSH_TEST_ENDPOINT (e2e only: a push endpoint prefix exempt from the endpoint rules)
 }
 
 // HookURL is HOSTBUD_URL for run sessions (v2): the override, or Caddy's
@@ -62,6 +69,9 @@ func (c Config) HookURL() string {
 	}
 	return fmt.Sprintf("http://127.0.0.1:%d", c.LocalPort)
 }
+
+// Push reports whether Web Push is configured (V2-M3).
+func (c Config) Push() Push { return CheckVAPID(c.VAPIDPublicKey, c.VAPIDPrivateKey, c.VAPIDSubject) }
 
 // DefaultTrustedProxies are the private ranges Docker networks use: hostbud
 // publishes no ports, so its only peer is Caddy on the Compose network.
@@ -215,6 +225,16 @@ func Load(getenv func(string) string) (Config, error) {
 	case "false":
 	default:
 		errs = append(errs, errors.New("HOSTBUD_PARALLEL_QUEUES: must be true or false"))
+	}
+
+	cfg.VAPIDPublicKey = strings.TrimSpace(getenv("HOSTBUD_VAPID_PUBLIC_KEY"))
+	cfg.VAPIDPrivateKey = strings.TrimSpace(getenv("HOSTBUD_VAPID_PRIVATE_KEY"))
+	cfg.VAPIDSubject = strings.TrimSpace(getenv("HOSTBUD_VAPID_SUBJECT"))
+	cfg.PushTestEndpoint = strings.TrimSpace(getenv("HOSTBUD_PUSH_TEST_ENDPOINT"))
+	if cfg.PushTestEndpoint != "" {
+		if u, err := url.Parse(cfg.PushTestEndpoint); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil {
+			errs = append(errs, errors.New("HOSTBUD_PUSH_TEST_ENDPOINT: must be empty (production) or an http(s) URL prefix of the e2e push fake"))
+		}
 	}
 
 	return cfg, errors.Join(errs...)

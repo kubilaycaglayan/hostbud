@@ -1,0 +1,25 @@
+import type { APIRequestContext } from '@playwright/test'
+import { mutate } from './api.ts'
+
+// V2-M3 notifications through the API, like the Settings dialog uses it.
+
+export interface NotificationSettings {
+  enabled: boolean
+  onDone: boolean
+  onAttention: boolean
+  onFinished: boolean
+  push: { available: boolean; reason?: string }
+  vapidPublicKey?: string
+}
+
+export async function getNotificationSettings(request: APIRequestContext): Promise<NotificationSettings> {
+  const res = await request.get('/api/notifications/settings')
+  if (!res.ok()) throw new Error(`GET notification settings: ${res.status()} ${await res.text()}`)
+  return await res.json()
+}
+
+export async function putNotificationSettings(request: APIRequestContext, data: Partial<Omit<NotificationSettings, 'push' | 'vapidPublicKey'>>): Promise<NotificationSettings> {
+  const res = await mutate(request, 'PUT', '/api/notifications/settings', data)
+  if (!res.ok()) throw new Error(`PUT notification settings: ${res.status()} ${await res.text()}`)
+  return await res.json()
+}

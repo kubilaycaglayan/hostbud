@@ -22,6 +22,7 @@ import (
 	"hostbud/internal/events"
 	"hostbud/internal/fsbrowse"
 	"hostbud/internal/inventory"
+	"hostbud/internal/notify"
 	"hostbud/internal/projects"
 	"hostbud/internal/queue"
 	"hostbud/internal/session"
@@ -50,6 +51,9 @@ func run() error {
 		}
 		return runHealthcheck()
 	}
+	if len(os.Args) > 1 && os.Args[1] == "vapid-keys" {
+		return printVAPIDKeys(os.Stdout)
+	}
 	cfg, err := config.Load(os.Getenv)
 	if err != nil {
 		return fmt.Errorf("invalid configuration:\n%w", err)
@@ -68,7 +72,7 @@ func run() error {
 			}
 			return restoreCheck(cfg, os.Args[2])
 		default:
-			return fmt.Errorf("unknown command %q (commands: backup, restore-check, healthcheck)", os.Args[1])
+			return fmt.Errorf("unknown command %q (commands: backup, restore-check, healthcheck, vapid-keys)", os.Args[1])
 		}
 	}
 
@@ -170,12 +174,20 @@ func run() error {
 	go func() { dispatcher.Run(ctx); close(dispatchDone) }()
 	defer func() { <-dispatchDone }()
 	hooks := queue.NewHooks(st, dispatcher, log)
+
+	// V2-M3 notifications: missing or invalid VAPID keys only turn push off.
+	push := cfg.Push()
+	if !push.Available {
+		log.Warn("web push is off; in-app notifications still work", "missing", push.Missing, "invalid", push.Invalid, "fix", "make vapid-keys")
+	}
+	notifier := notify.New(st, push, cfg.VAPIDPublicKey, log)
 	srv := &http.Server{
 		Addr: cfg.Listen,
 		Handler: api.New(api.Config{
-			Hooks:  hooks,
-			Queues: queues,
-			Log:    log, Dist: web.Dist(),
+			Hooks:         hooks,
+			Queues:        queues,
+			Notifications: notifier,
+			Log:           log, Dist: web.Dist(),
 			ExecTimeout:           cfg.ExecTimeout,
 			SFTPTimeout:           cfg.SFTPTimeout,
 			UploadTimeout:         cfg.UploadTimeout,

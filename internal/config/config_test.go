@@ -1,7 +1,11 @@
 package config
 
 import (
+	"crypto/ecdh"
+	"crypto/rand"
+	"encoding/base64"
 	"log/slog"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -258,4 +262,84 @@ func TestLoadParallelQueues(t *testing.T) {
 			t.Errorf("%q: err=%v, want a HOSTBUD_PARALLEL_QUEUES error", bad, err)
 		}
 	}
+}
+
+// V2-M3 T0: none, some, or an invalid VAPID value turns push off with a
+// reason naming the vars (never their values); a valid set turns it on.
+func TestVAPIDConfig(t *testing.T) {
+	pub, priv := testVAPIDPair(t)
+	other, _ := testVAPIDPair(t)
+	cases := []struct {
+		name             string
+		public, private  string
+		subject          string
+		available        bool
+		missing, invalid []string
+	}{
+		{name: "none", missing: []string{EnvVAPIDPublicKey, EnvVAPIDPrivateKey, EnvVAPIDSubject}},
+		{name: "partial", public: pub, missing: []string{EnvVAPIDPrivateKey, EnvVAPIDSubject}},
+		{name: "subject only", subject: "mailto:owner@example.com", missing: []string{EnvVAPIDPublicKey, EnvVAPIDPrivateKey}},
+		{name: "valid mailto", public: pub, private: priv, subject: "mailto:owner@example.com", available: true},
+		{name: "valid https", public: pub, private: priv, subject: "https://example.com", available: true},
+		{name: "padded keys", public: pub + "=", private: priv, subject: "https://example.com", available: true},
+		{name: "public not base64", public: "not*base64", private: priv, subject: "https://example.com", invalid: []string{EnvVAPIDPublicKey}},
+		{name: "public too short", public: pub[:20], private: priv, subject: "https://example.com", invalid: []string{EnvVAPIDPublicKey}},
+		{name: "private too short", public: pub, private: priv[:10], subject: "https://example.com", invalid: []string{EnvVAPIDPrivateKey}},
+		{name: "mismatched pair", public: other, private: priv, subject: "https://example.com", invalid: []string{EnvVAPIDPrivateKey}},
+		{name: "http subject", public: pub, private: priv, subject: "http://example.com", invalid: []string{EnvVAPIDSubject}},
+		{name: "bad mailto", public: pub, private: priv, subject: "mailto:nobody", invalid: []string{EnvVAPIDSubject}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			cfg, err := Load(envFrom(map[string]string{
+				"HOST_SSH_USER": "dev", EnvVAPIDPublicKey: c.public, EnvVAPIDPrivateKey: c.private, EnvVAPIDSubject: c.subject,
+			}))
+			if err != nil {
+				t.Fatalf("Load must not fail on VAPID values: %v", err)
+			}
+			p := cfg.Push()
+			if p.Available != c.available || !slices.Equal(p.Missing, c.missing) || !slices.Equal(p.Invalid, c.invalid) {
+				t.Fatalf("Push() = %+v; want available=%v missing=%v invalid=%v", p, c.available, c.missing, c.invalid)
+			}
+			if c.available {
+				if p.Reason != "" {
+					t.Fatalf("reason %q with push available", p.Reason)
+				}
+				return
+			}
+			if !strings.Contains(p.Reason, "HOSTBUD_VAPID_PUBLIC_KEY, HOSTBUD_VAPID_PRIVATE_KEY and HOSTBUD_VAPID_SUBJECT (make vapid-keys)") {
+				t.Fatalf("reason %q lacks the fix", p.Reason)
+			}
+			for _, v := range []string{c.public, c.private} {
+				if len(v) > 8 && strings.Contains(p.Reason, v) {
+					t.Fatal("reason carries a key value")
+				}
+			}
+		})
+	}
+	cfg, _ := Load(envFrom(map[string]string{"HOST_SSH_USER": "dev"}))
+	if got := cfg.Push().Reason; got != "Push is off: set HOSTBUD_VAPID_PUBLIC_KEY, HOSTBUD_VAPID_PRIVATE_KEY and HOSTBUD_VAPID_SUBJECT (make vapid-keys)" {
+		t.Fatalf("default reason = %q", got)
+	}
+}
+
+func TestLoadPushTestEndpoint(t *testing.T) {
+	for raw, ok := range map[string]bool{"": true, "http://hostbud-e2e-pushfake:8080/push/": true, "https://push.example.test/": true, "ftp://x/": false, "not a url": false} {
+		cfg, err := Load(envFrom(map[string]string{"HOST_SSH_USER": "dev", "HOSTBUD_PUSH_TEST_ENDPOINT": raw}))
+		if (err == nil) != ok {
+			t.Errorf("%q: err = %v, want ok=%v", raw, err, ok)
+		}
+		if ok && cfg.PushTestEndpoint != raw {
+			t.Errorf("%q: PushTestEndpoint = %q", raw, cfg.PushTestEndpoint)
+		}
+	}
+}
+
+func testVAPIDPair(t *testing.T) (public, private string) {
+	t.Helper()
+	k, err := ecdh.P256().GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return base64.RawURLEncoding.EncodeToString(k.PublicKey().Bytes()), base64.RawURLEncoding.EncodeToString(k.Bytes())
 }

@@ -381,6 +381,32 @@ func TestQueueSettingsOnlyReachHostbud(t *testing.T) {
 	}
 }
 
+// V2-M3 T0: the VAPID vars reach only hostbud (empty by default: push off
+// with a reason); the e2e-only push test endpoint reaches no production
+// service, and only the e2e apps that exercise push get VAPID keys.
+func TestNotificationSettingsOnlyReachHostbud(t *testing.T) {
+	c := load(t)
+	for _, key := range []string{"HOSTBUD_VAPID_PUBLIC_KEY", "HOSTBUD_VAPID_PRIVATE_KEY", "HOSTBUD_VAPID_SUBJECT"} {
+		if got, ok := env(c.Services["hostbud"], key); !ok || got != "" {
+			t.Errorf("hostbud %s = %q, present=%v; want present and empty by default", key, got, ok)
+		}
+		for name, svc := range c.Services {
+			if _, ok := env(svc, key); ok && name != "hostbud" {
+				t.Errorf("%s unexpectedly receives %s", name, key)
+			}
+		}
+	}
+	for name, svc := range c.Services {
+		if _, ok := env(svc, "HOSTBUD_PUSH_TEST_ENDPOINT"); ok {
+			t.Errorf("production %s receives the e2e-only HOSTBUD_PUSH_TEST_ENDPOINT", name)
+		}
+	}
+	e2e := loadE2E(t)
+	if _, ok := env(e2e.Services["hostbud-e2e-app-multi"], "HOSTBUD_VAPID_PUBLIC_KEY"); ok {
+		t.Error("hostbud-e2e-app-multi has VAPID keys; it is the Push unavailable app")
+	}
+}
+
 // Placeholder values scripts/compose-config.sh and caddy-config.sh render with.
 const (
 	placeholderDomain = "hostbud.example.com"

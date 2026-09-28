@@ -21,7 +21,7 @@ GITLEAKS = scripts/tool.sh gitleaks $(GITLEAKS_IMAGE) . gitleaks
 
 .PHONY: help build test lint fmt tidy icons gitleaks gitleaks-staged hooks \
 	go-build go-test go-unit test-env test-down go-lint web-install web-build web-test web-lint e2e e2e-up e2e-run e2e-down e2e-install e2e-lint \
-	deploy logs backup restore restore-check tools-down docker-clean docs-lint shell-test doctor
+	deploy logs backup restore restore-check tools-down docker-clean docs-lint shell-test doctor vapid-keys
 
 help: ## List targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-16s %s\n", $$1, $$2}'
@@ -95,6 +95,9 @@ shell-test: ## Run shell script fixture tests in a container
 	$(SHELL_TOOL) python3 scripts/test-agent-status-hook.py
 	$(SHELL_TOOL) sh scripts/test-doctor.sh
 	$(SHELL_TOOL) sh scripts/test-docs.sh
+
+vapid-keys: ## Print a fresh Web Push (VAPID) key pair for .env (writes nothing)
+	@$(GO) go run ./cmd/hostbud vapid-keys
 
 doctor: ## Read-only checks for a fresh hostbud installation
 	sh scripts/doctor.sh

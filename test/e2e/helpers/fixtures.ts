@@ -2,7 +2,7 @@ import { test as base, expect, type Page } from '@playwright/test'
 import { Target } from './target.ts'
 import { UI } from './ui.ts'
 import { appRestarts } from './ctl.ts'
-import { multiDb, queues } from './db.ts'
+import { multiDb, notifications, queues } from './db.ts'
 import { MULTI_URL } from './api.ts'
 
 interface Fixtures {
@@ -38,7 +38,10 @@ async function resetAccountState(page: Page, baseURL: string | undefined): Promi
   // V2-M1: a project with a queue can't be deleted; queues go first. The
   // V2-M2 multi app has its own database (and its cap goes too).
   if (new URL(baseURL!).origin === MULTI_URL) await multiDb.reset()
-  else await queues.deleteAll()
+  else {
+    await queues.deleteAll()
+    await notifications.reset() // V2-M3: every account off, no subscriptions
+  }
   for (const project of projects ?? []) {
     const deleted = await page.request.delete(`/api/projects/${encodeURIComponent(project.id)}`, { headers })
     if (!deleted.ok()) throw new Error(`reset e2e project ${project.id}: ${deleted.status()} ${await deleted.text()}`)

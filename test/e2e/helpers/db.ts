@@ -118,6 +118,23 @@ export const queues = {
   },
 }
 
+// V2-M3: notification settings, push subscriptions and the outbox of the
+// main apps' database (every account off again: the tests' shared reset).
+export const notifications = {
+  reset: async () => {
+    await sql(`DELETE FROM notification_deliveries`)
+    await sql(`DELETE FROM notification_outbox`)
+    await sql(`DELETE FROM push_subscriptions`)
+    await sql(`DELETE FROM notification_prefs`)
+  },
+  /** Outbox rows (dedupe keys) per account email. */
+  outbox: async (): Promise<{ email: string; key: string }[]> =>
+    (await sql(`SELECT u.email_normalized AS email, o.dedupe_key AS key FROM notification_outbox o JOIN users u ON u.id = o.user_id ORDER BY o.id`)) as unknown as { email: string; key: string }[],
+  /** Push subscription endpoints per account email. */
+  subscriptions: async (): Promise<{ email: string; endpoint: string }[]> =>
+    (await sql(`SELECT u.email_normalized AS email, s.endpoint FROM push_subscriptions s JOIN users u ON u.id = s.user_id ORDER BY s.created_at`)) as unknown as { email: string; endpoint: string }[],
+}
+
 // V2-M2: the multi app's own database (HOSTBUD_PARALLEL_QUEUES=true).
 const multiSql = (text: string, params: unknown[] = []) => sql(text, params, process.env.E2E_DB_MULTI_URL)
 
@@ -141,6 +158,11 @@ export const multiDb = {
     await multiSql(`DELETE FROM recent_commands`)
     await multiSql(`DELETE FROM projects`)
     await multiSql(`DELETE FROM machine_capacity`)
+    // V2-M3: every account off again.
+    await multiSql(`DELETE FROM notification_deliveries`)
+    await multiSql(`DELETE FROM notification_outbox`)
+    await multiSql(`DELETE FROM push_subscriptions`)
+    await multiSql(`DELETE FROM notification_prefs`)
   },
   /** Marks an active run stale, as the stale timer would (a stale run still
    * holds its slot). */

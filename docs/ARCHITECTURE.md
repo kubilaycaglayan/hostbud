@@ -355,6 +355,9 @@ PUT    /api/machines/:id/parallel-queues {parallelQueues: bool} — the parallel
 POST   /api/queue-items/:id/retry|skip|mark-done needs_attention items only (409 otherwise); an active run is cancelled first
 POST   /api/hooks/:run_id/:event      token-authenticated run hook (session_start|turn_end|session_end): 204/401/404/410/429/413/400
 
+# v2 notifications (V2-M3, opt-in per account; docs/roadmap-v2)
+GET|PUT /api/notifications/settings   the caller's account only: {enabled, onDone, onAttention, onFinished} (PUT: any subset), plus push {available, reason} and vapidPublicKey when push is available; no row = off
+
 # later (multi-machine)
 POST   /api/machines                      add custom connection
 PATCH  /api/machines/:id                  label, sort, hidden, connection fields

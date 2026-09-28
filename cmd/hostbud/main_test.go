@@ -94,3 +94,23 @@ func TestHealthcheckExitConditions(t *testing.T) {
 		}
 	})
 }
+
+// V2-M3 T0: make vapid-keys prints a pair the config accepts.
+func TestPrintVAPIDKeysIsAValidPair(t *testing.T) {
+	var out strings.Builder
+	if err := printVAPIDKeys(&out); err != nil {
+		t.Fatal(err)
+	}
+	env := map[string]string{"HOST_SSH_USER": "dev", "HOSTBUD_VAPID_SUBJECT": "mailto:owner@example.com"}
+	for _, line := range strings.Split(strings.TrimSpace(out.String()), "\n") {
+		k, v, _ := strings.Cut(line, "=")
+		env[k] = v
+	}
+	cfg, err := config.Load(func(k string) string { return env[k] })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p := cfg.Push(); !p.Available {
+		t.Fatalf("printed pair is not accepted: %+v", p)
+	}
+}

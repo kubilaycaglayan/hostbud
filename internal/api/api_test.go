@@ -21,9 +21,11 @@ import (
 	"github.com/coder/websocket/wsjson"
 
 	"hostbud/internal/auth"
+	"hostbud/internal/config"
 	"hostbud/internal/events"
 	"hostbud/internal/fsbrowse"
 	"hostbud/internal/inventory"
+	"hostbud/internal/notify"
 	"hostbud/internal/projects"
 	"hostbud/internal/session"
 	"hostbud/internal/store"
@@ -190,6 +192,7 @@ type env struct {
 	ui       *fakeUIState
 	fs       *fakeFileBrowser
 	projects *fakeProjects
+	notifier *notify.Service
 }
 
 type fakeFileBrowser struct {
@@ -293,13 +296,19 @@ func newEnv(t *testing.T) *env {
 	t.Helper()
 	e := &env{svc: &fakeService{}, bus: events.NewBus(), m: host("a"), ui: &fakeUIState{}, fs: &fakeFileBrowser{}}
 	e.projects = &fakeProjects{}
+	e.notifier = newNotifier(config.CheckVAPID("", "", ""))
+	e.rebuild()
+	return e
+}
+
+// rebuild recreates the handler after a test swapped a dependency.
+func (e *env) rebuild() {
 	e.h = New(Config{
 		Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Dist: fstest.MapFS{},
 		Origins: AllowedOrigins("hostbud.example.com", 9055), Bus: e.bus,
 		Machines: []Snapshotter{e.m}, Sessions: e.svc, Auth: &fakeAuth{}, UIState: e.ui, FileSystem: e.fs, Projects: e.projects,
-		Queues: &fakeQueues{}, Hooks: &fakeHooks{},
+		Queues: &fakeQueues{}, Hooks: &fakeHooks{}, Notifications: e.notifier,
 	})
-	return e
 }
 
 func (e *env) do(t *testing.T, method, path, body string, hdr map[string]string) *httptest.ResponseRecorder {

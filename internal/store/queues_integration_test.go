@@ -254,7 +254,7 @@ func TestIntegrationParallelQueuesMigrationKeepsV2M1Data(t *testing.T) {
 		}
 	}
 	var version int64
-	if err := db.QueryRowContext(ctx, `SELECT max(version_id) FROM goose_db_version WHERE is_applied`).Scan(&version); err != nil || version != 7 {
+	if err := db.QueryRowContext(ctx, `SELECT max(version_id) FROM goose_db_version WHERE is_applied`).Scan(&version); err != nil || version < 7 { // 0007 and any later migration
 		t.Fatalf("version = %d, %v", version, err)
 	}
 	var waiting sql.NullTime
