@@ -145,8 +145,11 @@ restore-check: ## Restore FILE into a temporary database and verify it without t
 tools-down: ## Remove the toolbox containers (recreated on next use)
 	-docker rm -f $$(docker ps -aq --filter label=hostbud.tools=1) 2>/dev/null
 
-docker-clean: ## Free hostbud's Docker disk: untagged images, the e2e stack and images, toolbox containers (CACHE=1 also prunes build cache >72h, all projects)
+docker-clean: ## Free hostbud's Docker disk: untagged images, the e2e stack (with the V2-M2 multi app) and images, toolbox containers (CACHE=1 also prunes build cache >72h, all projects)
 	-test/e2e/run.sh down
+	@# V2-M2: the multi app and its database step (their volume holds only its data; hostbud_multi lives in the e2e pgdata volume run.sh drops).
+	-docker rm -f hostbud-e2e-app-multi hostbud-e2e-multidb 2>/dev/null
+	-docker volume rm hostbud-e2e-data-multi 2>/dev/null
 	-docker rm -f $$(docker ps -aq --filter label=hostbud.tools=1) 2>/dev/null
 	-docker rmi hostbud-e2e-app:local hostbud-e2e-target:local hostbud-e2e-target-notmux:local \
 		hostbud-e2e-caddy:local hostbud-e2e-ctl:local hostbud-e2e-runner:local 2>/dev/null

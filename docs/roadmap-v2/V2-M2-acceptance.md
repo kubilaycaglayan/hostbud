@@ -67,5 +67,5 @@ Written in T2–T5 and type-checked; run on demand (desktop and `iphone-13-pro`)
 - [x] Every criterion is ticked (E items as written and type-checked; `make e2e` runs only on demand and a pending run is listed as open).
 - [x] `make lint test` is green, `make gitleaks` is clean, and nothing host-specific is tracked. (CP4, 2026-09-28)
 - [x] *(host)* `make deploy` succeeded: the stack is healthy, V2-M1 queues are intact, and the switch is as the owner set it. (2026-09-28: backup first; health ok; migration 6; row counts of users, projects, session links, queues, items, runs, run events and UI state unchanged, and the queue/item/run checksums equal; no `machine_capacity` row; `HOSTBUD_PARALLEL_QUEUES=false`, the owner hasn't set it; the capacity route and panel strings are live.)
-- [ ] T8 Docker cleanup is done, or skipped with the reason recorded; production, volumes and backups are intact, and the reclaimed space is reported.
-- [ ] The summary is delivered: changes, the new env var, host steps, e2e results and open owner items.
+- [x] T8 Docker cleanup is done, or skipped with the reason recorded; production, volumes and backups are intact, and the reclaimed space is reported. (2026-09-28: five toolbox containers, about 4 MB.)
+- [x] The summary is delivered: changes, the new env var, host steps, e2e results and open owner items. (2026-09-28)
