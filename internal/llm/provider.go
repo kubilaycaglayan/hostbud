@@ -39,7 +39,7 @@ type Status struct {
 	Reason        string `json:"reason,omitempty"`
 	Provider      string `json:"provider,omitempty"`
 	Model         string `json:"model,omitempty"`
-	Scrub         bool   `json:"scrub,omitempty"`
+	Scrub         bool   `json:"scrub"`
 	QuietAfter    string `json:"quietAfter,omitempty"`
 	MaxPerRunHour int    `json:"maxPerRunHour,omitempty"`
 }
