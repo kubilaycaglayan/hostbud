@@ -11,11 +11,11 @@ Update this table in the same commit that finishes a task.
 | Task | Status |
 |---|---|
 | T1 Provider, config and status | Implemented; e2e scenarios written and type-checked |
-| T2 Trigger and capture | Partial; due/budget/capture, stale/restart/gone-session scenarios covered; rename and capture-specific coverage remain |
-| T3 Result handling | Partial; guarded flag-only result and race/injection scenarios covered; provider failure matrix remains |
+| T2 Trigger and capture | Partial; due/budget/stale/restart/gone/rename covered; exact-prefix and large-pane integration coverage remain |
+| T3 Result handling | Partial; guarded result, races, injection and most provider failures covered; provider-timeout e2e remains |
 | T4 Privacy | Implemented; e2e privacy assertions written and type-checked |
-| T5 Panel and notifications | Partial; badge and one-notification flow implemented, repeat/new-label coverage remains |
-| T6 Docs | Partial; source docs/env updated, docs check passed |
+| T5 Panel and notifications | Implemented; repeat-label dedupe and new-label notification scenarios written and type-checked |
+| T6 Docs | Implemented; source docs/env updated and docs check passed |
 | T7 Milestone acceptance | Partial; tests and deploy passed, scenario coverage remains incomplete |
 | T8 Safe Docker cleanup | Skipped; active toolbox and unrelated project containers make cleanup unsafe |
 
@@ -29,7 +29,7 @@ The v2 ROADMAP *Rules*, AGENTS.md and the V2-M1 milestone rules (fast checks per
 - **Flag only.** The supervisor's only write is inserting `run_events(source='llm')` rows through one narrow store method; it has no access to item, run, queue, gate or slot updates. No migration: `llm` is already in the `source` CHECK (v2 §6), and the budget and timer are derived from `runs.last_signal_at` and those rows.
 - **Eligible runs:** a run in `running` (item `running`) or `stale` (item `needs_attention`, still its latest run). Never `starting`, never an ended run (`achieved`, `failed`, `exited`, `cancelled`), so never a gated item (`verifying`, `awaiting_approval`, whose run is `achieved`).
 - **Visible result:** only the label and a short reason (≤ 200 chars, one line, control bytes stripped, scrubbed). `running` and `unknown` are recorded but show no badge. Pane text, prompt and raw answer are held in memory for the call only: never stored, logged (any level), put on events or shown.
-- **Test fixtures:** e2e apps: `hostbud-e2e-app` keeps no provider; new `hostbud-e2e-app-llm` points at `hostbud-e2e-llmfake` (short quiet window, budget 2, VAPID keys, pushfake allowed); `hostbud-e2e-app-multi` gets a partial config (provider set, no key). The key in e2e config is an obvious placeholder.
+- **Test fixtures:** e2e apps: `hostbud-e2e-app` keeps no provider; new `hostbud-e2e-app-llm` points at `hostbud-e2e-llmfake` (short quiet window, budget 3 for repeated-label/new-label notification coverage, VAPID keys, pushfake allowed); `hostbud-e2e-app-multi` gets a partial config (provider set, no key). The key in e2e config is an obvious placeholder.
 
 | Checkpoint | After | Runs | Status |
 |---|---|---|---|

@@ -18,7 +18,8 @@ createServer(async(req,res)=>{
       requests.push({at:Date.now(),pane,system})
       if(script.delayMs) await new Promise(r=>setTimeout(r,script.delayMs))
       if(script.status!==200) return json(res,script.status,{error:'scripted provider error'})
-      return json(res,200,{choices:[{message:{content:JSON.stringify({label:script.label,reason:script.reason})}}]})
+      const content=script.content ?? JSON.stringify({label:script.label,reason:script.reason})
+      return json(res,200,{choices:[{message:{content}}]})
     }
     if(req.method==='GET'&&url.pathname==='/ctl/requests') return json(res,200,requests)
     if(req.method==='POST'&&url.pathname==='/ctl/script') { script={...script,...JSON.parse((await read(req)).toString()||'{}')};return json(res,200,{ok:true}) }

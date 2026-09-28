@@ -114,6 +114,32 @@ func TestOpenAICanceledRequestReturnsUnknownWithoutRetry(t *testing.T) {
 		t.Fatalf("result=%+v err=%v calls=%d", result, err, calls)
 	}
 }
+
+func TestOpenAITimedOutRequestReturnsUnknownWithoutRetry(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(started)
+		<-release
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"content":"{\"label\":\"running\",\"reason\":\"ok\"}"}}]}`))
+	}))
+	defer srv.Close()
+	c := validConfig()
+	c.BaseURL = srv.URL
+	ctx, cancel := context.WithTimeout(t.Context(), 25*time.Millisecond)
+	defer cancel()
+	result, err := NewOpenAI(c).Classify(ctx, "pane")
+	close(release)
+	if err == nil || result.Label != Unknown {
+		t.Fatalf("result=%+v err=%v", result, err)
+	}
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("provider request did not start")
+	}
+}
+
 func TestReasonIsBoundedAndSingleLine(t *testing.T) {
 	got := cleanReason(strings.Repeat("a", 205) + "\nsecret")
 	if len(got) > 200 || strings.ContainsAny(got, "\n\r") {

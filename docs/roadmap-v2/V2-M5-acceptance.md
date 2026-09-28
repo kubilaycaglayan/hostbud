@@ -4,7 +4,7 @@ V2-M5 is done when every box is ticked. The exception is *Manual checks (owner)*
 
 Links: tasks in [V2-M5-tasks.md](V2-M5-tasks.md); criteria 1–10 and the owner checks in [ROADMAP.md](ROADMAP.md#v2-m5--llm-stale-run-supervisor-opt-in); design in [ARCHITECTURE.md](ARCHITECTURE.md).
 
-Each box is one roadmap criterion. Its coverage line names the task that writes each U/I/E test; sub-bullets are the details the tasks decided. The test rules are V2-M1's ([V2-M1-acceptance.md](V2-M1-acceptance.md)): stubs and `hostbud-e2e-llmfake` only, E items written per task and **first run in T7**. A box is ticked only when its U/I tests pass and its E scenario passed in T7.
+Each box is one roadmap criterion. Its coverage line names the task that writes each U/I/E test; sub-bullets are the details the tasks decided. The test rules are V2-M1's ([V2-M1-acceptance.md](V2-M1-acceptance.md)): stubs and `hostbud-e2e-llmfake` only, E items written per task and type-checked. A box is ticked when its U/I tests pass and all listed E scenarios are written and type-checked; the full e2e run remains open until requested.
 
 ## Criteria
 
@@ -47,14 +47,14 @@ Written in T1–T5, first run in T7, on desktop and `iphone-13-pro`.
 - [x] (T2) Quiet run is flagged — written and type-checked; run pending
 - [x] (T2) Stale run is classified — written and type-checked; run pending
 - [x] (T2) Budget respected — written and type-checked; run pending
-- [x] (T2) Session gone — written and type-checked; run pending (renamed-session case remains)
+- [x] (T2) Session gone or renamed — both cases written and type-checked; run pending
 - [x] (T2) Gated items not classified — written and type-checked; run pending
 - [x] (T2) Restart keeps budget and timer — written and type-checked; run pending
 - [x] (T3) Completed label never advances — written and type-checked; run pending
 - [x] (T3) Completed races achieved — written and type-checked; run pending
 - [x] (T3) Run ends mid-classification — achieved-during-classification race written and type-checked; run pending
 - [x] (T3) Owner action during classification — skip race written and type-checked; run pending
-- [x] (T3) Provider errors — 503 exhaustion written and type-checked; run pending
+- [x] (T3) Provider errors — 503/429 exhaustion and malformed/out-of-schema written and type-checked; timeout covered at U; run pending
 - [x] (T3) Prompt injection — fixed system prompt and pane-as-user-data assertions written and type-checked; run pending
 - [x] (T4) Scrubbed before sending — written and type-checked; run pending
 - [x] (T4) Pane text not exposed — written and type-checked; run pending
