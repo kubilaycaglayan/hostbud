@@ -23,7 +23,7 @@ Each box is one roadmap criterion. Its coverage line names the task that writes 
 - [ ] **5 Only eligible runs are classified; budget and timer survive a restart.**
   - Only `running` and `stale` runs; gated items and ended runs never. A restart recomputes from stored rows and makes no extra call; an interrupted claim ends `unknown`.
   - U: T2 · I: T2 · E: T2 *Gated items not classified*, *Restart keeps budget and timer*.
-- [ ] **6 A classification never advances the queue or changes an item, run, gate or slot.**
+- [x] **6 A classification never advances the queue or changes an item, run, gate or slot.**
   - Including `completed`; a result racing achieved, exit or an owner action is discarded without a flag.
   - U: T3 · I: T3 · E: T3 *Completed label never advances*, *Completed races achieved*, *Run ends mid-classification*, *Owner action during classification*.
 - [ ] **7 Provider failures and hostile pane text never change a status.**

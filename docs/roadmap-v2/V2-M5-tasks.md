@@ -10,9 +10,9 @@ Update this table in the same commit that finishes a task.
 
 | Task | Status |
 |---|---|
-| T1 Provider, config and status | Implemented; e2e scenarios written and type-checked |
-| T2 Trigger and capture | Implemented; due-window boundary, latest signal, stale immediacy, budget/restart, exact argv and `test/sshd` capture covered |
-| T3 Result handling | Partial; guarded result, races, injection and provider failure scenarios covered, but the full 50-repeat result-race matrix remains |
+| T1 Provider, config and status | Implemented; provider request shape, pane-data isolation, authenticated status API and e2e scenarios are covered/type-checked |
+| T2 Trigger and capture | Implemented; eligibility matrix, due-window boundary, latest signal, stale immediacy, budget/restart, exact argv and `test/sshd` capture/gone/rename/prefix coverage are covered |
+| T3 Result handling | Implemented; all labels preserve queue/run state, seven race outcomes repeat 50 times, delayed SSH integration discards an achieved race, and provider injection stays in the untrusted user-data field |
 | T4 Privacy | Implemented; scrub-disabled mode retrieves the session token in memory, always removes it, and fails closed if retrieval fails; unit, `test/sshd` log-hygiene and e2e privacy assertions are written and type-checked |
 | T5 Panel and notifications | Implemented; repeat-label dedupe and new-label notification scenarios written and type-checked |
 | T6 Docs | Implemented; source docs/env updated and docs check passed |

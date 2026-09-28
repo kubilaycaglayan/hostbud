@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/sha256"
 	"errors"
+	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -402,6 +404,78 @@ func TestLLMStaleRunRespectsQuietAfterACompletedClaim(t *testing.T) {
 	}
 }
 
+func TestLLMEligibleRunsIncludesOnlyLatestRunningAndStalePairs(t *testing.T) {
+	ctx := context.Background()
+	s, p := queueFixture(t)
+	q, err := s.CreateQueue(ctx, p.ID, "llm-eligible")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]bool{}
+	for i, pair := range []struct{ runStatus, itemStatus string }{
+		{RunRunning, ItemRunning},
+		{RunStale, ItemNeedsAttention},
+		{RunStarting, ItemRunning},
+		{RunAchieved, ItemDone},
+		{RunRunning, ItemVerifying},
+		{RunRunning, ItemAwaitingApproval},
+		{RunStale, ItemRunning},
+		{RunRunning, ItemNeedsAttention},
+	} {
+		item, err := s.AddQueueItem(ctx, q.ID, "claude", "", fmt.Sprintf("eligible %d", i))
+		if err != nil {
+			t.Fatal(err)
+		}
+		started := time.Now().Add(time.Duration(i) * time.Second)
+		run, err := s.CreateRun(ctx, item.ID, tokenHash(fmt.Sprintf("eligible-%d", i)), started)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.db.ExecContext(ctx, `UPDATE runs SET status=$2 WHERE id=$1`, run.ID, pair.runStatus); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.db.ExecContext(ctx, `UPDATE queue_items SET status=$2 WHERE id=$1`, item.ID, pair.itemStatus); err != nil {
+			t.Fatal(err)
+		}
+		want[run.ID] = pair.runStatus == RunRunning && pair.itemStatus == ItemRunning || pair.runStatus == RunStale && pair.itemStatus == ItemNeedsAttention
+	}
+	// The original running attempt is excluded once a newer retry exists.
+	item, err := s.AddQueueItem(ctx, q.ID, "claude", "", "latest attempt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	old, err := s.CreateRun(ctx, item.ID, tokenHash("eligible-old"), time.Now().Add(time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.ExecContext(ctx, `UPDATE runs SET status=$2 WHERE id=$1`, old.ID, RunRunning); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.ExecContext(ctx, `UPDATE queue_items SET status=$2 WHERE id=$1`, item.ID, ItemRunning); err != nil {
+		t.Fatal(err)
+	}
+	want[old.ID] = false
+	newer, err := s.CreateRun(ctx, item.ID, tokenHash("eligible-new"), time.Now().Add(2*time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want[newer.ID] = false
+
+	runs, err := s.LLMEligibleRuns(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, run := range runs {
+		got[run.ID] = true
+	}
+	for id, eligible := range want {
+		if got[id] != eligible {
+			t.Errorf("run %s eligible=%v want=%v", id, got[id], eligible)
+		}
+	}
+}
+
 func TestRecoveredLLMClaimDoesNotRunAgain(t *testing.T) {
 	ctx := context.Background()
 	s, p := queueFixture(t)
@@ -457,6 +531,163 @@ func TestLLMResultAfterNewSignalIsDiscardedWithoutQueueMutation(t *testing.T) {
 	queue, _ := s.Queue(ctx, q.ID)
 	if item.Status != ItemRunning || runAfter.Status != RunRunning || queue.Status != QueueIdle {
 		t.Fatalf("state changed item=%s run=%s queue=%s", item.Status, runAfter.Status, queue.Status)
+	}
+}
+
+func TestLLMResultsNeverChangeQueueStateForAnyLabel(t *testing.T) {
+	ctx := context.Background()
+	s, p := queueFixture(t)
+	q, err := s.CreateQueue(ctx, p.ID, "llm-labels")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, label := range []string{"running", "waiting_input", "blocked", "completed", "failed", "unknown"} {
+		t.Run(label, func(t *testing.T) {
+			item, err := s.AddQueueItem(ctx, q.ID, "claude", "", "label "+label)
+			if err != nil {
+				t.Fatal(err)
+			}
+			run, err := s.CreateRun(ctx, item.ID, tokenHash("label-"+label), time.Now().Add(-time.Hour))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.TransitionRun(ctx, run.ID, []string{RunStarting}, RunRunning, "", nil); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.TransitionQueueItem(ctx, item.ID, []string{ItemQueued}, ItemRunning); err != nil {
+				t.Fatal(err)
+			}
+			if claimed, err := s.ClaimLLM(ctx, run.ID, nil, 2, time.Minute); err != nil || !claimed {
+				t.Fatalf("claim=%v err=%v", claimed, err)
+			}
+			beforeItem, _ := s.QueueItem(ctx, item.ID)
+			beforeRun, _ := s.Run(ctx, run.ID)
+			beforeQueue, _ := s.Queue(ctx, q.ID)
+			result := []byte(fmt.Sprintf(`{"label":%q,"reason":"advisory"}`, label))
+			inserted, _, _, err := s.FinishLLM(ctx, run.ID, nil, result)
+			if err != nil || !inserted {
+				t.Fatalf("finish=%v err=%v", inserted, err)
+			}
+			afterItem, _ := s.QueueItem(ctx, item.ID)
+			afterRun, _ := s.Run(ctx, run.ID)
+			afterQueue, _ := s.Queue(ctx, q.ID)
+			if !reflect.DeepEqual(beforeItem, afterItem) || !reflect.DeepEqual(beforeRun, afterRun) || !reflect.DeepEqual(beforeQueue, afterQueue) {
+				t.Fatalf("label %s changed item/run/queue: item %+v → %+v; run %+v → %+v; queue %+v → %+v", label, beforeItem, afterItem, beforeRun, afterRun, beforeQueue, afterQueue)
+			}
+		})
+	}
+}
+
+func TestLLMResultsAreDiscardedAfterOwnerAndRunRaces(t *testing.T) {
+	ctx := context.Background()
+	s, p := queueFixture(t)
+	q, err := s.CreateQueue(ctx, p.ID, "llm-races")
+	if err != nil {
+		t.Fatal(err)
+	}
+	actions := []struct {
+		name  string
+		apply func(*testing.T, QueueItem, Run)
+	}{
+		{name: "achieved", apply: func(t *testing.T, _ QueueItem, run Run) {
+			_, err := s.TransitionRun(ctx, run.ID, []string{RunRunning}, RunAchieved, "", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "exit", apply: func(t *testing.T, _ QueueItem, run Run) {
+			_, err := s.TransitionRun(ctx, run.ID, []string{RunRunning}, RunExited, "", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "stale then achieved", apply: func(t *testing.T, item QueueItem, run Run) {
+			if _, err := s.TransitionRun(ctx, run.ID, []string{RunRunning}, RunStale, "", nil); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.TransitionQueueItem(ctx, item.ID, []string{ItemRunning}, ItemNeedsAttention); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.TransitionRun(ctx, run.ID, []string{RunStale}, RunAchieved, "", nil); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "mark done", apply: func(t *testing.T, item QueueItem, run Run) {
+			if _, err := s.TransitionRun(ctx, run.ID, []string{RunRunning}, RunStale, "", nil); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.TransitionQueueItem(ctx, item.ID, []string{ItemRunning}, ItemNeedsAttention); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.TransitionQueueItem(ctx, item.ID, []string{ItemNeedsAttention}, ItemDone); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "skip", apply: func(t *testing.T, item QueueItem, run Run) {
+			if _, err := s.TransitionRun(ctx, run.ID, []string{RunRunning}, RunStale, "", nil); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.TransitionQueueItem(ctx, item.ID, []string{ItemRunning}, ItemNeedsAttention); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.TransitionQueueItem(ctx, item.ID, []string{ItemNeedsAttention}, ItemSkipped); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "retry", apply: func(t *testing.T, item QueueItem, run Run) {
+			if _, err := s.TransitionRun(ctx, run.ID, []string{RunRunning}, RunFailed, "retry", nil); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.TransitionQueueItem(ctx, item.ID, []string{ItemRunning}, ItemQueued); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.CreateRun(ctx, item.ID, tokenHash("retry"+time.Now().String()), time.Now().Add(time.Hour)); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "new signal", apply: func(t *testing.T, _ QueueItem, run Run) {
+			now := time.Now().UTC()
+			if _, err := s.UpdateRun(ctx, run.ID, RunUpdate{LastSignalAt: &now}); err != nil {
+				t.Fatal(err)
+			}
+		}},
+	}
+	for _, action := range actions {
+		t.Run(action.name, func(t *testing.T) {
+			for i := range 50 {
+				item, err := s.AddQueueItem(ctx, q.ID, "claude", "", fmt.Sprintf("%s %d", action.name, i))
+				if err != nil {
+					t.Fatal(err)
+				}
+				run, err := s.CreateRun(ctx, item.ID, tokenHash(fmt.Sprintf("%s-%d", action.name, i)), time.Now().Add(-time.Hour))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := s.TransitionRun(ctx, run.ID, []string{RunStarting}, RunRunning, "", nil); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := s.TransitionQueueItem(ctx, item.ID, []string{ItemQueued}, ItemRunning); err != nil {
+					t.Fatal(err)
+				}
+				if claimed, err := s.ClaimLLM(ctx, run.ID, nil, 2, time.Minute); err != nil || !claimed {
+					t.Fatalf("claim=%v err=%v", claimed, err)
+				}
+				action.apply(t, item, run)
+				beforeItem, _ := s.QueueItem(ctx, item.ID)
+				beforeRun, _ := s.Run(ctx, run.ID)
+				beforeQueue, _ := s.Queue(ctx, q.ID)
+				inserted, _, _, err := s.FinishLLM(ctx, run.ID, nil, []byte(`{"label":"completed","reason":"raced result"}`))
+				if err != nil || inserted {
+					t.Fatalf("race %d finish=%v err=%v", i, inserted, err)
+				}
+				afterItem, _ := s.QueueItem(ctx, item.ID)
+				afterRun, _ := s.Run(ctx, run.ID)
+				afterQueue, _ := s.Queue(ctx, q.ID)
+				if !reflect.DeepEqual(beforeItem, afterItem) || !reflect.DeepEqual(beforeRun, afterRun) || !reflect.DeepEqual(beforeQueue, afterQueue) {
+					t.Fatalf("race %d mutated state: item %+v → %+v; run %+v → %+v; queue %+v → %+v", i, beforeItem, afterItem, beforeRun, afterRun, beforeQueue, afterQueue)
+				}
+			}
+		})
 	}
 }
 

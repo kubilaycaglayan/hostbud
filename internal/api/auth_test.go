@@ -15,18 +15,47 @@ import (
 
 	"hostbud/internal/auth"
 	"hostbud/internal/events"
+	"hostbud/internal/llm"
 	"hostbud/internal/store"
 )
 
-func authEnv(t *testing.T, a Authenticator) *env {
+func authEnv(t *testing.T, a Authenticator, supervisor ...llm.Status) *env {
 	t.Helper()
 	proxies, _ := auth.ParsePrefixes("172.16.0.0/12")
+	var status llm.Status
+	if len(supervisor) > 0 {
+		status = supervisor[0]
+	}
 	return &env{h: New(Config{
 		Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Dist: fstest.MapFS{"index.html": {Data: []byte("app")}},
 		Origins: AllowedOrigins("", 9055), Bus: events.NewBus(), Machines: []Snapshotter{host("a")},
 		Sessions: &fakeService{}, Auth: a, TrustedProxies: proxies,
-		Terminal: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusTeapot) }),
+		Supervisor: status,
+		Terminal:   http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusTeapot) }),
 	})}
+}
+
+func TestSupervisorStatusIsAuthenticatedAndNeverContainsAKey(t *testing.T) {
+	for _, status := range []llm.Status{
+		{Enabled: true, Provider: "openai", Model: "test-model", Scrub: false, QuietAfter: "20m", MaxPerRunHour: 2},
+		{Enabled: false, Reason: "set OPENAI_API_KEY"},
+	} {
+		e := authEnv(t, &fakeAuth{}, status)
+		if rec := e.do(t, http.MethodGet, "/api/supervisor", "", noCookie); rec.Code != http.StatusUnauthorized {
+			t.Fatalf("unauthenticated status=%d", rec.Code)
+		}
+		rec := e.do(t, http.MethodGet, "/api/supervisor", "", nil)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status=%d body=%s", rec.Code, rec.Body)
+		}
+		body := decodeBody[map[string]any](t, rec)
+		if body["enabled"] != status.Enabled || strings.Contains(rec.Body.String(), "apiKey") || strings.Contains(rec.Body.String(), "secret") {
+			t.Fatalf("unexpected status payload %s", rec.Body)
+		}
+		if status.Reason != "" && body["reason"] != status.Reason {
+			t.Fatalf("disabled reason=%v want=%q", body["reason"], status.Reason)
+		}
+	}
 }
 
 var noCookie = map[string]string{"Cookie": ""}
