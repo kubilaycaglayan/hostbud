@@ -8,7 +8,7 @@ Manage the tmux sessions on your server from a web UI: browse directories, organ
 
 > Status: **v1** — hostbud is a single-host, self-hosted tmux web client. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
-Choose **Dark**, **Light** or **System** from the Account menu. System follows the device appearance, and the selected theme applies to the interface and open terminals.
+Choose **Dark**, **Light**, **Solarized**, **Dimmed** or **System** from the Account menu. System follows the device appearance, and the selected theme applies to the interface and open terminals. Solarized uses a muted cream-sage surface at about 25% darkness; Dimmed is a deeper slate-teal at about 70%.
 
 ## How it works
 - Runs in Docker on one host, behind Caddy: plain HTTP on `127.0.0.1:9055` for SSH port forwarding, and HTTPS on your domain bound to the host's Tailscale IP (a Let's Encrypt certificate via Cloudflare DNS-01).
@@ -127,7 +127,7 @@ Press ⌘/ (Mac), Ctrl+Shift+/ or `?` to open **Keyboard shortcuts**. ⌘⇧E / 
 
 ### Theme
 
-Choose **Dark**, **Light** or **System** from the Account menu or command palette. The choice applies to the interface and open terminals and is saved to your account. Programs that picked their own colors for the old theme (Codex's prompt box, for example) keep them until restarted; hostbud still keeps their text readable by enforcing a minimum contrast, and restarting the program (for Codex, quit and `codex resume`) or using a fixed Dark/Light theme gives it matching colors. Before sign-in, the browser uses its own last theme mirror to avoid a flash; a new account starts in System mode.
+Choose **Dark**, **Light**, **Solarized**, **Dimmed** or **System** from the Account menu or command palette. The choice applies to the interface and open terminals and is saved to your account. Solarized sits at about 25% darkness with a muted cream-sage surface; Dimmed sits at about 70% on a slate-teal surface. Programs that picked their own colors for the old theme (Codex's prompt box, for example) keep them until restarted; hostbud still keeps their text readable by enforcing a minimum contrast, and restarting the program (for Codex, quit and `codex resume`) or using a fixed theme gives it matching colors. Before sign-in, the browser uses its own last theme mirror to avoid a flash; a new account starts in System mode.
 
 ### Terminal
 - **Tabs:** click a session to open it in a tab (clicking it again brings its tab back); **New session** opens its session in a new tab. Tabs stay attached in the background, so switching is instant. Close a tab with ×, a middle click, or Delete on the focused tab: that only detaches the view, and the session keeps running. Drag a tab to change the order (on a phone, touch and hold it first); the order is saved with your tabs, and new tabs still open at the end. Renaming a session relabels its tabs; a session killed anywhere closes its tabs with a notice. Up to 16 terminals can be open at once, and each holds its own connection to the host.

@@ -13,8 +13,8 @@ export const useThemeStore = defineStore('theme', () => {
   function apply() {
     const value = resolved.value
     document.documentElement.dataset.theme = value
-    document.documentElement.style.colorScheme = value
-    document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute('content', value === 'dark' ? '#0f1115' : '#ffffff')
+    document.documentElement.style.colorScheme = value === 'dark' || value === 'dimmed' ? 'dark' : 'light'
+    document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute('content', value === 'dark' ? '#0f1115' : value === 'solarized' ? '#bbc5b9' : value === 'dimmed' ? '#4c686a' : '#ffffff')
     try { localStorage.setItem('hostbud.theme', mode.value) } catch { /* storage may be blocked */ }
   }
 

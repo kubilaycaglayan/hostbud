@@ -23,7 +23,7 @@ export interface PaletteActionHandlers {
   closeTab(): void
   nextTab(): void
   previousTab(): void
-  setTheme(mode: 'dark' | 'light' | 'system'): void
+  setTheme(mode: 'dark' | 'light' | 'solarized' | 'dimmed' | 'system'): void
   shortcuts(): void
   signOut(): void
 }
@@ -59,6 +59,8 @@ export function dispatchPaletteAction(id: string, handlers: PaletteActionHandler
     case 'previous-tab': handlers.previousTab(); break
     case 'theme-dark': handlers.setTheme('dark'); break
     case 'theme-light': handlers.setTheme('light'); break
+    case 'theme-solarized': handlers.setTheme('solarized'); break
+    case 'theme-dimmed': handlers.setTheme('dimmed'); break
     case 'theme-system': handlers.setTheme('system'); break
     case 'shortcuts': handlers.shortcuts(); break
     case 'sign-out': handlers.signOut(); break

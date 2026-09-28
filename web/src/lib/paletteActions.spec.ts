@@ -21,7 +21,7 @@ describe('dispatchPaletteAction', () => {
       ['collapse-all', 'collapseAll', []], ['expand-all', 'expandAll', []], ['show-hidden', 'setShowHidden', [true]],
       ['hide-hidden', 'setShowHidden', [false]], ['split-right', 'split', ['row']], ['split-down', 'split', ['column']],
       ['close-tab', 'closeTab', []], ['next-tab', 'nextTab', []], ['previous-tab', 'previousTab', []],
-      ['theme-dark', 'setTheme', ['dark']], ['theme-light', 'setTheme', ['light']], ['theme-system', 'setTheme', ['system']],
+      ['theme-dark', 'setTheme', ['dark']], ['theme-light', 'setTheme', ['light']], ['theme-solarized', 'setTheme', ['solarized']], ['theme-dimmed', 'setTheme', ['dimmed']], ['theme-system', 'setTheme', ['system']],
       ['shortcuts', 'shortcuts', []], ['sign-out', 'signOut', []],
     ] as const
     for (const [id, name, args] of actions) {

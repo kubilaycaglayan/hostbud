@@ -409,8 +409,8 @@ describe('SessionTree', () => {
     const wrapper = mount(SessionTree, { attachTo: document.body })
     const project = wrapper.get('[data-tree-key="project:a"]')
     const header = project.element.firstElementChild as HTMLElement
-    expect(header.className).toContain('min-h-9')
-    expect(header.className).toContain('gap-0.5')
+    expect(header.className).toContain('min-h-8')
+    expect(header.className).toContain('gap-0')
     const [drag, expand] = [...header.children] as HTMLElement[]
     expect(drag.getAttribute('aria-label')).toBe('Drag to reorder project a')
     expect(expand.getAttribute('aria-label')).toBe('Collapse a')
@@ -421,7 +421,7 @@ describe('SessionTree', () => {
     expect(controls.every((button) => button.classList.contains('touch-target'))).toBe(true)
     expect(project.element.querySelectorAll('.min-h-11, .min-h-12, .min-w-8')).toHaveLength(0)
     const group = project.get('[role="group"]')
-    expect(group.classes()).toEqual(expect.arrayContaining(['ml-2.5', 'py-0.5', 'pl-1.5']))
+    expect(group.classes()).toEqual(expect.arrayContaining(['ml-2', 'py-0', 'pl-1.5']))
     // Session rows lead with the name; their chevron (3 windows) follows it.
     const row = wrapper.get('[data-tree-key="session:one"]')
     expect(row.element.firstElementChild?.getAttribute('aria-label')).toBe('one')

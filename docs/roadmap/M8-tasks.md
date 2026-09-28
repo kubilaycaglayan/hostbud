@@ -21,6 +21,7 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 | T9 Touch scrolling through tmux | Implemented; e2e written, not run yet |
 | T12 Agent marks on session rows | Implemented; focused unit/integration pass; e2e written and type-checked, run pending (on demand) |
 | T13 Provider hook status on session rows | In progress |
+| T14 Solarized and Dimmed theme levels | Implemented; E2E written and type-checked, run pending (on demand) |
 
 **Progress note (T2–T4, 2026-09-27):** Vitest (447 tests), eslint, `vue-tsc` and the e2e `tsc` passed; deployed to the host from a clean checkout of `f664bb8` (a pre-deploy `pg_dump` is in `backups/`), and the stack came up healthy. Still open for these tasks:
 - **E2E runs:** the scenarios *(T2) Compact tree*, *(T3) Compact file browser*, *(T3) No browser autocomplete outside login password* and *(T4) Custom tab order* type-check but haven't run: e2e runs only on demand. The T2 commit also updated two M6 scenarios that expanded single-window sessions (*(T4) Inline rename a session*, *(T3) Window rows follow the real terminal*).
@@ -181,6 +182,15 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 **Tests:** U: T13 Python hook mapping/target validation, Go pane metadata parsing and session status aggregation/change events, Vitest agent-logo/status order, accessible status text, unchanged session name and gutter-only rendering, and service-worker network-first shell refresh with offline fallback. I: T13 `TestIntegrationPollerReportsProviderHookStatus` sets pane options on `test/sshd`, checks working/blocked states and ended inference after the foreground process exits. E: T13 *Agent logos appear before provider hook status on collapsed session rows* (desktop and iPhone 13 Pro), covering all three marks, multi-pane aggregation, and status persistence across an ordinary refresh with a stale cached shell.
 
 **E2E:** Add T13 *Agent logos appear before provider hook status on collapsed session rows* to `test/e2e/tests/agent.status.spec.ts`; drive fixed pane options on the throwaway target, assert agent logos precede status, status changes and priority without expanding the row, verify the session name remains unchanged, and ensure an ordinary refresh replaces a stale cached app shell while retaining the status. Type-check only; runs on demand.
+
+## T14 — Solarized and Dimmed theme levels
+
+- Place **Solarized** at 25% darkness and add **Dimmed** at 70% on the requested 0 (Light) to 100 (Dark) scale. Both use Solarized-inspired colors, readable interface and xterm palettes, and independent per-account selections applied before first paint; preserve Dark, Light and System behavior.
+- Expose both choices in Account controls and the command palette. Update status-bar color, search decorations and terminal text snapshots for both palettes.
+
+**Tests:** U: T14 validates/persists both modes, first-paint mirrors, app and terminal palettes, snapshot palette, search decoration and contrast (Vitest); I: n/a because selection and rendering use existing UI-state persistence with no server behavior change; E: T14 *Solarized and Dimmed apply at their darkness levels and persist* (desktop, including open terminal and status-bar color).
+
+**E2E:** Add T14 *Solarized and Dimmed apply at their darkness levels and persist* in `test/e2e/tests/theme.spec.ts`; assert both page surfaces, matching terminal backgrounds, status-bar metadata, saved account state, and persistence after reload and app restart. Type-check only; runs on demand.
 
 ## Done
 

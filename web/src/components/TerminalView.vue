@@ -24,7 +24,7 @@ import { registerPane, unregisterPane } from '@/lib/e2eHooks'
 import { hyperlinkHandler, openLink, type LinkHover } from '@/lib/links'
 import { keepScrollback, WHEEL_SMOOTH_SCROLL_MS } from '@/lib/scrollback'
 import { cellAt, moveCaret, settleAfterWrites } from '@/lib/altClick'
-import { darkTerminalTheme, lightTerminalTheme, TERMINAL_MIN_CONTRAST } from '@/lib/theme'
+import { darkTerminalTheme, dimmedTerminalTheme, lightTerminalTheme, solarizedTerminalTheme, TERMINAL_MIN_CONTRAST } from '@/lib/theme'
 import type { SplitDir, Tab } from '@/lib/layout'
 import { clipboardKey, editingKey, searchKey } from '@/lib/terminalKeys'
 import { applyModifiers, createModifiers } from '@/lib/keyBar'
@@ -415,7 +415,7 @@ onMounted(async () => {
     smoothScrollDuration: WHEEL_SMOOTH_SCROLL_MS,
     // Legible text on backgrounds a program chose for another theme (M8 T7).
     minimumContrastRatio: TERMINAL_MIN_CONTRAST,
-    theme: theme.resolved === 'dark' ? darkTerminalTheme : lightTerminalTheme,
+    theme: theme.resolved === 'dark' ? darkTerminalTheme : theme.resolved === 'solarized' ? solarizedTerminalTheme : theme.resolved === 'dimmed' ? dimmedTerminalTheme : lightTerminalTheme,
   })
   fit = new FitAddon()
   t.loadAddon(fit)
@@ -450,7 +450,7 @@ onMounted(async () => {
   }
   term.value = t
   selectionChange = t.onSelectionChange(() => { hasSelection.value = t.hasSelection() })
-  watch(() => theme.resolved, (value) => { t.options.theme = value === 'dark' ? darkTerminalTheme : lightTerminalTheme }, { immediate: true })
+  watch(() => theme.resolved, (value) => { t.options.theme = value === 'dark' ? darkTerminalTheme : value === 'solarized' ? solarizedTerminalTheme : value === 'dimmed' ? dimmedTerminalTheme : lightTerminalTheme }, { immediate: true })
   t.onData((d) => {
     const bytes = applyModifiers(d, modifiers)
     if (copyMode.inMode.value) void copyMode.exitThen(() => conn?.send(bytes))

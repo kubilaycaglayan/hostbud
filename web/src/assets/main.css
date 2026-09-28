@@ -40,6 +40,34 @@
   color-scheme: light;
 }
 
+:root[data-theme='solarized'] {
+  --hb-bg: #bbc5b9;
+  --hb-surface: #b2beb5;
+  --hb-tree-header: #b2beb5;
+  --hb-border: #405a60;
+  --hb-fg: #263f44;
+  --hb-muted: #263f44;
+  --hb-accent: #07598f;
+  --hb-danger: #8f310d;
+  --hb-ok: #405900;
+  --hb-overlay: rgb(0 43 54 / 0.34);
+  color-scheme: light;
+}
+
+:root[data-theme='dimmed'] {
+  --hb-bg: #4c686a;
+  --hb-surface: #405b5d;
+  --hb-tree-header: #405b5d;
+  --hb-border: #b5c8c1;
+  --hb-fg: #f0ecd9;
+  --hb-muted: #d7e2d9;
+  --hb-accent: #86c5e8;
+  --hb-danger: #ffb08e;
+  --hb-ok: #d0e278;
+  --hb-overlay: rgb(0 20 26 / 0.55);
+  color-scheme: dark;
+}
+
 @theme inline {
   --color-bg: var(--hb-bg);
   --color-surface: var(--hb-surface);
@@ -68,7 +96,7 @@ body {
   overscroll-behavior: none;
 }
 
-:root:not([data-theme='light']) [data-agent='codex'] img {
+:root:not([data-theme='light']):not([data-theme='solarized']) [data-agent='codex'] img {
   filter: invert(1);
 }
 
@@ -109,6 +137,33 @@ body {
 /* The terminal's hidden input: iOS zooms into inputs under 16px on focus. */
 .xterm .xterm-helper-textarea {
   font-size: 16px;
+}
+
+/* Keep the visible choice compact on touch screens; its label retains the
+   44 px target from touch-target. Native radios inherit a 44 px minimum above. */
+input[type='radio'].theme-radio {
+  width: 1rem;
+  height: 1rem;
+  min-width: 1rem;
+  min-height: 1rem;
+  margin: 0;
+  padding: 0;
+  appearance: none;
+  border: 2px solid var(--color-muted);
+  border-radius: 9999px;
+  background-color: var(--color-surface);
+  flex: none;
+}
+
+input[type='radio'].theme-radio:checked {
+  border-color: var(--color-accent);
+  background-color: var(--color-accent);
+  box-shadow: inset 0 0 0 3px var(--color-surface);
+}
+
+input[type='radio'].theme-radio:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 /* Split view dividers (splitpanes ships them 1px wide and unthemed): a

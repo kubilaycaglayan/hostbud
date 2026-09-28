@@ -111,7 +111,9 @@ describe('App shell', () => {
     const details = wrapper.get('details')
     ;(details.element as HTMLDetailsElement).open = true
     await wrapper.vm.$nextTick()
-    expect(details.findAll('input[type=radio]').map((radio) => (radio.element as HTMLInputElement).value)).toEqual(['dark', 'light', 'system'])
+    expect(details.findAll('input[type=radio]').map((radio) => (radio.element as HTMLInputElement).value)).toEqual(['system', 'dark', 'dimmed', 'solarized', 'light'])
+    expect(details.find('input[type=radio]').classes()).toContain('theme-radio')
+    expect(details.find('input[type=radio]').element.parentElement?.classList.contains('touch-target')).toBe(true)
     const light = details.get('input[value=light]')
     await light.setValue(true)
     await flushPromises()

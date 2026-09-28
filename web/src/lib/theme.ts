@@ -1,10 +1,11 @@
 import type { ITheme } from '@xterm/xterm'
 
-export type ThemeMode = 'dark' | 'light' | 'system'
-export type ResolvedTheme = 'dark' | 'light'
+export type ThemeMode = 'dark' | 'light' | 'solarized' | 'dimmed' | 'system'
+export type ResolvedTheme = 'dark' | 'light' | 'solarized' | 'dimmed'
 
 export function resolveTheme(mode: ThemeMode, prefersDark: boolean): ResolvedTheme {
-  return mode === 'system' ? (prefersDark ? 'dark' : 'light') : mode
+  if (mode === 'system') return prefersDark ? 'dark' : 'light'
+  return mode
 }
 
 export const darkTerminalTheme: ITheme = {
@@ -17,6 +18,21 @@ export const lightTerminalTheme: ITheme = {
   background: '#ffffff', foreground: '#1f2328', cursor: '#0969da', selectionBackground: '#b6d7ff',
   black: '#24292f', red: '#cf222e', green: '#1a7f37', yellow: '#7d4e00', blue: '#0550ae', magenta: '#8250df', cyan: '#055d72', white: '#6e7781',
   brightBlack: '#57606a', brightRed: '#a40e26', brightGreen: '#116329', brightYellow: '#633c01', brightBlue: '#033d8b', brightMagenta: '#6639ba', brightCyan: '#0550ae', brightWhite: '#1f2328',
+}
+
+// Solarized sits at darkness 25: a muted sage-cream surface with deeper
+// Solarized blue-green accents. Dimmed sits at darkness 70 with a slate-teal
+// surface and lighter Solarized text colors.
+export const solarizedTerminalTheme: ITheme = {
+  background: '#bbc5b9', foreground: '#263f44', cursor: '#003d61', selectionBackground: '#cbd4c7',
+  black: '#002b36', red: '#77240a', green: '#344700', yellow: '#303e00', blue: '#003d61', magenta: '#45336f', cyan: '#00453e', white: '#263f44',
+  brightBlack: '#263f44', brightRed: '#77240a', brightGreen: '#344700', brightYellow: '#303e00', brightBlue: '#003d61', brightMagenta: '#45336f', brightCyan: '#00453e', brightWhite: '#002b36',
+}
+
+export const dimmedTerminalTheme: ITheme = {
+  background: '#4c686a', foreground: '#f0ecd9', cursor: '#bce9ff', selectionBackground: '#314b4d',
+  black: '#002b36', red: '#ffe1d2', green: '#d8ed8a', yellow: '#eee8b6', blue: '#bce9ff', magenta: '#efe5ff', cyan: '#a2f1e5', white: '#f0ecd9',
+  brightBlack: '#d7e2d9', brightRed: '#ffe1d2', brightGreen: '#d8ed8a', brightYellow: '#eee8b6', brightBlue: '#bce9ff', brightMagenta: '#efe5ff', brightCyan: '#a2f1e5', brightWhite: '#ffffff',
 }
 
 /**
@@ -47,18 +63,20 @@ export function contrastRatio(a: string, b: string): number {
 export const searchDecorations = {
   dark: { matchBackground: '#264f78', matchOverviewRuler: '#5fb3f9', activeMatchBackground: '#9a6700', activeMatchColorOverviewRuler: '#f0c674' },
   light: { matchBackground: '#b6d7ff', matchOverviewRuler: '#0969da', activeMatchBackground: '#ffdf5d', activeMatchColorOverviewRuler: '#9a6700' },
+  solarized: { matchBackground: '#82978f', matchOverviewRuler: '#075f9d', activeMatchBackground: '#d5bd58', activeMatchColorOverviewRuler: '#665400' },
+  dimmed: { matchBackground: '#536f70', matchOverviewRuler: '#86c5e8', activeMatchBackground: '#82762c', activeMatchColorOverviewRuler: '#e8dc91' },
 }
 
 export function validateTheme(value: unknown): ThemeMode {
   if (!value || typeof value !== 'object') return 'system'
   const state = value as { version?: unknown; mode?: unknown }
-  return state.version === 1 && (state.mode === 'dark' || state.mode === 'light' || state.mode === 'system') ? state.mode : 'system'
+  return state.version === 1 && (state.mode === 'dark' || state.mode === 'light' || state.mode === 'solarized' || state.mode === 'dimmed' || state.mode === 'system') ? state.mode : 'system'
 }
 
 export function themeBootValue(storage: Pick<Storage, 'getItem'> | null, prefersDark: boolean): ResolvedTheme {
   try {
     const mode = storage?.getItem('hostbud.theme')
-    return resolveTheme(mode === 'dark' || mode === 'light' || mode === 'system' ? mode : 'system', prefersDark)
+    return mode === 'solarized' || mode === 'dimmed' ? mode : resolveTheme(mode === 'dark' || mode === 'light' || mode === 'system' ? mode : 'system', prefersDark)
   } catch {
     return resolveTheme('system', prefersDark)
   }

@@ -80,9 +80,11 @@ export function buildPaletteItems(data: PaletteData): PaletteItem[] {
     ...(data.hasActiveTab ? [action('close-tab', 'Close tab')] : []),
     action('next-tab', 'Next tab'),
     action('previous-tab', 'Previous tab'),
-    action('theme-dark', 'Theme: Dark'),
-    action('theme-light', 'Theme: Light'),
     action('theme-system', 'Theme: System'),
+    action('theme-dark', 'Theme: Dark'),
+    action('theme-dimmed', 'Theme: Dimmed'),
+    action('theme-solarized', 'Theme: Solarized'),
+    action('theme-light', 'Theme: Light'),
     action('shortcuts', 'Keyboard shortcuts'),
     action('sign-out', 'Sign out'),
   ]

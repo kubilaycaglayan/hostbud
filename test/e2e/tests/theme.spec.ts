@@ -13,7 +13,7 @@ async function account(ui: import('../helpers/ui.ts').UI, label = 'e2e-theme') {
   return fresh
 }
 
-async function chooseTheme(page: import('@playwright/test').Page, mode: 'Dark' | 'Light' | 'System') {
+async function chooseTheme(page: import('@playwright/test').Page, mode: 'Dark' | 'Light' | 'Solarized' | 'Dimmed' | 'System') {
   const menu = page.getByRole('button', { name: 'Account', exact: true })
   if (!(await menu.evaluate((el) => el.parentElement instanceof HTMLDetailsElement && el.parentElement.open))) await menu.click()
   const radio = page.getByRole('radio', { name: mode, exact: true })
@@ -47,6 +47,34 @@ test('(T7) Pick Dark and Light updates UI and mounted terminal', async ({ page, 
   await page.keyboard.press('Escape')
   await ui.openTerminal(session)
   await testInfo.attach('theme-light-terminal.png', { body: await page.screenshot(), contentType: 'image/png' })
+})
+
+test('(T14) Solarized and Dimmed apply at their darkness levels and persist', async ({ page, ui, target, request }) => {
+  await account(ui, 'e2e-theme-solarized')
+  const session = uniqueName('theme-solarized')
+  await target.tmux('new-session', '-d', '-s', session, '-c', '/home/dev')
+  await page.reload()
+  await ui.openTerminal(session)
+  for (const [choice, mode, background, meta] of [
+    ['Solarized', 'solarized', 'rgb(187, 197, 185)', '#bbc5b9'],
+    ['Dimmed', 'dimmed', 'rgb(76, 104, 106)', '#4c686a'],
+  ] as const) {
+    await chooseTheme(page, choice)
+    await expect(page.locator('html')).toHaveAttribute('data-theme', mode)
+    await expect.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor)).toBe(background)
+    await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', meta)
+    await expect.poll(() => ui.page.evaluate((name) => window.__hostbud?.termTheme(name).background, session)).toBe(meta)
+    await expect.poll(async () => (await (await request.get('/api/ui-state/theme')).json())).toEqual({ version: 1, mode })
+    await page.reload()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', mode)
+    await ui.openTerminal(session)
+  }
+  await page.reload()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dimmed')
+  await ctl.restartApp()
+  await expect.poll(async () => (await request.get('/api/health')).status(), { timeout: 20_000 }).toBe(200)
+  await page.reload()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dimmed')
 })
 
 test('(T7) Theme persists per account across reload and restart', async ({ page, browser, ui, request }) => {

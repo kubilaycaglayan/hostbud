@@ -21,7 +21,7 @@ function contrast(a, b) {
 
 describe('UI theme token contrast', () => {
   it('meets text and control contrast on both surfaces', () => {
-    for (const selector of [':root {', ":root[data-theme='light'] {"]) {
+    for (const selector of [':root {', ":root[data-theme='light'] {", ":root[data-theme='solarized'] {", ":root[data-theme='dimmed'] {"]) {
       const start = css.indexOf(selector)
       assert.notEqual(start, -1, `missing ${selector} token block`)
       const section = css.slice(start, css.indexOf('}', start))

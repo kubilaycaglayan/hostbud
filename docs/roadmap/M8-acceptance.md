@@ -75,6 +75,14 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
   - E: T7 *Long-lived terminal contrast* (desktop), representative prompt-like TUI on the throwaway target across System dark/light changes, attached-session and palette assertions, with screenshots. Real Codex-specific rendering is recorded as an owner check if Codex is unavailable in the throwaway target.
   - Status (2026-09-27): diagnosed as client-owned (Codex queries OSC 10/11 and paints an explicit composer background computed for the start-up theme; default-colored text on it measured 1.16:1 after dark → light). hostbud enforces `minimumContrastRatio` 4.5; before/after verified in headless Chromium with xterm 6 (`rgb(31,35,40)` → `rgb(150,151,155)` on the dark composer). U written and passing (`web/src/lib/theme.spec.ts`, `TerminalView.spec.ts`); E `test/e2e/tests/theme.contrast.spec.ts` written and type-checked, run pending (on demand). Real Codex remains the open owner check below. Not ticked until the e2e run passes.
 
+## Solarized and Dimmed theme levels (T14)
+
+- [ ] Solarized is tuned to 25% darkness and Dimmed to 70% on the Light=0 to Dark=100 scale. Both are available alongside Dark, Light and System in Account settings and the command palette, update open terminals and terminal snapshots, set matching status-bar metadata, persist per account, and apply before first paint. System and existing Light behavior remain unchanged.
+  - U: T14 mode validation, first-paint mirrors, store persistence, both palettes, search/snapshot selection and contrast checks (Vitest).
+  - I: n/a: uses the existing authenticated `ui_state/theme` path and changes no server behavior.
+  - E: T14 *Solarized and Dimmed apply at their darkness levels and persist* (desktop; both page palettes, mounted terminal, saved account state and status-bar colors).
+  - Status: U written and passing (`web/src/lib/theme.spec.ts`, `web/src/stores/theme.spec.ts`, `web/src/components/TerminalView.spec.ts`; `web/scripts/check-theme-contrast.test.mjs` checks both added UI palettes); E written and type-checked (`test/e2e/tests/theme.spec.ts`), run pending (on demand). The on-demand E2E run remains open.
+
 ## Dictation, focus return and terminal text view
 
 - [ ] Dictation opens a native editable text box with Send and Cancel; Send delivers the finished text once through xterm paste, and Cancel sends nothing.

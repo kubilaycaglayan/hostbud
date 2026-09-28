@@ -33,7 +33,7 @@ import { useWindowsStore } from '@/stores/windows'
 import { useProjectsStore } from '@/stores/projects'
 import { useToastsStore } from '@/stores/toasts'
 import { useSessionsStore } from '@/stores/sessions'
-import { FolderSearch, ListOrdered, PanelLeftClose, PanelLeftOpen, Search, SquareTerminal } from 'lucide-vue-next'
+import { FolderSearch, ListOrdered, PanelLeftClose, PanelLeftOpen, Search, SquareTerminal, UserRound } from 'lucide-vue-next'
 import { isEditableTarget, isTerminalTarget, isTreeTarget, matchingShortcut, shortcutLabels, shortcutPlatform, shortcuts } from '@/lib/shortcuts'
 import { projectTree, sessionKey, windowKey } from '@/lib/tree'
 import { dispatchPaletteAction } from '@/lib/paletteActions'
@@ -75,9 +75,11 @@ let paletteReturnFocus: HTMLElement | null = null
 let focusTreeOnNextDrawerOpen = false
 let focusTerminalOnNextDrawerClose = false
 const themeChoices = [
-  { mode: 'dark', label: 'Dark' },
-  { mode: 'light', label: 'Light' },
   { mode: 'system', label: 'System' },
+  { mode: 'dark', label: 'Dark' },
+  { mode: 'dimmed', label: 'Dimmed' },
+  { mode: 'solarized', label: 'Solarized' },
+  { mode: 'light', label: 'Light' },
 ] as const
 const coarsePointer = useMediaQuery('(pointer: coarse)')
 let activeTreePanel: InstanceType<typeof TreePanel> | undefined
@@ -369,7 +371,7 @@ const paletteActionHandlers = {
   closeTab: () => { if (layout.activeTab) closeTab(layout.activeTab.id) },
   nextTab: () => { layout.cycleTab(1) },
   previousTab: () => { layout.cycleTab(-1) },
-  setTheme: (mode: 'dark' | 'light' | 'system') => { void theme.setMode(mode) },
+  setTheme: (mode: 'dark' | 'light' | 'solarized' | 'dimmed' | 'system') => { void theme.setMode(mode) },
   shortcuts: () => {
     shortcutReturnFocus = paletteReturnFocus
     shortcutsOpen.value = true
@@ -543,7 +545,7 @@ onUnmounted(() => {
     class="flex h-full flex-col"
   >
     <HostBanner :machine="host" />
-    <header class="flex min-h-12 items-center gap-1.5 border-b border-border bg-surface px-3">
+    <header class="flex min-h-12 items-center gap-1 border-b border-border bg-surface px-2 sm:px-3">
       <IconButton
         v-if="!compact || hasTabs"
         :label="sidebarExpanded ? 'Hide sidebar' : 'Show sidebar'"
@@ -577,13 +579,13 @@ onUnmounted(() => {
       <div class="ml-auto min-w-0 text-sm text-muted">
         <details class="relative" :open="accountOpen" @toggle="accountOpen = ($event.target as HTMLDetailsElement).open" @keydown.escape="accountOpen = false">
           <!-- WebKit and the accessibility tree don't expose <summary> as a button everywhere. -->
-          <summary role="button" aria-label="Account" :aria-expanded="accountOpen" class="flex min-h-11 cursor-pointer list-none items-center rounded border border-border px-3">Account</summary>
+          <summary role="button" aria-label="Account" :aria-expanded="accountOpen" class="flex min-h-11 cursor-pointer list-none items-center justify-center gap-1.5 rounded border border-border px-2 sm:px-3"><UserRound class="size-4 shrink-0" aria-hidden="true" /><span class="hidden sm:inline">Account</span></summary>
           <div class="absolute right-0 top-full z-30 mt-1 w-56 rounded border border-border bg-surface p-2 shadow-lg">
             <p class="truncate px-2 py-2" data-testid="account-email">{{ auth.email }}</p>
             <fieldset class="px-2 py-1" aria-label="Theme">
               <legend class="py-1 text-xs text-muted">Theme</legend>
-              <label v-for="choice in themeChoices" :key="choice.mode" class="flex min-h-11 items-center gap-2">
-                <input type="radio" name="theme" autocomplete="off" :value="choice.mode" :checked="theme.mode === choice.mode" @change="theme.setMode(choice.mode)">
+              <label v-for="choice in themeChoices" :key="choice.mode" class="touch-target flex min-h-11 items-center gap-2">
+                <input type="radio" name="theme" autocomplete="off" :value="choice.mode" :checked="theme.mode === choice.mode" class="theme-radio" @change="theme.setMode(choice.mode)">
                 {{ choice.label }}
               </label>
             </fieldset>
@@ -598,11 +600,11 @@ onUnmounted(() => {
         v-if="!compact && app.sidebarOpen"
         id="sessions-sidebar"
         aria-label="Sessions"
-        class="flex w-64 shrink-0 flex-col border-r border-border bg-surface p-3"
+        class="flex w-64 shrink-0 flex-col border-r border-border bg-surface p-2"
       >
         <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @remove-project="askRemoveProject" @session-in-project="newProjectSession" @create="newSession" />
       </aside>
-      <main v-if="compact && !hasTabs" id="sessions-sidebar" class="min-h-0 min-w-0 flex-1 overflow-y-auto bg-surface p-3">
+      <main v-if="compact && !hasTabs" id="sessions-sidebar" class="min-h-0 min-w-0 flex-1 overflow-y-auto bg-surface p-2">
         <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @remove-project="askRemoveProject" @session-in-project="newProjectSession" @create="newSession" />
       </main>
       <main

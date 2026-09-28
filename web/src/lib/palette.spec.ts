@@ -35,7 +35,7 @@ describe('buildPaletteItems', () => {
       'action:new-session', 'action:new-project-session:p1', 'action:browse-files', 'action:rename-project:p1', 'action:remove-project:p1',
       'action:hide-project:p1', 'action:pin-project:p1', 'action:rename-session:acc-a', 'action:kill-session:acc-a',
       'action:collapse-all', 'action:expand-all', 'action:show-hidden', 'action:split-right', 'action:split-down',
-      'action:next-tab', 'action:previous-tab', 'action:theme-dark', 'action:theme-light', 'action:theme-system',
+      'action:next-tab', 'action:previous-tab', 'action:theme-system', 'action:theme-dark', 'action:theme-dimmed', 'action:theme-solarized', 'action:theme-light',
       'action:shortcuts', 'action:sign-out',
     ]) expect(items.some((item) => item.id === id)).toBe(true)
     expect(items.some((item) => item.id === 'action:close-tab')).toBe(false)

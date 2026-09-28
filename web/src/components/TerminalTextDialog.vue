@@ -2,7 +2,7 @@
 import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
 import { computed, nextTick, ref, watch } from 'vue'
 import { outputRuns } from '@/lib/terminalOutput'
-import { darkTerminalTheme, lightTerminalTheme } from '@/lib/theme'
+import { darkTerminalTheme, dimmedTerminalTheme, lightTerminalTheme, solarizedTerminalTheme } from '@/lib/theme'
 import { useThemeStore } from '@/stores/theme'
 
 const props = defineProps<{ mode: 'dictation' | 'snapshot'; snapshot?: string; loading?: boolean; error?: string }>()
@@ -12,7 +12,7 @@ const text = ref('')
 const editor = ref<HTMLTextAreaElement>()
 const output = ref<HTMLElement>()
 const theme = useThemeStore()
-const runs = computed(() => outputRuns(props.snapshot ?? '', theme.resolved === 'dark' ? darkTerminalTheme : lightTerminalTheme))
+const runs = computed(() => outputRuns(props.snapshot ?? '', theme.resolved === 'dark' ? darkTerminalTheme : theme.resolved === 'solarized' ? solarizedTerminalTheme : theme.resolved === 'dimmed' ? dimmedTerminalTheme : lightTerminalTheme))
 
 watch([open, () => props.loading], async ([isOpen, loading]) => {
   if (isOpen && !loading && props.mode === 'snapshot') {

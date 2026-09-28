@@ -214,7 +214,7 @@ describe('TerminalView', () => {
     const written = [...terminal.written]
     expect(terminal.options.minimumContrastRatio).toBe(4.5)
     const theme = useThemeStore()
-    for (const [mode, background] of [['dark', '#0f1115'], ['light', '#ffffff'], ['dark', '#0f1115']] as const) {
+    for (const [mode, background] of [['dark', '#0f1115'], ['light', '#ffffff'], ['solarized', '#bbc5b9'], ['dimmed', '#4c686a'], ['dark', '#0f1115']] as const) {
       theme.mode = mode
       await w.vm.$nextTick()
       expect(terminal.options.theme).toMatchObject({ background })

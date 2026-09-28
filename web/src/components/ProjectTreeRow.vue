@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { DropdownMenuContent, DropdownMenuItem, DropdownMenuPortal, DropdownMenuRoot, DropdownMenuTrigger } from 'reka-ui'
-import { ChevronRight, Folder, Pin } from 'lucide-vue-next'
+import { ChevronRight, Folder, MoreHorizontal, Pin, Plus } from 'lucide-vue-next'
 import type { Project } from '@/api/types'
 import type { SplitDir } from '@/lib/layout'
 import type { ProjectGroup } from '@/lib/tree'
@@ -78,11 +78,11 @@ function onMenuCloseAutoFocus(event: Event) {
     :aria-label="props.group.project.name + (props.hidden ? ', hidden' : '')"
     :data-tree-key="'project:' + props.group.project.id"
     data-tree-kind="project"
-    class="rounded bg-tree-header px-1"
+    class="rounded bg-tree-header px-0.5"
     :class="props.hidden ? 'opacity-50' : ''"
   >
     <div
-      class="flex min-h-9 items-center gap-0.5"
+      class="flex min-h-8 items-center gap-0"
       @click="emit('headerClick', props.group.project.id)"
       @pointerdown="emit('longPressStart', $event, props.group.project.id)"
       @pointermove="emit('longPressMove', $event)"
@@ -104,7 +104,7 @@ function onMenuCloseAutoFocus(event: Event) {
         <Pin :size="16" aria-hidden="true" />
       </button>
       <DropdownMenuRoot :open="props.menuOpen" @update:open="(open) => emit('menuOpen', open, props.group.project.id)">
-        <DropdownMenuTrigger type="button" class="touch-target min-h-7 min-w-6 rounded px-1 text-muted" :aria-label="'More actions for ' + props.group.project.name" title="More" tabindex="-1" @click.stop>⋯</DropdownMenuTrigger>
+        <DropdownMenuTrigger type="button" class="touch-target inline-flex min-h-7 min-w-6 items-center justify-center rounded text-muted hover:bg-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" :aria-label="'More actions for ' + props.group.project.name" title="More" tabindex="-1" @click.stop><MoreHorizontal :size="16" aria-hidden="true" /></DropdownMenuTrigger>
         <DropdownMenuPortal>
           <DropdownMenuContent align="end" :side-offset="4" class="z-[60] min-w-48 rounded border border-border bg-surface p-1 text-fg shadow-lg" @close-auto-focus="onMenuCloseAutoFocus">
             <DropdownMenuItem class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 outline-none data-highlighted:bg-bg" @select="startProjectRename">Rename</DropdownMenuItem>
@@ -114,9 +114,9 @@ function onMenuCloseAutoFocus(event: Event) {
           </DropdownMenuContent>
         </DropdownMenuPortal>
       </DropdownMenuRoot>
-      <button type="button" class="touch-target min-h-7 min-w-6 rounded px-1" :aria-label="'New session in ' + props.group.project.name" :title="'New session in ' + props.group.project.name" tabindex="-1" @click.stop="emit('sessionInProject', props.group.project)">＋</button>
+      <button type="button" class="touch-target inline-flex min-h-7 min-w-6 items-center justify-center rounded text-muted hover:bg-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" :aria-label="'New session in ' + props.group.project.name" :title="'New session in ' + props.group.project.name" tabindex="-1" @click.stop="emit('sessionInProject', props.group.project)"><Plus :size="16" aria-hidden="true" /></button>
     </div>
-    <div v-if="!props.collapsed" role="group" class="ml-2.5 border-l border-border py-0.5 pl-1.5">
+    <div v-if="!props.collapsed" role="group" class="ml-2 border-l border-border py-0 pl-1.5">
       <SessionList
         :sessions="props.group.sessions"
         :selected="props.selected"

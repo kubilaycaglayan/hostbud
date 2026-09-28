@@ -321,7 +321,7 @@ const sortableSessions = computed({
       >
         ⠿
       </button>
-      <ul v-if="canExpand(s) && isExpanded(sessionKey('host', s.name))" role="group" class="ml-2.5 basis-[calc(100%-0.625rem)] border-l border-border py-0.5 pl-1.5">
+      <ul v-if="canExpand(s) && isExpanded(sessionKey('host', s.name))" role="group" class="ml-2 basis-[calc(100%-0.5rem)] border-l border-border py-0 pl-1.5">
         <li v-if="windowsFor(s.name)?.status === 'loading' || windowsFor(s.name)?.status === 'idle'" role="treeitem" :aria-level="(props.level ?? 1) + 1" aria-disabled="true" tabindex="-1" class="touch-target min-h-8 px-2 py-1 text-sm text-muted">
           <span class="animate-spin" aria-hidden="true">◌</span> Loading windows…
         </li>
@@ -357,7 +357,7 @@ const sortableSessions = computed({
             <button type="button" tabindex="-1" class="touch-target min-h-7 min-w-0 flex-1 truncate px-1.5 text-left" @click="emit('selectWindow', s.name, window.id)">
               {{ window.index + 1 }}: {{ window.name }} <span v-if="window.active" class="text-muted">(current)</span>
             </button>
-            <ul v-if="window.panes.length > 1 && isExpanded(windowKey('host', s.name, window.id))" role="group" class="ml-2.5 basis-[calc(100%-0.625rem)] border-l border-border py-0.5 pl-1.5">
+            <ul v-if="window.panes.length > 1 && isExpanded(windowKey('host', s.name, window.id))" role="group" class="ml-2 basis-[calc(100%-0.5rem)] border-l border-border py-0 pl-1.5">
               <li
                 v-for="pane in window.panes"
                 :key="pane.id"

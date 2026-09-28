@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ITheme } from '@xterm/xterm'
-import { contrastRatio, darkTerminalTheme, lightTerminalTheme, TERMINAL_MIN_CONTRAST } from './theme'
+import { contrastRatio, darkTerminalTheme, dimmedTerminalTheme, lightTerminalTheme, solarizedTerminalTheme, TERMINAL_MIN_CONTRAST } from './theme'
 
 // Long-lived terminal contrast (M8 T7).
 const TEXT_KEYS = ['foreground', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white', 'brightBlack', 'brightRed', 'brightGreen', 'brightYellow', 'brightBlue', 'brightMagenta', 'brightCyan', 'brightWhite'] as const
@@ -15,6 +15,8 @@ describe('terminal palette contrast (M8 T7)', () => {
   it.each([
     ['dark', darkTerminalTheme],
     ['light', lightTerminalTheme],
+    ['solarized 25', solarizedTerminalTheme],
+    ['dimmed 70', dimmedTerminalTheme],
   ] as [string, ITheme][])('keeps every hostbud text color readable on the %s background', (_name, theme) => {
     for (const key of TEXT_KEYS) {
       expect(contrastRatio(theme[key]!, theme.background!), key).toBeGreaterThanOrEqual(4.5)
