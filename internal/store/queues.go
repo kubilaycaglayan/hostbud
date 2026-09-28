@@ -946,12 +946,12 @@ func (s *Store) LLMEligibleRuns(ctx context.Context) ([]Run, error) {
 }
 
 // RecoverLLMClaims closes abandoned claims after the provider's maximum
-// classification duration; the stored claim prevents a repeat call.
+// classification duration; the recovered marker prevents another call.
 func (s *Store) RecoverLLMClaims(ctx context.Context) error {
 	return s.inTx(ctx, func(tx *sql.Tx) error {
 		_, err := tx.ExecContext(ctx, `INSERT INTO run_events (run_id,machine_id,source,kind,payload_json,created_at)
-		SELECT e.run_id,e.machine_id,'llm','llm_result','{"label":"unknown","reason":"hostbud restarted during classification"}',$1
-		FROM run_events e WHERE e.source='llm' AND e.kind='llm_started' AND e.created_at < $1-interval '70 seconds'
+		SELECT e.run_id,e.machine_id,'llm','llm_result','{"label":"unknown","reason":"hostbud restarted during classification","recovered":true}',$1
+		FROM run_events e WHERE e.source='llm' AND e.kind='llm_started' AND e.created_at < $1::timestamptz-interval '70 seconds'
 		AND NOT EXISTS(SELECT 1 FROM run_events z WHERE z.run_id=e.run_id AND z.source='llm' AND z.kind IN ('llm_result','llm_skipped','llm_discarded') AND z.created_at>=e.created_at)`, s.now())
 		return err
 	})
@@ -977,7 +977,7 @@ func (s *Store) SkipLLM(ctx context.Context, runID string) error {
 }
 
 // ClaimLLM commits the claim before capture/provider work and enforces the
-// per-run hourly budget. A claim is never automatically repeated.
+// per-run hourly budget. An interrupted claim recovered after restart is terminal.
 func (s *Store) ClaimLLM(ctx context.Context, runID string, signal *time.Time, limit int, quiet time.Duration) (bool, error) {
 	claimed := false
 	err := s.inTx(ctx, func(tx *sql.Tx) error {
@@ -991,6 +991,7 @@ func (s *Store) ClaimLLM(ctx context.Context, runID string, signal *time.Time, l
 			AND r.id=(SELECT max(r2.id) FROM runs r2 WHERE r2.item_id=r.item_id) AND r.last_signal_at IS NOT DISTINCT FROM $2
 			AND (SELECT count(*) FROM run_events e WHERE e.run_id=r.id AND e.source='llm' AND e.kind='llm_started' AND e.created_at > now()-interval '1 hour' AND NOT EXISTS(SELECT 1 FROM run_events z WHERE z.run_id=e.run_id AND z.source='llm' AND z.kind='llm_skipped' AND z.created_at>=e.created_at)) < $3
 			AND NOT EXISTS(SELECT 1 FROM run_events e WHERE e.run_id=r.id AND e.source='llm' AND e.kind='llm_started' AND e.created_at > now()-($4 * interval '1 second'))
+			AND NOT EXISTS(SELECT 1 FROM run_events e WHERE e.run_id=r.id AND e.source='llm' AND e.kind='llm_result' AND e.payload_json::jsonb->>'recovered'='true')
 			AND NOT EXISTS(SELECT 1 FROM run_events e WHERE e.run_id=r.id AND e.source='llm' AND e.kind='llm_started' AND NOT EXISTS(SELECT 1 FROM run_events z WHERE z.run_id=e.run_id AND z.source='llm' AND z.kind IN ('llm_result','llm_skipped','llm_discarded') AND z.created_at>=e.created_at)))`, runID, signal, limit, quiet.Seconds()).Scan(&exists)
 		if err != nil || !exists {
 			return err

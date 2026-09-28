@@ -420,7 +420,7 @@ func TestRecoveredLLMClaimDoesNotRunAgain(t *testing.T) {
 		t.Fatal(err)
 	}
 	events, err := s.RunEvents(ctx, run.ID, 10)
-	if err != nil || len(events) != 2 || events[1].Kind != KindLLMResult || !strings.Contains(string(events[1].Payload), "hostbud restarted during classification") {
+	if err != nil || len(events) != 2 || events[0].Kind != KindLLMResult || !strings.Contains(string(events[0].Payload), "hostbud restarted during classification") || !strings.Contains(string(events[0].Payload), `"recovered":true`) {
 		t.Fatalf("events=%+v err=%v", events, err)
 	}
 	if claimed, err := s.ClaimLLM(ctx, run.ID, nil, 2, time.Second); err != nil || claimed {
