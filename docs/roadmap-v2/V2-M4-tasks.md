@@ -16,7 +16,7 @@ Update this table in the same commit that finishes a task.
 | T4 Owner actions | Done |
 | T5 Panel | Done |
 | T6 Docs | Done |
-| T7 Milestone acceptance | Not started |
+| T7 Milestone acceptance | Done |
 | T8 Safe Docker cleanup | Not started |
 
 **Precondition:** V2-M3 is done (its checklist ticked, open owner items excepted). Record the check in the Progress note.
@@ -36,8 +36,8 @@ The v2 ROADMAP *Rules*, AGENTS.md and the V2-M1 milestone rules (fast checks per
 |---|---|---|---|
 | CP1 | T1 | `make lint test`, `scripts/compose-config.sh`, e2e `tsc` | Passed 2026-09-28 |
 | CP2 | T2–T4 | `make lint test` **three times in a row** (timeouts, races, restart), e2e `tsc` | Passed 2026-09-28 |
-| CP3 | T5–T6 | `make lint test`, `vue-tsc`, e2e `tsc`, `make gitleaks`, docs check | Not run |
-| CP4 | T7 | `make lint test`, e2e `tsc`, `make gitleaks`, `make deploy` (no `make e2e`: on demand only) | Not run |
+| CP3 | T5–T6 | `make lint test`, `vue-tsc`, e2e `tsc`, `make gitleaks`, docs check | Passed 2026-09-28 |
+| CP4 | T7 | `make lint test`, e2e `tsc`, `make gitleaks`, `make deploy` (no `make e2e`: on demand only) | Passed 2026-09-28 |
 
 **Progress note:**
 - Precondition checked 2026-09-28: V2-M3's tasks are all Done and its checklist is ticked (open owner items and the on-demand e2e run excepted).
@@ -47,6 +47,7 @@ The v2 ROADMAP *Rules*, AGENTS.md and the V2-M1 milestone rules (fast checks per
 - T4: `POST /api/queue-items/{id}/reverify` starts a new attempt on the same run (no new session). Retry, Skip and Mark done return 409 from `verifying` ("wait for verify, at most <HOSTBUD_VERIFY_TIMEOUT>") and `awaiting_approval` ("Approve it, or Reject it first"); a lost race says the state the item is in now. CP2 passed (lint, then `make test` three times in a row green).
 - T5: the item form has *Verify command* (monospace, autocomplete off, the argv hint) and *Require approval*; a needs-attention item gets *Edit gates* (gates-only form). The item shows its gates, the latest attempt ("Verify attempt n: outcome · exit · duration") and the output tail as text in a collapsible block with the "truncated" note. Approve, Reject (confirmed) and Re-run verify. Approve now also sets the run's detail to "approved by <email>", so a stale click's 409 says who acted ("… (approved by …)").
 - T6: README *Completion gates*; v2 ARCHITECTURE §5.4 (item states), new §5.6 (gates, slots, notifications, restart) and §6 (0009); v1 ARCHITECTURE §9 (routes, with T4), §12 and §15 (`HOSTBUD_VERIFY_TIMEOUT`); the v2 ROADMAP status line. The docs check (`scripts/check-docs.sh`) already covers the new var (config ⇒ `.env.example` ⇒ Compose) and the new routes (`routes.json` ⇒ §9).
+- T7: CP3 = CP4 checks (`make lint test`, e2e `tsc`, `make gitleaks`) green on 2bf455a; `make deploy` healthy, migration 0009 applied, the 9 existing items have no gates, the host's one (owner-paused) queue left as is. Checklist ticked; E items written and type-checked, the full e2e run stays open (on demand). Host step: coreutils' `timeout` is needed only for items with a verify command (present on Debian/Ubuntu).
 
 ---
 
