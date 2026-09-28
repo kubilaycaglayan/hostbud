@@ -2,6 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import SettingsDialog from './SettingsDialog.vue'
+import type { SupervisorStatus } from '@/api/types'
 import { useQueuesStore } from '@/stores/queues'
 import { stubFetch } from '@/test-utils'
 
@@ -15,11 +16,11 @@ const $$ = (sel: string) => [...document.body.querySelectorAll<HTMLElement>(sel)
 const input = () => $$('form[aria-label="Queue runs"] input')[0] as HTMLInputElement
 const save = () => $$('button').find((b) => b.textContent?.trim() === 'Save')!
 
-async function mountSettings(cap: number | null, parallel = true, answer?: (body: unknown) => { status: number; body?: unknown }) {
+async function mountSettings(cap: number | null, parallel = true, answer?: (body: unknown) => { status: number; body?: unknown }, supervisor: SupervisorStatus = { enabled: false, reason: 'LLM supervisor is off: set HOSTBUD_LLM_PROVIDER=openai to enable' }) {
   const store = useQueuesStore()
   store.loaded = true
   store.parallelQueues = parallel
-  const calls = stubFetch((method, _path, body) => method === 'GET' ? { status: 200, body: { maxConcurrentRuns: cap } } : answer ? answer(body) : { status: 200, body })
+  const calls = stubFetch((method, path, body) => path === '/api/supervisor' ? { status: 200, body: supervisor } : method === 'GET' ? { status: 200, body: { maxConcurrentRuns: cap } } : answer ? answer(body) : { status: 200, body })
   mount(SettingsDialog, { props: { open: true, machine: 'host' }, attachTo: document.body })
   await flushPromises()
   return calls
@@ -31,6 +32,19 @@ function type(value: string) {
 }
 
 describe('SettingsDialog', () => {
+  it('shows the supervisor off reason and privacy details when enabled', async () => {
+    await mountSettings(null)
+    expect($$('[data-testid="supervisor-settings"]')[0].textContent).toContain('set HOSTBUD_LLM_PROVIDER=openai')
+    document.body.innerHTML = ''
+    setActivePinia(createPinia())
+    await mountSettings(null, true, undefined, { enabled: true, provider: 'openai', model: 'test-model', scrub: true, quietAfter: '10s', maxPerRunHour: 3 })
+    const details = $$('[data-testid="supervisor-settings"]')[0].textContent ?? ''
+    expect(details).toContain('openai / test-model')
+    expect(details).toContain('Recent pane text leaves this host for the provider')
+    expect(details).toContain('Common secrets are scrubbed first')
+    expect(details).toContain('Flags are advisory and never advance a queue')
+  })
+
   it('loads the cap; empty means no cap', async () => {
     await mountSettings(3)
     expect(input().value).toBe('3')

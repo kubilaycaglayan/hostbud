@@ -47,18 +47,19 @@ Written in T1–T5, first run in T7, on desktop and `iphone-13-pro`.
 - [x] (T2) Quiet run is flagged — written and type-checked; run pending
 - [x] (T2) Stale run is classified — written and type-checked; run pending
 - [x] (T2) Budget respected — written and type-checked; run pending
-- [x] (T2) Session gone or renamed — both cases written and type-checked; run pending
+- [x] (T2) Session gone or renamed — both cases and a prefix-neighbour guard written and type-checked; run pending
+- [x] (T2) 5 MiB capture cap — integration scenario written and type-checked; run pending (unit test verifies the 256 KiB writer cap)
 - [x] (T2) Gated items not classified — written and type-checked; run pending
 - [x] (T2) Restart keeps budget and timer — written and type-checked; run pending
 - [x] (T3) Completed label never advances — written and type-checked; run pending
 - [x] (T3) Completed races achieved — written and type-checked; run pending
 - [x] (T3) Run ends mid-classification — achieved-during-classification race written and type-checked; run pending
 - [x] (T3) Owner action during classification — skip race written and type-checked; run pending
-- [x] (T3) Provider errors — 503/429 exhaustion and malformed/out-of-schema written and type-checked; timeout covered at U; run pending
+- [x] (T3) Provider errors — 503/429 exhaustion, timeout, other 4xx and malformed/out-of-schema written and type-checked; run pending
 - [x] (T3) Prompt injection — fixed system prompt and pane-as-user-data assertions written and type-checked; run pending
 - [x] (T4) Scrubbed before sending — written and type-checked; run pending
 - [x] (T4) Pane text not exposed — written and type-checked; run pending
-- [x] (T5) Flag badge (desktop and phone) — written and type-checked; run pending
+- [x] (T5) Flag badge (desktop and phone) — API scenarios written and type-checked; Vitest covers label, text safety, hidden advisory labels and live clearing; e2e run pending
 - [x] (T5) Flag notifies once — written and type-checked; run pending
 - [ ] (on demand) Full suite green on every e2e app: every v1 and V2-M1–V2-M5 scenario, both profiles, no skips or weakened assertions — run only when the owner asks; open until then, not a blocker
 

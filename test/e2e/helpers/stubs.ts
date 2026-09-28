@@ -12,6 +12,7 @@ export type StubBehavior =
   | 'exit'
   | 'silent'
   | 'quiet-print'
+  | 'quiet-print-large'
   | `silent-then-achieve:${number}`
   | 'clear'
   | 'pending'

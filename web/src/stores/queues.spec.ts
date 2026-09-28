@@ -29,6 +29,14 @@ describe('queue event reducers', () => {
     expect(retried.items[0].run).toMatchObject({ id: 'r2', status: 'starting', sessionName: '' })
     expect(applyRunChanged([q1], { runId: 'x', itemId: 'i9', queueId: 'q9', status: 'running' })).toEqual([q1])
   })
+
+  it('applies a live supervisor flag and clears it on a later null flag', () => {
+    const flag = { label: 'waiting_input' as const, reason: 'waiting for input', at: '2026-09-28T12:00:00Z' }
+    const [flagged] = applyRunChanged([q1], { runId: 'r1', itemId: 'i1', queueId: 'q1', status: 'running', flag })
+    expect(flagged.items[0].run?.flag).toEqual(flag)
+    const [cleared] = applyRunChanged([flagged], { runId: 'r1', itemId: 'i1', queueId: 'q1', status: 'running', flag: null })
+    expect(cleared.items[0].run?.flag).toBeNull()
+  })
 })
 
 describe('queues store', () => {

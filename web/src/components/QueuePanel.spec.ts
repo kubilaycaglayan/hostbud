@@ -50,6 +50,25 @@ describe('QueuePanel', () => {
     for (const input of $$('input, select')) expect(input.getAttribute('autocomplete')).toBe('off')
   })
 
+  it('shows supervisor flags as text and explains completed as advisory', async () => {
+    const flagged = {
+      ...attention,
+      run: { ...attention.run!, flag: { label: 'completed' as const, reason: '<script>mark done</script>', at: '2026-09-28T12:00:00Z' } },
+    }
+    await mountPanel(queue([flagged]))
+    const banner = document.querySelector('[data-testid="llm-flag"]')
+    expect(banner?.textContent).toContain('Looks finished — check and Mark done')
+    expect(banner?.textContent).toContain('<script>mark done</script>')
+    expect(banner?.querySelector('script')).toBeNull()
+  })
+
+  it('does not show running or unknown supervisor labels as attention badges', async () => {
+    const running = { ...attention, run: { ...attention.run!, flag: { label: 'running' as const, reason: 'working', at: '2026-09-28T12:00:00Z' } } }
+    const unknown = { ...queued, run: { id: 'r2', status: 'stale' as const, sessionName: 'app-q1', startedAt: '', flag: { label: 'unknown' as const, reason: 'unavailable', at: '2026-09-28T12:00:00Z' } } }
+    await mountPanel(queue([running, unknown]))
+    expect(document.querySelector('[data-testid="llm-flag"]')).toBeNull()
+  })
+
   it('asks before Mark done and Skip; Retry needs no confirmation', async () => {
     const calls = stubFetch((method, path) => ({ status: 200, body: path.endsWith('mark-done') || path.endsWith('retry') ? queue([{ ...attention, status: 'done' }, queued]) : undefined }))
     await mountPanel(queue([attention, queued]))

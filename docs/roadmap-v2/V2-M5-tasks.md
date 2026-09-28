@@ -11,7 +11,7 @@ Update this table in the same commit that finishes a task.
 | Task | Status |
 |---|---|
 | T1 Provider, config and status | Implemented; e2e scenarios written and type-checked |
-| T2 Trigger and capture | Partial; due/budget/stale/restart/gone/rename covered; exact-prefix and large-pane integration coverage remain |
+| T2 Trigger and capture | Partial; due/budget/stale/restart/gone/rename, prefix-neighbour and large-pane scenarios covered; due-edge and capture argv tests remain |
 | T3 Result handling | Partial; guarded result, races, injection and most provider failures covered; provider-timeout e2e remains |
 | T4 Privacy | Implemented; e2e privacy assertions written and type-checked |
 | T5 Panel and notifications | Implemented; repeat-label dedupe and new-label notification scenarios written and type-checked |

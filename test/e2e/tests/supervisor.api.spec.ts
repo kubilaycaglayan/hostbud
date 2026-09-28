@@ -139,16 +139,28 @@ llmTest('(V2-M5 T2) Stale runs are classified immediately', async ({ llm, target
   expect(await (await llm.get('http://hostbud-e2e-llmfake:8080/ctl/requests')).json()).toHaveLength(1)
 })
 
-llmTest('(V2-M5 T2) A gone session is skipped without contacting the provider', async ({ llm, target }) => {
+llmTest('(V2-M5 T2) A gone session is skipped instead of capturing its prefix neighbour', async ({ llm, target }) => {
   await target.resetTmux(); await stubs.reset(); await llm.post('http://hostbud-e2e-llmfake:8080/ctl/reset')
   const project=await newProject(llm,target,'e2e-llm-gone'); const queue=await createQueue(llm,project.id)
   await stubs.setBehavior('e2e llm gone','silent',0.1)
   const item=await addItem(llm,queue.id,{instruction:'/goal e2e llm gone'}); await control(llm,queue.id,'start')
   await expect.poll(async()=>(await itemOf(llm,queue.id,item.id)).run?.status,{timeout:15_000}).toBe('running')
   const run=(await itemOf(llm,queue.id,item.id)).run!
+  await target.tmux('new-session','-d','-s',`${run.sessionName}-neighbor`)
   await target.tmux('kill-session','-t',`=${run.sessionName}`)
   await expect.poll(async()=>(await llmDb.events(run.id)).some((e)=>e.kind==='llm_skipped'),{timeout:30_000}).toBe(true)
   expect(await (await llm.get('http://hostbud-e2e-llmfake:8080/ctl/requests')).json()).toEqual([])
+})
+
+llmTest('(V2-M5 T2) Multi-MiB pane output stays under the capture and provider caps', async ({ llm, target }) => {
+  await target.resetTmux(); await stubs.reset(); await llm.post('http://hostbud-e2e-llmfake:8080/ctl/reset')
+  const project=await newProject(llm,target,'e2e-llm-large'); const queue=await createQueue(llm,project.id)
+  await stubs.setBehavior('e2e llm large','quiet-print-large',0.1)
+  const item=await addItem(llm,queue.id,{instruction:'/goal e2e llm large'}); await control(llm,queue.id,'start')
+  await expect.poll(async()=>(await itemOf(llm,queue.id,item.id)).run?.flag?.label,{timeout:40_000}).toBe('waiting_input')
+  const requests=await (await llm.get('http://hostbud-e2e-llmfake:8080/ctl/requests')).json() as {pane:string}[]
+  expect(requests).toHaveLength(1)
+  expect(Buffer.byteLength(requests[0].pane,'utf8')).toBeLessThanOrEqual(8<<10)
 })
 
 llmTest('(V2-M5 T2) A renamed session is skipped without a prefix capture', async ({ llm, target }) => {
@@ -232,6 +244,31 @@ llmTest('(V2-M5 T3) Provider 429 exhaustion records unknown without changing the
   expect(current.status).toBe('needs_attention')
   expect(current.run?.flag).toBeUndefined()
   expect(await (await llm.get('http://hostbud-e2e-llmfake:8080/ctl/requests')).json()).toHaveLength(3)
+})
+
+llmTest('(V2-M5 T3) Provider timeout records unknown without changing the item', async ({ llm, target }, testInfo) => {
+  testInfo.setTimeout(90_000)
+  await target.resetTmux(); await stubs.reset(); await llm.post('http://hostbud-e2e-llmfake:8080/ctl/reset')
+  await llm.post('http://hostbud-e2e-llmfake:8080/ctl/script',{data:{delayMs:65_000}})
+  const project=await newProject(llm,target,'e2e-llm-timeout'); const queue=await createQueue(llm,project.id)
+  await stubs.setBehavior('e2e llm timeout','silent',0.1)
+  const item=await addItem(llm,queue.id,{instruction:'/goal e2e llm timeout'}); await control(llm,queue.id,'start')
+  await expect.poll(async()=>(await itemOf(llm,queue.id,item.id)).run?.status,{timeout:30_000}).toBe('stale')
+  await expect.poll(async()=>(await llmDb.events((await itemOf(llm,queue.id,item.id)).run!.id)).filter((e)=>e.kind==='llm_result').length,{timeout:80_000}).toBe(1)
+  const current=await itemOf(llm,queue.id,item.id)
+  expect(current.status).toBe('needs_attention'); expect(current.run?.flag).toBeUndefined()
+})
+
+llmTest('(V2-M5 T3) Other provider 4xx records unknown without retry', async ({ llm, target }) => {
+  await target.resetTmux(); await stubs.reset(); await llm.post('http://hostbud-e2e-llmfake:8080/ctl/reset')
+  await llm.post('http://hostbud-e2e-llmfake:8080/ctl/script',{data:{status:400}})
+  const project=await newProject(llm,target,'e2e-llm-bad-request'); const queue=await createQueue(llm,project.id)
+  await stubs.setBehavior('e2e llm bad request','silent',0.1)
+  const item=await addItem(llm,queue.id,{instruction:'/goal e2e llm bad request'}); await control(llm,queue.id,'start')
+  await expect.poll(async()=>(await llmDb.events((await itemOf(llm,queue.id,item.id)).run!.id)).filter((e)=>e.kind==='llm_result').length,{timeout:30_000}).toBe(1)
+  const current=await itemOf(llm,queue.id,item.id)
+  expect(current.status).toBe('needs_attention'); expect(current.run?.flag).toBeUndefined()
+  expect(await (await llm.get('http://hostbud-e2e-llmfake:8080/ctl/requests')).json()).toHaveLength(1)
 })
 
 llmTest('(V2-M5 T3) Malformed and out-of-schema provider content stays unknown', async ({ llm, target }) => {
