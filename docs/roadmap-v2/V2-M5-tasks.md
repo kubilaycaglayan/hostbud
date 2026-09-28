@@ -13,7 +13,7 @@ Update this table in the same commit that finishes a task.
 | T1 Provider, config and status | Implemented; e2e scenarios written and type-checked |
 | T2 Trigger and capture | Implemented; due-window boundary, latest signal, stale immediacy, budget/restart/capture argv and integration scenarios covered |
 | T3 Result handling | Implemented; guarded result, races, injection, retry/exhaustion, timeout and provider failure scenarios written and type-checked |
-| T4 Privacy | Implemented; e2e privacy assertions written and type-checked |
+| T4 Privacy | Implemented; scrub-disabled mode retrieves the session token in memory, always removes it, and fails closed if retrieval fails; unit coverage and e2e privacy assertions are written and type-checked |
 | T5 Panel and notifications | Implemented; repeat-label dedupe and new-label notification scenarios written and type-checked |
 | T6 Docs | Implemented; source docs/env updated and docs check passed |
 | T7 Milestone acceptance | Partial; checks and deploy passed; full E2E run remains on demand, owner checks remain open |

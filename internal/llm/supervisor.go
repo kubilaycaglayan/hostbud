@@ -118,7 +118,15 @@ func (s *Supervisor) classify(ctx context.Context, run store.Run) {
 		return
 	}
 	pane := lastLines(out.String(), 200)
-	pane = PreparePane(pane, s.scrub, "")
+	token := ""
+	if !s.scrub {
+		token, err = s.runToken(ctx, run)
+		if err != nil {
+			s.finish(ctx, run, Result{Label: Unknown, Reason: "could not safely prepare the run pane"})
+			return
+		}
+	}
+	pane = PreparePane(pane, s.scrub, token)
 	classifyCtx, classifyCancel := context.WithTimeout(ctx, 60*time.Second)
 	result, err := s.classifier.Classify(classifyCtx, pane)
 	classifyCancel()
@@ -128,6 +136,45 @@ func (s *Supervisor) classify(ctx context.Context, run store.Run) {
 	result.Reason = cleanReason(PreparePane(result.Reason, true, ""))
 	s.finish(ctx, run, result)
 }
+func (s *Supervisor) runToken(ctx context.Context, run store.Run) (string, error) {
+	args, ok := tokenArgs(run.SessionName)
+	if !ok {
+		return "", errors.New("invalid session name")
+	}
+	var out boundedCapture
+	captureCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	err := s.ssh.ExecTo(captureCtx, run.MachineID, &out, args...)
+	cancel()
+	if err != nil {
+		return "", errors.New("could not read run token")
+	}
+	token, ok := parseRunToken(out.String())
+	if !ok {
+		return "", errors.New("run token was unavailable")
+	}
+	return token, nil
+}
+
+func tokenArgs(sessionName string) ([]string, bool) {
+	if err := tmux.ValidateName(sessionName); err != nil {
+		return nil, false
+	}
+	return []string{"tmux", "show-environment", "-t", "=" + sessionName, "HOSTBUD_RUN_TOKEN"}, true
+}
+
+func parseRunToken(output string) (string, bool) {
+	line := strings.TrimSuffix(strings.TrimSpace(output), "\n")
+	const prefix = "HOSTBUD_RUN_TOKEN="
+	if !strings.HasPrefix(line, prefix) {
+		return "", false
+	}
+	token := strings.TrimPrefix(line, prefix)
+	if len(token) < 32 || strings.ContainsAny(token, "\r\n\x00") {
+		return "", false
+	}
+	return token, true
+}
+
 func due(run store.Run, now time.Time, quiet time.Duration) bool {
 	if run.Status == store.RunStale {
 		return true
