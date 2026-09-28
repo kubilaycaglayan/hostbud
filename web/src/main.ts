@@ -7,7 +7,10 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import { trackAppHeight } from './lib/appHeight'
 import { registerPWA } from './lib/pwa'
+import { installNotificationSpy } from './lib/notificationSpy'
 
+// E2E builds: record notifications for the scenarios (dropped in production).
+if (import.meta.env.VITE_E2E === '1') installNotificationSpy(window)
 trackAppHeight()
 createApp(App).use(createPinia()).mount('#app')
 void registerPWA({

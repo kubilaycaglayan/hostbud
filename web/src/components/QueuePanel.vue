@@ -38,6 +38,16 @@ function select(id: string) {
   renaming.value = false
   editing.value = null
 }
+// V2-M3: a notification opened an item: select its queue, highlight it.
+const highlighted = ref<string | null>(null)
+watch(() => store.focus, async (f) => {
+  if (!f) return
+  select(f.queueId)
+  highlighted.value = f.itemId
+  if (!store.loaded) await store.load()
+  await nextTick()
+  if (f.itemId) document.querySelector(`[data-queue-item="${CSS.escape(f.itemId)}"]`)?.scrollIntoView?.({ block: 'nearest' })
+})
 const items = ref<QueueItem[]>([])
 watch(() => queue.value?.items, (next) => { items.value = [...(next ?? [])] }, { immediate: true })
 const hasQueued = computed(() => items.value.some((i) => i.status === 'queued'))
@@ -376,9 +386,11 @@ const badge: Record<QueueItem['status'], string> = {
                 :key="item.id"
                 :data-queue-item="item.id"
                 :data-queue-status="item.status"
+                :data-highlighted="highlighted === item.id ? 'true' : undefined"
                 :aria-label="`Item ${item.position}: ${item.instruction}`"
                 tabindex="0"
-                class="rounded border border-border p-2"
+                class="rounded border p-2"
+                :class="highlighted === item.id ? 'border-accent ring-2 ring-accent' : 'border-border'"
                 @keydown="onRowKey($event, item)"
               >
                 <form v-if="editing === item.id" class="flex flex-col gap-2" :aria-label="`Edit item ${item.position}`" @submit.prevent="saveEdit(item)">

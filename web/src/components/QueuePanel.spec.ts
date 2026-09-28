@@ -292,4 +292,14 @@ describe('QueuePanel', () => {
     await flushPromises()
     expect($$('[data-testid="item-status"]')[0].textContent).toBe('Running · starting')
   })
+
+  it('opens the item a notification points at: its queue selected, the item highlighted (V2-M3)', async () => {
+    const other: Queue = { ...queue([queued]), id: 'q2', name: 'Second' }
+    await mountPanel([queue([attention]), other], false, true)
+    useQueuesStore().focusItem('q2', 'i2')
+    await flushPromises()
+    const row = $$('[data-queue-item="i2"]')[0]
+    expect(row?.dataset.highlighted).toBe('true')
+    expect($$('[data-queue-item="i1"]')).toHaveLength(0)
+  })
 })

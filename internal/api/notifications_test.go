@@ -31,6 +31,15 @@ func (f *fakeNotifyStore) PutNotificationPrefs(_ context.Context, user string, p
 	return nil
 }
 
+func (f *fakeNotifyStore) NotificationsEnabled(context.Context) (bool, error) {
+	for _, p := range f.prefs {
+		if p.Enabled {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func newNotifier(push config.Push) *notify.Service {
 	return notify.New(&fakeNotifyStore{}, push, "BPublicKey", nil)
 }

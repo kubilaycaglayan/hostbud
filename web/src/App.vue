@@ -27,6 +27,9 @@ import { useAuthStore } from '@/stores/auth'
 import { useLayoutStore } from '@/stores/layout'
 import { useLiveStore } from '@/stores/live'
 import { useMachinesStore } from '@/stores/machines'
+import { useNotificationsStore } from '@/stores/notifications'
+import { useQueuesStore } from '@/stores/queues'
+import { queueTarget } from '@/lib/notifications'
 import { useTreeStore } from '@/stores/tree'
 import { useThemeStore } from '@/stores/theme'
 import { useWindowsStore } from '@/stores/windows'
@@ -50,6 +53,8 @@ const windows = useWindowsStore()
 const projects = useProjectsStore()
 const toasts = useToastsStore()
 const sessions = useSessionsStore()
+const notifications = useNotificationsStore()
+const queuesStore = useQueuesStore()
 
 // v1 has one machine: the host.
 const MACHINE = 'host'
@@ -199,6 +204,24 @@ function browseFiles() {
 function openQueue() {
   drawerOpen.value = false
   queueOpen.value = true
+}
+
+/** V2-M3: a notification's item (a click, or a push that opened
+ * /queues/<id>?item=<id>): the Queue panel on that item. */
+function openQueueItem(queueId: string, itemId: string | null) {
+  drawerOpen.value = false
+  queuesStore.focusItem(queueId, itemId)
+  queueOpen.value = true
+}
+notifications.onOpen(openQueueItem)
+
+/** A push notification opened the app on an item's path: show the item and
+ * go back to the app's own URL. */
+function openLaunchTarget() {
+  const target = queueTarget(window.location.pathname + window.location.search)
+  if (!target) return
+  window.history.replaceState(null, '', '/')
+  openQueueItem(target.queueId, target.itemId)
 }
 
 function openSettings() {
@@ -498,7 +521,10 @@ watch(
     ])
     tree.sync()
     windows.restore()
-    if (auth.status === 'authenticated') live.start()
+    if (auth.status === 'authenticated') {
+      live.start()
+      openLaunchTarget()
+    }
   },
 )
 

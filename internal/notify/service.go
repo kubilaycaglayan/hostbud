@@ -15,6 +15,7 @@ import (
 type Store interface {
 	NotificationPrefs(ctx context.Context, userID string) (store.NotificationPrefs, error)
 	PutNotificationPrefs(ctx context.Context, userID string, p store.NotificationPrefs) error
+	NotificationsEnabled(ctx context.Context) (bool, error)
 }
 
 // PushStatus says whether Web Push is available; Reason says how to turn
@@ -52,6 +53,17 @@ func New(st Store, push config.Push, publicKey string, log *slog.Logger) *Servic
 		s.vapid = publicKey
 	}
 	return s
+}
+
+// Enabled reports whether at least one account has notifications on; an
+// unreadable store counts as off (nothing is sent on a guess).
+func (s *Service) Enabled(ctx context.Context) bool {
+	on, err := s.store.NotificationsEnabled(ctx)
+	if err != nil {
+		s.log.Warn("notification settings unreadable; not notifying", "err", err)
+		return false
+	}
+	return on
 }
 
 // PushAvailable reports whether VAPID keys are configured and valid.

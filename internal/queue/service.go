@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"hostbud/internal/events"
+	"hostbud/internal/notify"
 	"hostbud/internal/store"
 )
 
@@ -136,6 +137,11 @@ type Changed struct {
 	// ParallelQueues is the switch at the time of the change, so every
 	// open panel follows a toggle.
 	ParallelQueues bool `json:"parallelQueues"`
+	// Notification is set on the three notifying transitions (item done,
+	// needs attention, queue finished) while at least one account has
+	// notifications on (V2-M3). Clients show only this, never text built
+	// from the other fields.
+	Notification *notify.Payload `json:"notification,omitempty"`
 }
 
 // Service is the queue CRUD and control surface (v2 §4). Every change
@@ -192,7 +198,7 @@ func (s *Service) SetParallel(ctx context.Context, on bool) (bool, error) {
 	}
 	if queues, err := s.store.Queues(ctx, s.machine); err == nil && s.bus != nil {
 		for _, q := range queues {
-			s.publishOne(ctx, "parallel_changed", q.ID)
+			s.publishOne(ctx, "parallel_changed", q.ID, nil)
 		}
 	}
 	return on, nil
@@ -437,7 +443,7 @@ func (s *Service) SetCapacity(ctx context.Context, maxRuns *int) (*int, error) {
 	}
 	if queues, err := s.store.Queues(ctx, s.machine); err == nil && s.bus != nil {
 		for _, q := range queues {
-			s.publishOne(ctx, "capacity_changed", q.ID)
+			s.publishOne(ctx, "capacity_changed", q.ID, nil)
 		}
 	}
 	return s.store.MachineCapacity(ctx, s.machine)
@@ -447,19 +453,25 @@ func (s *Service) SetCapacity(ctx context.Context, maxRuns *int) (*int, error) {
 // dispatcher uses it too). Queues sharing its directory get one as well,
 // since their shared-directory warning may have changed with it.
 func (s *Service) Publish(ctx context.Context, action, queueID string) {
+	s.PublishNotice(ctx, action, queueID, nil)
+}
+
+// PublishNotice is Publish with a notification on the queue's own event
+// (V2-M3); peers get theirs without one.
+func (s *Service) PublishNotice(ctx context.Context, action, queueID string, notice *notify.Payload) {
 	if s.bus == nil {
 		return
 	}
-	v := s.publishOne(ctx, action, queueID)
+	v := s.publishOne(ctx, action, queueID, notice)
 	if v != nil {
 		for _, id := range s.peers(ctx, queueID, v.ProjectPath) {
-			s.publishOne(ctx, "peer_changed", id)
+			s.publishOne(ctx, "peer_changed", id, nil)
 		}
 	}
 }
 
-func (s *Service) publishOne(ctx context.Context, action, queueID string) *View {
-	payload := Changed{Action: action, QueueID: queueID, ParallelQueues: s.ParallelQueues()}
+func (s *Service) publishOne(ctx context.Context, action, queueID string, notice *notify.Payload) *View {
+	payload := Changed{Action: action, QueueID: queueID, ParallelQueues: s.ParallelQueues(), Notification: notice}
 	if q, err := s.store.Queue(ctx, queueID); err == nil {
 		if v, err := s.view(ctx, q); err == nil {
 			_ = s.addWarnings(ctx, &v)
@@ -545,7 +557,7 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 	if s.bus != nil {
 		s.bus.Publish(events.Event{Type: events.QueueChanged, Machine: s.machine, Payload: Changed{Action: "deleted", QueueID: id, ParallelQueues: s.ParallelQueues()}})
 		for _, peer := range peers {
-			s.publishOne(ctx, "peer_changed", peer)
+			s.publishOne(ctx, "peer_changed", peer, nil)
 		}
 	}
 	return nil

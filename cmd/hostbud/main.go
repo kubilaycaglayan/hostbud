@@ -181,6 +181,7 @@ func run() error {
 		log.Warn("web push is off; in-app notifications still work", "missing", push.Missing, "invalid", push.Invalid, "fix", "make vapid-keys")
 	}
 	notifier := notify.New(st, push, cfg.VAPIDPublicKey, log)
+	dispatcher.SetNotifications(notifier)
 	srv := &http.Server{
 		Addr: cfg.Listen,
 		Handler: api.New(api.Config{

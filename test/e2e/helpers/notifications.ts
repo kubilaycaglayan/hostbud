@@ -23,3 +23,19 @@ export async function putNotificationSettings(request: APIRequestContext, data: 
   if (!res.ok()) throw new Error(`PUT notification settings: ${res.status()} ${await res.text()}`)
   return await res.json()
 }
+
+/** What the page showed as in-app notifications (the e2e build's spy). */
+export interface ShownNotification {
+  title: string
+  body: string
+  tag: string
+}
+
+export async function shownNotifications(page: import('@playwright/test').Page): Promise<ShownNotification[]> {
+  return await page.evaluate(() => [...((window as unknown as { __notifications?: ShownNotification[] }).__notifications ?? [])])
+}
+
+/** Clicks the index-th notification the page showed. */
+export async function clickNotification(page: import('@playwright/test').Page, index: number): Promise<void> {
+  await page.evaluate((i) => (window as unknown as { __clickNotification: (n: number) => void }).__clickNotification(i), index)
+}

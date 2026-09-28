@@ -11,7 +11,7 @@ Update this table in the same commit that finishes a task.
 | Task | Status |
 |---|---|
 | T0 Schema, switch and VAPID config | Done |
-| T1 In-app notifications | Not started |
+| T1 In-app notifications | Done |
 | T2 Web Push | Not started |
 | T3 Outbound delivery | Not started |
 | T4 Settings UI | Not started |
@@ -32,7 +32,7 @@ The v2 ROADMAP *Rules*, AGENTS.md and the V2-M1 milestone rules (fast checks per
 
 | Checkpoint | After | Runs | Status |
 |---|---|---|---|
-| CP1 | T0–T1 | `make lint test`, `scripts/compose-config.sh`, e2e `tsc` | Not run |
+| CP1 | T0–T1 | `make lint test`, `scripts/compose-config.sh`, e2e `tsc` | Passed 2026-09-28 |
 | CP2 | T2–T3 | `make lint test` **three times in a row** (retries, timers, restart), e2e `tsc` | Not run |
 | CP3 | T4–T5 | `make lint test`, `vue-tsc`, e2e `tsc`, `make gitleaks`, docs check | Not run |
 | CP4 | T6 | `make lint test`, e2e `tsc`, `make gitleaks`, `make deploy` (no `make e2e`: on demand only) | Not run |
@@ -40,6 +40,8 @@ The v2 ROADMAP *Rules*, AGENTS.md and the V2-M1 milestone rules (fast checks per
 **Progress note:**
 - **Precondition** (2026-09-28): V2-M2 is done: every criterion ticked; only its on-demand e2e run and owner checks are open (allowed).
 - **T0** (2026-09-28): `0008_notifications.sql` (prefs, subscriptions, outbox, deliveries); `store` prefs get/put and `NotificationsEnabled`; `config.CheckVAPID` (none/partial/invalid ⇒ push off with the reason, never a startup error; one warn log naming the vars); `internal/notify` settings service; `GET`/`PUT /api/notifications/settings` (caller's account only, in `routes.json` and v1 ARCHITECTURE §9); `hostbud vapid-keys` / `make vapid-keys`; the VAPID vars on the `hostbud` service only and `HOSTBUD_PUSH_TEST_ENDPOINT` e2e-only (docs check exemption). e2e: `notifications.api.spec.ts` *Settings API* and *Push unavailable* (multi app), the shared reset turns every account off.
+- **T1** (2026-09-28): `notify.Build` is the one payload builder (`{v, kind, key, project, position, outcome, url}` plus `title`/`body` made only from those, ≤ 1 KiB; design note in v2 §9); the dispatcher attaches it to `queue.changed` on item done, needs attention (once per transition) and queue finished (keyed by the last run) while an account is on. Client: `stores/notifications.ts` (never requests permission, skips push-subscribed devices, keys seen once per page), the click opens the Queue panel on the item (also from a `/queues/<id>?item=<id>` launch URL), the e2e-only `Notification` spy (`check-dist` rejects it in production). e2e: `notifications.spec.ts` *In-app notification*, *Switch off*. Also fixed a pre-existing `App.spec.ts` failure (the terminal focus stub from `278aed1` rendered no session; separate commit).
+- **CP1** (2026-09-28): `make lint test` green (includes `scripts/compose-config.sh` and the e2e `tsc`).
 
 ---
 

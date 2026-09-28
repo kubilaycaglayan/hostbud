@@ -132,6 +132,34 @@ export interface QueueChanged {
   queue?: Queue
   /** The parallel-queues switch at the time of the change. */
   parallelQueues?: boolean
+  /** V2-M3: set on item done, needs attention and queue finished while an
+   * account has notifications on. The only text a notification shows. */
+  notification?: NotificationPayload
+}
+
+/** V2-M3: the allowlisted notification payload (internal/notify), the same
+ * in-app and through push. */
+export interface NotificationPayload {
+  v: number
+  kind: 'done' | 'attention' | 'finished'
+  key: string
+  project: string
+  position: number
+  outcome: string
+  /** An app path: /queues/<id>?item=<id>. */
+  url: string
+  title: string
+  body: string
+}
+
+/** GET|PUT /api/notifications/settings (the caller's account). */
+export interface NotificationSettings {
+  enabled: boolean
+  onDone: boolean
+  onAttention: boolean
+  onFinished: boolean
+  push: { available: boolean; reason?: string }
+  vapidPublicKey?: string
 }
 
 export interface RunChanged {

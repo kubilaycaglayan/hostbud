@@ -36,6 +36,9 @@ export const useQueuesStore = defineStore('queues', () => {
   /** The parallel-queues switch (V2-M2): several queues, parallel runs. */
   const parallelQueues = ref(false)
   let loading: Promise<void> | null = null
+  /** V2-M3: the queue item a notification asked to open (the Queue panel
+   * selects its queue and highlights the item). */
+  const focus = ref<{ queueId: string; itemId: string | null; at: number } | null>(null)
 
   async function load() {
     loading ??= (async () => {
@@ -82,5 +85,9 @@ export const useQueuesStore = defineStore('queues', () => {
     parallelQueues.value = false
   }
 
-  return { queues, loaded, loadError, parallelQueues, load, apply, put, reset }
+  function focusItem(queueId: string, itemId: string | null) {
+    focus.value = { queueId, itemId, at: Date.now() }
+  }
+
+  return { queues, loaded, loadError, parallelQueues, focus, load, apply, put, reset, focusItem }
 })

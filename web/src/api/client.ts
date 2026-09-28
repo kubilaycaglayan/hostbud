@@ -1,7 +1,7 @@
 // Typed client for hostbud's JSON API. Errors carry the server's
 // {error, hint} shape (and Retry-After for 429s).
 
-import type { Capacity, Machine, ParallelQueues, Project, Queue, QueueItem, QueueList, Session, TmuxWindows } from './types'
+import type { Capacity, Machine, NotificationSettings, ParallelQueues, Project, Queue, QueueItem, QueueList, Session, TmuxWindows } from './types'
 
 export class ApiError extends Error {
   constructor(
@@ -266,6 +266,13 @@ export const queuesApi = {
   retry: (id: string) => request<Queue>('POST', `/api/queue-items/${q(id)}/retry`),
   skip: (id: string) => request<Queue>('POST', `/api/queue-items/${q(id)}/skip`),
   markDone: (id: string) => request<Queue>('POST', `/api/queue-items/${q(id)}/mark-done`),
+}
+
+/** V2-M3 notifications: the caller's account only. */
+export const notificationsApi = {
+  settings: () => request<NotificationSettings>('GET', '/api/notifications/settings'),
+  save: (prefs: Partial<Pick<NotificationSettings, 'enabled' | 'onDone' | 'onAttention' | 'onFinished'>>) =>
+    request<NotificationSettings>('PUT', '/api/notifications/settings', prefs),
 }
 
 /** UI state keys the server accepts (internal/api/uistate.go). */

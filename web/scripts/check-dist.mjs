@@ -8,7 +8,7 @@ if (process.env.VITE_E2E === '1') process.exit(0)
 
 const dist = new URL('../dist', import.meta.url).pathname
 checkDist(dist)
-const hits = productionFiles(dist).filter((name) => /\.(js|html)$/.test(name) && readFileSync(resolve(dist, name), 'utf8').includes('__hostbud'))
+const hits = productionFiles(dist).filter((name) => /\.(js|html)$/.test(name) && /__hostbud|__notifications|__clickNotification/.test(readFileSync(resolve(dist, name), 'utf8')))
 if (hits.length) {
   console.error(`check-dist: e2e test hooks in a production build: ${hits.join(', ')}`)
   process.exit(1)

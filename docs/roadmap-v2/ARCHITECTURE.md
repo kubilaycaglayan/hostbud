@@ -304,6 +304,7 @@ Fallback for clients without a readable goal state: an explicit `session_end` / 
 - Commands are built from argv via the single `sshx` helper (shell-quoted). User flags are split and quoted, never interpolated.
 - The token never appears in a process's argv: hostbud creates run sessions with `tmux source-file -`, feeding the `new-session … -e HOSTBUD_RUN_TOKEN=…` command line through **stdin** (§12 S8). With `-e` on the command line it was visible in the `ssh` client's argv (container processes show in the host's process list) for the length of the call.
 - The existing rule holds: no destructive tmux action without owner confirmation. The dispatcher only ever *creates* sessions.
+- **Notifications (V2-M3).** One builder (`internal/notify`) makes every notification, in-app and push alike: `{v, kind, key, project, position, outcome, url, title, body}`, where `title` and `body` are made only from `project`, `position` and `outcome`, and the whole payload is at most 1 KiB. Never instruction text, flags, paths, session names, run `detail`, pane output, tokens or emails. `url` is an app path (`/queues/<id>?item=<id>`); clients open it only as a same-origin path. The key (`run:<id>:done`, `run:<id>:attention`, `queue:<id>:finished:<last run id>`) is the `Notification` tag. The payload rides on `queue.changed` only while at least one account has notifications on.
 
 ---
 

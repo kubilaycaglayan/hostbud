@@ -5,6 +5,7 @@ import type { ServerEvent } from '@/api/types'
 import { useAuthStore } from './auth'
 import { useLayoutStore } from './layout'
 import { useMachinesStore } from './machines'
+import { useNotificationsStore } from './notifications'
 import { useSessionsStore } from './sessions'
 import { useProjectsStore } from './projects'
 import { useQueuesStore } from './queues'
@@ -22,6 +23,7 @@ export const useLiveStore = defineStore('live', () => {
     const sessions = useSessionsStore()
     const projects = useProjectsStore()
     const auth = useAuthStore()
+    void useNotificationsStore().load()
     conn = new LiveConnection({
       url: eventsURL(),
       onEvent: (e) => {
@@ -29,6 +31,7 @@ export const useLiveStore = defineStore('live', () => {
         sessions.apply(e)
         projects.apply(e)
         useQueuesStore().apply(e)
+        useNotificationsStore().apply(e)
         useTreeStore().sync()
         useWindowsStore().applyEvent(e)
         closeEndedSessions(e)
@@ -60,6 +63,7 @@ export const useLiveStore = defineStore('live', () => {
     useSessionsStore().reset()
     useProjectsStore().reset()
     useQueuesStore().reset()
+    useNotificationsStore().reset()
     useTreeStore().reset()
     useWindowsStore().reset()
   }

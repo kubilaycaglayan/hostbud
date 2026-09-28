@@ -11,6 +11,7 @@ import (
 	"hostbud/internal/agents"
 	"hostbud/internal/events"
 	"hostbud/internal/inventory"
+	"hostbud/internal/notify"
 	"hostbud/internal/store"
 )
 
@@ -83,7 +84,18 @@ type Dispatcher struct {
 	waiting map[string]bool    // queues last published as waiting for a slot
 
 	dispatching, again bool // dispatch is running / was asked for again meanwhile
+
+	notifications Notifications // V2-M3; nil = off
 }
+
+// Notifications gates V2-M3 notices (notify.Service): with every account
+// off, transitions carry none and nothing new runs.
+type Notifications interface {
+	Enabled(ctx context.Context) bool
+}
+
+// SetNotifications turns V2-M3 notices on (nil turns them off).
+func (d *Dispatcher) SetNotifications(n Notifications) { d.notifications = n }
 
 // NewDispatcher wires the dispatcher to the service (Kick, overrides) and
 // the hook receiver (Notify).
@@ -292,9 +304,7 @@ func (d *Dispatcher) advance(ctx context.Context, queueID, source string) {
 	}
 	item, err := d.store.FirstQueuedItem(ctx, queueID)
 	if errors.Is(err, store.ErrNotFound) {
-		if _, err := d.store.TransitionQueue(ctx, queueID, []string{store.QueueRunning}, store.QueueFinished); err == nil {
-			d.service.Publish(ctx, "finished", queueID)
-		}
+		d.finishQueue(ctx, queueID)
 		return
 	} else if err != nil {
 		d.log.Error("queue: next item", "err", err)
@@ -432,9 +442,7 @@ func (d *Dispatcher) dispatchOnce(ctx context.Context, machine, source string) {
 		item, err := d.store.FirstQueuedItem(ctx, q.ID)
 		if errors.Is(err, store.ErrNotFound) {
 			_, _ = d.store.SetQueueWaiting(ctx, q.ID, nil)
-			if _, err := d.store.TransitionQueue(ctx, q.ID, []string{store.QueueRunning}, store.QueueFinished); err == nil {
-				d.service.Publish(ctx, "finished", q.ID)
-			}
+			d.finishQueue(ctx, q.ID)
 			continue
 		} else if err != nil {
 			d.log.Error("queue: next item", "err", err)
@@ -803,11 +811,12 @@ func (d *Dispatcher) achieved(ctx context.Context, rc runCtx, source string) {
 	if _, err := d.finish(ctx, rc.run, store.RunAchieved, "", source, false); err != nil {
 		return
 	}
+	notice := d.notice(ctx, notify.KindDone, rc.run, rc.item, rc.queueID)
 	if _, err := d.store.TransitionQueueItem(ctx, rc.item.ID, []string{store.ItemRunning, store.ItemNeedsAttention}, store.ItemDone); err != nil {
 		d.service.Publish(ctx, "run_achieved", rc.queueID)
 		return
 	}
-	d.service.Publish(ctx, "item_done", rc.queueID)
+	d.service.PublishNotice(ctx, "item_done", rc.queueID, notice)
 	switch {
 	case !wasStale:
 		d.next(ctx, rc.queueID, source)
@@ -832,13 +841,81 @@ func (d *Dispatcher) untrackable(ctx context.Context, rc runCtx, source, detail 
 // needsAttention sets the item to needs_attention and pauses its queue.
 // With slots, an ended run's slot goes to the next waiting queue at once (a
 // stale run keeps its slot: it is still active).
-func (d *Dispatcher) needsAttention(ctx context.Context, _ store.Run, item store.QueueItem, queueID, source string) {
-	_, _ = d.store.TransitionQueueItem(ctx, item.ID, []string{store.ItemRunning}, store.ItemNeedsAttention)
+func (d *Dispatcher) needsAttention(ctx context.Context, run store.Run, item store.QueueItem, queueID, source string) {
+	notice := d.notice(ctx, notify.KindAttention, run, item, queueID)
+	if _, err := d.store.TransitionQueueItem(ctx, item.ID, []string{store.ItemRunning}, store.ItemNeedsAttention); err != nil {
+		notice = nil // not this transition's: another signal got there first
+	}
 	_, _ = d.store.TransitionQueue(ctx, queueID, []string{store.QueueRunning}, store.QueuePaused)
-	d.service.Publish(ctx, "needs_attention", queueID)
+	d.service.PublishNotice(ctx, "needs_attention", queueID, notice)
 	if d.slots() {
 		d.dispatch(ctx, source)
 	}
+}
+
+// finishQueue ends a running queue with nothing left to run.
+func (d *Dispatcher) finishQueue(ctx context.Context, queueID string) {
+	var notice *notify.Payload
+	if runs, err := d.store.LatestRuns(ctx, queueID); err == nil {
+		// The last run: started last, then ended last, then the later item.
+		var last store.Run
+		var lastItem store.QueueItem
+		for _, r := range runs {
+			item, err := d.store.QueueItem(ctx, r.ItemID)
+			if err != nil {
+				continue
+			}
+			if last.ID == "" || laterRun(r, item, last, lastItem) {
+				last, lastItem = r, item
+			}
+		}
+		if last.ID != "" {
+			notice = d.notice(ctx, notify.KindFinished, last, lastItem, queueID)
+		}
+	}
+	if _, err := d.store.TransitionQueue(ctx, queueID, []string{store.QueueRunning}, store.QueueFinished); err == nil {
+		d.service.PublishNotice(ctx, "finished", queueID, notice)
+	}
+}
+
+func laterRun(a store.Run, ai store.QueueItem, b store.Run, bi store.QueueItem) bool {
+	if !a.StartedAt.Equal(b.StartedAt) {
+		return a.StartedAt.After(b.StartedAt)
+	}
+	ae, be := a.StartedAt, b.StartedAt
+	if a.EndedAt != nil {
+		ae = *a.EndedAt
+	}
+	if b.EndedAt != nil {
+		be = *b.EndedAt
+	}
+	if !ae.Equal(be) {
+		return ae.After(be)
+	}
+	return ai.Position > bi.Position
+}
+
+// notice builds the V2-M3 notification for a transition (the run that
+// ended, its item and queue); nil while every account is off. The payload
+// holds only allowlisted fields (notify.Build).
+func (d *Dispatcher) notice(ctx context.Context, kind string, run store.Run, item store.QueueItem, queueID string) *notify.Payload {
+	if d.notifications == nil || !d.notifications.Enabled(ctx) {
+		return nil
+	}
+	name := ""
+	if q, err := d.store.Queue(ctx, queueID); err == nil {
+		if p, err := d.store.Project(ctx, q.ProjectID); err == nil {
+			name = p.Name
+		}
+	}
+	p, err := notify.Build(notify.Event{
+		Kind: kind, RunID: run.ID, QueueID: queueID, ItemID: item.ID, Project: name, Position: item.Position, Outcome: run.Status,
+	})
+	if err != nil {
+		d.log.Warn("notification not built", "kind", kind, "err", err)
+		return nil
+	}
+	return &p
 }
 
 func (d *Dispatcher) event(ctx context.Context, run store.Run, source, kind, detail string) {
