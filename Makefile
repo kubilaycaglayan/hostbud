@@ -125,11 +125,11 @@ logs: ## Follow the hostbud and Caddy logs
 backup: ## Write a private PostgreSQL custom-format dump to ./backups/
 	@set -eu; umask 077; mkdir -p backups; chmod 700 backups; \
 	name=hostbud-$$(date -u +%Y%m%dT%H%M%S%NZ).dump; tmp=/tmp/$$name; \
+	: "the app's /tmp is a tmpfs, which docker cp can't read: stream the dump out"; \
 	test ! -e "backups/$$name" || { echo "backup already exists: $$name" >&2; exit 1; }; \
 	cleanup() { docker compose exec -T hostbud rm -f "$$tmp" >/dev/null 2>&1 || true; }; \
-	trap cleanup EXIT HUP INT TERM; \
-	docker compose exec -T hostbud hostbud backup "$$tmp"; \
-	docker compose cp "hostbud:$$tmp" "backups/$$name" >/dev/null; \
+	trap 'cleanup; [ -s "backups/$$name" ] || rm -f "backups/$$name"' EXIT HUP INT TERM; \
+	docker compose exec -T hostbud sh -c 'hostbud backup "$$1" >&2 && cat "$$1"' sh "$$tmp" >"backups/$$name"; \
 	chmod 600 "backups/$$name"; \
 	size=$$(wc -c <"backups/$$name" | tr -d ' '); \
 	echo "Backup written: $$name ($$size bytes)"
