@@ -11,12 +11,12 @@ Update this table in the same commit that finishes a task.
 | Task | Status |
 |---|---|
 | T1 Provider, config and status | Implemented; e2e scenarios written and type-checked |
-| T2 Trigger and capture | Partial; due/budget/stale/restart/gone/rename, prefix-neighbour and large-pane scenarios covered; due-edge and capture argv tests remain |
-| T3 Result handling | Partial; guarded result, races, injection and most provider failures covered; provider-timeout e2e remains |
+| T2 Trigger and capture | Implemented; due-window boundary, latest signal, stale immediacy, budget/restart/capture argv and integration scenarios covered |
+| T3 Result handling | Implemented; guarded result, races, injection, retry/exhaustion, timeout and provider failure scenarios written and type-checked |
 | T4 Privacy | Implemented; e2e privacy assertions written and type-checked |
 | T5 Panel and notifications | Implemented; repeat-label dedupe and new-label notification scenarios written and type-checked |
 | T6 Docs | Implemented; source docs/env updated and docs check passed |
-| T7 Milestone acceptance | Partial; tests and deploy passed, scenario coverage remains incomplete |
+| T7 Milestone acceptance | Partial; checks and deploy passed; full E2E run remains on demand, owner checks remain open |
 | T8 Safe Docker cleanup | Skipped; active toolbox and unrelated project containers make cleanup unsafe |
 
 **Precondition:** V2-M4 is done (its checklist ticked, open owner items excepted). Record the check in the Progress note.
@@ -34,7 +34,7 @@ The v2 ROADMAP *Rules*, AGENTS.md and the V2-M1 milestone rules (fast checks per
 | Checkpoint | After | Runs | Status |
 |---|---|---|---|
 | CP1 | T1 | `make lint test`, `scripts/compose-config.sh`, e2e `tsc` | `make lint test`, Compose config, e2e `tsc` passed |
-| CP2 | T2–T4 | `make lint test` **three times in a row** (timers, retries, races, restart), e2e `tsc` | Three consecutive `make lint test` passes; e2e `tsc` passed; scenario gaps remain |
+| CP2 | T2–T4 | `make lint test` **three times in a row** (timers, retries, races, restart), e2e `tsc` | Three consecutive `make lint test` passes; e2e `tsc` passed; T2 due-boundary and argv tests added afterward and covered by `make go-unit` |
 | CP3 | T5–T6 | `make lint test`, `vue-tsc`, e2e `tsc`, `make gitleaks`, docs check | lint/test, e2e `tsc`, gitleaks and docs check passed once |
 | CP4 | T7 | `make lint test`, e2e `tsc`, `make gitleaks`, `make deploy` (no `make e2e`: on demand only) | Checks passed; deploy healthy with provider unset; milestone scenario gaps remain |
 

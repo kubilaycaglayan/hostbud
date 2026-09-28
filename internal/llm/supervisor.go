@@ -89,18 +89,15 @@ func (s *Supervisor) scan(ctx context.Context) {
 		return
 	}
 	for _, run := range runs {
-		base := run.StartedAt
-		if run.LastSignalAt != nil {
-			base = *run.LastSignalAt
-		}
-		if run.Status != store.RunStale && s.now().Before(base.Add(s.quiet)) {
+		if !due(run, s.now(), s.quiet) {
 			continue
 		}
 		s.classify(ctx, run)
 	}
 }
 func (s *Supervisor) classify(ctx context.Context, run store.Run) {
-	if err := tmux.ValidateName(run.SessionName); err != nil {
+	args, ok := captureArgs(run.SessionName)
+	if !ok {
 		return
 	}
 	claimed, err := s.st.ClaimLLM(ctx, run.ID, run.LastSignalAt, s.budget, s.quiet)
@@ -109,7 +106,7 @@ func (s *Supervisor) classify(ctx context.Context, run store.Run) {
 	}
 	var out boundedCapture
 	captureCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-	err = s.ssh.ExecTo(captureCtx, run.MachineID, &out, "tmux", "capture-pane", "-p", "-J", "-t", "="+run.SessionName+":", "-S", "-200")
+	err = s.ssh.ExecTo(captureCtx, run.MachineID, &out, args...)
 	cancel()
 	if err != nil {
 		var sshErr *sshx.Error
@@ -130,6 +127,23 @@ func (s *Supervisor) classify(ctx context.Context, run store.Run) {
 	}
 	result.Reason = cleanReason(PreparePane(result.Reason, true, ""))
 	s.finish(ctx, run, result)
+}
+func due(run store.Run, now time.Time, quiet time.Duration) bool {
+	if run.Status == store.RunStale {
+		return true
+	}
+	base := run.StartedAt
+	if run.LastSignalAt != nil {
+		base = *run.LastSignalAt
+	}
+	return !now.Before(base.Add(quiet))
+}
+
+func captureArgs(sessionName string) ([]string, bool) {
+	if err := tmux.ValidateName(sessionName); err != nil {
+		return nil, false
+	}
+	return []string{"tmux", "capture-pane", "-p", "-J", "-t", "=" + sessionName + ":", "-S", "-200"}, true
 }
 func (s *Supervisor) finish(ctx context.Context, run store.Run, result Result) {
 	if !labels[result.Label] {
