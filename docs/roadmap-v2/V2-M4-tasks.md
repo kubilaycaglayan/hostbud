@@ -15,7 +15,7 @@ Update this table in the same commit that finishes a task.
 | T3 Approval | Done |
 | T4 Owner actions | Done |
 | T5 Panel | Done |
-| T6 Docs | Not started |
+| T6 Docs | Done |
 | T7 Milestone acceptance | Not started |
 | T8 Safe Docker cleanup | Not started |
 
@@ -46,6 +46,7 @@ The v2 ROADMAP *Rules*, AGENTS.md and the V2-M1 milestone rules (fast checks per
 - T3: Approve and Reject run on the dispatcher goroutine; the store's `ResolveApproval` is the guarded update, the owner's `run_events` row (`{"account": <user id>}`) and the notice in one transaction. Reject's detail names the account's email (shown in the panel, never logged). Reject sends no notification (the owner acted). Approving an item of a paused queue marks it done without advancing.
 - T4: `POST /api/queue-items/{id}/reverify` starts a new attempt on the same run (no new session). Retry, Skip and Mark done return 409 from `verifying` ("wait for verify, at most <HOSTBUD_VERIFY_TIMEOUT>") and `awaiting_approval` ("Approve it, or Reject it first"); a lost race says the state the item is in now. CP2 passed (lint, then `make test` three times in a row green).
 - T5: the item form has *Verify command* (monospace, autocomplete off, the argv hint) and *Require approval*; a needs-attention item gets *Edit gates* (gates-only form). The item shows its gates, the latest attempt ("Verify attempt n: outcome · exit · duration") and the output tail as text in a collapsible block with the "truncated" note. Approve, Reject (confirmed) and Re-run verify. Approve now also sets the run's detail to "approved by <email>", so a stale click's 409 says who acted ("… (approved by …)").
+- T6: README *Completion gates*; v2 ARCHITECTURE §5.4 (item states), new §5.6 (gates, slots, notifications, restart) and §6 (0009); v1 ARCHITECTURE §9 (routes, with T4), §12 and §15 (`HOSTBUD_VERIFY_TIMEOUT`); the v2 ROADMAP status line. The docs check (`scripts/check-docs.sh`) already covers the new var (config ⇒ `.env.example` ⇒ Compose) and the new routes (`routes.json` ⇒ §9).
 
 ---
 
