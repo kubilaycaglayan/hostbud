@@ -17,7 +17,7 @@ Update this table in the same commit that finishes a task.
 | T4 Settings UI | Done |
 | T5 Docs | Done |
 | T6 Milestone acceptance | Done |
-| T7 Safe Docker cleanup | Not started |
+| T7 Safe Docker cleanup | Done |
 
 **Precondition:** V2-M2 is done (its checklist ticked, open owner items excepted). Record the check in the Progress note.
 
@@ -49,6 +49,7 @@ The v2 ROADMAP *Rules*, AGENTS.md and the V2-M1 milestone rules (fast checks per
 - **CP1** (2026-09-28): `make lint test` green (includes `scripts/compose-config.sh` and the e2e `tsc`).
 - **CP3** (2026-09-28): `make lint test` green (vue-tsc, e2e `tsc`, docs check), `make gitleaks` clean over the whole history.
 - **T6 / CP4** (2026-09-28): CP3's run is at the same tree; `make deploy` succeeded (checks in the acceptance file); no `make e2e` (on demand). Note: another session working in the tree at the same time had already deployed it with migration 0008 (harmless: append-only). Summary delivered.
+- **T7** (2026-09-28): `docker-clean` now also removes the `hostbud-e2e-pushfake` container and image. Nothing was in use (no make, e2e, build or restore run; every toolbox container idle; no e2e stack). `make docker-clean` (no `CACHE`) removed the five toolbox containers, about 4 MB; there were no e2e images left to remove. Production healthy afterwards (`/api/health` 200), the four volumes and `backups/` intact, no tmux session touched.
 
 ---
 
