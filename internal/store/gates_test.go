@@ -137,3 +137,99 @@ func TestDeleteQueueRefusedWhileVerifying(t *testing.T) {
 		t.Fatalf("delete while awaiting approval (nothing runs) = %v", err)
 	}
 }
+
+func gatedRun(t *testing.T, s *Store, q Queue, g ItemGates) (QueueItem, Run) {
+	t.Helper()
+	ctx := context.Background()
+	it, err := s.AddQueueItem(ctx, q.ID, "claude", "", "/goal gated", g)
+	if err != nil {
+		t.Fatal(err)
+	}
+	run, err := s.CreateRun(ctx, it.ID, tokenHash(it.ID), time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ended := time.Now()
+	if run, err = s.TransitionRun(ctx, run.ID, ActiveRunStatuses, RunAchieved, "", &ended); err != nil {
+		t.Fatal(err)
+	}
+	if it, err = s.TransitionQueueItem(ctx, it.ID, []string{ItemQueued}, ItemRunning); err != nil {
+		t.Fatal(err)
+	}
+	return it, run
+}
+
+// V2-M4 T2: an attempt is claimed with its event in one transaction; the
+// result and the next state are one guarded transaction.
+func TestStartAndFinishVerify(t *testing.T) {
+	ctx := context.Background()
+	s, p := queueFixture(t)
+	q, _ := s.CreateQueue(ctx, p.ID, "Milestones")
+	it, run := gatedRun(t, s, q, ItemGates{VerifyCommand: "make test"})
+
+	attempt, got, err := s.StartVerify(ctx, it.ID, run.ID, []string{ItemRunning})
+	if err != nil || attempt != 1 || got.Status != ItemVerifying {
+		t.Fatalf("first attempt: %d %+v %v", attempt, got, err)
+	}
+	if _, _, err := s.StartVerify(ctx, it.ID, run.ID, []string{ItemRunning}); !errors.Is(err, ErrConflict) {
+		t.Fatalf("second claim from running: %v", err)
+	}
+	if n, _ := s.CountActiveRuns(ctx, HostMachineID); n != 1 {
+		t.Fatalf("a verifying item holds %d slots, want 1", n)
+	}
+	result := []byte(`{"attempt":1,"outcome":"failed","exitCode":2,"output":"<tail>"}`)
+	if got, err := s.FinishVerify(ctx, it.ID, run.ID, result, ItemNeedsAttention, nil); err != nil || got.Status != ItemNeedsAttention {
+		t.Fatalf("finish: %+v %v", got, err)
+	}
+	if _, err := s.FinishVerify(ctx, it.ID, run.ID, result, ItemDone, nil); !errors.Is(err, ErrConflict) {
+		t.Fatalf("finish twice: %v", err)
+	}
+	if n, _ := s.CountActiveRuns(ctx, HostMachineID); n != 0 {
+		t.Fatalf("slots after verify: %d", n)
+	}
+	attempt, _, err = s.StartVerify(ctx, it.ID, run.ID, []string{ItemNeedsAttention})
+	if err != nil || attempt != 2 {
+		t.Fatalf("second attempt: %d %v", attempt, err)
+	}
+	events, err := s.VerifyEvents(ctx, run.ID)
+	if err != nil || len(events) != 3 || events[0].Kind != KindVerifyStarted || events[1].Kind != KindVerifyResult || events[2].Kind != KindVerifyStarted {
+		t.Fatalf("events %+v %v", events, err)
+	}
+	if string(events[2].Payload) != `{"attempt":2}` {
+		t.Fatalf("attempt payload %s", events[2].Payload)
+	}
+	verifying, err := s.ItemsWithStatus(ctx, HostMachineID, ItemVerifying)
+	if err != nil || len(verifying) != 1 || verifying[0].ID != it.ID {
+		t.Fatalf("verifying items %+v %v", verifying, err)
+	}
+	if latest, err := s.LatestRunForItem(ctx, it.ID); err != nil || latest.ID != run.ID {
+		t.Fatalf("latest run %+v %v", latest, err)
+	}
+	if _, err := s.FinishVerify(ctx, it.ID, run.ID, make([]byte, MaxRunEventPayload+1), ItemDone, nil); !errors.Is(err, ErrPayloadTooLarge) {
+		t.Fatalf("oversized result: %v", err)
+	}
+}
+
+func TestVerifyingItemHoldsASlotInCreateRunInSlot(t *testing.T) {
+	ctx := context.Background()
+	s, p := queueFixture(t)
+	one := 1
+	if err := s.SetMachineCapacity(ctx, HostMachineID, &one); err != nil {
+		t.Fatal(err)
+	}
+	q, _ := s.CreateQueue(ctx, p.ID, "Milestones")
+	it, run := gatedRun(t, s, q, ItemGates{VerifyCommand: "true"})
+	if _, _, err := s.StartVerify(ctx, it.ID, run.ID, []string{ItemRunning}); err != nil {
+		t.Fatal(err)
+	}
+	next, _ := s.AddQueueItem(ctx, q.ID, "claude", "", "/goal next")
+	if _, err := s.CreateRunInSlot(ctx, next.ID, tokenHash("next"), time.Now()); !errors.Is(err, ErrNoSlot) {
+		t.Fatalf("a run started while verify holds the only slot: %v", err)
+	}
+	if _, err := s.FinishVerify(ctx, it.ID, run.ID, []byte(`{"attempt":1}`), ItemAwaitingApproval, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateRunInSlot(ctx, next.ID, tokenHash("next"), time.Now()); err != nil {
+		t.Fatalf("awaiting approval must free the slot: %v", err)
+	}
+}

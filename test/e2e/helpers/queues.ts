@@ -15,6 +15,18 @@ export interface RunSummary {
   endedAt?: string
 }
 
+/** V2-M4: the latest verify attempt of an item's latest run. */
+export interface VerifySummary {
+  attempt: number
+  running: boolean
+  outcome?: 'passed' | 'failed' | 'timeout' | 'missing_directory' | 'timeout_missing' | 'ssh_failed' | 'interrupted'
+  exitCode?: number
+  durationMs?: number
+  truncated?: boolean
+  output?: string
+  detail?: string
+}
+
 export interface QueueItem {
   id: string
   queueId: string
@@ -26,6 +38,7 @@ export interface QueueItem {
   /** V2-M4 completion gates ("" = no verify command). */
   verifyCommand: string
   requiresApproval: boolean
+  verify?: VerifySummary
   run?: RunSummary
   /** V2-M2: the head item of a running queue while the machine's cap is reached. */
   waitingForSlot?: boolean
@@ -89,6 +102,11 @@ export async function getQueue(request: APIRequestContext, queueId: string): Pro
 
 export async function control(request: APIRequestContext, queueId: string, action: 'start' | 'pause' | 'resume') {
   return await mutate(request, 'POST', `/api/queues/${queueId}/${action}`, undefined)
+}
+
+/** V2-M4 gate actions: Approve, Reject and Re-run verify. */
+export async function gateAction(request: APIRequestContext, itemId: string, action: 'approve' | 'reject' | 'reverify') {
+  return await mutate(request, 'POST', `/api/queue-items/${itemId}/${action}`, undefined)
 }
 
 export async function override(request: APIRequestContext, itemId: string, action: 'retry' | 'skip' | 'mark-done') {

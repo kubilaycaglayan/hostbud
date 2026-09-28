@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"hostbud/internal/agents"
@@ -19,6 +20,7 @@ import (
 type DispatchStore interface {
 	Store
 	StarterStore
+	GateStore
 	Run(ctx context.Context, id string) (store.Run, error)
 	ActiveRunForItem(ctx context.Context, itemID string) (store.Run, error)
 	ActiveRuns(ctx context.Context) ([]store.Run, error)
@@ -90,6 +92,12 @@ type Dispatcher struct {
 	dispatching, again bool // dispatch is running / was asked for again meanwhile
 
 	notifications Notifications // V2-M3; nil = off
+
+	// V2-M4: the verify runner, the context verify commands run under (Run's)
+	// and the running ones.
+	verifier  VerifyRunner
+	base      context.Context
+	verifying sync.WaitGroup
 }
 
 // Notifications gates V2-M3 notices (notify.Service): with every account
@@ -205,6 +213,8 @@ func (d *Dispatcher) EndActiveRun(ctx context.Context, item store.QueueItem, act
 func (d *Dispatcher) Run(ctx context.Context) {
 	sessions, cancel := d.bus.Subscribe(256)
 	defer func() { cancel() }() // the latest subscription
+	d.base = ctx
+	defer d.verifying.Wait()
 	d.recover(ctx)
 	for {
 		select {
@@ -254,6 +264,7 @@ func (d *Dispatcher) recover(ctx context.Context) {
 			d.read(ctx, run, store.SourcePoller, false)
 		}
 	}
+	d.recoverGates(ctx)
 	if d.slots() {
 		// Active runs are in the store before any dispatch, so the count
 		// includes them; waiting_since keeps the order across the restart.
@@ -281,7 +292,8 @@ func (d *Dispatcher) Sync() {
 
 // ---------------------------------------------------------------- starting
 
-// queueBusy reports whether the queue has an active run.
+// queueBusy reports whether the queue has an active run or an item in its
+// gates (V2-M4).
 func (d *Dispatcher) queueBusy(ctx context.Context, queueID string) (bool, error) {
 	items, err := d.store.QueueItems(ctx, queueID)
 	if err != nil {
@@ -290,6 +302,9 @@ func (d *Dispatcher) queueBusy(ctx context.Context, queueID string) (bool, error
 	for _, it := range items {
 		if it.Status == store.ItemQueued || it.Status == store.ItemDone || it.Status == store.ItemSkipped {
 			continue
+		}
+		if it.Status == store.ItemVerifying || it.Status == store.ItemAwaitingApproval {
+			return true, nil // V2-M4: the queue waits for the item's gates
 		}
 		if _, err := d.store.ActiveRunForItem(ctx, it.ID); err == nil {
 			return true, nil
@@ -816,7 +831,14 @@ func (d *Dispatcher) finish(ctx context.Context, run store.Run, to, detail, sour
 // achieved after stale marks the item done but leaves the queue paused.
 func (d *Dispatcher) achieved(ctx context.Context, rc runCtx, source string) {
 	wasStale := rc.run.Status == store.RunStale
-	if _, err := d.finish(ctx, rc.run, store.RunAchieved, "", source, false); err != nil {
+	run, err := d.finish(ctx, rc.run, store.RunAchieved, "", source, false)
+	if err != nil {
+		return
+	}
+	if rc.item.Gated() {
+		// V2-M4: the item enters its gates; the queue waits (a late achieved
+		// leaves it paused, so the gates never advance it).
+		d.enterGates(ctx, run, rc.item, rc.queueID, source, []string{store.ItemRunning, store.ItemNeedsAttention})
 		return
 	}
 	notice := d.notice(ctx, notify.KindDone, rc.run, rc.item, rc.queueID)

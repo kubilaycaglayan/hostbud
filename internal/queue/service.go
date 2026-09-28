@@ -2,6 +2,7 @@ package queue
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -69,6 +70,7 @@ type Store interface {
 	CountActiveRuns(ctx context.Context, machineID string) (int, error)
 	ParallelQueuesSetting(ctx context.Context, machineID string) (*bool, error)
 	SetParallelQueuesSetting(ctx context.Context, machineID string, on bool) error
+	VerifyEvents(ctx context.Context, runID string) ([]store.RunEvent, error)
 }
 
 // ItemValidator checks an item's agent, flags and instruction
@@ -98,10 +100,25 @@ type RunSummary struct {
 	EndedAt       *time.Time `json:"endedAt,omitempty"`
 }
 
+// VerifySummary is the latest verify attempt of an item's latest run
+// (V2-M4): running (no result yet) or its result. Output is sanitized text.
+type VerifySummary struct {
+	Attempt    int    `json:"attempt"`
+	Running    bool   `json:"running"`
+	Outcome    string `json:"outcome,omitempty"`
+	ExitCode   *int   `json:"exitCode,omitempty"`
+	DurationMs int64  `json:"durationMs,omitempty"`
+	Truncated  bool   `json:"truncated,omitempty"`
+	Output     string `json:"output,omitempty"`
+	Detail     string `json:"detail,omitempty"`
+}
+
 // ItemView is an item with its latest run.
 type ItemView struct {
 	store.QueueItem
 	Run *RunSummary `json:"run,omitempty"`
+	// Verify is the latest verify attempt (V2-M4; absent when none ran).
+	Verify *VerifySummary `json:"verify,omitempty"`
 	// WaitingForSlot marks the head item of a running queue that has no
 	// active run while the machine's cap is reached (V2-M2; derived).
 	WaitingForSlot bool `json:"waitingForSlot,omitempty"`
@@ -278,6 +295,9 @@ func busy(v View) bool {
 		if it.Run != nil && slices.Contains(store.ActiveRunStatuses, it.Run.Status) {
 			return true
 		}
+		if it.Status == store.ItemVerifying {
+			return true // V2-M4: its verify command runs in the directory
+		}
 	}
 	return false
 }
@@ -370,6 +390,11 @@ func (s *Service) view(ctx context.Context, q store.Queue) (View, error) {
 		iv := ItemView{QueueItem: it}
 		if r, ok := runs[it.ID]; ok {
 			iv.Run = &RunSummary{ID: r.ID, Status: r.Status, SessionName: r.SessionName, Detail: r.Detail, ClientVersion: r.ClientVersion, StartedAt: r.StartedAt, EndedAt: r.EndedAt}
+			if r.Status == store.RunAchieved && (it.VerifyCommand != "" || it.Status == store.ItemVerifying) {
+				if iv.Verify, err = s.verifySummary(ctx, r.ID); err != nil {
+					return v, err
+				}
+			}
 		}
 		v.Items = append(v.Items, iv)
 	}
@@ -381,6 +406,30 @@ func (s *Service) view(ctx context.Context, q store.Queue) (View, error) {
 		v.Items[i].WaitingForSlot = v.Items[i].ID == head
 	}
 	return v, nil
+}
+
+// verifySummary returns a run's latest verify attempt, or nil.
+func (s *Service) verifySummary(ctx context.Context, runID string) (*VerifySummary, error) {
+	events, err := s.store.VerifyEvents(ctx, runID)
+	if err != nil {
+		return nil, err
+	}
+	var out *VerifySummary
+	for _, e := range events {
+		var r VerifyResult
+		if json.Unmarshal(e.Payload, &r) != nil {
+			continue
+		}
+		switch e.Kind {
+		case store.KindVerifyStarted:
+			out = &VerifySummary{Attempt: r.Attempt, Running: true}
+		case store.KindVerifyResult:
+			if out != nil && out.Attempt == r.Attempt {
+				*out = VerifySummary{Attempt: r.Attempt, Outcome: r.Outcome, ExitCode: r.ExitCode, DurationMs: r.DurationMs, Truncated: r.Truncated, Output: r.Output, Detail: r.Detail}
+			}
+		}
+	}
+	return out, nil
 }
 
 // waitingForSlot returns the id of q's head item when it waits for a free
@@ -411,6 +460,9 @@ func (s *Service) waitingFor(ctx context.Context, q store.Queue, items []store.Q
 	for _, it := range items {
 		if r, ok := runs[it.ID]; ok && r.Active() {
 			return "", nil
+		}
+		if it.Status == store.ItemVerifying || it.Status == store.ItemAwaitingApproval {
+			return "", nil // V2-M4: the queue waits for the item's gates
 		}
 		if head == "" && it.Status == store.ItemQueued {
 			head = it.ID
@@ -764,6 +816,15 @@ func (s *Service) checkOnlyActive(ctx context.Context, queueID string) error {
 			}
 			for _, r := range runs {
 				active = active || r.Active()
+			}
+			if !active {
+				items, err := s.store.QueueItems(ctx, q.ID)
+				if err != nil {
+					return err
+				}
+				for _, it := range items {
+					active = active || it.Status == store.ItemVerifying
+				}
 			}
 		}
 		if active {

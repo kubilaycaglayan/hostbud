@@ -86,11 +86,20 @@ func (m *memStore) CreateRunInSlot(ctx context.Context, itemID string, hash []by
 	return m.CreateRun(ctx, itemID, hash, startedAt)
 }
 
+// activeLocked counts the held run slots: active runs and (V2-M4)
+// verifying items, like the store's slotHolders.
 func (m *memStore) activeLocked() int {
 	n := 0
 	for _, r := range m.runs {
 		if r.Active() {
 			n++
+		}
+	}
+	if m.mq != nil {
+		for _, it := range m.mq.items {
+			if it.Status == store.ItemVerifying {
+				n++
+			}
 		}
 	}
 	return n

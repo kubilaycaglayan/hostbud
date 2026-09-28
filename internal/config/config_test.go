@@ -28,6 +28,7 @@ func TestLoadDefaults(t *testing.T) {
 		SFTPTimeout:         10 * time.Second,
 		UploadTimeout:       5 * time.Minute,
 		RunStaleAfter:       2 * time.Hour,
+		VerifyTimeout:       10 * time.Minute,
 		MaxTerminalsPerUser: 32,
 		MaxTerminals:        128,
 		LogLevel:            slog.LevelInfo,
@@ -342,4 +343,16 @@ func testVAPIDPair(t *testing.T) (public, private string) {
 		t.Fatal(err)
 	}
 	return base64.RawURLEncoding.EncodeToString(k.PublicKey().Bytes()), base64.RawURLEncoding.EncodeToString(k.Bytes())
+}
+
+func TestLoadVerifyTimeout(t *testing.T) {
+	cfg, err := Load(envFrom(map[string]string{"HOST_SSH_USER": "dev", "HOSTBUD_VERIFY_TIMEOUT": "30m"}))
+	if err != nil || cfg.VerifyTimeout != 30*time.Minute {
+		t.Fatalf("30m: %v, %v", cfg.VerifyTimeout, err)
+	}
+	for _, bad := range []string{"4s", "3h", "later", "-1m"} {
+		if _, err := Load(envFrom(map[string]string{"HOST_SSH_USER": "dev", "HOSTBUD_VERIFY_TIMEOUT": bad})); err == nil || !strings.Contains(err.Error(), "HOSTBUD_VERIFY_TIMEOUT") {
+			t.Errorf("%q accepted: %v", bad, err)
+		}
+	}
 }

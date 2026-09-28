@@ -51,9 +51,18 @@ type Event struct {
 	Project  string // the project's display name
 	Position int    // the item's position in its queue
 	// Outcome for KindAttention: the run's final status (failed, exited,
-	// stale, …). Ignored for the other kinds.
+	// stale, …), or a completion gate (OutcomeAwaitingApproval,
+	// OutcomeVerifyFailed). Ignored for the other kinds.
 	Outcome string
+	// Attempt is the verify attempt of an OutcomeVerifyFailed notice.
+	Attempt int
 }
+
+// V2-M4 completion-gate outcomes of KindAttention notices.
+const (
+	OutcomeAwaitingApproval = "awaiting_approval"
+	OutcomeVerifyFailed     = "verify_failed"
+)
 
 // DedupeKey is the event's key: one notification per event and device.
 func DedupeKey(e Event) string {
@@ -62,6 +71,14 @@ func DedupeKey(e Event) string {
 		return "queue:" + e.QueueID + ":finished:" + e.RunID
 	case KindTest:
 		return "test:" + e.RunID
+	case KindAttention:
+		switch e.Outcome {
+		case OutcomeAwaitingApproval:
+			return "run:" + e.RunID + ":approval"
+		case OutcomeVerifyFailed:
+			return fmt.Sprintf("run:%s:verify:%d", e.RunID, e.Attempt)
+		}
+		return "run:" + e.RunID + ":" + e.Kind
 	default:
 		return "run:" + e.RunID + ":" + e.Kind
 	}
@@ -73,6 +90,9 @@ var attentionWords = map[string]string{
 	"exited":    "ended without reaching its goal",
 	"stale":     "has gone quiet",
 	"cancelled": "was cancelled",
+	// V2-M4 gates.
+	OutcomeVerifyFailed:     "failed its verify command",
+	OutcomeAwaitingApproval: "is waiting for your approval",
 }
 
 // Build makes the payload for an event. It fails only for an unknown kind.
@@ -109,6 +129,9 @@ func Build(e Event) (Payload, error) {
 		p.Outcome = e.Outcome
 		p.Title = fmt.Sprintf("%s: item %d needs attention", project, e.Position)
 		p.Body = fmt.Sprintf("Item %d %s. The queue is paused.", e.Position, words)
+		if e.Outcome == OutcomeAwaitingApproval {
+			p.Body = fmt.Sprintf("Item %d %s. The queue waits.", e.Position, words)
+		}
 	case KindFinished:
 		p.Outcome = "finished"
 		p.Title = project + ": queue finished"

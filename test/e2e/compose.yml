@@ -125,6 +125,8 @@ services:
       HOSTBUD_HOOK_BASE_URL: http://hostbud-e2e-caddy:9055
       # A short stale window so the stale scenarios finish quickly.
       HOSTBUD_RUN_STALE_AFTER: 10s
+      # V2-M4: a short verify timeout for the timeout scenario.
+      HOSTBUD_VERIFY_TIMEOUT: 5s
       # V2-M3: Web Push to the fake push service. run.sh generates the VAPID
       # pair at e2e-up (.cache/e2e/vapid.env, never committed); without it
       # push is off. The multi app gets no keys (Push unavailable).
@@ -271,6 +273,8 @@ services:
       HOSTBUD_PARALLEL_QUEUES: "true"
       HOSTBUD_HOOK_BASE_URL: http://hostbud-e2e-caddy:9058
       HOSTBUD_RUN_STALE_AFTER: 10s
+      # V2-M4: a short verify timeout for the timeout scenario.
+      HOSTBUD_VERIFY_TIMEOUT: 5s
       HOSTBUD_HOST_ADDR: hostbud-e2e-target
       HOSTBUD_HOST_LABEL: E2E target
       HOSTBUD_DB_HOST: hostbud-e2e-postgres

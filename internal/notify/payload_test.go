@@ -73,3 +73,21 @@ func TestBuildTestNotification(t *testing.T) {
 		t.Fatalf("test payload %+v, %v", p, err)
 	}
 }
+
+// V2-M4: gate notices are needs-attention notices with their own keys.
+func TestBuildGateNotices(t *testing.T) {
+	approval, err := Build(Event{Kind: KindAttention, RunID: "R1", QueueID: "q", ItemID: "i", Project: "app", Position: 2, Outcome: OutcomeAwaitingApproval})
+	if err != nil || approval.Key != "run:R1:approval" || approval.Outcome != OutcomeAwaitingApproval ||
+		approval.Body != "Item 2 is waiting for your approval. The queue waits." {
+		t.Fatalf("approval: %+v, %v", approval, err)
+	}
+	verify, err := Build(Event{Kind: KindAttention, RunID: "R1", QueueID: "q", ItemID: "i", Project: "app", Position: 2, Outcome: OutcomeVerifyFailed, Attempt: 3})
+	if err != nil || verify.Key != "run:R1:verify:3" || verify.Outcome != OutcomeVerifyFailed ||
+		verify.Body != "Item 2 failed its verify command. The queue is paused." {
+		t.Fatalf("verify: %+v, %v", verify, err)
+	}
+	plain, _ := Build(Event{Kind: KindAttention, RunID: "R1", Outcome: "failed"})
+	if plain.Key != "run:R1:attention" {
+		t.Fatalf("run attention key changed: %q", plain.Key)
+	}
+}

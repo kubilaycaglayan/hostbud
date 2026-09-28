@@ -57,11 +57,16 @@ func (s *Store) SetMachineCapacity(ctx context.Context, machineID string, maxRun
 	return nil
 }
 
-// CountActiveRuns counts the machine's active runs (starting, running and
-// stale: a stale run's session is alive, so it holds its slot).
+// slotHolders counts what holds a machine's run slots: active runs
+// (starting, running and stale: a stale run's session is alive) and items
+// whose verify command runs on the host (V2-M4).
+const slotHolders = `SELECT (SELECT count(*) FROM runs WHERE machine_id = $1 AND status = ANY($2))
+	+ (SELECT count(*) FROM queue_items WHERE machine_id = $1 AND status = 'verifying')`
+
+// CountActiveRuns counts the machine's held run slots (slotHolders).
 func (s *Store) CountActiveRuns(ctx context.Context, machineID string) (int, error) {
 	var n int
-	err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM runs WHERE machine_id = $1 AND status = ANY($2)`, machineID, ActiveRunStatuses).Scan(&n)
+	err := s.db.QueryRowContext(ctx, slotHolders, machineID, ActiveRunStatuses).Scan(&n)
 	return n, err
 }
 
@@ -131,7 +136,7 @@ func (s *Store) CreateRunInSlot(ctx context.Context, itemID string, tokenHash []
 		}
 		if limit.Valid {
 			var active int64
-			if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM runs WHERE machine_id = $1 AND status = ANY($2)`, machine, ActiveRunStatuses).Scan(&active); err != nil {
+			if err := tx.QueryRowContext(ctx, slotHolders, machine, ActiveRunStatuses).Scan(&active); err != nil {
 				return err
 			}
 			if active >= limit.Int64 {

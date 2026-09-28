@@ -170,6 +170,8 @@ func run() error {
 	}
 	starter := queue.NewStarter(st, sessions, cfg.HookURL(), log)
 	dispatcher := queue.NewDispatcher(st, adapters, starter, queues, bus, cfg.RunStaleAfter, log)
+	// V2-M4: items' verify commands run on the host through sshx.
+	dispatcher.SetVerifier(queue.NewVerifier(ssh, cfg.VerifyTimeout))
 	// V2-M3 notifications: missing or invalid VAPID keys only turn push off.
 	push := cfg.Push()
 	if !push.Available {

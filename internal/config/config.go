@@ -52,6 +52,7 @@ type Config struct {
 	HookBaseURL         string        // HOSTBUD_HOOK_BASE_URL (optional: HOSTBUD_URL inside run sessions)
 	RunStaleAfter       time.Duration // HOSTBUD_RUN_STALE_AFTER (v2: no-signal window before a run is stale)
 	ParallelQueues      bool          // HOSTBUD_PARALLEL_QUEUES (V2-M2 opt-in: several queues, parallel runs)
+	VerifyTimeout       time.Duration // HOSTBUD_VERIFY_TIMEOUT (V2-M4: bound on an item's verify command)
 
 	// Web Push (V2-M3). Missing or invalid keys never fail startup: Push()
 	// reports push as unavailable, with the reason.
@@ -138,6 +139,7 @@ func Load(getenv func(string) string) (Config, error) {
 	cfg.SFTPTimeout = durationRange("HOSTBUD_SFTP_TIMEOUT", "10s", 2*time.Second, 2*time.Minute)
 	cfg.UploadTimeout = durationRange("HOSTBUD_UPLOAD_TIMEOUT", "5m", 30*time.Second, 10*time.Minute)
 	cfg.RunStaleAfter = durationRange("HOSTBUD_RUN_STALE_AFTER", "2h", 10*time.Second, 24*time.Hour)
+	cfg.VerifyTimeout = durationRange("HOSTBUD_VERIFY_TIMEOUT", "10m", 5*time.Second, 2*time.Hour)
 	cfg.MaxTerminalsPerUser = countRange("HOSTBUD_MAX_TERMINALS_PER_USER", "32", 1, 256)
 	cfg.MaxTerminals = countRange("HOSTBUD_MAX_TERMINALS", "128", 1, 1024)
 	cfg.SessionTTL = duration("HOSTBUD_SESSION_TTL", "720h", time.Minute)

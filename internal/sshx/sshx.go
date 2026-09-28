@@ -240,6 +240,55 @@ func (c *Client) exec(ctx context.Context, machine string, input []byte, args ..
 	return nil, classify(ctx, stderr.String(), c.agent)
 }
 
+// ExecTo runs args (each shell-quoted) on machine and streams its stdout to
+// w (V2-M4 verify commands: w keeps only a bounded tail). Unlike Exec it
+// has no DefaultTimeout: the caller bounds it with ctx, and ctx's error is
+// returned when it ends the command. A non-zero exit is a KindRemote
+// *Error; ssh failures are classified like Exec's.
+func (c *Client) ExecTo(ctx context.Context, machine string, w io.Writer, args ...string) error {
+	argv, err := c.Args(machine, nil, args...)
+	if err != nil {
+		return err
+	}
+	if err := c.awaitRecovery(ctx, machine); err != nil {
+		return err
+	}
+	cmd := commandContext(ctx, c.cfg.SSHBinary, argv...)
+	stderr := &capped{max: 64 << 10}
+	cmd.Stdout, cmd.Stderr = w, stderr
+	cmd.WaitDelay = time.Second
+	err = cmd.Run()
+	if err == nil {
+		return nil
+	}
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
+		return &Error{Kind: KindSSH, Message: "can't run ssh in the container: " + err.Error()}
+	}
+	if code := exitErr.ExitCode(); code != 255 {
+		return &Error{Kind: KindRemote, ExitCode: code, Stderr: stderr.String()}
+	}
+	return classify(ctx, stderr.String(), c.agent)
+}
+
+// capped keeps the first max bytes written to it.
+type capped struct {
+	buf bytes.Buffer
+	max int
+}
+
+func (c *capped) Write(p []byte) (int, error) {
+	if room := c.max - c.buf.Len(); room > 0 {
+		c.buf.Write(p[:min(len(p), room)])
+	}
+	return len(p), nil
+}
+
+func (c *capped) String() string { return c.buf.String() }
+
 func (c *Client) timeoutError(stderr string) *Error {
 	return &Error{
 		Kind: KindTimeout, Timeout: c.cfg.Timeout,
