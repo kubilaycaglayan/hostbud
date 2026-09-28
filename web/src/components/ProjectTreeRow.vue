@@ -119,7 +119,7 @@ function onMenuCloseAutoFocus(event: Event) {
       <button type="button" class="row-action touch-target project-drag-handle min-h-7 min-w-4 cursor-grab rounded text-muted" :aria-label="'Drag to reorder project ' + props.group.project.name" title="Drag to reorder projects" tabindex="-1" @click.stop>⠿</button>
     </div>
     <div v-if="!props.collapsed" role="group" class="ml-2 border-l border-border/40 pb-1 pl-1.5">
-      <p class="truncate px-1.5 pb-1 text-xs text-muted" :title="props.group.project.path">{{ shortPath(props.group.project.path) }}</p>
+      <p class="-mt-2 truncate px-1.5 pb-1 text-[10px] leading-3 text-muted" :title="props.group.project.path">{{ shortPath(props.group.project.path) }}</p>
       <SessionList
         :sessions="props.group.sessions"
         :selected="props.selected"
