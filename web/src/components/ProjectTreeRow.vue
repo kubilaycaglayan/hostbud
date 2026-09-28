@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { DropdownMenuContent, DropdownMenuItem, DropdownMenuPortal, DropdownMenuRoot, DropdownMenuTrigger } from 'reka-ui'
-import { computed } from 'vue'
 import { ChevronRight, Folder, MoreHorizontal, Pin, Plus } from 'lucide-vue-next'
 import type { Project } from '@/api/types'
 import type { SplitDir } from '@/lib/layout'
@@ -41,8 +40,6 @@ const emit = defineEmits<{
   sessionInProject: [project: Project]
   reorderSessions: [group: string, names: string[]]
 }>()
-
-const anyAttached = computed(() => props.group.sessions.some((session) => session.attached > 0))
 
 function renameSessionCommit(from: string, to: string) {
   return props.renameSession(from, to)
@@ -99,8 +96,7 @@ function onMenuCloseAutoFocus(event: Event) {
       <Folder :size="16" class="shrink-0 text-muted" aria-hidden="true" />
       <InlineRename v-if="props.editingKey === 'project:' + props.group.project.id" :name="props.group.project.name" :error="props.editError" :commit="(value) => props.renameProject(props.group.project.id, value)" @cancel="emit('cancelRename', 'project:' + props.group.project.id)" />
       <span v-else class="min-w-0 flex-1 truncate font-semibold" @dblclick.stop="renameOnFinePointer">{{ props.group.project.name }}</span>
-      <span v-if="anyAttached" role="img" aria-label="attached session" title="A session is attached" class="inline-block size-1.5 shrink-0 rounded-full bg-ok" />
-      <span data-project-count :title="props.group.sessions.length + (props.group.sessions.length === 1 ? ' session' : ' sessions')" class="shrink-0 rounded bg-tree-header px-1.5 text-xs leading-5 text-muted tabular-nums">{{ props.group.sessions.length }}</span>
+      <span v-if="props.collapsed" data-project-count :title="props.group.sessions.length + (props.group.sessions.length === 1 ? ' session' : ' sessions')" class="shrink-0 rounded bg-tree-header px-1.5 text-xs leading-5 text-muted tabular-nums">{{ props.group.sessions.length }}</span>
       <button v-if="props.pinned" type="button" class="row-action touch-target inline-flex min-h-7 min-w-6 items-center justify-center rounded text-muted" :aria-label="'Unpin ' + props.group.project.name" title="Pinned" tabindex="-1" @click.stop="emit('togglePin', props.group.project.id)">
         <Pin :size="16" aria-hidden="true" />
       </button>

@@ -11,7 +11,7 @@ import { useWindowsStore } from '@/stores/windows'
 import { describeError } from '@/stores/toasts'
 import InlineRename from './InlineRename.vue'
 import AgentMark from './AgentMark.vue'
-import { relativeTime, sessionSubtitle, useNow } from '@/lib/relativeTime'
+import { sessionSubtitle } from '@/lib/relativeTime'
 
 const props = defineProps<{
   sessions: Session[]
@@ -46,7 +46,6 @@ const openMenuName = ref('')
 let skipMenuCloseFocus = false
 const tree = props.treeView ? useTreeStore() : undefined
 const windowsStore = props.treeView ? useWindowsStore() : undefined
-const now = useNow()
 
 function windowsFor(name: string) { return windowsStore?.bySession[sessionKey('host', name)] }
 function isSessionHidden(name: string) { return tree?.order.hidden.sessions.includes(sessionKey('host', name)) ?? false }
@@ -133,6 +132,13 @@ function selectSession(name: string) {
   emit('select', name)
 }
 
+function selectRowClick(event: MouseEvent, name: string) {
+  const target = event.target
+  if (!(target instanceof Element)) return
+  if (target.closest('button, a, input, select, textarea, [role="menuitem"], [data-tree-key^="window:"], [data-tree-key^="pane:"]')) return
+  selectSession(name)
+}
+
 function commitRename(name: string, value: string) {
   return props.commitEdit ? props.commitEdit(name, value) : Promise.resolve()
 }
@@ -192,17 +198,10 @@ const sortableSessions = computed({
       :data-tree-key="props.treeView ? 'session:' + s.name : undefined"
       :data-tree-kind="props.treeView ? 'session' : undefined"
       :data-tree-group="props.treeView ? props.groupKey : undefined"
-      class="tree-row flex flex-wrap items-center gap-x-1.5 rounded-r border-l-2 py-0.5 pr-1 pl-1.5"
-      :class="[s.name === props.selected ? 'border-fg bg-tree-header' : 'border-transparent', isHidden(s.name) ? 'opacity-50' : '']"
+      class="tree-row flex cursor-pointer flex-wrap items-center gap-x-1.5 rounded-r border-l-[3px] py-0.5 pr-1 pl-1.5 hover:bg-tree-header"
+      :class="[s.name === props.selected ? 'border-accent bg-selected' : 'border-transparent', isHidden(s.name) ? 'opacity-50' : '']"
+      @click="selectRowClick($event, s.name)"
     >
-      <span
-        role="img"
-        :aria-label="s.attached > 0 ? 'attached' : 'detached'"
-        :title="s.attached > 0 ? 'attached' : 'detached'"
-        data-session-dot
-        class="inline-block size-1.5 shrink-0 rounded-full"
-        :class="s.attached > 0 ? 'bg-ok' : 'bg-muted opacity-50'"
-      />
       <!-- Agent logos and status are display-only prefixes; the session's actual name stays unchanged. -->
       <AgentMark
         v-for="agent in visibleAgents(s)"
@@ -232,7 +231,8 @@ const sortableSessions = computed({
         :aria-label="s.name"
         :aria-current="s.name === props.selected ? 'true' : undefined"
         :tabindex="props.treeView ? -1 : undefined"
-        class="touch-target min-h-6 min-w-[8ch] flex-1 truncate text-left font-semibold text-fg"
+        class="touch-target min-h-6 min-w-[8ch] flex-1 truncate text-left font-semibold"
+        :class="s.name === props.selected ? 'text-selected-fg' : 'text-fg'"
         @pointerdown="startLongPress($event, s.name)"
         @pointermove="moveLongPress"
         @pointerup="finishLongPress"
@@ -243,12 +243,6 @@ const sortableSessions = computed({
       >
         {{ s.name }}
       </button>
-      <span
-        v-if="relativeTime(s.activity, now)"
-        data-session-age
-        :title="'Last activity ' + new Date(s.activity).toLocaleString()"
-        class="shrink-0 text-xs text-muted tabular-nums"
-      >{{ relativeTime(s.activity, now) }}</span>
       <button
         v-if="canExpand(s)"
         type="button"

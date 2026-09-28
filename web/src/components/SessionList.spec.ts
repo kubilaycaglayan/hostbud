@@ -18,13 +18,13 @@ describe('SessionList', () => {
     expect(w.find('[role=alert]').exists()).toBe(false)
   })
 
-  it('lists names and attached state without rendering window counts', () => {
+  it('lists names without attachment indicators or window counts', () => {
     const w = mount(SessionList, { props: { sessions: [s('acc-a', 1, 3), s('acc-b', 0, 1), s('acc-c', 0, 0)] } })
     const items = w.findAll('li')
     expect(items).toHaveLength(3)
     expect(items[0].get('button').attributes('aria-label')).toBe('acc-a')
-    expect(items[0].get('[role=img]').attributes('aria-label')).toBe('attached')
-    expect(items[1].get('[role=img]').attributes('aria-label')).toBe('detached')
+    expect(items[0].find('[role=img]').exists()).toBe(false)
+    expect(items[1].find('[role=img]').exists()).toBe(false)
     expect(items.map((item) => item.text()).join(' ')).not.toMatch(/\b\d+ windows?\b/)
   })
 
@@ -41,22 +41,18 @@ describe('SessionList', () => {
     expect(w.get('button[aria-label="b"]').classes()).toContain('min-h-6')
   })
 
-  it('leads with the attached dot, then the bold name, its age and the actions menu (Kill and Rename live inside it); the drag handle comes last', () => {
+  it('leads with the bold name and keeps the actions menu before the drag handle', () => {
     vi.useFakeTimers({ now: Date.parse('2026-09-28T12:00:00Z') })
     const w = mount(SessionList, { props: { sessions: [{ ...s('a'), activity: '2026-09-28T11:56:00Z' }], sortable: true } })
     const row = w.get('li')
-    const dot = row.element.firstElementChild as HTMLElement
-    expect(dot.getAttribute('role')).toBe('img')
-    expect(dot.hasAttribute('data-session-dot')).toBe(true)
-    const first = dot.nextElementSibling as HTMLElement
+    const first = row.element.firstElementChild as HTMLElement
     expect(first.getAttribute('aria-label')).toBe('a')
     expect(first.hasAttribute('data-session-row')).toBe(true)
     expect(first.className).toContain('font-semibold')
     expect(first.className).toContain('text-fg')
     expect(first.className).toContain('flex-1')
-    expect(first.nextElementSibling?.hasAttribute('data-session-age')).toBe(true)
-    expect(first.nextElementSibling?.textContent).toBe('4m')
-    const actions = first.nextElementSibling?.nextElementSibling
+    expect(row.find('[data-session-age]').exists()).toBe(false)
+    const actions = first.nextElementSibling
     expect(actions?.tagName).toBe('SPAN')
     expect([...actions!.querySelectorAll('button')].map((button) => button.getAttribute('aria-label'))).toEqual([
       'More actions for a',
@@ -76,7 +72,7 @@ describe('SessionList', () => {
     expect(marks.map((mark) => mark.attributes('title'))).toEqual(['Codex running', 'Claude Code running'])
     expect(row.attributes('aria-label')).toBe('agent-work, Codex running, Claude Code running')
     expect(row.get('[data-session-row]').attributes('aria-label')).toBe('agent-work')
-    expect(row.element.children[1]?.getAttribute('data-agent')).toBe('codex')
+    expect(row.element.children[0]?.getAttribute('data-agent')).toBe('codex')
   })
 
   it('shows the pane title as a muted second line in the tree, and nothing without one', () => {
@@ -93,9 +89,9 @@ describe('SessionList', () => {
     setActivePinia(createPinia())
     const w = mount(SessionList, { props: { sessions: [s('a'), s('b')], selected: 'b', treeView: true } })
     const [a, b] = w.findAll('li')
-    expect(b.classes()).toEqual(expect.arrayContaining(['bg-tree-header', 'border-fg', 'border-l-2']))
+    expect(b.classes()).toEqual(expect.arrayContaining(['bg-selected', 'border-accent', 'border-l-[3px]']))
     expect(a.classes()).toContain('border-transparent')
-    expect(a.classes()).not.toContain('bg-tree-header')
+    expect(a.classes()).not.toContain('bg-selected')
   })
 
   it('keeps agent logos out of non-gutter session lists', () => {
@@ -116,8 +112,8 @@ describe('SessionList', () => {
       expect(row.get('[data-session-status]').attributes('aria-label')).toBe(label)
       expect(row.attributes('aria-label')).toBe(`status-session, ${label}, Codex running`)
       expect(row.get('[data-session-row]').attributes('aria-label')).toBe('status-session')
-      expect(row.element.children[1]?.getAttribute('data-agent')).toBe('codex')
-      expect(row.element.children[2]?.hasAttribute('data-session-status')).toBe(true)
+      expect(row.element.children[0]?.getAttribute('data-agent')).toBe('codex')
+      expect(row.element.children[1]?.hasAttribute('data-session-status')).toBe(true)
       w.unmount()
     }
   })
@@ -133,6 +129,15 @@ describe('SessionList', () => {
     expect(w.get('button[aria-label="a"]').attributes('aria-current')).toBeUndefined()
     await w.get('button[aria-label="a"]').trigger('click')
     expect(w.emitted('select')).toEqual([['a']])
+  })
+
+  it('selects the session when clicking any non-control area of its row', async () => {
+    const w = mount(SessionList, { props: { sessions: [s('a'), s('b')], treeView: true } })
+    await w.get('[data-tree-key="session:a"]').trigger('click')
+    expect(w.emitted('select')).toEqual([['a']])
+    await w.get('[data-tree-key="session:b"] button[aria-label="More actions for b"]').trigger('click')
+    expect(w.emitted('select')).toEqual([['a']])
+    w.unmount()
   })
 
   it('opens the existing row menu after a long press and cancels when the finger moves', async () => {

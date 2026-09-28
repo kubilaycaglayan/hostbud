@@ -22,6 +22,7 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 | T12 Agent marks on session rows | Implemented; focused unit/integration pass; e2e written and type-checked, run pending (on demand) |
 | T13 Provider hook status on session rows | In progress |
 | T14 Solarized and Dimmed theme levels | Implemented; E2E written and type-checked, run pending (on demand) |
+| T15 Selected-session clarity and list decluttering | In progress |
 
 **Progress note (T2–T4, 2026-09-27):** Vitest (447 tests), eslint, `vue-tsc` and the e2e `tsc` passed; deployed to the host from a clean checkout of `f664bb8` (a pre-deploy `pg_dump` is in `backups/`), and the stack came up healthy. Still open for these tasks:
 - **E2E runs:** the scenarios *(T2) Compact tree*, *(T3) Compact file browser*, *(T3) No browser autocomplete outside login password* and *(T4) Custom tab order* type-check but haven't run: e2e runs only on demand. The T2 commit also updated two M6 scenarios that expanded single-window sessions (*(T4) Inline rename a session*, *(T3) Window rows follow the real terminal*).
@@ -191,6 +192,17 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 **Tests:** U: T14 validates/persists both modes, first-paint mirrors, app and terminal palettes, snapshot palette, search decoration and contrast (Vitest); I: n/a because selection and rendering use existing UI-state persistence with no server behavior change; E: T14 *Solarized and Dimmed apply at their darkness levels and persist* (desktop, including open terminal and status-bar color).
 
 **E2E:** Add T14 *Solarized and Dimmed apply at their darkness levels and persist* in `test/e2e/tests/theme.spec.ts`; assert both page surfaces, matching terminal backgrounds, status-bar metadata, saved account state, and persistence after reload and app restart. Type-check only; runs on demand.
+
+## T15 — Selected-session clarity and list decluttering
+
+- Make the selected session row and active terminal tab clearly distinct from unselected entries in Dark, Light, Solarized and Dimmed themes, with accessible foreground/background contrast.
+- Let clicks on any non-control area of a session row select that session; preserve button actions, tab close behavior, drag handles and double-click rename.
+- Remove session activity-age labels and green attachment dots from project headers and session lists.
+- Show project session counts only while the project is collapsed.
+
+**Tests:** U: T15 `SessionList.spec.ts` covers non-control row selection, button isolation, selected-row styling, and absent age/attachment indicators; `SessionTree.spec.ts` covers collapsed-only counts; `TabBar.spec.ts` covers selected styling; `check-theme-contrast.test.mjs` checks selected foreground/background contrast for every theme. I: n/a; presentation and browser click handling only, no server contract changes. E: T15 *Selected session and active tab stand out across themes* (desktop) and *Whole session row selects on touch* (iPhone 13 Pro), including action-button isolation, collapsed-only count, and removed activity/dot indicators.
+
+**E2E:** Add T15 *Selected session and active tab stand out across themes* to `test/e2e/tests/theme.spec.ts` and *Whole session row selects on touch* to `test/e2e/tests/tree.custom.phone.spec.ts`. Type-check only; runs on demand.
 
 ## Done
 

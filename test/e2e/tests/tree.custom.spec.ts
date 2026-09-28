@@ -145,8 +145,12 @@ for (const mode of ['collapse', 'hierarchy'] as const) {
       const row = ui.treeItem(inProject)
       await expect(header).toContainText('~/' + path.split('/').at(-1))
       await expect(header.locator(`[title="${path}"]`)).toHaveCount(1)
-      await expect(header.locator('[data-project-count]')).toHaveText('1')
+      await expect(header.locator('[data-project-count]')).toHaveCount(0)
       await expect(header).not.toHaveClass(/bg-tree-header/)
+      await header.getByRole('button', { name: `Collapse ${projectName}` }).click()
+      await expect(header.locator('[data-project-count]')).toHaveText('1')
+      await header.getByRole('button', { name: `Expand ${projectName}` }).click()
+      await expect(header.locator('[data-project-count]')).toHaveCount(0)
       await expect(ui.treeItem('Other sessions').locator('[data-other-label]')).toHaveCSS('text-transform', 'uppercase')
       const positions = await Promise.all([header.locator('span').first().boundingBox(), row.locator('button[data-session-row]').boundingBox()])
       expect(positions[0]?.x).toBeLessThan(positions[1]?.x ?? 0)
@@ -170,7 +174,7 @@ for (const mode of ['collapse', 'hierarchy'] as const) {
   })
 }
 
-test('Session rows show the pane title and last activity', async ({ page, ui, target }) => {
+test('Session rows show pane titles without activity ages or attachment dots', async ({ page, ui, target }) => {
   await account(ui)
   const titled = uniqueName('tree-titled')
   const plain = uniqueName('tree-plain')
@@ -181,7 +185,7 @@ test('Session rows show the pane title and last activity', async ({ page, ui, ta
   await page.reload()
   await expect(ui.treeItem(titled).locator('[data-session-subtitle]')).toHaveText('deploy the changes and commit them')
   await expect(ui.treeItem(plain).locator('[data-session-subtitle]')).toHaveCount(0)
-  await expect(ui.treeItem(titled).locator('[data-session-age]')).toHaveText(/^(now|\d+m)$/)
+  await expect(page.locator('[data-session-age], [data-session-dot]')).toHaveCount(0)
   await ui.openTerminal(titled)
   await expect(ui.treeItem(titled)).toHaveClass(/bg-tree-header/)
   await expect(ui.treeItem(plain)).not.toHaveClass(/bg-tree-header/)

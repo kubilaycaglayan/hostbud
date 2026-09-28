@@ -77,7 +77,7 @@ function onAuxClick(ev: MouseEvent, id: string) {
       :key="t.id"
       :data-tab-item="t.id"
       class="flex min-w-0 shrink-0 items-center border-r border-border"
-      :class="t.id === props.active ? 'bg-bg' : ''"
+      :class="t.id === props.active ? 'bg-selected' : ''"
       @auxclick="onAuxClick($event, t.id)"
       @mousedown.middle.prevent
     >
@@ -90,7 +90,7 @@ function onAuxClick(ev: MouseEvent, id: string) {
         :aria-controls="`tabpanel-${t.id}`"
         :tabindex="t.id === props.active ? 0 : -1"
         class="touch-target max-w-48 truncate py-1 pr-1 pl-3 md:py-1.5"
-        :class="[props.compact ? 'max-w-20 px-1 text-xs' : '', t.id === props.active ? 'font-bold text-fg' : 'text-muted']"
+        :class="[props.compact ? 'max-w-20 px-1 text-xs' : '', t.id === props.active ? 'font-bold text-selected-fg' : 'text-muted']"
         @click="emit('activate', t.id)"
         @keydown="onKey($event, i)"
       >

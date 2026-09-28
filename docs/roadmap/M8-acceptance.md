@@ -17,6 +17,10 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
   - I: n/a: presentation-only; tree data and APIs are unchanged.
   - E: T2 *Compact tree* (desktop and phone), including actual reorder/collapse/open behavior.
   - Status (2026-09-27): U written and passing (`web/src/components/SessionList.spec.ts`, `SessionTree.spec.ts`; e2e `tests/tree.compact.spec.ts`); E written and type-checked, run pending (on demand). Not ticked until the e2e run passes.
+- [ ] Session lists stay decluttered: no relative activity-age labels or green attachment dots on project/session rows; project session counts appear only while collapsed. Clicking any non-control area of a session row selects it, while row action buttons, drag handles and double-click rename keep their existing behavior. The selected row and active terminal tab have a distinctive, readable background in Dark, Light, Solarized and Dimmed themes.
+  - U: T15 `SessionList.spec.ts` non-control row selection, interactive-control isolation, removed ages/dots and selected row; `SessionTree.spec.ts` collapsed-only count and removed project attachment dot; `TabBar.spec.ts` active-tab styling; `check-theme-contrast.test.mjs` selected foreground/background contrast for all themes.
+  - I: n/a: frontend presentation and click handling only; no server contract changes.
+  - E: T15 *Selected session and active tab stand out across themes* (desktop) and *Whole session row selects on touch* (iPhone 13 Pro), including button isolation, collapsed-only counts, no age/dot indicators, and selected styling in all four themes.
 
 ## File browser and browser autocomplete
 

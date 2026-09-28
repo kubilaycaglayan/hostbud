@@ -30,6 +30,8 @@ describe('UI theme token contrast', () => {
       const fg = token(section, 'fg')
       const muted = token(section, 'muted')
       const border = token(section, 'border')
+      const selected = token(section, 'selected')
+      const selectedFg = token(section, 'selected-fg')
       const icons = ['accent', 'danger', 'ok'].map((name) => token(section, name))
       assert.ok(contrast(fg, bg) >= 4.5, `${selector} foreground/background`)
       assert.ok(contrast(fg, surface) >= 4.5, `${selector} foreground/surface`)
@@ -37,6 +39,8 @@ describe('UI theme token contrast', () => {
       assert.ok(contrast(muted, surface) >= 4.5, `${selector} muted/surface`)
       assert.ok(contrast(border, bg) >= 3, `${selector} border/background`)
       assert.ok(contrast(border, surface) >= 3, `${selector} border/surface`)
+      assert.ok(contrast(selectedFg, selected) >= 4.5, `${selector} selected foreground/background`)
+      assert.ok(contrast(selected, surface) >= 1.5, `${selector} selected background/surface distinction`)
       for (const icon of icons) {
         assert.ok(contrast(icon, bg) >= 3, `${selector} icon/background`)
         assert.ok(contrast(icon, surface) >= 3, `${selector} icon/surface`)

@@ -407,7 +407,7 @@ describe('SessionTree', () => {
     wrapper.unmount()
   })
 
-  it('compact project rows: chevron and folder first, count badge, hover actions with the drag handle last; dot-first sessions', () => {
+  it('compact project rows: count only while collapsed, no attachment dots, and actions with drag last', async () => {
     const wrapper = mount(SessionTree, { attachTo: document.body })
     const project = wrapper.get('[data-tree-key="project:a"]')
     const header = project.element.firstElementChild as HTMLElement
@@ -418,7 +418,7 @@ describe('SessionTree', () => {
     expect(expand.getAttribute('aria-label')).toBe('Collapse a')
     expect(drag.getAttribute('aria-label')).toBe('Drag to reorder project a')
     expect(expand.nextElementSibling?.classList.contains('lucide-folder')).toBe(true)
-    expect(header.querySelector('[data-project-count]')?.textContent).toBe('2')
+    expect(header.querySelector('[data-project-count]')).toBeNull()
     for (const label of ['Drag to reorder project a', 'More actions for a', 'New session in a']) {
       expect(header.querySelector(`[aria-label="${label}"]`)?.classList.contains('row-action')).toBe(true)
     }
@@ -431,15 +431,22 @@ describe('SessionTree', () => {
     expect(group.classes()).toEqual(expect.arrayContaining(['ml-2', 'border-l', 'pl-1.5']))
     // The project path heads its expanded group.
     expect(group.element.firstElementChild?.getAttribute('title')).toBe('/work/a')
-    // Session rows lead with the attached dot, then the name; their chevron (3 windows) follows it.
+    // Session rows lead with the name; their chevron (3 windows) follows it.
     const row = wrapper.get('[data-tree-key="session:one"]')
-    expect(row.element.firstElementChild?.hasAttribute('data-session-dot')).toBe(true)
-    expect(row.element.children[1]?.getAttribute('aria-label')).toBe('one')
+    expect(row.element.firstElementChild?.getAttribute('aria-label')).toBe('one')
+    expect(row.find('[data-session-dot]').exists()).toBe(false)
     const buttons = row.findAll('button').map((b) => b.attributes('aria-label'))
     expect(buttons.indexOf('one')).toBeLessThan(buttons.indexOf('Expand one'))
+    expect(header.querySelector('[role="img"]')).toBeNull()
     // Project actions are still wired.
     expect(project.find('button[aria-label="More actions for a"]').exists()).toBe(true)
     expect(project.find('button[aria-label="New session in a"]').exists()).toBe(true)
+    await project.get('button[aria-label="Collapse a"]').trigger('click')
+    await nextTick()
+    expect(project.element.querySelector('[data-project-count]')?.textContent).toBe('2')
+    await project.get('button[aria-label="Expand a"]').trigger('click')
+    await nextTick()
+    expect(project.element.querySelector('[data-project-count]')).toBeNull()
     wrapper.unmount()
   })
 

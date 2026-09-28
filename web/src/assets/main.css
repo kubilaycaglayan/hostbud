@@ -16,6 +16,8 @@
   --hb-bg: #0f1115;
   --hb-surface: #171a21;
   --hb-tree-header: #20242d;
+  --hb-selected: #07536b;
+  --hb-selected-fg: #e8f4fa;
   --hb-border: #626a78;
   --hb-fg: #d7dae0;
   --hb-muted: #8b919c;
@@ -30,6 +32,8 @@
   --hb-bg: #ffffff;
   --hb-surface: #f5f6f8;
   --hb-tree-header: #eef1f5;
+  --hb-selected: #94c5f5;
+  --hb-selected-fg: #172b40;
   --hb-border: #7c8794;
   --hb-fg: #1f2328;
   --hb-muted: #656d76;
@@ -44,6 +48,8 @@
   --hb-bg: #bbc5b9;
   --hb-surface: #b2beb5;
   --hb-tree-header: #b2beb5;
+  --hb-selected: #4d747b;
+  --hb-selected-fg: #fdf6e3;
   --hb-border: #405a60;
   --hb-fg: #263f44;
   --hb-muted: #263f44;
@@ -58,6 +64,8 @@
   --hb-bg: #4c686a;
   --hb-surface: #405b5d;
   --hb-tree-header: #405b5d;
+  --hb-selected: #1a414a;
+  --hb-selected-fg: #f0ecd9;
   --hb-border: #b5c8c1;
   --hb-fg: #f0ecd9;
   --hb-muted: #d7e2d9;
@@ -72,6 +80,8 @@
   --color-bg: var(--hb-bg);
   --color-surface: var(--hb-surface);
   --color-tree-header: var(--hb-tree-header);
+  --color-selected: var(--hb-selected);
+  --color-selected-fg: var(--hb-selected-fg);
   --color-border: var(--hb-border);
   --color-fg: var(--hb-fg);
   --color-muted: var(--hb-muted);

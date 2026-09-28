@@ -142,6 +142,7 @@ Tasks: [roadmap/M8-tasks.md](roadmap/M8-tasks.md) · Checklist: [roadmap/M8-acce
 - Compact the New session, Browse files, and left-bar collapse/expand controls by reducing excess inner padding while preserving clear focus and usable targets.
 - Move New session and Browse files into the top app bar immediately after the host name.
 - Tighten project and session rows in the left tree: bring drag/reorder and project expand controls closer together, reduce row padding and margins, remove session chevrons where sessions have no expandable children, and prioritize session names.
+- Make selected sessions and active tabs easy to distinguish in every theme; let clicks anywhere on a session row activate it without intercepting its controls; remove activity-age labels and green attachment dots; show project session counts only while collapsed.
 - Make the Browse files dialog compact: reduce its outer dimensions and inner whitespace, and bring file/folder items closer together without making the individual items hard to use.
 - Disable browser autocomplete/autofill on application inputs, except for the existing login-screen password behavior, which stays as it is.
 - Let users drag open tabs to set a custom order. Keep the existing tab design unchanged: tabs themselves are draggable, with no added drag handle or other visual redesign. Newly opened tabs continue to append after the current last tab unless the user reorders them.
