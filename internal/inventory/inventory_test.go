@@ -169,10 +169,10 @@ func TestPublishesOnlyOnChange(t *testing.T) {
 		t.Fatalf("unchanged poll published %+v", evs)
 	}
 
-	f.set(func(f *fakeExec) { f.listOut = line("a", 0, 1, 999) }) // activity only
+	f.set(func(f *fakeExec) { f.listOut = line("a", 0, 1, 59) }) // activity only, same minute
 	h.step()
 	if evs := h.drain(); len(evs) != 0 {
-		t.Fatalf("activity-only change published %+v", evs)
+		t.Fatalf("same-minute activity change published %+v", evs)
 	}
 
 	for _, change := range []string{
@@ -376,5 +376,24 @@ func TestDelayCap(t *testing.T) {
 	inv = New(&fakeExec{}, events.NewBus(), Options{Interval: 10 * time.Second})
 	if got := inv.delay(10); got != 30*time.Second {
 		t.Fatalf("10s interval cap = %v, want 30s", got)
+	}
+}
+
+func TestSameSessionComparesTitleAndActivityMinute(t *testing.T) {
+	base := tmux.Session{ID: "$1", Name: "a", Activity: time.Date(2026, 1, 1, 10, 4, 5, 0, time.UTC)}
+	sameMinute := base
+	sameMinute.Activity = base.Activity.Add(30 * time.Second)
+	if !sameSession(base, sameMinute) {
+		t.Error("activity within the same minute must not publish")
+	}
+	nextMinute := base
+	nextMinute.Activity = base.Activity.Add(time.Minute)
+	if sameSession(base, nextMinute) {
+		t.Error("activity in a new minute must publish")
+	}
+	titled := base
+	titled.Title = "deploy"
+	if sameSession(base, titled) {
+		t.Error("title change must publish")
 	}
 }

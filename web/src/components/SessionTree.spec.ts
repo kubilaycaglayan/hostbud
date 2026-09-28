@@ -115,7 +115,8 @@ describe('SessionTree', () => {
     expect(projectRow.find('svg.lucide-folder').exists()).toBe(true)
     expect(sessionRow.attributes()).toMatchObject({ role: 'treeitem', 'aria-level': '2', 'aria-selected': 'true', tabindex: '-1' })
     expect(sessionRow.find('button[data-session-row]').classes()).toContain('min-w-[8ch]')
-    expect(wrapper.get('[data-tree-key="other"]').classes()).toContain('bg-tree-header')
+    expect(wrapper.get('[data-tree-key="other"] [data-other-label]').classes()).toEqual(expect.arrayContaining(['uppercase', 'text-muted']))
+    expect(projectRow.classes()).not.toContain('bg-tree-header')
     expect(wrapper.get('[data-tree-key="other"]').element.querySelector(':scope > div > span[title]')).toBeNull()
     expect(wrapper.find('[role="group"]').exists()).toBe(true)
 
@@ -406,26 +407,34 @@ describe('SessionTree', () => {
     wrapper.unmount()
   })
 
-  it('compact project rows: drag and expand side by side, name-first sessions, no 44 px desktop minimums (M8 T2)', () => {
+  it('compact project rows: chevron and folder first, count badge, hover actions with the drag handle last; dot-first sessions', () => {
     const wrapper = mount(SessionTree, { attachTo: document.body })
     const project = wrapper.get('[data-tree-key="project:a"]')
     const header = project.element.firstElementChild as HTMLElement
     expect(header.className).toContain('min-h-8')
-    expect(header.className).toContain('gap-0')
-    const [drag, expand] = [...header.children] as HTMLElement[]
-    expect(drag.getAttribute('aria-label')).toBe('Drag to reorder project a')
+    expect(header.classList.contains('tree-row')).toBe(true)
+    const expand = header.firstElementChild as HTMLElement
+    const drag = header.lastElementChild as HTMLElement
     expect(expand.getAttribute('aria-label')).toBe('Collapse a')
-    expect(drag.classList.contains('min-w-5')).toBe(true)
-    expect(expand.classList.contains('min-w-6')).toBe(true)
+    expect(drag.getAttribute('aria-label')).toBe('Drag to reorder project a')
+    expect(expand.nextElementSibling?.classList.contains('lucide-folder')).toBe(true)
+    expect(header.querySelector('[data-project-count]')?.textContent).toBe('2')
+    for (const label of ['Drag to reorder project a', 'More actions for a', 'New session in a']) {
+      expect(header.querySelector(`[aria-label="${label}"]`)?.classList.contains('row-action')).toBe(true)
+    }
+    expect(expand.classList.contains('row-action')).toBe(false)
     // Every control stays a touch target (44 px on phones) without a desktop 44 px minimum.
     const controls = [...project.element.querySelectorAll('button')]
     expect(controls.every((button) => button.classList.contains('touch-target'))).toBe(true)
     expect(project.element.querySelectorAll('.min-h-11, .min-h-12, .min-w-8')).toHaveLength(0)
     const group = project.get('[role="group"]')
-    expect(group.classes()).toEqual(expect.arrayContaining(['ml-2', 'py-0', 'pl-1.5']))
-    // Session rows lead with the name; their chevron (3 windows) follows it.
+    expect(group.classes()).toEqual(expect.arrayContaining(['ml-2', 'border-l', 'pl-1.5']))
+    // The project path heads its expanded group.
+    expect(group.element.firstElementChild?.getAttribute('title')).toBe('/work/a')
+    // Session rows lead with the attached dot, then the name; their chevron (3 windows) follows it.
     const row = wrapper.get('[data-tree-key="session:one"]')
-    expect(row.element.firstElementChild?.getAttribute('aria-label')).toBe('one')
+    expect(row.element.firstElementChild?.hasAttribute('data-session-dot')).toBe(true)
+    expect(row.element.children[1]?.getAttribute('aria-label')).toBe('one')
     const buttons = row.findAll('button').map((b) => b.attributes('aria-label'))
     expect(buttons.indexOf('one')).toBeLessThan(buttons.indexOf('Expand one'))
     // Project actions are still wired.

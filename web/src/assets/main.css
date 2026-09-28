@@ -100,6 +100,20 @@ body {
   filter: invert(1);
 }
 
+/* Tree row actions (drag, more, new session) stay out of the way until the
+   row is hovered on a mouse; touch devices always show them. */
+@media (hover: hover) and (pointer: fine) {
+  .row-action {
+    opacity: 0;
+    transition: opacity 100ms;
+  }
+  .tree-row:hover .row-action,
+  .row-action:focus-visible,
+  .row-action[data-state='open'] {
+    opacity: 1;
+  }
+}
+
 /* The app fills the visual viewport (lib/appHeight.ts), so a phone's
    on-screen keyboard shrinks it instead of covering the terminal. */
 #app {

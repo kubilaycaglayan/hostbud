@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"hostbud/internal/sshx"
 )
@@ -42,6 +43,7 @@ type Session struct {
 	Path      string      `json:"path"`
 	Agents    []string    `json:"agents,omitempty"`
 	Status    AgentStatus `json:"status,omitempty"`
+	Title     string      `json:"title,omitempty"` // active pane's title, unless it is the default hostname
 	ProjectID string      `json:"projectId,omitempty"`
 	Attached  int         `json:"attached"` // number of attached clients
 	Windows   int         `json:"windows"`
@@ -114,8 +116,11 @@ func ListPaneCommands() []string {
 // leave a generic runtime such as node as tmux's foreground command while the
 // agent process remains in the same terminal process group. Only recognized
 // agent names leave the host; other process names and all arguments stay local.
-const paneMetadataScript = `tmux list-panes -a -F 'P|#{session_name}|#{pane_id}|#{pane_current_command}|#{@hostbud_agent_status}|#{pane_tty}' |
-while IFS='|' read -r marker session pane command status tty; do
+// The session's focused pane also reports its title (what Claude Code and
+// Codex set to the current task); tmux's default title, the hostname, is
+// blanked. The title is last so '|' in it stays inside the field.
+const paneMetadataScript = `tmux list-panes -a -F 'P|#{session_name}|#{pane_id}|#{pane_current_command}|#{@hostbud_agent_status}|#{pane_tty}|#{window_active}#{pane_active}|#{?#{||:#{==:#{pane_title},#{host}},#{==:#{pane_title},#{host_short}}},,#{pane_title}}' |
+while IFS='|' read -r marker session pane command status tty focus title; do
 	[ "$marker" = P ] || continue
 	tty=${tty#/dev/}
 	agents=$(ps -t "$tty" -o comm= 2>/dev/null | awk '
@@ -126,13 +131,22 @@ while IFS='|' read -r marker session pane command status tty; do
 		}
 		END { if (codex) printf "codex"; printf ","; if (claude) printf "claude" }
 	')
-	printf 'P\t%s\t%s\t%s\t%s\t%s\n' "$session" "$pane" "$command" "$status" "$agents"
+	if [ "$focus" = 11 ] && [ -n "$title" ]; then
+		title=$(printf '%s' "$title" | tr -d '\t\r\n')
+		printf 'P\t%s\t%s\t%s\t%s\t%s\t%s\n' "$session" "$pane" "$command" "$status" "$agents" "$title"
+	else
+		printf 'P\t%s\t%s\t%s\t%s\t%s\n' "$session" "$pane" "$command" "$status" "$agents"
+	fi
 done`
 
 type PaneMetadata struct {
 	Agents []string
 	Status AgentStatus
+	Title  string
 }
+
+// maxTitleRunes bounds a pane title; the tree shows one truncated line.
+const maxTitleRunes = 200
 
 // ParsePaneMetadata extracts recognized foreground harness names and hook
 // status markers by session. Other command names and all command arguments
@@ -144,14 +158,15 @@ func ParsePaneMetadata(out string) (map[string]PaneMetadata, error) {
 	type aggregate struct {
 		agents map[string]bool
 		status AgentStatus
+		title  string
 	}
 	found := make(map[string]aggregate)
 	for line := range strings.SplitSeq(strings.TrimRight(out, "\n"), "\n") {
 		if line == "" {
 			continue
 		}
-		f := strings.Split(line, "\t")
-		if len(f) != 6 || f[0] != "P" || f[1] == "" || !paneIDRE.MatchString(f[2]) || strings.ContainsAny(strings.Join(f, ""), "\r") {
+		f := strings.SplitN(line, "\t", 7)
+		if len(f) < 6 || f[0] != "P" || f[1] == "" || !paneIDRE.MatchString(f[2]) || strings.ContainsAny(strings.Join(f[:6], ""), "\r") {
 			return nil, fmt.Errorf("unexpected pane metadata record")
 		}
 		paneAgents := make(map[string]bool)
@@ -194,6 +209,9 @@ func ParsePaneMetadata(out string) (map[string]PaneMetadata, error) {
 		if statusPriority(status) > statusPriority(meta.status) {
 			meta.status = status
 		}
+		if len(f) == 7 {
+			meta.title = paneTitle(f[6])
+		}
 		found[f[1]] = meta
 	}
 	result := make(map[string]PaneMetadata, len(found))
@@ -205,9 +223,23 @@ func ParsePaneMetadata(out string) (map[string]PaneMetadata, error) {
 				list = append(list, agent)
 			}
 		}
-		result[name] = PaneMetadata{Agents: list, Status: meta.status}
+		result[name] = PaneMetadata{Agents: list, Status: meta.status, Title: meta.title}
 	}
 	return result, nil
+}
+
+// paneTitle trims a title to printable text of bounded length.
+func paneTitle(raw string) string {
+	title := strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, raw)
+	if runes := []rune(title); len(runes) > maxTitleRunes {
+		title = string(runes[:maxTitleRunes])
+	}
+	return strings.TrimSpace(title)
 }
 
 func isShellCommand(command string) bool {

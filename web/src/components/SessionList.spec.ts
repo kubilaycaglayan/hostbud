@@ -36,21 +36,26 @@ describe('SessionList', () => {
     expect(w.get('button[aria-label="Drag to reorder session b"]').classes()).toContain('touch-target')
     expect(w.get('button[aria-label="b"]').classes()).toContain('touch-target')
     expect(w.get('button[aria-label="More actions for b"]').classes()).toContain('touch-target')
-    // Compact rows (M8 T2): no vertical row padding; touch-target keeps 44 px on phones.
-    expect(w.get('li').classes().filter((c) => /^py-/.test(c))).toEqual([])
-    expect(w.get('button[aria-label="b"]').classes()).toContain('min-h-7')
+    // Compact rows: a hairline of vertical padding; touch-target keeps 44 px on phones.
+    expect(w.get('li').classes().filter((c) => /^py-/.test(c))).toEqual(['py-0.5'])
+    expect(w.get('button[aria-label="b"]').classes()).toContain('min-h-6')
   })
 
-  it('leads with the session name, then its status and the actions menu (Kill and Rename live inside it); the drag handle comes last (M8 T2)', () => {
-    const w = mount(SessionList, { props: { sessions: [s('a')], sortable: true } })
+  it('leads with the attached dot, then the bold name, its age and the actions menu (Kill and Rename live inside it); the drag handle comes last', () => {
+    vi.useFakeTimers({ now: Date.parse('2026-09-28T12:00:00Z') })
+    const w = mount(SessionList, { props: { sessions: [{ ...s('a'), activity: '2026-09-28T11:56:00Z' }], sortable: true } })
     const row = w.get('li')
-    const first = row.element.firstElementChild as HTMLElement
+    const dot = row.element.firstElementChild as HTMLElement
+    expect(dot.getAttribute('role')).toBe('img')
+    expect(dot.hasAttribute('data-session-dot')).toBe(true)
+    const first = dot.nextElementSibling as HTMLElement
     expect(first.getAttribute('aria-label')).toBe('a')
     expect(first.hasAttribute('data-session-row')).toBe(true)
-    expect(first.className).toContain('font-medium')
+    expect(first.className).toContain('font-semibold')
     expect(first.className).toContain('text-fg')
     expect(first.className).toContain('flex-1')
-    expect(first.nextElementSibling?.getAttribute('role')).toBe('img')
+    expect(first.nextElementSibling?.hasAttribute('data-session-age')).toBe(true)
+    expect(first.nextElementSibling?.textContent).toBe('4m')
     const actions = first.nextElementSibling?.nextElementSibling
     expect(actions?.tagName).toBe('SPAN')
     expect([...actions!.querySelectorAll('button')].map((button) => button.getAttribute('aria-label'))).toEqual([
@@ -71,7 +76,26 @@ describe('SessionList', () => {
     expect(marks.map((mark) => mark.attributes('title'))).toEqual(['Codex running', 'Claude Code running'])
     expect(row.attributes('aria-label')).toBe('agent-work, Codex running, Claude Code running')
     expect(row.get('[data-session-row]').attributes('aria-label')).toBe('agent-work')
-    expect(row.element.firstElementChild?.getAttribute('data-agent')).toBe('codex')
+    expect(row.element.children[1]?.getAttribute('data-agent')).toBe('codex')
+  })
+
+  it('shows the pane title as a muted second line in the tree, and nothing without one', () => {
+    setActivePinia(createPinia())
+    const w = mount(SessionList, { props: { sessions: [{ ...s('titled'), title: '✳ deploy the changes and commit them' }, s('plain')], treeView: true } })
+    const [titled, plain] = w.findAll('li')
+    expect(titled.get('[data-session-subtitle]').text()).toBe('deploy the changes and commit them')
+    expect(titled.get('[data-session-subtitle]').classes()).toEqual(expect.arrayContaining(['basis-full', 'truncate', 'text-muted']))
+    expect(plain.find('[data-session-subtitle]').exists()).toBe(false)
+    expect(titled.attributes('aria-label')).toBe('titled')
+  })
+
+  it('marks the selected tree row with a tint and a left bar', () => {
+    setActivePinia(createPinia())
+    const w = mount(SessionList, { props: { sessions: [s('a'), s('b')], selected: 'b', treeView: true } })
+    const [a, b] = w.findAll('li')
+    expect(b.classes()).toEqual(expect.arrayContaining(['bg-tree-header', 'border-fg', 'border-l-2']))
+    expect(a.classes()).toContain('border-transparent')
+    expect(a.classes()).not.toContain('bg-tree-header')
   })
 
   it('keeps agent logos out of non-gutter session lists', () => {
@@ -92,8 +116,8 @@ describe('SessionList', () => {
       expect(row.get('[data-session-status]').attributes('aria-label')).toBe(label)
       expect(row.attributes('aria-label')).toBe(`status-session, ${label}, Codex running`)
       expect(row.get('[data-session-row]').attributes('aria-label')).toBe('status-session')
-      expect(row.element.firstElementChild?.getAttribute('data-agent')).toBe('codex')
-      expect(row.element.children[1]?.hasAttribute('data-session-status')).toBe(true)
+      expect(row.element.children[1]?.getAttribute('data-agent')).toBe('codex')
+      expect(row.element.children[2]?.hasAttribute('data-session-status')).toBe(true)
       w.unmount()
     }
   })

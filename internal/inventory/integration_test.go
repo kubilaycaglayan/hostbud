@@ -146,6 +146,32 @@ func TestIntegrationPollerReportsProviderHookStatus(t *testing.T) {
 	}
 }
 
+func TestIntegrationPollerReportsActivePaneTitle(t *testing.T) {
+	inv, _, c := run(t, testenv.SSHD)
+	testenv.Sh(t, c, "tmux kill-session -t =inventory-title-it 2>/dev/null; true")
+	t.Cleanup(func() { testenv.Sh(t, c, "tmux kill-session -t =inventory-title-it 2>/dev/null; true") })
+	testenv.Sh(t, c, "tmux new-session -d -s inventory-title-it -c /home/dev")
+	testenv.Sh(t, c, "tmux select-pane -t =inventory-title-it: -T \"$(hostname)\"")
+	if err := inv.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	_, sessions := inv.Snapshot()
+	got, ok := findSession(sessions, "inventory-title-it")
+	if !ok || got.Title != "" {
+		t.Fatalf("default hostname title = %+v (found %v)", got, ok)
+	}
+	testenv.Sh(t, c, "tmux split-window -d -t =inventory-title-it: && tmux select-pane -t =inventory-title-it:.1 -T 'background pane'")
+	testenv.Sh(t, c, "tmux select-pane -t =inventory-title-it:.0 -T 'deploy the changes, commit | push'")
+	if err := inv.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	_, sessions = inv.Snapshot()
+	got, ok = findSession(sessions, "inventory-title-it")
+	if !ok || got.Title != "deploy the changes, commit | push" {
+		t.Fatalf("active pane title = %+v (found %v)", got, ok)
+	}
+}
+
 func TestIntegrationPollerFindsCodexProcessBehindNodeForeground(t *testing.T) {
 	inv, _, c := run(t, testenv.SSHD)
 	testenv.Sh(t, c, "tmux kill-session -t =inventory-agent-node-it 2>/dev/null; true")

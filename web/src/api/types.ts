@@ -21,6 +21,8 @@ export interface Session {
   path: string
   agents?: ('codex' | 'claude')[]
   status?: 'working' | 'blocked' | 'ended'
+  /** Active pane's title (the agent's current task); absent for tmux's default. */
+  title?: string
   projectId?: string
   attached: number
   windows: number

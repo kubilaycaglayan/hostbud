@@ -144,9 +144,10 @@ for (const mode of ['collapse', 'hierarchy'] as const) {
       const header = ui.treeItem(projectName)
       const row = ui.treeItem(inProject)
       await expect(header).toContainText('~/' + path.split('/').at(-1))
-      await expect(header.locator('[title]')).toHaveAttribute('title', path)
-      await expect(header).toHaveClass(/bg-tree-header/)
-      await expect(ui.treeItem('Other sessions')).toHaveClass(/bg-tree-header/)
+      await expect(header.locator(`[title="${path}"]`)).toHaveCount(1)
+      await expect(header.locator('[data-project-count]')).toHaveText('1')
+      await expect(header).not.toHaveClass(/bg-tree-header/)
+      await expect(ui.treeItem('Other sessions').locator('[data-other-label]')).toHaveCSS('text-transform', 'uppercase')
       const positions = await Promise.all([header.locator('span').first().boundingBox(), row.locator('button[data-session-row]').boundingBox()])
       expect(positions[0]?.x).toBeLessThan(positions[1]?.x ?? 0)
       return
@@ -168,6 +169,23 @@ for (const mode of ['collapse', 'hierarchy'] as const) {
     await expect(ui.treeItem('Other sessions')).toHaveAttribute('aria-expanded', 'false')
   })
 }
+
+test('Session rows show the pane title and last activity', async ({ page, ui, target }) => {
+  await account(ui)
+  const titled = uniqueName('tree-titled')
+  const plain = uniqueName('tree-plain')
+  await createSession(target, titled, `/home/dev/${uniqueName('titled')}`)
+  await createSession(target, plain, `/home/dev/${uniqueName('plain')}`)
+  await target.run(`tmux select-pane -t ${shq('=' + titled + ':')} -T ${shq('✳ deploy the changes and commit them')}`)
+  await target.run(`tmux select-pane -t ${shq('=' + plain + ':')} -T "$(hostname)"`)
+  await page.reload()
+  await expect(ui.treeItem(titled).locator('[data-session-subtitle]')).toHaveText('deploy the changes and commit them')
+  await expect(ui.treeItem(plain).locator('[data-session-subtitle]')).toHaveCount(0)
+  await expect(ui.treeItem(titled).locator('[data-session-age]')).toHaveText(/^(now|\d+m)$/)
+  await ui.openTerminal(titled)
+  await expect(ui.treeItem(titled)).toHaveClass(/bg-tree-header/)
+  await expect(ui.treeItem(plain)).not.toHaveClass(/bg-tree-header/)
+})
 
 test('(T2) Empty Other sessions group stays hidden', async ({ page, ui, target, request }) => {
   await account(ui)

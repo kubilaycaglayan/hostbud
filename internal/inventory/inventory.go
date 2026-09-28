@@ -291,6 +291,7 @@ func (inv *Inventory) poll(ctx context.Context) bool {
 		for i := range sessions {
 			sessions[i].Agents = append([]string(nil), previous[sessions[i].Name].Agents...)
 			sessions[i].Status = previous[sessions[i].Name].Status
+			sessions[i].Title = previous[sessions[i].Name].Title
 		}
 		if paneOut, paneErr := inv.exec.Exec(ctx, inv.opt.MachineID, tmux.ListPaneCommands()...); paneErr == nil {
 			if metadata, parseErr := tmux.ParsePaneMetadata(string(paneOut)); parseErr == nil {
@@ -298,6 +299,7 @@ func (inv *Inventory) poll(ctx context.Context) bool {
 					item := metadata[sessions[i].Name]
 					sessions[i].Agents = item.Agents
 					sessions[i].Status = item.Status
+					sessions[i].Title = item.Title
 				}
 			}
 		}
@@ -399,8 +401,11 @@ func (inv *Inventory) setSessions(sessions []tmux.Session) {
 	}
 }
 
+// sameSession compares activity by minute only: the tree shows relative
+// times ("4m"), and every keystroke must not publish sessions.changed.
 func sameSession(a, b tmux.Session) bool {
 	return a.ID == b.ID && a.Name == b.Name && a.Path == b.Path &&
 		a.ProjectID == b.ProjectID && a.Attached == b.Attached && a.Windows == b.Windows &&
-		a.Created.Equal(b.Created) && slices.Equal(a.Agents, b.Agents) && a.Status == b.Status
+		a.Created.Equal(b.Created) && slices.Equal(a.Agents, b.Agents) && a.Status == b.Status &&
+		a.Title == b.Title && a.Activity.Truncate(time.Minute).Equal(b.Activity.Truncate(time.Minute))
 }

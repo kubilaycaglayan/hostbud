@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { DropdownMenuContent, DropdownMenuItem, DropdownMenuPortal, DropdownMenuRoot, DropdownMenuTrigger } from 'reka-ui'
+import { computed } from 'vue'
 import { ChevronRight, Folder, MoreHorizontal, Pin, Plus } from 'lucide-vue-next'
 import type { Project } from '@/api/types'
 import type { SplitDir } from '@/lib/layout'
@@ -41,6 +42,8 @@ const emit = defineEmits<{
   reorderSessions: [group: string, names: string[]]
 }>()
 
+const anyAttached = computed(() => props.group.sessions.some((session) => session.attached > 0))
+
 function renameSessionCommit(from: string, to: string) {
   return props.renameSession(from, to)
 }
@@ -78,11 +81,11 @@ function onMenuCloseAutoFocus(event: Event) {
     :aria-label="props.group.project.name + (props.hidden ? ', hidden' : '')"
     :data-tree-key="'project:' + props.group.project.id"
     data-tree-kind="project"
-    class="rounded bg-tree-header px-0.5"
+    class="rounded"
     :class="props.hidden ? 'opacity-50' : ''"
   >
     <div
-      class="flex min-h-8 items-center gap-0"
+      class="tree-row flex min-h-8 items-center gap-1 rounded px-0.5"
       @click="emit('headerClick', props.group.project.id)"
       @pointerdown="emit('longPressStart', $event, props.group.project.id)"
       @pointermove="emit('longPressMove', $event)"
@@ -90,21 +93,19 @@ function onMenuCloseAutoFocus(event: Event) {
       @pointercancel="emit('longPressEnd')"
       @pointerleave="emit('longPressEnd')"
     >
-      <button type="button" class="touch-target project-drag-handle min-h-7 min-w-5 cursor-grab rounded text-muted" :aria-label="'Drag to reorder project ' + props.group.project.name" title="Drag to reorder projects" tabindex="-1" @click.stop>⠿</button>
-      <button type="button" class="touch-target inline-flex min-h-7 min-w-6 items-center justify-center rounded text-muted" :aria-label="(props.collapsed ? 'Expand ' : 'Collapse ') + props.group.project.name" :aria-expanded="!props.collapsed" :title="(props.collapsed ? 'Expand ' : 'Collapse ') + props.group.project.name" tabindex="-1" @click.stop="emit('headerClick', props.group.project.id)">
-        <ChevronRight :size="16" class="transition-transform" :class="!props.collapsed ? 'rotate-90' : ''" aria-hidden="true" />
+      <button type="button" class="touch-target inline-flex min-h-6 min-w-4 items-center justify-center rounded text-muted" :aria-label="(props.collapsed ? 'Expand ' : 'Collapse ') + props.group.project.name" :aria-expanded="!props.collapsed" :title="(props.collapsed ? 'Expand ' : 'Collapse ') + props.group.project.name" tabindex="-1" @click.stop="emit('headerClick', props.group.project.id)">
+        <ChevronRight :size="14" class="transition-transform" :class="!props.collapsed ? 'rotate-90' : ''" aria-hidden="true" />
       </button>
       <Folder :size="16" class="shrink-0 text-muted" aria-hidden="true" />
       <InlineRename v-if="props.editingKey === 'project:' + props.group.project.id" :name="props.group.project.name" :error="props.editError" :commit="(value) => props.renameProject(props.group.project.id, value)" @cancel="emit('cancelRename', 'project:' + props.group.project.id)" />
-      <span v-else class="min-w-0 flex-1" @dblclick.stop="renameOnFinePointer">
-        <span class="block truncate font-semibold">{{ props.group.project.name }}</span>
-        <span class="block truncate text-xs text-muted" :title="props.group.project.path">{{ shortPath(props.group.project.path) }}</span>
-      </span>
-      <button v-if="props.pinned" type="button" class="touch-target inline-flex min-h-7 min-w-6 items-center justify-center rounded text-muted" :aria-label="'Unpin ' + props.group.project.name" title="Pinned" tabindex="-1" @click.stop="emit('togglePin', props.group.project.id)">
+      <span v-else class="min-w-0 flex-1 truncate font-semibold" @dblclick.stop="renameOnFinePointer">{{ props.group.project.name }}</span>
+      <span v-if="anyAttached" role="img" aria-label="attached session" title="A session is attached" class="inline-block size-1.5 shrink-0 rounded-full bg-ok" />
+      <span data-project-count :title="props.group.sessions.length + (props.group.sessions.length === 1 ? ' session' : ' sessions')" class="shrink-0 rounded bg-tree-header px-1.5 text-xs leading-5 text-muted tabular-nums">{{ props.group.sessions.length }}</span>
+      <button v-if="props.pinned" type="button" class="row-action touch-target inline-flex min-h-7 min-w-6 items-center justify-center rounded text-muted" :aria-label="'Unpin ' + props.group.project.name" title="Pinned" tabindex="-1" @click.stop="emit('togglePin', props.group.project.id)">
         <Pin :size="16" aria-hidden="true" />
       </button>
       <DropdownMenuRoot :open="props.menuOpen" @update:open="(open) => emit('menuOpen', open, props.group.project.id)">
-        <DropdownMenuTrigger type="button" class="touch-target inline-flex min-h-7 min-w-6 items-center justify-center rounded text-muted hover:bg-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" :aria-label="'More actions for ' + props.group.project.name" title="More" tabindex="-1" @click.stop><MoreHorizontal :size="16" aria-hidden="true" /></DropdownMenuTrigger>
+        <DropdownMenuTrigger type="button" class="row-action touch-target inline-flex min-h-7 min-w-6 items-center justify-center rounded text-muted hover:bg-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" :aria-label="'More actions for ' + props.group.project.name" title="More" tabindex="-1" @click.stop><MoreHorizontal :size="16" aria-hidden="true" /></DropdownMenuTrigger>
         <DropdownMenuPortal>
           <DropdownMenuContent align="end" :side-offset="4" class="z-[60] min-w-48 rounded border border-border bg-surface p-1 text-fg shadow-lg" @close-auto-focus="onMenuCloseAutoFocus">
             <DropdownMenuItem class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 outline-none data-highlighted:bg-bg" @select="startProjectRename">Rename</DropdownMenuItem>
@@ -114,9 +115,11 @@ function onMenuCloseAutoFocus(event: Event) {
           </DropdownMenuContent>
         </DropdownMenuPortal>
       </DropdownMenuRoot>
-      <button type="button" class="touch-target inline-flex min-h-7 min-w-6 items-center justify-center rounded text-muted hover:bg-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" :aria-label="'New session in ' + props.group.project.name" :title="'New session in ' + props.group.project.name" tabindex="-1" @click.stop="emit('sessionInProject', props.group.project)"><Plus :size="16" aria-hidden="true" /></button>
+      <button type="button" class="row-action touch-target inline-flex min-h-7 min-w-6 items-center justify-center rounded text-muted hover:bg-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" :aria-label="'New session in ' + props.group.project.name" :title="'New session in ' + props.group.project.name" tabindex="-1" @click.stop="emit('sessionInProject', props.group.project)"><Plus :size="16" aria-hidden="true" /></button>
+      <button type="button" class="row-action touch-target project-drag-handle min-h-7 min-w-4 cursor-grab rounded text-muted" :aria-label="'Drag to reorder project ' + props.group.project.name" title="Drag to reorder projects" tabindex="-1" @click.stop>⠿</button>
     </div>
-    <div v-if="!props.collapsed" role="group" class="ml-2 border-l border-border py-0 pl-1.5">
+    <div v-if="!props.collapsed" role="group" class="ml-2 border-l border-border/40 pb-1 pl-1.5">
+      <p class="truncate px-1.5 pb-1 text-xs text-muted" :title="props.group.project.path">{{ shortPath(props.group.project.path) }}</p>
       <SessionList
         :sessions="props.group.sessions"
         :selected="props.selected"

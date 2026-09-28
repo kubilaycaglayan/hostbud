@@ -343,6 +343,29 @@ func TestParsePaneMetadataAgentAliases(t *testing.T) {
 	}
 }
 
+func TestParsePaneMetadataTitle(t *testing.T) {
+	if !strings.Contains(paneMetadataScript, "#{==:#{pane_title},#{host}}") {
+		t.Fatal("script must blank tmux's default hostname title")
+	}
+	long := strings.Repeat("é", maxTitleRunes+10)
+	got, err := ParsePaneMetadata("P\ttitled\t%1\tbash\t\t\t deploy the changes | commit \nP\ttitled\t%2\tvim\t\t\nP\tplain\t%3\tbash\t\t\nP\tlong\t%4\tbash\t\t\t" + long + "\nP\tctl\t%5\tbash\t\t\ta\x1bb\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got["titled"].Title != "deploy the changes | commit" {
+		t.Errorf("title = %q", got["titled"].Title)
+	}
+	if got["plain"].Title != "" {
+		t.Errorf("untitled session title = %q", got["plain"].Title)
+	}
+	if n := len([]rune(got["long"].Title)); n != maxTitleRunes {
+		t.Errorf("long title has %d runes, want %d", n, maxTitleRunes)
+	}
+	if got["ctl"].Title != "ab" {
+		t.Errorf("control characters kept: %q", got["ctl"].Title)
+	}
+}
+
 func TestNoServer(t *testing.T) {
 	for _, s := range []string{
 		"no server running on /tmp/tmux-1000/default\n",

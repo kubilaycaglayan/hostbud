@@ -11,6 +11,7 @@ import { useWindowsStore } from '@/stores/windows'
 import { describeError } from '@/stores/toasts'
 import InlineRename from './InlineRename.vue'
 import AgentMark from './AgentMark.vue'
+import { relativeTime, sessionSubtitle, useNow } from '@/lib/relativeTime'
 
 const props = defineProps<{
   sessions: Session[]
@@ -45,6 +46,7 @@ const openMenuName = ref('')
 let skipMenuCloseFocus = false
 const tree = props.treeView ? useTreeStore() : undefined
 const windowsStore = props.treeView ? useWindowsStore() : undefined
+const now = useNow()
 
 function windowsFor(name: string) { return windowsStore?.bySession[sessionKey('host', name)] }
 function isSessionHidden(name: string) { return tree?.order.hidden.sessions.includes(sessionKey('host', name)) ?? false }
@@ -160,7 +162,7 @@ const sortableSessions = computed({
 <template>
   <p
     v-if="props.sessions.length === 0"
-    class="text-muted"
+    class="px-1.5 py-0.5 text-xs text-muted"
   >
     No tmux sessions yet.
   </p>
@@ -190,9 +192,17 @@ const sortableSessions = computed({
       :data-tree-key="props.treeView ? 'session:' + s.name : undefined"
       :data-tree-kind="props.treeView ? 'session' : undefined"
       :data-tree-group="props.treeView ? props.groupKey : undefined"
-      class="flex flex-wrap items-center gap-0.5 rounded px-1"
-      :class="[s.name === props.selected ? 'bg-bg' : '', isHidden(s.name) ? 'opacity-50' : '']"
+      class="tree-row flex flex-wrap items-center gap-x-1.5 rounded-r border-l-2 py-0.5 pr-1 pl-1.5"
+      :class="[s.name === props.selected ? 'border-fg bg-tree-header' : 'border-transparent', isHidden(s.name) ? 'opacity-50' : '']"
     >
+      <span
+        role="img"
+        :aria-label="s.attached > 0 ? 'attached' : 'detached'"
+        :title="s.attached > 0 ? 'attached' : 'detached'"
+        data-session-dot
+        class="inline-block size-1.5 shrink-0 rounded-full"
+        :class="s.attached > 0 ? 'bg-ok' : 'bg-muted opacity-50'"
+      />
       <!-- Agent logos and status are display-only prefixes; the session's actual name stays unchanged. -->
       <AgentMark
         v-for="agent in visibleAgents(s)"
@@ -222,7 +232,7 @@ const sortableSessions = computed({
         :aria-label="s.name"
         :aria-current="s.name === props.selected ? 'true' : undefined"
         :tabindex="props.treeView ? -1 : undefined"
-        class="touch-target min-h-7 min-w-[8ch] flex-1 truncate text-left font-medium text-fg"
+        class="touch-target min-h-6 min-w-[8ch] flex-1 truncate text-left font-semibold text-fg"
         @pointerdown="startLongPress($event, s.name)"
         @pointermove="moveLongPress"
         @pointerup="finishLongPress"
@@ -234,12 +244,11 @@ const sortableSessions = computed({
         {{ s.name }}
       </button>
       <span
-        role="img"
-        :aria-label="s.attached > 0 ? 'attached' : 'detached'"
-        :title="s.attached > 0 ? 'attached' : 'detached'"
-        class="inline-block size-2 shrink-0 rounded-full"
-        :class="s.attached > 0 ? 'bg-ok' : 'border border-muted'"
-      />
+        v-if="relativeTime(s.activity, now)"
+        data-session-age
+        :title="'Last activity ' + new Date(s.activity).toLocaleString()"
+        class="shrink-0 text-xs text-muted tabular-nums"
+      >{{ relativeTime(s.activity, now) }}</span>
       <button
         v-if="canExpand(s)"
         type="button"
@@ -258,7 +267,7 @@ const sortableSessions = computed({
             :aria-label="`More actions for ${s.name}`"
             title="More"
             :tabindex="props.treeView ? -1 : undefined"
-            class="touch-target inline-flex min-h-7 min-w-6 items-center justify-center rounded text-muted hover:text-fg"
+            class="row-action touch-target inline-flex min-h-6 min-w-5 items-center justify-center rounded text-muted hover:text-fg"
           >
             ⋯
           </DropdownMenuTrigger>
@@ -314,13 +323,19 @@ const sortableSessions = computed({
       <button
         v-if="props.sortable"
         type="button"
-        class="session-drag-handle touch-target inline-flex min-h-7 min-w-5 shrink-0 items-center justify-center cursor-grab rounded text-muted"
+        class="row-action session-drag-handle touch-target inline-flex min-h-6 min-w-4 shrink-0 items-center justify-center cursor-grab rounded text-muted"
         :aria-label="`Drag to reorder session ${s.name}`"
         title="Drag to reorder sessions"
         :tabindex="props.treeView ? -1 : undefined"
       >
         ⠿
       </button>
+      <span
+        v-if="props.treeView && sessionSubtitle(s.title)"
+        data-session-subtitle
+        :title="sessionSubtitle(s.title)"
+        class="basis-full truncate pb-0.5 pl-3 text-xs text-muted"
+      >{{ sessionSubtitle(s.title) }}</span>
       <ul v-if="canExpand(s) && isExpanded(sessionKey('host', s.name))" role="group" class="ml-2 basis-[calc(100%-0.5rem)] border-l border-border py-0 pl-1.5">
         <li v-if="windowsFor(s.name)?.status === 'loading' || windowsFor(s.name)?.status === 'idle'" role="treeitem" :aria-level="(props.level ?? 1) + 1" aria-disabled="true" tabindex="-1" class="touch-target min-h-8 px-2 py-1 text-sm text-muted">
           <span class="animate-spin" aria-hidden="true">◌</span> Loading windows…

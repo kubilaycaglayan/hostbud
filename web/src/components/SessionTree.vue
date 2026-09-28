@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { VueDraggable } from 'vue-draggable-plus'
-import { ChevronRight, List } from 'lucide-vue-next'
+import { ChevronRight, Folder } from 'lucide-vue-next'
 import type { Project, Session } from '@/api/types'
 import { projectsApi, sessionsApi } from '@/api/client'
 import { useMachinesStore } from '@/stores/machines'
@@ -481,7 +481,7 @@ async function saveAsProject(session: Session) {
       ref="root"
       role="tree"
       aria-label="Projects and sessions"
-      class="flex flex-col gap-0.5 outline-none"
+      class="flex flex-col gap-1 outline-none"
       @focusin="focusIn"
       @keydown="onTreeKeydown"
     >
@@ -489,14 +489,14 @@ async function saveAsProject(session: Session) {
       {{ error.message }}
     </p>
     <section v-if="pinnedProjectRows.length" role="group" aria-label="Pinned projects">
-      <h3 class="px-2 py-0.5 text-xs font-semibold text-muted">Pinned</h3>
-      <VueDraggable v-model="pinnedProjectRows" tag="ul" role="group" aria-label="Pinned projects list" data-project-section="pinned" item-key="id" handle=".project-drag-handle" class="flex flex-col gap-0" :animation="150" :delay-on-touch-only="true" :touch-start-threshold="3" :group="{ name: 'project-sections', pull: true, put: true }" :on-move="canMoveProject">
+      <h3 class="px-1.5 pt-1 pb-0.5 text-[11px] font-semibold tracking-wider text-muted uppercase">Pinned</h3>
+      <VueDraggable v-model="pinnedProjectRows" tag="ul" role="group" aria-label="Pinned projects list" data-project-section="pinned" item-key="id" handle=".project-drag-handle" class="flex flex-col gap-1" :animation="150" :delay-on-touch-only="true" :touch-start-threshold="3" :group="{ name: 'project-sections', pull: true, put: true }" :on-move="canMoveProject">
         <ProjectTreeRow v-for="group in pinnedProjectRows" :key="group.id" :group="group" :selected="props.selected" :focused-key="activeFocusKey" :editing-key="editingKey" :edit-error="editError" :menu-open="projectMenuId === group.id" :hidden="tree.order.hidden.projects.includes(group.id)" :pinned="true" :collapsed="tree.order.collapsed.includes(group.id)" :home="home" :rename-project="renameProject" :rename-session="renameSession" @header-click="projectHeaderClick" @long-press-start="startProjectLongPress" @long-press-move="moveProjectLongPress" @long-press-end="endProjectLongPress" @menu-open="(open, id) => projectMenuId = open ? id : ''" @start-rename="startRename" @cancel-rename="cancelRename" @hide-project="hideProject" @remove-project="emit('removeProject', $event)" @toggle-pin="tree.unpinProject" @select="emit('select', $event)" @select-window="(name, window, pane) => emit('selectWindow', name, window, pane)" @split="(name, dir) => emit('split', name, dir)" @hide-session="hideSession" @kill="emit('kill', $event)" @session-in-project="emit('sessionInProject', $event)" @reorder-sessions="tree.reorderSessions" />
       </VueDraggable>
     </section>
     <section v-if="unpinnedProjectRows.length" role="group" aria-label="Projects">
-      <h3 v-if="pinnedProjectRows.length" class="px-2 py-0.5 text-xs font-semibold text-muted">Projects</h3>
-      <VueDraggable v-model="unpinnedProjectRows" tag="ul" role="group" aria-label="Projects list" data-project-section="unpinned" item-key="id" handle=".project-drag-handle" class="flex flex-col gap-0" :animation="150" :delay-on-touch-only="true" :touch-start-threshold="3" :group="{ name: 'project-sections', pull: true, put: true }" :on-move="canMoveProject">
+      <h3 v-if="pinnedProjectRows.length" class="px-1.5 pt-1 pb-0.5 text-[11px] font-semibold tracking-wider text-muted uppercase">Projects</h3>
+      <VueDraggable v-model="unpinnedProjectRows" tag="ul" role="group" aria-label="Projects list" data-project-section="unpinned" item-key="id" handle=".project-drag-handle" class="flex flex-col gap-1" :animation="150" :delay-on-touch-only="true" :touch-start-threshold="3" :group="{ name: 'project-sections', pull: true, put: true }" :on-move="canMoveProject">
         <ProjectTreeRow v-for="group in unpinnedProjectRows" :key="group.id" :group="group" :selected="props.selected" :focused-key="activeFocusKey" :editing-key="editingKey" :edit-error="editError" :menu-open="projectMenuId === group.id" :hidden="tree.order.hidden.projects.includes(group.id)" :pinned="false" :collapsed="tree.order.collapsed.includes(group.id)" :home="home" :rename-project="renameProject" :rename-session="renameSession" @header-click="projectHeaderClick" @long-press-start="startProjectLongPress" @long-press-move="moveProjectLongPress" @long-press-end="endProjectLongPress" @menu-open="(open, id) => projectMenuId = open ? id : ''" @start-rename="startRename" @cancel-rename="cancelRename" @hide-project="hideProject" @remove-project="emit('removeProject', $event)" @toggle-pin="tree.pinProject" @select="emit('select', $event)" @select-window="(name, window, pane) => emit('selectWindow', name, window, pane)" @split="(name, dir) => emit('split', name, dir)" @hide-session="hideSession" @kill="emit('kill', $event)" @session-in-project="emit('sessionInProject', $event)" @reorder-sessions="tree.reorderSessions" />
       </VueDraggable>
     </section>
@@ -509,24 +509,24 @@ async function saveAsProject(session: Session) {
       aria-label="Other sessions"
       data-tree-key="other"
       data-tree-kind="other"
-      class="rounded bg-tree-header px-1"
+      class="mt-2 rounded"
     >
-      <div class="flex min-h-9 items-center gap-0.5" @click="focusKey('other'); tree.toggleCollapsed('__other__')">
+      <div class="tree-row flex min-h-8 items-center gap-1.5 px-0.5" @click="focusKey('other'); tree.toggleCollapsed('__other__')">
         <button
           type="button"
-          class="touch-target inline-flex min-h-7 min-w-6 items-center justify-center rounded text-muted"
+          class="row-action touch-target inline-flex min-h-6 min-w-4 items-center justify-center rounded text-muted"
           :aria-label="(tree.order.collapsed.includes('__other__') ? 'Expand ' : 'Collapse ') + 'Other sessions'"
           :aria-expanded="!tree.order.collapsed.includes('__other__')"
           :title="(tree.order.collapsed.includes('__other__') ? 'Expand ' : 'Collapse ') + 'Other sessions'"
           tabindex="-1"
           @click.stop="tree.toggleCollapsed('__other__')"
         >
-          <ChevronRight :size="16" class="transition-transform" :class="!tree.order.collapsed.includes('__other__') ? 'rotate-90' : ''" aria-hidden="true" />
+          <ChevronRight :size="14" class="transition-transform" :class="!tree.order.collapsed.includes('__other__') ? 'rotate-90' : ''" aria-hidden="true" />
         </button>
-        <List :size="16" class="shrink-0 text-muted" aria-hidden="true" />
-        <span class="min-w-0 flex-1 truncate font-semibold">Other sessions</span>
+        <Folder :size="14" class="shrink-0 text-muted" aria-hidden="true" />
+        <span data-other-label class="min-w-0 flex-1 truncate text-[11px] font-semibold tracking-wider text-muted uppercase">Other sessions</span>
       </div>
-    <div v-if="!tree.order.collapsed.includes('__other__')" role="group" class="ml-2 border-l border-border py-0 pl-1.5">
+    <div v-if="!tree.order.collapsed.includes('__other__')" role="group" class="py-0">
         <SessionList
           :sessions="otherRows"
           :selected="props.selected"
