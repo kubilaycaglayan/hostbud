@@ -34,11 +34,11 @@ The v2 ROADMAP *Rules*, AGENTS.md and the V2-M1 milestone rules (fast checks per
 | Checkpoint | After | Runs | Status |
 |---|---|---|---|
 | CP1 | T1 | `make lint test`, `scripts/compose-config.sh`, e2e `tsc` | `make lint test`, Compose config, e2e `tsc` passed |
-| CP2 | T2–T4 | `make lint test` **three times in a row** (timers, retries, races, restart), e2e `tsc` | One `make lint test` pass; required repeated runs and missing scenarios pending |
+| CP2 | T2–T4 | `make lint test` **three times in a row** (timers, retries, races, restart), e2e `tsc` | Three consecutive `make lint test` passes; e2e `tsc` passed; scenario gaps remain |
 | CP3 | T5–T6 | `make lint test`, `vue-tsc`, e2e `tsc`, `make gitleaks`, docs check | lint/test, e2e `tsc`, gitleaks and docs check passed once |
 | CP4 | T7 | `make lint test`, e2e `tsc`, `make gitleaks`, `make deploy` (no `make e2e`: on demand only) | Pending |
 
-**Progress note:** V2-M4 acceptance was checked before starting; it is complete with owner checks and on-demand e2e still open. Current branch has the initial T1 provider commit plus the implementation described above. `make lint test` passed once; Compose config, e2e `tsc`, docs check and `make gitleaks` passed. CP2's three consecutive `make lint test` runs and the missing scenarios remain outstanding. The full e2e suite has not been run (on-demand only).
+**Progress note:** V2-M4 acceptance was checked before starting; it is complete with owner checks and on-demand e2e still open. Current branch has the provider and supervisor implementation commits. Three consecutive `make lint test` runs passed; Compose config, e2e `tsc`, docs check and `make gitleaks` passed. Missing scenario work remains. The full e2e suite has not been run (on-demand only).
 
 ---
 
