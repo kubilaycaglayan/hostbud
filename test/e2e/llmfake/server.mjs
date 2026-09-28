@@ -14,7 +14,8 @@ createServer(async(req,res)=>{
     if(req.method==='POST'&&url.pathname==='/v1/chat/completions') {
       const body=JSON.parse((await read(req)).toString()||'{}')
       const pane=body.messages?.find(m=>m.role==='user')?.content ?? ''
-      requests.push({at:Date.now(),pane})
+      const system=body.messages?.find(m=>m.role==='system')?.content ?? ''
+      requests.push({at:Date.now(),pane,system})
       if(script.delayMs) await new Promise(r=>setTimeout(r,script.delayMs))
       if(script.status!==200) return json(res,script.status,{error:'scripted provider error'})
       return json(res,200,{choices:[{message:{content:JSON.stringify({label:script.label,reason:script.reason})}}]})

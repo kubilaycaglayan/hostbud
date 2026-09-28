@@ -51,11 +51,11 @@ Written in T1–T5, first run in T7, on desktop and `iphone-13-pro`.
 - [x] (T2) Gated items not classified — written and type-checked; run pending
 - [x] (T2) Restart keeps budget and timer — written and type-checked; run pending
 - [x] (T3) Completed label never advances — written and type-checked; run pending
-- [ ] (T3) Completed races achieved
+- [x] (T3) Completed races achieved — written and type-checked; run pending
 - [ ] (T3) Run ends mid-classification
 - [x] (T3) Owner action during classification — skip race written and type-checked; run pending
 - [x] (T3) Provider errors — 503 exhaustion written and type-checked; run pending
-- [ ] (T3) Prompt injection
+- [x] (T3) Prompt injection — fixed system prompt and pane-as-user-data assertions written and type-checked; run pending
 - [x] (T4) Scrubbed before sending — written and type-checked; run pending
 - [x] (T4) Pane text not exposed — written and type-checked; run pending
 - [x] (T5) Flag badge (desktop and phone) — written and type-checked; run pending
