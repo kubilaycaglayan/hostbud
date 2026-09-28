@@ -35,6 +35,17 @@ func TestCheckDisabledAndInvalid(t *testing.T) {
 		t.Fatalf("%+v", status)
 	}
 }
+
+func TestStatusIncludesExplicitScrubSettingWhenDisabled(t *testing.T) {
+	got, err := json.Marshal(Status{Enabled: true, Provider: "openai", Model: "test", Scrub: false, QuietAfter: "20m", MaxPerRunHour: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(got), `"scrub":false`) {
+		t.Fatalf("status omitted explicit scrub setting: %s", got)
+	}
+}
+
 func TestOpenAIMalformedAnswerBecomesUnknown(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer marker-secret" {
