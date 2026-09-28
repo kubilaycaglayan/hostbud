@@ -390,7 +390,7 @@ WebSockets: `/ws/events` (server → client state events), `/ws/term` (interacti
 
 ## 10. v2 — agent task queue
 
-The v2 design and plan live in [roadmap-v2/ARCHITECTURE.md](roadmap-v2/ARCHITECTURE.md) and [roadmap-v2/ROADMAP.md](roadmap-v2/ROADMAP.md). V2-M1 (one sequential queue per installation: a queued item runs in its own interactive tmux session and the next starts only when the client's own `/goal` is recorded as achieved) is implemented in `internal/queue` and `internal/agents`. It replaces the earlier `tasks`/`machine_capacity` sketch that used to be here; per-machine capacity arrives with V2-M2.
+The v2 design and plan live in [roadmap-v2/ARCHITECTURE.md](roadmap-v2/ARCHITECTURE.md) and [roadmap-v2/ROADMAP.md](roadmap-v2/ROADMAP.md). V2-M1 (one sequential queue per installation: a queued item runs in its own interactive tmux session and the next starts only when the client's own `/goal` is recorded as achieved) is implemented in `internal/queue` and `internal/agents`. V2-M2 (opt-in, `HOSTBUD_PARALLEL_QUEUES`) adds several queues that run in parallel, each still sequential, and an optional per-machine cap on active runs with FIFO slots (`machine_capacity`, `queues.waiting_since`; roadmap-v2 ARCHITECTURE §5.5). This replaces the earlier `tasks`/`machine_capacity` sketch that used to be here.
 
 **v1 obligations that v2 builds on (still binding)**
 1. All state changes flow through the `events` bus (typed events), not direct UI pushes.
@@ -465,6 +465,9 @@ v2 (V2-M1) adds two optional settings: `HOSTBUD_RUN_STALE_AFTER` (2 h,
 stale and its queue pauses, and `HOSTBUD_HOOK_BASE_URL` (empty = Caddy's
 loopback site `http://127.0.0.1:${HOSTBUD_LOCAL_PORT}`), the `HOSTBUD_URL`
 a run session's hooks call. Both reach only the `hostbud` service.
+V2-M2 adds `HOSTBUD_PARALLEL_QUEUES` (`true` or `false`, default `false`, also
+only for `hostbud`): several queues and parallel runs. The per-machine run cap
+is not an env var; it is set in Settings (`PUT /api/machines/:id/capacity`).
 
 ---
 

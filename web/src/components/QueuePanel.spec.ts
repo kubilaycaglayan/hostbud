@@ -197,7 +197,7 @@ describe('QueuePanel', () => {
     const created = second({ items: [] })
     const calls = stubFetch(() => ({ status: 201, body: created }))
     await mountPanel(queue([queued], 'idle'), false, true)
-    const newButton = $$('button').find((b) => b.textContent?.trim() === 'New queue')!
+    const newButton = $$('button').find((b) => b.textContent?.trim() === 'New queue') as HTMLButtonElement
     expect(newButton.disabled).toBe(false)
     newButton.click()
     await flushPromises()
@@ -214,7 +214,7 @@ describe('QueuePanel', () => {
   it('with the switch off, shows what exists and explains the switch', async () => {
     await mountPanel([queue([queued], 'idle'), second({ status: 'idle' })], false, false)
     expect($$('nav[aria-label="Queues"] button')).toHaveLength(2)
-    const newButton = $$('button').find((b) => b.textContent?.trim() === 'New queue')!
+    const newButton = $$('button').find((b) => b.textContent?.trim() === 'New queue') as HTMLButtonElement
     expect(newButton.disabled).toBe(true)
     expect(newButton.title).toContain('HOSTBUD_PARALLEL_QUEUES=true')
     expect($$('[data-testid="parallel-off"]')[0].textContent).toContain('HOSTBUD_PARALLEL_QUEUES=true')

@@ -158,12 +158,20 @@ PostgreSQL is initialized as a fresh application database. The previous provisio
 
 A **queue** runs coding agents one after another in one project: each item starts in its own interactive tmux session, and the next item starts only when the agent's own `/goal` evaluator has recorded the goal as achieved. Open the **Queue** panel from the app bar (or the command palette: *Open queue panel*).
 
-- **Create the queue** for a saved project (V2-M1 supports one queue). All its items run in that project's directory.
+- **Create the queue** for a saved project. All its items run in that project's directory. By default there is one queue (V2-M1); see *Parallel queues* below for more.
 - **Add items**: pick the agent (`claude` for Claude Code, `codex` for Codex), optional flags (split like a shell command, e.g. `--dangerously-skip-permissions`, `--yolo`, `--model 'opus 4'`), and an instruction of the form `/goal <condition>`, for example `/goal work on milestone 2 per docs/roadmap/M2-tasks.md`. Queued items can be edited, deleted and reordered (drag, the arrow buttons, or Alt+↑/↓).
 - **Start**, **Pause** and **Resume** the queue. Pausing never touches the running session: the current run carries on (and is still tracked), and no new item starts.
-- Each run's session is named `<project>-q<position>` (`-1`, `-2`, … if taken). **Open session** shows it in a terminal tab; you can watch and type into it any time. hostbud never closes run sessions: close them yourself when you're done.
+- Each run's session is named `<project>-q<position>` (`-1`, `-2`, … if taken); with parallel queues, a project's later queues use `<project>-<queue>-q<position>`. **Open session** shows it in a terminal tab; you can watch and type into it any time. hostbud never closes run sessions: close them yourself when you're done.
 - **Needs attention** means the queue paused and needs you: the agent said the goal can't be achieved, the agent exited or its session was closed, the session was `/clear`ed or restarted, the goal state couldn't be read, or there was no hook for `HOSTBUD_RUN_STALE_AFTER` (2 h by default). The item shows the reason. Then **Retry** (a new run in a new session; the old one stays open), **Skip**, or **Mark done** (overrides the agent's verdict; asks first). The queue stays paused until you resume it.
 - Only a structured "goal achieved" record from the run's own session advances the queue; text such as "achieved" in the agent's output never does.
+
+### Parallel queues (opt-in)
+
+Set `HOSTBUD_PARALLEL_QUEUES=true` in `.env` and run `make deploy` to allow several queues that run at the same time. Each queue stays strictly sequential. Off (the default) keeps one queue; queues created while it was on stay listed, but only one runs at a time (starting another says which queue to pause first). Switching it off never stops a run.
+
+- **New queue** in the Queue panel creates another one (names are unique per project). The switcher shows every queue: buttons on a desktop, a select on the phone. **Rename** and **Delete queue** (asks first; refused while a run is active) act on the queue shown.
+- **Same directory**: when two running queues work in the same project directory, both show a warning, because their agents may edit the same files. hostbud doesn't block it.
+- **Run cap**: **Account → Settings** (or *Open settings* in the command palette) sets *Maximum parallel runs* for the machine, 1–32, empty for no cap (the default). When the cap is reached, the next item stays queued with "waiting for a free slot" and starts when a slot frees up. Slots go to queues in the order they started waiting (a queue whose run just ended goes to the back), so with a cap of 1 the queues take turns. A run that went stale keeps its slot until you act on it (Retry, Skip, Mark done); a failed or exited run frees it at once. Lowering the cap stops nothing; raising or clearing it starts waiting queues right away.
 
 Requirements on the host: Claude Code **2.1.283** or newer and/or Codex **0.157.1** or newer (on your login shell's `PATH`), and `curl`. hostbud installs nothing and changes no settings file: hooks are passed per run (`claude --settings`, `codex -c hooks.…`), and the run token reaches tmux through stdin, never a command line.
 

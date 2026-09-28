@@ -4,7 +4,7 @@ V2-M2 is done when every box is ticked. The exception is *Manual checks (owner)*
 
 Links: tasks in [V2-M2-tasks.md](V2-M2-tasks.md); criteria 1–8 and the owner check in [ROADMAP.md](ROADMAP.md#v2-m2--multiple-queues-and-parallel-runs-opt-in); design in [ARCHITECTURE.md](ARCHITECTURE.md).
 
-Each box is one roadmap criterion. Its coverage line names the task that writes each U/I/E test; sub-bullets are the details the tasks decided. The test rules are V2-M1's ([V2-M1-acceptance.md](V2-M1-acceptance.md)): stubs only, E items written per task and **first run in T7**. A box is ticked only when its U/I tests pass and its E scenario passed in T7.
+Each box is one roadmap criterion. Its coverage line names the task that writes each U/I/E test; sub-bullets are the details the tasks decided. The test rules are V2-M1's ([V2-M1-acceptance.md](V2-M1-acceptance.md)): stubs only, E items written per task and type-checked. `make e2e` runs **only on demand** (v2 ROADMAP *Rules*): a box is ticked when its U/I tests pass and its E scenarios are written; an E scenario counts as written until an on-demand run passes it, and the pending run is listed as open.
 
 ## Criteria
 
@@ -22,7 +22,7 @@ Each box is one roadmap criterion. Its coverage line names the task that writes 
   - `HOSTBUD_PARALLEL_QUEUES` defaults to `false`, is validated, and reaches only `hostbud`.
   - The one-queue rule and message are identical; the V2-M1 unit, integration and e2e tests run unchanged.
   - Queues left over from switch-on stay listed; starting one while another has an active run → 409 naming the switch. No run is cancelled.
-  - U: T2 · I: T2 (V2-M1 queue tests with the switch off, `deploytest`) · E: the V2-M1 suite on the switch-off app, run in T7.
+  - U: T2 · I: T2 (V2-M1 queue tests with the switch off, `deploytest`) · E: the V2-M1 suite on the switch-off app (unchanged), plus T2 *Switch off: a leftover queue waits for the active one*.
 - [ ] **4 Session names never collide; the first queue keeps the V2-M1 name.**
   - First queue (oldest) → `<project>-q<pos>`; others → `<project>-<queue>-q<pos>`; suffixes as in v1, with a bounded retry on a duplicate at creation.
   - U: T3 · I: T3 (concurrent creation on `test/sshd`) · E: T3 *Name collision*.
@@ -41,10 +41,11 @@ Each box is one roadmap criterion. Its coverage line names the task that writes 
 
 ## E2E scenarios
 
-Written in T2–T5, first run in T7, on desktop and `iphone-13-pro`.
+Written in T2–T5 and type-checked; run on demand (desktop and `iphone-13-pro`).
 
 - [ ] (T2) Two queues in parallel
 - [ ] (T2) Same-directory warning
+- [ ] (T2) Switch off: a leftover queue waits for the active one
 - [ ] (T3) Name collision
 - [ ] (T4) Cap of one
 - [ ] (T4) Slots in start order
