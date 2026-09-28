@@ -220,7 +220,7 @@ describe('SessionTree', () => {
     wrapper.unmount()
   })
 
-  it('commits a valid rename, preserves its saved position, and restores focus after the inventory event', async () => {
+  it('renames immediately and returns focus to the selected terminal cursor', async () => {
     fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
       if (String(url) === '/api/machines/host/sessions/one' && init?.method === 'PATCH') {
         return { ok: true, status: 200, headers: new Headers(), text: async () => JSON.stringify({ name: 'renamed' }) }
@@ -234,6 +234,9 @@ describe('SessionTree', () => {
     const input = wrapper.get('input[aria-label="Rename one"]')
     await input.setValue('renamed')
     await input.trigger('keydown.enter')
+    await nextTick()
+    expect(wrapper.find('[data-tree-key="session:renamed"]').exists()).toBe(true)
+    expect(wrapper.emitted('select')?.at(-1)).toEqual(['one'])
     await flushPromises()
     expect(fetchMock).toHaveBeenCalledWith('/api/machines/host/sessions/one', expect.objectContaining({ method: 'PATCH' }))
     expect(useTreeStore().order.sessions.a).toEqual(['renamed', 'two'])
@@ -243,8 +246,6 @@ describe('SessionTree', () => {
     })
     await flushPromises()
     await nextTick()
-    expect(wrapper.get('[data-tree-key="session:renamed"]').attributes('tabindex')).toBe('0')
-    expect((document.activeElement as HTMLElement).dataset.treeKey).toBe('session:renamed')
     wrapper.unmount()
   })
 

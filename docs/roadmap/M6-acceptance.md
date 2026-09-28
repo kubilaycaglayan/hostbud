@@ -104,7 +104,7 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 - [x] Session renames use the existing `PATCH /api/machines/:id/sessions/:name` and validate the name client-side with the server's rule (`^[A-Za-z0-9_-]{1,64}$`) before sending. A server error (taken name, invalid name, session gone) keeps the field open with the message inline, and the old name stays. On success, every open pane relabels without re-attaching (M3), the session link follows (M4), and its tree order, hidden and expanded keys move to the new name.
   - U: T4 validation messages; error keeps editing; `tree.renameSession` re-keys order/hidden/expanded (including window keys) in one change (Vitest).
   - I: M1's rename integration and M4 T3's link rename stay authoritative; n/a for new server behavior (none).
-  - E: T4 *Inline rename a session* (the target shows the new name, the open terminal's tmux client PID is unchanged, the row stays in place and stays hidden/expanded as before; a taken name shows the inline error).
+  - E: T4 *Inline rename a session* (the new name appears immediately on Enter, focus returns to the open terminal cursor without reattaching, the tmux client PID is unchanged, the row stays in place and stays hidden/expanded as before; a taken name shows the inline error).
 - [x] Project renames use the existing `PATCH /api/projects/:id` (`{name}`, trimmed, 1–255 bytes); other signed-in browsers update from the `projects.changed` event. Renaming a project never changes its path or its sessions' placement.
   - U: T4 trimming, byte-length validation, error display (Vitest).
   - I: M4 T3's project rename integration; n/a beyond it.

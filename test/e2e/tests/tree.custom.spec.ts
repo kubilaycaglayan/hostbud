@@ -270,6 +270,7 @@ test('(T4) Inline rename a session', async ({ page, ui, target }) => {
   await input.fill(nextName)
   await input.press('Enter')
   await expect(ui.treeItem(nextName)).toBeVisible()
+  await expect(page.locator('[data-focused="true"] .xterm-helper-textarea')).toBeFocused()
   await expect(ui.treeItem(nextName)).toHaveAttribute('aria-expanded', 'true')
   await expect(ui.treeItem(nextName).locator('[data-tree-key^="window:"]')).toHaveCount(2)
   await expect.poll(async () => (await ui.sessionNames()).indexOf(nextName)).toBe(oldIndex)

@@ -6,6 +6,7 @@ import type { Project, Session } from '@/api/types'
 import { projectsApi, sessionsApi } from '@/api/client'
 import { useMachinesStore } from '@/stores/machines'
 import { useProjectsStore } from '@/stores/projects'
+import { useSessionsStore } from '@/stores/sessions'
 import { useTreeStore } from '@/stores/tree'
 import { useWindowsStore } from '@/stores/windows'
 import { describeError } from '@/stores/toasts'
@@ -32,6 +33,7 @@ const tree = useTreeStore()
 const projects = useProjectsStore()
 const machines = useMachinesStore()
 const windows = useWindowsStore()
+const sessions = useSessionsStore()
 const layout = useLayoutStore()
 const root = ref<HTMLElement>()
 const showHiddenButton = ref<HTMLButtonElement>()
@@ -239,19 +241,28 @@ async function renameSession(from: string, raw: string) {
     expandedKeys: tree.order.expanded.filter((key) => key === renamedKeyPrefix || key.startsWith(renamedKeyPrefix + '/')),
   } : undefined
   layout.expectRename('host', from, to)
+  sessions.beginRename('host', from, to)
+  tree.renameSession('host', from, to, renameState)
+  if (windows.bySession[`host/${from}`]) {
+    windows.bySession[`host/${to}`] = windows.bySession[`host/${from}`]
+    delete windows.bySession[`host/${from}`]
+  }
+  editingKey.value = ''
+  editError.value = ''
+  emit('select', from)
   try {
     await sessionsApi.rename('host', from, to)
-    tree.renameSession('host', from, to, renameState)
-    if (windows.bySession[`host/${from}`]) {
-      windows.bySession[`host/${to}`] = windows.bySession[`host/${from}`]
-      delete windows.bySession[`host/${from}`]
-    }
+    sessions.finishRename('host', from, to, true)
     layout.renamed('host', from, to)
-    editingKey.value = ''
-    editError.value = ''
-    focusKey('session:' + to)
   } catch (e) {
+    sessions.finishRename('host', from, to, false)
+    tree.renameSession('host', to, from)
+    if (windows.bySession[`host/${to}`]) {
+      windows.bySession[`host/${from}`] = windows.bySession[`host/${to}`]
+      delete windows.bySession[`host/${to}`]
+    }
     layout.renameAbandoned('host', from)
+    editingKey.value = 'session:' + from
     editError.value = [describeError(e).message, describeError(e).hint].filter(Boolean).join(' ')
     throw e
   }
