@@ -28,17 +28,21 @@ export function applyRunChanged(queues: Queue[], change: RunChanged): Queue[] {
   })
 }
 
-/** The V2-M1 queue(s), kept current by /ws/events only (no polling). */
+/** The queues, kept current by /ws/events only (no polling). */
 export const useQueuesStore = defineStore('queues', () => {
   const queues = ref<Queue[]>([])
   const loaded = ref(false)
   const loadError = ref('')
+  /** HOSTBUD_PARALLEL_QUEUES (V2-M2): several queues, parallel runs. */
+  const parallelQueues = ref(false)
   let loading: Promise<void> | null = null
 
   async function load() {
     loading ??= (async () => {
       try {
-        queues.value = (await queuesApi.list()).queues
+        const list = await queuesApi.list()
+        queues.value = list.queues
+        parallelQueues.value = list.parallelQueues === true
         loaded.value = true
         loadError.value = ''
       } catch (e) {
@@ -74,7 +78,8 @@ export const useQueuesStore = defineStore('queues', () => {
     queues.value = []
     loaded.value = false
     loadError.value = ''
+    parallelQueues.value = false
   }
 
-  return { queues, loaded, loadError, load, apply, put, reset }
+  return { queues, loaded, loadError, parallelQueues, load, apply, put, reset }
 })

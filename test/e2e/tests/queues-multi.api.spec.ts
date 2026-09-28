@@ -4,7 +4,7 @@ import { addItem, control, createQueue, getQueue, itemOf, listQueues, newProject
 import { Stubs, type StubBehavior } from '../helpers/stubs.ts'
 import type { APIRequestContext } from '@playwright/test'
 import { shq, type Target } from '../helpers/target.ts'
-import { mutate } from '../helpers/api.ts'
+import { MULTI_URL, mutate } from '../helpers/api.ts'
 
 // V2-M2: several queues and parallel runs on hostbud-e2e-app-multi
 // (HOSTBUD_PARALLEL_QUEUES=true), with the stub clients on the shared
@@ -142,6 +142,35 @@ test.describe('parallel queues', () => {
   })
 })
 
+// V2-M2 T5: the capacity route (authenticated, Origin-checked, 1–32 or null).
+test.describe('run cap API', () => {
+  test('(V2-M2 T5) Capacity API', async ({ multi, playwright }) => {
+    const path = '/api/machines/host/capacity'
+    expect(await (await multi.get(path)).json()).toEqual({ maxConcurrentRuns: null })
+    for (const bad of [0, 33, 1.5, '2', true]) {
+      const res = await mutate(multi, 'PUT', path, { maxConcurrentRuns: bad })
+      expect(res.status(), `maxConcurrentRuns ${JSON.stringify(bad)}`).toBe(400)
+    }
+    expect((await mutate(multi, 'PUT', path, {})).status()).toBe(400)
+    const ok = await mutate(multi, 'PUT', path, { maxConcurrentRuns: 3 })
+    expect(ok.status()).toBe(200)
+    expect(await ok.json()).toEqual({ maxConcurrentRuns: 3 })
+    // A foreign Origin is refused and changes nothing.
+    expect((await mutate(multi, 'PUT', path, { maxConcurrentRuns: 1 }, 'http://evil.example.com')).status()).toBe(403)
+    expect(await (await multi.get(path)).json()).toEqual({ maxConcurrentRuns: 3 })
+    // Signed out: 401.
+    const anonymous = await playwright.request.newContext({ baseURL: MULTI_URL })
+    expect((await anonymous.get(path)).status()).toBe(401)
+    expect((await anonymous.fetch(path, { method: 'PUT', data: { maxConcurrentRuns: 1 }, headers: { Origin: MULTI_URL } })).status()).toBe(401)
+    await anonymous.dispose()
+    expect((await mutate(multi, 'PUT', '/api/machines/server-a/capacity', { maxConcurrentRuns: 2 })).status()).toBe(404)
+    const cleared = await mutate(multi, 'PUT', path, { maxConcurrentRuns: null })
+    expect(await cleared.json()).toEqual({ maxConcurrentRuns: null })
+    // GET /api/queues reports the switch.
+    expect((await (await multi.get('/api/queues')).json()).parallelQueues).toBe(true)
+  })
+})
+
 // Criterion 3 on the switch-off app (hostbud-e2e-app): a queue left over
 // from switch-on stays usable, one at a time.
 test.describe('parallel queues switched off', () => {
@@ -155,6 +184,7 @@ test.describe('parallel queues switched off', () => {
     await stubs.setBehavior('e2e off l1', 'achieve:1', 0.5)
     await addItem(request, leftoverId, { instruction: '/goal e2e off l1' })
     expect((await listQueues(request)).map((q) => q.name).sort()).toEqual(['Alpha', 'Leftover'])
+    expect((await (await request.get('/api/queues')).json()).parallelQueues).toBe(false)
 
     expect((await control(request, a.queue.id, 'start')).status()).toBe(200)
     const refused = await control(request, leftoverId, 'start')

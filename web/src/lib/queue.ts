@@ -1,6 +1,6 @@
 import type { QueueItem, QueueItemStatus, QueueStatus, RunStatus } from '@/api/types'
 
-// Pure rules for the V2-M1 Queue panel (mirrors internal/queue and
+// Pure rules for the Queue panel (V2-M1, V2-M2) (mirrors internal/queue and
 // internal/agents: the server enforces the same ones).
 
 export const AGENTS = ['claude', 'codex'] as const
@@ -87,10 +87,26 @@ const RUN_LABELS: Record<RunStatus, string> = {
   cancelled: 'cancelled',
 }
 
-/** The item's status badge text: its status and, if any, its run's. */
+/** The item's status badge text: its status and, if any, its run's; a
+ * queued head item waiting for a run slot says so (V2-M2). */
 export function statusLabel(item: QueueItem): string {
   const label = ITEM_LABELS[item.status] ?? item.status
+  if (item.status === 'queued' && item.waitingForSlot) return `${label} · waiting for a free slot`
   return item.run ? `${label} · ${RUN_LABELS[item.run.status] ?? item.run.status}` : label
+}
+
+/** The cap input's problem, or '' for a whole number 1–32 or empty (no cap). */
+export function capacityError(text: string): string {
+  const value = text.trim()
+  if (!value) return ''
+  if (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 32) return 'Enter a whole number from 1 to 32, or leave it empty for no cap.'
+  return ''
+}
+
+/** The cap input as the API wants it: null for empty (no cap). */
+export function capacityValue(text: string): number | null {
+  const value = text.trim()
+  return value ? Number(value) : null
 }
 
 /** The positions after moving the queued item `id` by `delta` among the

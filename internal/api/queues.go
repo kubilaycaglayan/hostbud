@@ -2,8 +2,11 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"hostbud/internal/queue"
 	"hostbud/internal/store"
@@ -24,6 +27,9 @@ type QueueService interface {
 	Pause(ctx context.Context, id string) (queue.View, error)
 	Resume(ctx context.Context, id string) (queue.View, error)
 	Override(ctx context.Context, itemID, action string) (queue.View, error)
+	ParallelQueues() bool
+	Capacity(ctx context.Context) (*int, error)
+	SetCapacity(ctx context.Context, maxRuns *int) (*int, error)
 }
 
 func mountQueueRoutes(s *server, addFunc func(string, http.HandlerFunc)) {
@@ -42,6 +48,9 @@ func mountQueueRoutes(s *server, addFunc func(string, http.HandlerFunc)) {
 	for _, action := range []string{queue.ActionRetry, queue.ActionSkip, queue.ActionMarkDone} {
 		addFunc("POST /api/queue-items/{id}/"+action, s.queueOverride(action))
 	}
+	// V2-M2: the per-machine cap on active runs (Settings).
+	addFunc("GET /api/machines/{machine}/capacity", s.getCapacity)
+	addFunc("PUT /api/machines/{machine}/capacity", s.putCapacity)
 }
 
 func (s *server) queueError(w http.ResponseWriter, err error) {
@@ -65,7 +74,71 @@ func (s *server) listQueues(w http.ResponseWriter, r *http.Request) {
 		s.queueError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string][]queue.View{"queues": queues})
+	writeJSON(w, http.StatusOK, queueList{Queues: queues, ParallelQueues: s.cfg.Queues.ParallelQueues()})
+}
+
+// queueList is GET /api/queues: the queues and the V2-M2 switch.
+type queueList struct {
+	Queues         []queue.View `json:"queues"`
+	ParallelQueues bool         `json:"parallelQueues"`
+}
+
+// capacityBody is the capacity route's body: a whole number 1–32, or null
+// for no cap.
+type capacityBody struct {
+	MaxConcurrentRuns *int `json:"maxConcurrentRuns"`
+}
+
+func (s *server) capacityMachine(w http.ResponseWriter, r *http.Request) bool {
+	if r.PathValue("machine") != store.HostMachineID {
+		writeError(w, http.StatusNotFound, "unknown machine", "Reload hostbud.")
+		return false
+	}
+	return true
+}
+
+func (s *server) getCapacity(w http.ResponseWriter, r *http.Request) {
+	if !s.capacityMachine(w, r) {
+		return
+	}
+	c, err := s.cfg.Queues.Capacity(r.Context())
+	if err != nil {
+		s.queueError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, capacityBody{MaxConcurrentRuns: c})
+}
+
+func (s *server) putCapacity(w http.ResponseWriter, r *http.Request) {
+	if !s.capacityMachine(w, r) {
+		return
+	}
+	var req struct {
+		MaxConcurrentRuns json.RawMessage `json:"maxConcurrentRuns"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	var limit *int
+	switch raw := strings.TrimSpace(string(req.MaxConcurrentRuns)); raw {
+	case "":
+		writeError(w, http.StatusBadRequest, "maxConcurrentRuns is required", "Send a whole number from 1 to 32, or null for no cap.")
+		return
+	case "null":
+	default:
+		n, err := strconv.Atoi(raw)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "maxConcurrentRuns must be a whole number from 1 to 32, or null", "Leave it empty for no cap.")
+			return
+		}
+		limit = &n
+	}
+	c, err := s.cfg.Queues.SetCapacity(r.Context(), limit)
+	if err != nil {
+		s.queueError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, capacityBody{MaxConcurrentRuns: c})
 }
 
 func (s *server) getQueue(w http.ResponseWriter, r *http.Request) {

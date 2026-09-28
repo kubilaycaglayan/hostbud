@@ -339,9 +339,9 @@ GET    /api/projects/:id/recent-commands — the project's recent start-command 
 GET|PUT /api/ui-state/:key            the account's JSON (GET 404 before the first PUT; PUT 204)
 GET    /api/health
 
-# v2 agent queue (V2-M1; docs/roadmap-v2)
-GET    /api/queues                    {queues: [queue]} — each queue with its project and items, each item with its latest run summary
-POST   /api/queues                    {projectId, name} — 201; V2-M1 allows one queue (a second → 409 naming V2-M2)
+# v2 agent queue (V2-M1, V2-M2; docs/roadmap-v2)
+GET    /api/queues                    {queues: [queue], parallelQueues} — each queue with its project, items (each with its latest run summary and, V2-M2, waitingForSlot) and warnings (shared_directory)
+POST   /api/queues                    {projectId, name} — 201; with HOSTBUD_PARALLEL_QUEUES off one queue (a second → 409 naming V2-M2), on: several, names unique per project (409)
 GET    /api/queues/:id
 PATCH  /api/queues/:id                {name}
 DELETE /api/queues/:id                204; refused (409) while a run is active; run sessions stay open
@@ -349,7 +349,8 @@ POST   /api/queues/:id/items          {agent, flags, instruction} — appended; 
 PATCH  /api/queue-items/:id           any subset of {agent, flags, instruction}; queued items only (409 otherwise)
 DELETE /api/queue-items/:id           queued items only
 PUT    /api/queues/:id/order          {itemIds} — exactly the queued items, in their new order
-POST   /api/queues/:id/start|pause|resume        an invalid transition → 409 naming the current state
+POST   /api/queues/:id/start|pause|resume        an invalid transition → 409 naming the current state; switch off: 409 while another queue is active; the response carries warnings
+GET|PUT /api/machines/:id/capacity    {maxConcurrentRuns: 1–32 | null} — the per-machine cap on active runs (V2-M2; PUT out of range or not a whole number → 400; publishes queue.changed)
 POST   /api/queue-items/:id/retry|skip|mark-done needs_attention items only (409 otherwise); an active run is cancelled first
 POST   /api/hooks/:run_id/:event      token-authenticated run hook (session_start|turn_end|session_end): 204/401/404/410/429/413/400
 

@@ -14,7 +14,7 @@ Update this table in the same commit that finishes a task.
 | T2 Several queues and the switch | Done |
 | T3 Session naming | Done |
 | T4 Dispatcher with slots | Done |
-| T5 API and panel | Not started |
+| T5 API and panel | Done |
 | T6 Docs | Not started |
 | T7 Milestone acceptance | Not started |
 | T8 Safe Docker cleanup | Not started |
@@ -42,6 +42,7 @@ The v2 ROADMAP *Rules*, AGENTS.md and the V2-M1 milestone rules (fast checks per
 - **T3** (2026-09-28): `RunSessionName(project, queue, pos)`: the project's oldest queue (by `created_at, id`; queue ids are random, so "smallest id" means the oldest row) keeps `<project>-q<pos>`, others get `<project>-<queue>-q<pos>`; the session service's bounded duplicate retry covers simultaneous creation. v2 §5.1 updated. e2e *Name collision* (with a leftover session and a rename).
 - **CP1** (2026-09-28): `make lint test` green (includes `compose-config.sh` and the e2e `tsc`).
 - **T4** (2026-09-28): `dispatch` on the dispatcher goroutine hands out slots FIFO by `waiting_since` (a queue whose run ended goes behind everyone in line, even at an equal timestamp); `store.CreateRunInSlot` re-checks the cap under a per-machine advisory lock; `failed`/`exited`/cancelled runs free their slot at once, stale ones hold it; cap changes go through `Service.SetCapacity` → `CapacityChanged`; `waitingForSlot` is derived in the view and published on change; with the switch off the V2-M1 `advance` path runs unchanged. v2 §5.5/§6 added. e2e `queue-slots.api.spec.ts`: *Cap of one*, *Slots in start order*, *Stale holds a slot*, *Cap after restart* (the cap is seeded in the multi database until T5's API).
+- **T5** (2026-09-28): `GET`/`PUT /api/machines/{machine}/capacity` (`{machine}` like the other machine routes; 1–32 or null, anything else 400, another machine 404; publishes `queue.changed` for every queue), `GET /api/queues` adds `parallelQueues`; `routes.json` and v1 ARCHITECTURE §9 list the route. Panel: a switcher (a `nav` of buttons on desktop, not a list, so the V2-M1 specs' `listitem` rows stay the items; a select on the phone), New queue (disabled with the switch explained when off), Rename, confirmed Delete of the shown queue, the warning banner, "Queued · waiting for a free slot". There was no Settings screen: a new Settings dialog (Account menu and the palette's "Open settings") holds the cap. e2e: *Queues panel* in `queues.spec.ts` and `queues.phone.spec.ts` (multi app; the page fixture resets the multi database), *Capacity API* in `queues-multi.api.spec.ts`.
 - **CP2** (2026-09-28): `make lint test` green three times in a row (a first try failed only on gosec's weak-random warning in a test; fixed with deterministic picks).
 
 ---

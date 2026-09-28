@@ -12,6 +12,7 @@ import CommandPalette from '@/components/CommandPalette.vue'
 import RemoveProjectDialog from '@/components/RemoveProjectDialog.vue'
 import KillSessionDialog from '@/components/KillSessionDialog.vue'
 import QueuePanel from '@/components/QueuePanel.vue'
+import SettingsDialog from '@/components/SettingsDialog.vue'
 import HostBanner from '@/components/HostBanner.vue'
 import TabBar from '@/components/TabBar.vue'
 import TabView from '@/components/TabView.vue'
@@ -57,6 +58,7 @@ const host = computed(() => machines.byId(MACHINE))
 const creating = ref(false)
 const browsing = ref(false)
 const queueOpen = ref(false) // V2-M1 Queue panel
+const settingsOpen = ref(false) // V2-M2 Settings (the run cap)
 const sessionProject = ref<Project | null>(null) // the project a New session here dialog is for
 const killing = ref(false)
 const drawerOpen = ref(false)
@@ -191,6 +193,12 @@ function openQueue() {
   queueOpen.value = true
 }
 
+function openSettings() {
+  drawerOpen.value = false
+  accountOpen.value = false
+  settingsOpen.value = true
+}
+
 /** "Open session" in the Queue panel: the run's session in a tab (on a
  * phone, the single-terminal view). */
 function openQueueSession(name: string) {
@@ -314,7 +322,7 @@ function selectPaletteItem(id: string) {
   paletteActionSplitDir = splitDir
   const actionId = id.slice('action:'.length)
   dispatchPaletteAction(actionId, paletteActionHandlers)
-  const opensUi = ['new-session', 'browse-files', 'queue', 'shortcuts', 'sign-out', 'close-tab', 'next-tab', 'previous-tab'].includes(actionId)
+  const opensUi = ['new-session', 'browse-files', 'queue', 'settings', 'shortcuts', 'sign-out', 'close-tab', 'next-tab', 'previous-tab'].includes(actionId)
     || actionId.startsWith('new-project-session:')
     || actionId.startsWith('rename-project:')
     || actionId.startsWith('rename-session:')
@@ -326,6 +334,7 @@ function selectPaletteItem(id: string) {
 
 const paletteActionHandlers = {
   queue: openQueue,
+  settings: openSettings,
   newSession: () => {
     if (paletteActionSplitDir && layout.focused) {
       splitTarget.value = { pane: layout.focused.id, dir: paletteActionSplitDir }
@@ -578,6 +587,7 @@ onUnmounted(() => {
                 {{ choice.label }}
               </label>
             </fieldset>
+            <button type="button" class="min-h-11 w-full rounded px-2 text-left" @click="openSettings">Settings</button>
             <button type="button" class="min-h-11 w-full rounded px-2 text-left" @click="auth.logout()">Sign out</button>
           </div>
         </details>
@@ -691,6 +701,7 @@ onUnmounted(() => {
       :compact="compact"
       @open-session="openQueueSession"
     />
+    <SettingsDialog v-model:open="settingsOpen" :compact="compact" :machine="MACHINE" />
     <ShortcutsDialog :open="shortcutsOpen" @update:open="closeShortcuts" />
     <RemoveProjectDialog :project="removingProject" :session-count="removePreview.count" :destinations="removePreview.destinations" :display-path="removingProjectPath" @cancel="removingProject = null" @removed="onProjectRemoved" />
     <CommandPalette

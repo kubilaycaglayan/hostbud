@@ -87,6 +87,7 @@ func TestRouteInventoryMatchesRouter(t *testing.T) {
 		"POST /api/projects/{id}/sessions": true,
 		"POST /api/queues":                 true, "PATCH /api/queues/{id}": true, "POST /api/queues/{id}/items": true,
 		"PUT /api/queues/{id}/order": true, "PATCH /api/queue-items/{id}": true,
+		"PUT /api/machines/{machine}/capacity": true,
 	}
 	for _, route := range routes {
 		key := route.Method + " " + route.Path

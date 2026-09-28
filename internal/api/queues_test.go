@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -17,10 +19,12 @@ import (
 
 // fakeQueues records calls and returns a scripted error.
 type fakeQueues struct {
-	calls []string
-	err   error
-	upd   store.QueueItemUpdate
-	order []string
+	calls    []string
+	err      error
+	upd      store.QueueItemUpdate
+	order    []string
+	parallel bool
+	capacity *int
 }
 
 func (f *fakeQueues) rec(call string) { f.calls = append(f.calls, call) }
@@ -75,6 +79,24 @@ func (f *fakeQueues) Resume(_ context.Context, id string) (queue.View, error) {
 func (f *fakeQueues) Override(_ context.Context, id, action string) (queue.View, error) {
 	f.rec(action + " " + id)
 	return queue.View{}, f.err
+}
+
+func (f *fakeQueues) ParallelQueues() bool { return f.parallel }
+func (f *fakeQueues) Capacity(context.Context) (*int, error) {
+	f.rec("capacity")
+	return f.capacity, f.err
+}
+func (f *fakeQueues) SetCapacity(_ context.Context, maxRuns *int) (*int, error) {
+	if maxRuns == nil {
+		f.rec("set-capacity null")
+	} else {
+		f.rec(fmt.Sprintf("set-capacity %d", *maxRuns))
+		if *maxRuns < store.MinConcurrentRuns || *maxRuns > store.MaxConcurrentRuns {
+			return nil, &queue.Error{Status: http.StatusBadRequest, Message: store.ErrCapacityRange.Error()}
+		}
+	}
+	f.capacity = maxRuns
+	return maxRuns, f.err
 }
 
 func queueEnv(t *testing.T, q *fakeQueues) http.Handler {
@@ -165,5 +187,59 @@ func TestQueueRoutesMapErrorsAndRefuseForeignOrigins(t *testing.T) {
 	}
 	if rec := queueRequest(t, h, "POST", "/api/queues", `{"projectId":"p","bogus":1}`, nil); rec.Code != http.StatusBadRequest {
 		t.Fatalf("unknown field: %d", rec.Code)
+	}
+}
+
+// V2-M2 T5: the capacity route validates its body, answers 404 for another
+// machine, and GET /api/queues reports the parallel-queues switch.
+func TestCapacityRouteAndParallelFlag(t *testing.T) {
+	q := &fakeQueues{parallel: true}
+	h := queueEnv(t, q)
+	for _, c := range []struct {
+		method, path, body string
+		status             int
+		call               string
+		response           string
+	}{
+		{"GET", "/api/machines/host/capacity", "", 200, "capacity", `{"maxConcurrentRuns":null}`},
+		{"PUT", "/api/machines/host/capacity", `{"maxConcurrentRuns":2}`, 200, "set-capacity 2", `{"maxConcurrentRuns":2}`},
+		{"GET", "/api/machines/host/capacity", "", 200, "capacity", `{"maxConcurrentRuns":2}`},
+		{"PUT", "/api/machines/host/capacity", `{"maxConcurrentRuns":null}`, 200, "set-capacity null", `{"maxConcurrentRuns":null}`},
+		{"PUT", "/api/machines/host/capacity", `{"maxConcurrentRuns":0}`, 400, "set-capacity 0", ""},
+		{"PUT", "/api/machines/host/capacity", `{"maxConcurrentRuns":33}`, 400, "set-capacity 33", ""},
+		{"PUT", "/api/machines/host/capacity", `{"maxConcurrentRuns":1.5}`, 400, "", ""},
+		{"PUT", "/api/machines/host/capacity", `{"maxConcurrentRuns":"2"}`, 400, "", ""},
+		{"PUT", "/api/machines/host/capacity", `{"maxConcurrentRuns":true}`, 400, "", ""},
+		{"PUT", "/api/machines/host/capacity", `{}`, 400, "", ""},
+		{"PUT", "/api/machines/host/capacity", `{"maxConcurrentRuns":2,"extra":1}`, 400, "", ""},
+		{"PUT", "/api/machines/server-a/capacity", `{"maxConcurrentRuns":2}`, 404, "", ""},
+		{"GET", "/api/machines/server-a/capacity", "", 404, "", ""},
+	} {
+		q.calls = nil
+		rec := queueRequest(t, h, c.method, c.path, c.body, nil)
+		wantCalls := 0
+		if c.call != "" {
+			wantCalls = 1
+		}
+		if rec.Code != c.status || len(q.calls) != wantCalls || (wantCalls == 1 && q.calls[0] != c.call) {
+			t.Errorf("%s %s %s: %d %s, calls %v", c.method, c.path, c.body, rec.Code, rec.Body, q.calls)
+		}
+		if c.response != "" && strings.TrimSpace(rec.Body.String()) != c.response {
+			t.Errorf("%s %s %s: body %s, want %s", c.method, c.path, c.body, rec.Body, c.response)
+		}
+	}
+	rec := queueRequest(t, h, "GET", "/api/queues", "", nil)
+	var list struct {
+		Queues         []map[string]any `json:"queues"`
+		ParallelQueues *bool            `json:"parallelQueues"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil || list.ParallelQueues == nil || !*list.ParallelQueues || len(list.Queues) != 1 {
+		t.Fatalf("GET /api/queues: %s, %v", rec.Body, err)
+	}
+	// A bad Origin never reaches the service.
+	q.calls = nil
+	rec = queueRequest(t, h, "PUT", "/api/machines/host/capacity", `{"maxConcurrentRuns":2}`, map[string]string{"Origin": "http://evil.example.com"})
+	if rec.Code != http.StatusForbidden || len(q.calls) != 0 {
+		t.Fatalf("bad origin: %d, calls %v", rec.Code, q.calls)
 	}
 }

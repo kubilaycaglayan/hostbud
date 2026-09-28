@@ -2,7 +2,8 @@ import { test as base, expect, type Page } from '@playwright/test'
 import { Target } from './target.ts'
 import { UI } from './ui.ts'
 import { appRestarts } from './ctl.ts'
-import { queues } from './db.ts'
+import { multiDb, queues } from './db.ts'
+import { MULTI_URL } from './api.ts'
 
 interface Fixtures {
   target: Target
@@ -34,8 +35,10 @@ async function resetAccountState(page: Page, baseURL: string | undefined): Promi
   if (response.status() === 401) return
   if (!response.ok()) throw new Error(`reset e2e projects: ${response.status()} ${await response.text()}`)
   const { projects } = await response.json() as { projects: { id: string }[] | null }
-  // V2-M1: a project with a queue can't be deleted; queues go first.
-  await queues.deleteAll()
+  // V2-M1: a project with a queue can't be deleted; queues go first. The
+  // V2-M2 multi app has its own database (and its cap goes too).
+  if (new URL(baseURL!).origin === MULTI_URL) await multiDb.reset()
+  else await queues.deleteAll()
   for (const project of projects ?? []) {
     const deleted = await page.request.delete(`/api/projects/${encodeURIComponent(project.id)}`, { headers })
     if (!deleted.ok()) throw new Error(`reset e2e project ${project.id}: ${deleted.status()} ${await deleted.text()}`)

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { QueueItem } from '@/api/types'
-import { flagsError, instructionError, itemActions, moveQueued, queueControls, statusLabel } from './queue'
+import { capacityError, capacityValue, flagsError, instructionError, itemActions, moveQueued, queueControls, statusLabel } from './queue'
 
 const item = (id: string, status: QueueItem['status'], run?: Partial<QueueItem['run']>): QueueItem => ({
   id, queueId: 'q', position: 1, agent: 'claude', flags: '', instruction: '/goal x', status,
@@ -52,5 +52,21 @@ describe('button availability per status', () => {
     expect(moveQueued(items, 'a', -1)).toBeNull()
     expect(moveQueued(items, 'c', 1)).toBeNull()
     expect(moveQueued(items, 'd', 1)).toBeNull()
+  })
+})
+
+describe('V2-M2 queue rules', () => {
+  it('labels a queued item waiting for a run slot', () => {
+    const item = { id: 'i', queueId: 'q', position: 1, agent: 'claude' as const, flags: '', instruction: '/goal x', status: 'queued' as const }
+    expect(statusLabel(item)).toBe('Queued')
+    expect(statusLabel({ ...item, waitingForSlot: true })).toBe('Queued · waiting for a free slot')
+    expect(statusLabel({ ...item, status: 'running', waitingForSlot: true, run: { id: 'r', status: 'running', sessionName: 's', startedAt: '' } })).toBe('Running · running')
+  })
+
+  it('validates the cap: whole numbers 1–32, empty = no cap', () => {
+    for (const ok of ['', '  ', '1', '32', ' 7 ']) expect(capacityError(ok), ok).toBe('')
+    for (const bad of ['0', '33', '1.5', '-2', 'x', '1e1']) expect(capacityError(bad), bad).not.toBe('')
+    expect(capacityValue('')).toBeNull()
+    expect(capacityValue(' 4 ')).toBe(4)
   })
 })

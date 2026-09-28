@@ -61,7 +61,7 @@ export interface Project {
   updatedAt: string
 }
 
-// V2-M1 queue (internal/queue, internal/store).
+// v2 queue (internal/queue, internal/store; V2-M1 and V2-M2).
 export type QueueStatus = 'idle' | 'running' | 'paused' | 'finished'
 export type QueueItemStatus = 'queued' | 'running' | 'done' | 'needs_attention' | 'skipped'
 export type RunStatus = 'starting' | 'running' | 'achieved' | 'failed' | 'exited' | 'stale' | 'cancelled'
@@ -85,6 +85,15 @@ export interface QueueItem {
   instruction: string
   status: QueueItemStatus
   run?: RunSummary
+  /** V2-M2: the head item of a running queue while the machine's cap is reached. */
+  waitingForSlot?: boolean
+}
+
+/** V2-M2: a non-blocking notice on a queue. */
+export interface QueueWarning {
+  code: 'shared_directory'
+  message: string
+  queues: { id: string; name: string; projectName: string }[]
 }
 
 export interface Queue {
@@ -95,6 +104,19 @@ export interface Queue {
   projectName: string
   projectPath: string
   items: QueueItem[]
+  warnings?: QueueWarning[]
+}
+
+/** GET /api/queues. */
+export interface QueueList {
+  queues: Queue[]
+  /** HOSTBUD_PARALLEL_QUEUES (V2-M2). */
+  parallelQueues: boolean
+}
+
+/** GET|PUT /api/machines/:id/capacity (V2-M2): null = no cap. */
+export interface Capacity {
+  maxConcurrentRuns: number | null
 }
 
 export interface QueueChanged {

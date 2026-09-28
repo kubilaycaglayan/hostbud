@@ -23,10 +23,11 @@ afterEach(() => {
 const $$ = (sel: string) => [...document.body.querySelectorAll<HTMLElement>(sel)]
 const button = (label: string) => $$('button').find((b) => b.getAttribute('aria-label') === label || b.textContent?.trim() === label)
 
-async function mountPanel(q: Queue | null, compact = false) {
+async function mountPanel(q: Queue | Queue[] | null, compact = false, parallel = false) {
   const store = useQueuesStore()
   store.loaded = true
-  store.queues = q ? [q] : []
+  store.queues = q === null ? [] : Array.isArray(q) ? q : [q]
+  store.parallelQueues = parallel
   useProjectsStore().items = [{ id: 'p1', machineId: 'host', path: '/home/dev/app', name: 'app', sortOrder: 0, pinned: false, createdAt: '', updatedAt: '' }]
   const w = mount(QueuePanel, { props: { open: true, compact }, attachTo: document.body })
   await flushPromises()
@@ -88,7 +89,9 @@ describe('QueuePanel', () => {
   it('validates the instruction before sending, prefilled with "/goal "', async () => {
     const calls = stubFetch(() => ({ status: 201, body: {} }))
     await mountPanel(queue([], 'idle'))
-    const instruction = $$('form[aria-label="Add item"] input').find((i) => (i as HTMLInputElement).value === '/goal ') as HTMLInputElement
+    const instruction = $$('form[aria-label="Add item"] textarea')[0] as HTMLTextAreaElement
+    expect(instruction.value).toBe('/goal ')
+    expect(instruction.className).toContain('resize-y')
     expect(instruction).toBeTruthy()
     button('Add item')!.click()
     await flushPromises()
@@ -134,11 +137,141 @@ describe('QueuePanel', () => {
     expect(w.emitted('update:open')).toEqual([[false]])
   })
 
-  it('is a full-screen sheet on the phone, without drag handles', async () => {
+  it('uses compact actions and resizable instruction areas on desktop', async () => {
+    await mountPanel(queue([queued]))
+    const up = button('Move item 2 up')!
+    expect(up.className).toContain('min-h-8')
+    expect(up.className).toContain('min-w-8')
+    expect(button('Edit item 2')!.querySelector('svg')).toBeTruthy()
+    expect(button('Delete item 2')!.querySelector('svg')).toBeTruthy()
+    const form = $$('form[aria-label="Add item"]')[0]
+    expect(form.querySelector('div.flex.justify-end')).toBeTruthy()
+    expect(form.querySelector('textarea')?.className).toContain('resize-y')
+    button('Edit item 2')!.click()
+    await flushPromises()
+    const edit = $$('form[aria-label="Edit item 2"]')[0]
+    expect(edit.querySelector('textarea')?.className).toContain('resize-y')
+  })
+
+  it('is a full-screen sheet on the phone, without drag handles and with phone-sized actions', async () => {
     await mountPanel(queue([attention, queued]), true)
     const dialog = $$('[role="dialog"]')[0]
     expect(dialog.className).toContain('inset-0')
     expect($$('.queue-drag-handle')).toHaveLength(0)
-    expect(button('Move item 2 up')!.className).toContain('min-h-11')
+    expect(button('Move item 2 up')!.className).toContain('touch-target')
+    expect(button('Move item 2 up')!.className).toContain('min-h-8')
+  })
+
+  // ---- V2-M2 ----
+
+  const second = (over: Partial<Queue> = {}): Queue => ({
+    ...queue([{ ...queued, id: 'j1', queueId: 'q2', position: 1, instruction: '/goal docs' }], 'running'),
+    id: 'q2', name: 'Docs', ...over,
+  })
+
+  it('switches between queues: buttons on desktop, a select on the phone', async () => {
+    await mountPanel([queue([attention, queued]), second()], false, true)
+    expect($$('nav[aria-label="Queues"] button').map((b) => b.getAttribute('aria-label'))).toEqual(['Show queue Milestones', 'Show queue Docs'])
+    // The switcher isn't a list: the items are (e2e selects rows by listitem).
+    expect($$('nav[aria-label="Queues"] li')).toHaveLength(0)
+    expect(button('Show queue Milestones')!.getAttribute('aria-current')).toBe('true')
+    expect(document.body.textContent).toContain('/goal m1')
+    button('Show queue Docs')!.click()
+    await flushPromises()
+    expect(button('Show queue Docs')!.getAttribute('aria-current')).toBe('true')
+    expect(document.body.textContent).toContain('/goal docs')
+    expect(document.body.textContent).not.toContain('/goal m1')
+    document.body.innerHTML = ''
+    setActivePinia(createPinia())
+    await mountPanel([queue([attention, queued]), second()], true, true)
+    expect($$('nav[aria-label="Queues"]')).toHaveLength(0)
+    const select = $$('select').find((el) => el.closest('label')?.textContent?.trim().startsWith('Queue')) as HTMLSelectElement
+    expect([...select.options].map((o) => o.value)).toEqual(['q1', 'q2'])
+    select.value = 'q2'
+    select.dispatchEvent(new Event('change'))
+    await flushPromises()
+    expect(document.body.textContent).toContain('/goal docs')
+  })
+
+  it('creates another queue with the switch on and selects it', async () => {
+    const created = second({ items: [] })
+    const calls = stubFetch(() => ({ status: 201, body: created }))
+    await mountPanel(queue([queued], 'idle'), false, true)
+    const newButton = $$('button').find((b) => b.textContent?.trim() === 'New queue')!
+    expect(newButton.disabled).toBe(false)
+    newButton.click()
+    await flushPromises()
+    const name = $$('form[aria-label="Create queue"] input')[0] as HTMLInputElement
+    name.value = 'Docs'
+    name.dispatchEvent(new Event('input'))
+    button('Create queue')!.click()
+    await flushPromises()
+    expect(calls).toEqual([{ method: 'POST', path: '/api/queues', body: { projectId: 'p1', name: 'Docs' } }])
+    expect(button('Show queue Docs')!.getAttribute('aria-current')).toBe('true')
+    expect($$('form[aria-label="Create queue"]')).toHaveLength(0)
+  })
+
+  it('with the switch off, shows what exists and explains the switch', async () => {
+    await mountPanel([queue([queued], 'idle'), second({ status: 'idle' })], false, false)
+    expect($$('nav[aria-label="Queues"] button')).toHaveLength(2)
+    const newButton = $$('button').find((b) => b.textContent?.trim() === 'New queue')!
+    expect(newButton.disabled).toBe(true)
+    expect(newButton.title).toContain('HOSTBUD_PARALLEL_QUEUES=true')
+    expect($$('[data-testid="parallel-off"]')[0].textContent).toContain('HOSTBUD_PARALLEL_QUEUES=true')
+  })
+
+  it('renames the queue', async () => {
+    const calls = stubFetch(() => ({ status: 200, body: { ...queue([queued]), name: 'Release' } }))
+    await mountPanel(queue([queued]), false, true)
+    button('Rename queue')!.click()
+    await flushPromises()
+    const input = $$('form[aria-label="Rename queue"] input')[0] as HTMLInputElement
+    expect(input.value).toBe('Milestones')
+    input.value = 'Release'
+    input.dispatchEvent(new Event('input'))
+    $$('form[aria-label="Rename queue"] button').find((b) => b.textContent?.trim() === 'Save')!.click()
+    await flushPromises()
+    expect(calls).toEqual([{ method: 'PATCH', path: '/api/queues/q1', body: { name: 'Release' } }])
+    expect(document.body.textContent).toContain('Release')
+    expect($$('form[aria-label="Rename queue"]')).toHaveLength(0)
+  })
+
+  it('deletes the selected queue only after confirmation', async () => {
+    const calls = stubFetch(() => ({ status: 204 }))
+    await mountPanel([queue([queued], 'idle'), second({ status: 'idle' })], false, true)
+    button('Show queue Docs')!.click()
+    await flushPromises()
+    button('Delete queue')!.click()
+    await flushPromises()
+    expect(calls).toHaveLength(0)
+    expect(document.body.textContent).toContain('Delete queue Docs?')
+    $$('[role="alertdialog"] button').find((b) => b.textContent?.trim() === 'Delete queue')!.click()
+    await flushPromises()
+    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual(['DELETE /api/queues/q2'])
+    expect(useQueuesStore().queues.map((q) => q.id)).toEqual(['q1'])
+    expect(button('Show queue Milestones')!.getAttribute('aria-current')).toBe('true')
+  })
+
+  it('shows the shared-directory warning and "waiting for a free slot"', async () => {
+    const warned = queue([{ ...queued, position: 1, waitingForSlot: true }], 'running')
+    warned.warnings = [{ code: 'shared_directory', message: 'Queue Docs also runs in /home/dev/app — the agents may edit the same files', queues: [{ id: 'q2', name: 'Docs', projectName: 'app' }] }]
+    await mountPanel([warned, second()], false, true)
+    const warning = $$('[data-testid="queue-warning"]')
+    expect(warning).toHaveLength(1)
+    expect(warning[0].getAttribute('role')).toBe('status')
+    expect(warning[0].textContent).toContain('Queue Docs also runs in /home/dev/app')
+    expect($$('[data-testid="item-status"]')[0].textContent).toBe('Queued · waiting for a free slot')
+    // The switcher marks the warned queue.
+    expect(button('Show queue Milestones')!.querySelector('svg')).toBeTruthy()
+    expect(button('Show queue Docs')!.querySelector('svg')).toBeFalsy()
+  })
+
+  it('updates the waiting state live from queue.changed', async () => {
+    const waiting = queue([{ ...queued, position: 1, waitingForSlot: true }], 'running')
+    await mountPanel(waiting, false, true)
+    expect($$('[data-testid="item-status"]')[0].textContent).toBe('Queued · waiting for a free slot')
+    useQueuesStore().apply({ type: 'queue.changed', machine: 'host', payload: { action: 'run_started', queueId: 'q1', queue: queue([{ ...queued, position: 1, status: 'running', run: { id: 'r9', status: 'starting', sessionName: 'app-q1', startedAt: '' } }], 'running') } })
+    await flushPromises()
+    expect($$('[data-testid="item-status"]')[0].textContent).toBe('Running · starting')
   })
 })
