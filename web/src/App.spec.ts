@@ -28,10 +28,12 @@ class IdleSocket {
   }
 }
 
+// Renders like the default stub (terms() reads its tag and session) plus a
+// focusable xterm textarea.
 const terminalFocusStub = defineComponent({
-  props: { focused: Boolean, active: Boolean },
+  props: { focused: Boolean, active: Boolean, session: String },
   setup(props) {
-    return () => h('section', { 'data-focused': props.focused && props.active ? 'true' : undefined }, [h('textarea', { class: 'xterm-helper-textarea' })])
+    return () => h('terminal-view-stub', { session: props.session, active: String(props.active), 'data-focused': props.focused && props.active ? 'true' : undefined }, [h('textarea', { class: 'xterm-helper-textarea' })])
   },
 })
 
