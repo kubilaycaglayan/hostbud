@@ -2,6 +2,8 @@
 
 You are building **hostbud**. Read `docs/ARCHITECTURE.md` (design, source of truth) and `docs/ROADMAP.md` (milestones) before starting. Work milestone by milestone, in order. Don't start a milestone until the previous one meets its acceptance criteria (open owner items don't count; see below).
 
+Regularly commit your changes during a goal and after you complete a goal.
+
 ## Owner items never block agents
 The owner works through their own backlog on their own schedule. Nothing that waits on the owner (manual checks on their devices, approvals, decisions, go-aheads, answers to a question) may stop an agent's work.
 - Never stop, pause or wait for the owner. Take the safe default the docs name (usually: don't do the risky action), record the item as **open** in the milestone's acceptance checklist (*Manual checks (owner)*) and in the summary, and continue with the next step or task.
