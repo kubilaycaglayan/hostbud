@@ -72,7 +72,7 @@ Written in T1–T5, first run in T7, on desktop and `iphone-13-pro`.
 ## Definition of done
 
 - [ ] Every criterion is ticked (E items as written and type-checked; `make e2e` runs only on demand and a pending run is listed as open).
-- [ ] `make lint test` is green, `make gitleaks` is clean, and nothing host-specific or key-like is tracked.
+- [x] `make lint test` is green, `make gitleaks` is clean, and nothing host-specific or key-like is tracked.
 - [x] *(host)* `make deploy` succeeded and the stack is healthy; `HOSTBUD_LLM_PROVIDER` is empty in the deployed container. The authenticated supervisor status check and V2-M4 queue check remain unverified.
 - [x] T8 Docker cleanup skipped with reason recorded: `make docker-clean` removes toolbox containers, including the active command container. Production, volumes and backups were left intact; no space was reclaimed.
-- [ ] The summary is delivered: changes, the `HOSTBUD_LLM_*` and `OPENAI_API_KEY` vars, e2e results and open owner items.
+- [x] The summary is delivered: changes, the `HOSTBUD_LLM_*` and `OPENAI_API_KEY` vars, e2e results and open owner items.
