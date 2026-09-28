@@ -237,3 +237,25 @@ func TestLoadRunStaleAfter(t *testing.T) {
 		}
 	}
 }
+
+// V2-M2 T2: the parallel-queues switch is off by default and only takes
+// true or false.
+func TestLoadParallelQueues(t *testing.T) {
+	cfg, err := Load(envFrom(map[string]string{"HOST_SSH_USER": "dev"}))
+	if err != nil || cfg.ParallelQueues {
+		t.Fatalf("default: %v, %v; want off", cfg.ParallelQueues, err)
+	}
+	cfg, err = Load(envFrom(map[string]string{"HOST_SSH_USER": "dev", "HOSTBUD_PARALLEL_QUEUES": "true"}))
+	if err != nil || !cfg.ParallelQueues {
+		t.Fatalf("true: %v, %v", cfg.ParallelQueues, err)
+	}
+	cfg, err = Load(envFrom(map[string]string{"HOST_SSH_USER": "dev", "HOSTBUD_PARALLEL_QUEUES": "false"}))
+	if err != nil || cfg.ParallelQueues {
+		t.Fatalf("false: %v, %v", cfg.ParallelQueues, err)
+	}
+	for _, bad := range []string{"1", "yes", "TRUE", "on", "maybe"} {
+		if _, err := Load(envFrom(map[string]string{"HOST_SSH_USER": "dev", "HOSTBUD_PARALLEL_QUEUES": bad})); err == nil || !strings.Contains(err.Error(), "HOSTBUD_PARALLEL_QUEUES") {
+			t.Errorf("%q: err=%v, want a HOSTBUD_PARALLEL_QUEUES error", bad, err)
+		}
+	}
+}

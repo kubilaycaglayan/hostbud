@@ -51,6 +51,7 @@ type Config struct {
 	TailscaleSocket     string        // TAILSCALED_SOCKET (optional, required when allowlist is enabled)
 	HookBaseURL         string        // HOSTBUD_HOOK_BASE_URL (optional: HOSTBUD_URL inside run sessions)
 	RunStaleAfter       time.Duration // HOSTBUD_RUN_STALE_AFTER (v2: no-signal window before a run is stale)
+	ParallelQueues      bool          // HOSTBUD_PARALLEL_QUEUES (V2-M2 opt-in: several queues, parallel runs)
 }
 
 // HookURL is HOSTBUD_URL for run sessions (v2): the override, or Caddy's
@@ -208,6 +209,13 @@ func Load(getenv func(string) string) (Config, error) {
 		errs = append(errs, fmt.Errorf("HOSTBUD_HOOK_BASE_URL: %w", err))
 	}
 	cfg.HookBaseURL = strings.TrimSuffix(cfg.HookBaseURL, "/")
+	switch get("HOSTBUD_PARALLEL_QUEUES", "false") {
+	case "true":
+		cfg.ParallelQueues = true
+	case "false":
+	default:
+		errs = append(errs, errors.New("HOSTBUD_PARALLEL_QUEUES: must be true or false"))
+	}
 
 	return cfg, errors.Join(errs...)
 }

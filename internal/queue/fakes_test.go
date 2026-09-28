@@ -231,10 +231,23 @@ func (m *memStore) CreateQueue(_ context.Context, projectID, name string) (store
 	if !ok {
 		return store.Queue{}, store.ErrNotFound
 	}
+	if m.nameTaken(projectID, "", name) {
+		return store.Queue{}, store.ErrDuplicate
+	}
 	m.q().seq++
 	q := store.Queue{ID: fmt.Sprintf("queue_%02d", m.q().seq), MachineID: p.MachineID, ProjectID: p.ID, Name: name, Status: store.QueueIdle}
 	m.q().queues[q.ID] = q
 	return q, nil
+}
+
+// nameTaken mirrors the queues_project_name index (case-insensitive).
+func (m *memStore) nameTaken(projectID, exceptID, name string) bool {
+	for _, q := range m.q().queues {
+		if q.ProjectID == projectID && q.ID != exceptID && strings.EqualFold(strings.TrimSpace(q.Name), strings.TrimSpace(name)) {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *memStore) RenameQueue(_ context.Context, id, name string) (store.Queue, error) {
@@ -246,6 +259,9 @@ func (m *memStore) RenameQueue(_ context.Context, id, name string) (store.Queue,
 	}
 	if strings.TrimSpace(name) == "" {
 		return q, errors.New("queue name must be 1–255 bytes")
+	}
+	if m.nameTaken(q.ProjectID, id, name) {
+		return q, store.ErrDuplicate
 	}
 	q.Name = name
 	m.q().queues[id] = q

@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"path"
 	"slices"
+	"strings"
 	"time"
 
 	"hostbud/internal/events"
@@ -28,6 +30,9 @@ func conflict(msg, hint string) *Error { return &Error{http.StatusConflict, msg,
 // Messages the owner sees (V2-M1 T8).
 const (
 	msgOneQueue    = "V2-M1 supports one queue; several queues arrive with V2-M2"
+	msgParallelOff = "Parallel queues are off — pause queue %s and wait for its run to end, or set `HOSTBUD_PARALLEL_QUEUES=true`"
+	msgDuplicate   = "a queue named %q already exists in this project"
+	hintDuplicate  = "Pick another name; queue names are unique per project (case doesn't matter)."
 	msgActiveRun   = "A run is still active in this queue — pause it and wait for the run to end, or mark its item done/skip it first"
 	hintReload     = "Reload the queue and try again."
 	hintOnlyQueued = "Only queued items can be edited, deleted or moved. A needs-attention item goes back to the queue with Retry."
@@ -90,6 +95,25 @@ type View struct {
 	ProjectName string     `json:"projectName"`
 	ProjectPath string     `json:"projectPath"`
 	Items       []ItemView `json:"items"`
+	Warnings    []Warning  `json:"warnings,omitempty"`
+}
+
+// WarningSharedDirectory: another active queue runs in the same directory,
+// so the agents may edit the same files (V2-M2; it never blocks).
+const WarningSharedDirectory = "shared_directory"
+
+// Warning is a non-blocking notice on a queue.
+type Warning struct {
+	Code    string         `json:"code"`
+	Message string         `json:"message"`
+	Queues  []WarningQueue `json:"queues"`
+}
+
+// WarningQueue names another queue a warning is about.
+type WarningQueue struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	ProjectName string `json:"projectName"`
 }
 
 // Changed is the queue.changed payload: the queue after the change, or
@@ -108,6 +132,7 @@ type Service struct {
 	bus       *events.Bus
 	dispatch  Control
 	machine   string
+	parallel  bool
 }
 
 // NewService returns the queue service for the host machine.
@@ -117,6 +142,13 @@ func NewService(st Store, validator ItemValidator, bus *events.Bus) *Service {
 
 // SetDispatcher connects the dispatcher (T9).
 func (s *Service) SetDispatcher(d Control) { s.dispatch = d }
+
+// SetParallelQueues sets the V2-M2 switch (HOSTBUD_PARALLEL_QUEUES): on,
+// a project may have several queues and they run in parallel.
+func (s *Service) SetParallelQueues(on bool) { s.parallel = on }
+
+// ParallelQueues reports the V2-M2 switch.
+func (s *Service) ParallelQueues() bool { return s.parallel }
 
 // List returns the machine's queues with their items.
 func (s *Service) List(ctx context.Context) ([]View, error) {
@@ -132,6 +164,10 @@ func (s *Service) List(ctx context.Context) ([]View, error) {
 		}
 		out = append(out, v)
 	}
+	shared := sharedDirectories(out)
+	for i := range out {
+		out[i].Warnings = shared[out[i].ID]
+	}
 	return out, nil
 }
 
@@ -141,7 +177,102 @@ func (s *Service) Get(ctx context.Context, id string) (View, error) {
 	if err != nil {
 		return View{}, err
 	}
-	return s.view(ctx, q)
+	v, err := s.view(ctx, q)
+	if err != nil {
+		return View{}, err
+	}
+	return v, s.addWarnings(ctx, &v)
+}
+
+// addWarnings sets v's warnings from the machine's other queues.
+func (s *Service) addWarnings(ctx context.Context, v *View) error {
+	queues, err := s.store.Queues(ctx, s.machine)
+	if err != nil {
+		return err
+	}
+	all := []View{*v}
+	for _, q := range queues {
+		if q.ID == v.ID {
+			continue
+		}
+		other, err := s.view(ctx, q)
+		if err != nil {
+			return err
+		}
+		all = append(all, other)
+	}
+	v.Warnings = sharedDirectories(all)[v.ID]
+	return nil
+}
+
+// busy reports whether a queue holds its directory: it is running, or
+// paused while a run is still active.
+func busy(v View) bool {
+	if v.Status == store.QueueRunning {
+		return true
+	}
+	if v.Status != store.QueuePaused {
+		return false
+	}
+	for _, it := range v.Items {
+		if it.Run != nil && slices.Contains(store.ActiveRunStatuses, it.Run.Status) {
+			return true
+		}
+	}
+	return false
+}
+
+// sharedDirectories returns the shared_directory warning of every busy
+// queue whose project resolves to the same cleaned path as another busy
+// queue's (the same project, or two projects with one path).
+func sharedDirectories(views []View) map[string][]Warning {
+	byPath := map[string][]View{}
+	for _, v := range views {
+		if busy(v) && v.ProjectPath != "" {
+			p := path.Clean(v.ProjectPath)
+			byPath[p] = append(byPath[p], v)
+		}
+	}
+	out := map[string][]Warning{}
+	for dir, group := range byPath {
+		if len(group) < 2 {
+			continue
+		}
+		for _, v := range group {
+			w := Warning{Code: WarningSharedDirectory}
+			var names []string
+			for _, o := range group {
+				if o.ID != v.ID {
+					w.Queues = append(w.Queues, WarningQueue{ID: o.ID, Name: o.Name, ProjectName: o.ProjectName})
+					names = append(names, o.Name)
+				}
+			}
+			w.Message = fmt.Sprintf("Queue %s also runs in %s — the agents may edit the same files", strings.Join(names, ", "), dir)
+			out[v.ID] = []Warning{w}
+		}
+	}
+	return out
+}
+
+// peers lists the other queues whose project has the same cleaned path.
+func (s *Service) peers(ctx context.Context, queueID, projectPath string) []string {
+	if projectPath == "" {
+		return nil
+	}
+	queues, err := s.store.Queues(ctx, s.machine)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, q := range queues {
+		if q.ID == queueID {
+			continue
+		}
+		if p, err := s.store.Project(ctx, q.ProjectID); err == nil && path.Clean(p.Path) == path.Clean(projectPath) {
+			out = append(out, q.ID)
+		}
+	}
+	return out
 }
 
 func (s *Service) queue(ctx context.Context, id string) (store.Queue, error) {
@@ -186,18 +317,30 @@ func (s *Service) view(ctx context.Context, q store.Queue) (View, error) {
 }
 
 // Publish sends queue.changed with the queue's current view (the
-// dispatcher uses it too).
+// dispatcher uses it too). Queues sharing its directory get one as well,
+// since their shared-directory warning may have changed with it.
 func (s *Service) Publish(ctx context.Context, action, queueID string) {
 	if s.bus == nil {
 		return
 	}
+	v := s.publishOne(ctx, action, queueID)
+	if v != nil {
+		for _, id := range s.peers(ctx, queueID, v.ProjectPath) {
+			s.publishOne(ctx, "peer_changed", id)
+		}
+	}
+}
+
+func (s *Service) publishOne(ctx context.Context, action, queueID string) *View {
 	payload := Changed{Action: action, QueueID: queueID}
 	if q, err := s.store.Queue(ctx, queueID); err == nil {
 		if v, err := s.view(ctx, q); err == nil {
+			_ = s.addWarnings(ctx, &v)
 			payload.Queue = &v
 		}
 	}
 	s.bus.Publish(events.Event{Type: events.QueueChanged, Machine: s.machine, Payload: payload})
+	return payload.Queue
 }
 
 func (s *Service) changed(ctx context.Context, action, queueID string) (View, error) {
@@ -205,20 +348,28 @@ func (s *Service) changed(ctx context.Context, action, queueID string) (View, er
 	return s.Get(ctx, queueID)
 }
 
-// Create creates the queue for a saved project. The PoC allows one queue.
+// Create creates a queue for a saved project. With the parallel-queues
+// switch off, V2-M1's limit of one queue holds.
 func (s *Service) Create(ctx context.Context, projectID, name string) (View, error) {
 	queues, err := s.store.Queues(ctx, s.machine)
 	if err != nil {
 		return View{}, err
 	}
-	if len(queues) > 0 {
+	if len(queues) > 0 && !s.parallel {
 		return View{}, conflict(msgOneQueue, "Add more items to the existing queue.")
 	}
-	if name == "" {
+	named := name != ""
+	if !named {
 		name = "Queue"
 	}
 	q, err := s.store.CreateQueue(ctx, projectID, name)
+	// An unnamed queue takes the first free "Queue n".
+	for n := 2; errors.Is(err, store.ErrDuplicate) && !named && n <= 100; n++ {
+		q, err = s.store.CreateQueue(ctx, projectID, fmt.Sprintf("Queue %d", n))
+	}
 	switch {
+	case errors.Is(err, store.ErrDuplicate):
+		return View{}, conflict(fmt.Sprintf(msgDuplicate, strings.TrimSpace(name)), hintDuplicate)
 	case errors.Is(err, store.ErrNotFound):
 		return View{}, invalid("project not found", "Pick a saved project; save a folder as a project first.")
 	case err != nil && !store.IsUnavailable(err):
@@ -235,6 +386,9 @@ func (s *Service) Rename(ctx context.Context, id, name string) (View, error) {
 		return View{}, err
 	}
 	if _, err := s.store.RenameQueue(ctx, id, name); err != nil {
+		if errors.Is(err, store.ErrDuplicate) {
+			return View{}, conflict(fmt.Sprintf(msgDuplicate, strings.TrimSpace(name)), hintDuplicate)
+		}
 		if store.IsUnavailable(err) {
 			return View{}, err
 		}
@@ -246,10 +400,15 @@ func (s *Service) Rename(ctx context.Context, id, name string) (View, error) {
 // Delete deletes a queue with its items and runs; their sessions stay open.
 // It is refused while a run is active.
 func (s *Service) Delete(ctx context.Context, id string) error {
-	if _, err := s.queue(ctx, id); err != nil {
+	q, err := s.queue(ctx, id)
+	if err != nil {
 		return err
 	}
-	err := s.store.DeleteQueue(ctx, id)
+	var peers []string
+	if p, err := s.store.Project(ctx, q.ProjectID); err == nil {
+		peers = s.peers(ctx, id, p.Path)
+	}
+	err = s.store.DeleteQueue(ctx, id)
 	if errors.Is(err, store.ErrConflict) {
 		return conflict(msgActiveRun, "")
 	}
@@ -258,6 +417,9 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 	}
 	if s.bus != nil {
 		s.bus.Publish(events.Event{Type: events.QueueChanged, Machine: s.machine, Payload: Changed{Action: "deleted", QueueID: id}})
+		for _, peer := range peers {
+			s.publishOne(ctx, "peer_changed", peer)
+		}
 	}
 	return nil
 }
@@ -395,6 +557,11 @@ func (s *Service) transition(ctx context.Context, q store.Queue, from []string, 
 	if !slices.Contains(from, q.Status) {
 		return View{}, conflict(fmt.Sprintf("the queue is %s; it can't be %s", q.Status, action), hintReload)
 	}
+	if to == store.QueueRunning && !s.parallel {
+		if err := s.checkOnlyActive(ctx, q.ID); err != nil {
+			return View{}, err
+		}
+	}
 	if _, err := s.store.TransitionQueue(ctx, q.ID, from, to); errors.Is(err, store.ErrConflict) {
 		return View{}, conflict("the queue changed meanwhile; it can't be "+action, hintReload)
 	} else if err != nil {
@@ -404,6 +571,35 @@ func (s *Service) transition(ctx context.Context, q store.Queue, from []string, 
 		s.dispatch.Kick(q.ID)
 	}
 	return s.changed(ctx, action, q.ID)
+}
+
+// checkOnlyActive refuses to start or resume a queue, with the switch off,
+// while another queue is running or has an active run (queues left over
+// from switch-on stay usable one at a time; no run is ever cancelled).
+func (s *Service) checkOnlyActive(ctx context.Context, queueID string) error {
+	queues, err := s.store.Queues(ctx, s.machine)
+	if err != nil {
+		return err
+	}
+	for _, q := range queues {
+		if q.ID == queueID {
+			continue
+		}
+		active := q.Status == store.QueueRunning
+		if !active {
+			runs, err := s.store.LatestRuns(ctx, q.ID)
+			if err != nil {
+				return err
+			}
+			for _, r := range runs {
+				active = active || r.Active()
+			}
+		}
+		if active {
+			return conflict(fmt.Sprintf(msgParallelOff, q.Name), "")
+		}
+	}
+	return nil
 }
 
 // Owner overrides on a needs-attention item (V2-M1 T8/T9).

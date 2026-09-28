@@ -27,6 +27,8 @@ const actions = {
   'POST /network/cut': ['docker', ['network', 'disconnect', 'hostbud-e2e', 'hostbud-e2e-app']],
   'POST /network/restore': ['docker', ['network', 'connect', '--alias', 'hostbud', 'hostbud-e2e', 'hostbud-e2e-app']],
   'POST /ts/restart': ['docker', ['restart', '--time', '5', 'hostbud-e2e-app-ts']],
+  // V2-M2: restart the multi app mid-run (Cap after restart).
+  'POST /multi/restart': ['docker', ['restart', '--time', '5', 'hostbud-e2e-app-multi']],
 }
 
 const caddyPauseTimers = new Map()
@@ -85,8 +87,9 @@ createServer(async (req, res) => {
       res.writeHead(500).end(`${err.message}\n${stderr}`)
       return
     }
-    if (req.url === '/app/start' || req.url === '/app/restart' || req.url === '/ts/restart') {
-      const healthURL = req.url === '/ts/restart' ? 'http://hostbud-e2e-caddy:9057/api/health' : 'http://hostbud-e2e-caddy:9055/api/health'
+    if (req.url === '/app/start' || req.url === '/app/restart' || req.url === '/ts/restart' || req.url === '/multi/restart') {
+      const healthURL = { '/ts/restart': 'http://hostbud-e2e-caddy:9057/api/health', '/multi/restart': 'http://hostbud-e2e-caddy:9058/api/health' }[req.url] ??
+        'http://hostbud-e2e-caddy:9055/api/health'
       const deadline = Date.now() + 60_000
       while (Date.now() < deadline) {
         try {

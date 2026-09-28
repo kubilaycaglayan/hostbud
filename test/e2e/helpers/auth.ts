@@ -6,6 +6,8 @@ export const STORAGE_STATE = 'results/.auth.json'
 // The same account signed in on the domain path (its cookie is host-only).
 export const DOMAIN_STORAGE_STATE = 'results/.auth-domain.json'
 export const TS_DOMAIN_STORAGE_STATE = 'results/.auth-ts-domain.json'
+// V2-M2: an account of the multi app (its own database) on :9058.
+export const MULTI_STORAGE_STATE = 'results/.auth-multi.json'
 
 /** A throwaway account (example.com addresses only). */
 export function newAccount(prefix = 'e2e') {

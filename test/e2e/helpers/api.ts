@@ -46,13 +46,26 @@ export async function listSessions(request: APIRequestContext): Promise<Session[
   return (await res.json()).sessions
 }
 
+// V2-M2: the multi app's loopback site (HOSTBUD_PARALLEL_QUEUES=true).
+export const MULTI_URL = 'http://localhost:9058'
+
+// The allowed Origin of request contexts made for another app (the multi
+// app); everything else is the loopback site's.
+const requestOrigins = new WeakMap<APIRequestContext, string>()
+
+/** Registers the Origin mutate() sends for this request context. */
+export function useOrigin(request: APIRequestContext, origin: string): APIRequestContext {
+  requestOrigins.set(request, origin)
+  return request
+}
+
 /** State-changing request with the page's Origin, like the UI sends. */
 export function mutate(
   request: APIRequestContext,
   method: 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   path: string,
   data?: unknown,
-  origin = ORIGIN,
+  origin = requestOrigins.get(request) ?? ORIGIN,
 ) {
   return request.fetch(path, { method, data, headers: { Origin: origin } })
 }

@@ -1,6 +1,6 @@
 import type { APIRequestContext } from '@playwright/test'
 import { expect } from '@playwright/test'
-import { MACHINE, mutate, ORIGIN } from './api.ts'
+import { MACHINE, mutate } from './api.ts'
 import { shq, type Target, uniqueName } from './target.ts'
 
 // V2-M1 queue API helpers (through Caddy's loopback site).
@@ -26,6 +26,12 @@ export interface QueueItem {
   run?: RunSummary
 }
 
+export interface QueueWarning {
+  code: 'shared_directory'
+  message: string
+  queues: { id: string; name: string; projectName: string }[]
+}
+
 export interface Queue {
   id: string
   projectId: string
@@ -34,6 +40,15 @@ export interface Queue {
   projectName: string
   projectPath: string
   items: QueueItem[]
+  /** V2-M2: non-blocking notices (another busy queue in the same directory). */
+  warnings?: QueueWarning[]
+}
+
+/** GET /api/queues. */
+export async function listQueues(request: APIRequestContext): Promise<Queue[]> {
+  const res = await request.get('/api/queues')
+  expect(res.status(), await res.text()).toBe(200)
+  return (await res.json() as { queues: Queue[] }).queues
 }
 
 /** A saved project in a fresh folder on the target. */
@@ -41,19 +56,19 @@ export async function newProject(request: APIRequestContext, target: Target, pre
   const name = uniqueName(prefix)
   const path = `/home/dev/${name}`
   await target.run(`mkdir -p ${shq(path)}`)
-  const res = await mutate(request, 'POST', '/api/projects', { machineId: MACHINE, path, name }, ORIGIN)
+  const res = await mutate(request, 'POST', '/api/projects', { machineId: MACHINE, path, name })
   expect(res.status(), await res.text()).toBe(201)
   return { id: (await res.json() as { id: string }).id, name, path }
 }
 
 export async function createQueue(request: APIRequestContext, projectId: string, name = 'Milestones'): Promise<Queue> {
-  const res = await mutate(request, 'POST', '/api/queues', { projectId, name }, ORIGIN)
+  const res = await mutate(request, 'POST', '/api/queues', { projectId, name })
   expect(res.status(), await res.text()).toBe(201)
   return await res.json() as Queue
 }
 
 export async function addItem(request: APIRequestContext, queueId: string, item: { agent?: 'claude' | 'codex'; flags?: string; instruction: string }): Promise<QueueItem> {
-  const res = await mutate(request, 'POST', `/api/queues/${queueId}/items`, { agent: item.agent ?? 'claude', flags: item.flags ?? '', instruction: item.instruction }, ORIGIN)
+  const res = await mutate(request, 'POST', `/api/queues/${queueId}/items`, { agent: item.agent ?? 'claude', flags: item.flags ?? '', instruction: item.instruction })
   expect(res.status(), await res.text()).toBe(201)
   return await res.json() as QueueItem
 }
@@ -65,11 +80,11 @@ export async function getQueue(request: APIRequestContext, queueId: string): Pro
 }
 
 export async function control(request: APIRequestContext, queueId: string, action: 'start' | 'pause' | 'resume') {
-  return await mutate(request, 'POST', `/api/queues/${queueId}/${action}`, undefined, ORIGIN)
+  return await mutate(request, 'POST', `/api/queues/${queueId}/${action}`, undefined)
 }
 
 export async function override(request: APIRequestContext, itemId: string, action: 'retry' | 'skip' | 'mark-done') {
-  return await mutate(request, 'POST', `/api/queue-items/${itemId}/${action}`, undefined, ORIGIN)
+  return await mutate(request, 'POST', `/api/queue-items/${itemId}/${action}`, undefined)
 }
 
 /** The item as the queue shows it now. */

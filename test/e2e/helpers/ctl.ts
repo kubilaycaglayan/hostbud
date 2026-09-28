@@ -23,6 +23,9 @@ export const ctl = {
     appRestarts.count++
     return call('/app/restart')
   },
+  /** Restarts hostbud-e2e-app-multi and waits for its /api/health through
+   * Caddy (V2-M2 Cap after restart). */
+  multiRestart: () => call('/multi/restart'),
   /** Stops sshd on the target, dropping every open connection. */
   stopSshd: () => call('/sshd/stop'),
   startSshd: () => call('/sshd/start'),

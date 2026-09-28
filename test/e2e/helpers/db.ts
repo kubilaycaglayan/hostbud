@@ -3,8 +3,8 @@ import pg from 'pg'
 
 // The owner's plain-SQL path to the disposable e2e database
 // (docs/ARCHITECTURE.md §8.1): allowlist changes and rate-limit resets.
-async function sql(text: string, params: unknown[] = []): Promise<Record<string, unknown>[]> {
-  const client = new pg.Client({ connectionString: process.env.E2E_DB_URL })
+async function sql(text: string, params: unknown[] = [], url = process.env.E2E_DB_URL): Promise<Record<string, unknown>[]> {
+  const client = new pg.Client({ connectionString: url })
   await client.connect()
   try {
     return (await client.query(text, params)).rows
@@ -90,14 +90,17 @@ export const queues = {
     )
     return { queueId, itemId, runId, token }
   },
-  /** Marks an active run stale, as the stale timer would (V2-M2: a stale
-   * run still holds its slot). */
-  markStale: (runId: string) =>
-    sql(
-      `UPDATE runs SET status = 'stale', detail = 'no signal from the agent (seeded by e2e)'
-       WHERE id = $1 AND status IN ('starting', 'running')`,
-      [runId],
-    ),
+  /** An idle queue written straight to the database, like one left over
+   * from HOSTBUD_PARALLEL_QUEUES=true (V2-M2; the switch-off API refuses a
+   * second queue). */
+  async seedQueue(projectId: string, name: string): Promise<string> {
+    const queueId = `queue_e2e${randomBytes(8).toString('hex')}`
+    await sql(
+      `INSERT INTO queues (id, machine_id, project_id, name) SELECT $1, machine_id, id, $3 FROM projects WHERE id = $2`,
+      [queueId, projectId, name],
+    )
+    return queueId
+  },
   /** The run's audit rows, oldest first. */
   events: (runId: string) =>
     sql(`SELECT source, kind, payload_json FROM run_events WHERE run_id = $1 ORDER BY id`, [runId]) as Promise<
@@ -113,16 +116,48 @@ export const queues = {
   },
 }
 
-// V2-M2 per-machine run cap (machine_capacity), for the slot scenarios that
-// need a cap before the capacity API exists or a reset between tests.
-export const capacity = {
-  /** Sets the host's cap; null means no cap. */
-  set: (maxConcurrentRuns: number | null) =>
-    sql(
+// V2-M2: the multi app's own database (HOSTBUD_PARALLEL_QUEUES=true).
+const multiSql = (text: string, params: unknown[] = []) => sql(text, params, process.env.E2E_DB_MULTI_URL)
+
+export const multiDb = {
+  /** The owner's allowlist on the multi app. */
+  allow: (email: string) =>
+    multiSql(
+      `INSERT INTO email_allowlist (email_normalized) VALUES ($1)
+       ON CONFLICT (email_normalized) DO UPDATE SET enabled = TRUE, updated_at = now()`,
+      [email],
+    ),
+  clearRateLimits: () => multiSql(`DELETE FROM login_rate_limits`),
+  /** Deletes every queue with its items, runs and events, and every
+   * project (the multi scenarios' reset). */
+  reset: async () => {
+    await multiSql(`DELETE FROM run_events`)
+    await multiSql(`DELETE FROM runs`)
+    await multiSql(`DELETE FROM queue_items`)
+    await multiSql(`DELETE FROM queues`)
+    await multiSql(`DELETE FROM session_links`)
+    await multiSql(`DELETE FROM recent_commands`)
+    await multiSql(`DELETE FROM projects`)
+    await multiSql(`DELETE FROM machine_capacity`)
+  },
+  /** Marks an active run stale, as the stale timer would (a stale run still
+   * holds its slot). */
+  markStale: (runId: string) =>
+    multiSql(
+      `UPDATE runs SET status = 'stale', detail = 'no signal from the agent (seeded by e2e)'
+       WHERE id = $1 AND status IN ('starting', 'running')`,
+      [runId],
+    ),
+  /** Sets the host's run cap (machine_capacity); null means no cap. */
+  setCapacity: (maxConcurrentRuns: number | null) =>
+    multiSql(
       `INSERT INTO machine_capacity (machine_id, max_concurrent_runs, updated_at) VALUES ('host', $1, now())
        ON CONFLICT (machine_id) DO UPDATE SET max_concurrent_runs = EXCLUDED.max_concurrent_runs, updated_at = now()`,
       [maxConcurrentRuns],
     ),
-  /** Removes every cap (no row = no cap). */
-  clear: () => sql(`DELETE FROM machine_capacity`),
+  /** The runs' start order (ids are ULIDs), with their queue. */
+  runOrder: () =>
+    multiSql(
+      `SELECT r.id, i.queue_id, r.status FROM runs r JOIN queue_items i ON i.id = r.item_id ORDER BY r.id`,
+    ) as Promise<{ id: string; queue_id: string; status: string }[]>,
 }

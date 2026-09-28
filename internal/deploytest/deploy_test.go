@@ -190,7 +190,7 @@ func TestContainerHardeningAndE2EParity(t *testing.T) {
 	assertCaddyHardening(t, "hostbud-caddy", caddy)
 	assertPostgresHardening(t, "hostbud-postgres", postgres)
 
-	for _, name := range []string{"hostbud-e2e-app", "hostbud-e2e-app-notmux", "hostbud-e2e-app-ts"} {
+	for _, name := range []string{"hostbud-e2e-app", "hostbud-e2e-app-notmux", "hostbud-e2e-app-ts", "hostbud-e2e-app-multi"} {
 		actual := e2e.Services[name]
 		assertAppHardening(t, name, actual)
 		if app.ReadOnly != actual.ReadOnly || !slices.Equal(app.Tmpfs, actual.Tmpfs) ||
@@ -365,10 +365,11 @@ func TestHardeningLimitsOnlyReachHostbud(t *testing.T) {
 }
 
 // V2-M1: the run hook base URL override and the stale window reach only
-// hostbud (empty and 2h by default).
+// hostbud (empty and 2h by default); V2-M2: so does the parallel-queues
+// switch (off by default).
 func TestQueueSettingsOnlyReachHostbud(t *testing.T) {
 	c := load(t)
-	for key, want := range map[string]string{"HOSTBUD_HOOK_BASE_URL": "", "HOSTBUD_RUN_STALE_AFTER": "2h"} {
+	for key, want := range map[string]string{"HOSTBUD_HOOK_BASE_URL": "", "HOSTBUD_RUN_STALE_AFTER": "2h", "HOSTBUD_PARALLEL_QUEUES": "false"} {
 		if got, ok := env(c.Services["hostbud"], key); !ok || got != want {
 			t.Errorf("hostbud %s = %q, present=%v; want %q", key, got, ok, want)
 		}
@@ -723,5 +724,33 @@ func TestCaddyfileTakesAnOptionalACMEEmail(t *testing.T) {
 	}
 	if strings.Contains(raw, placeholderToken) {
 		t.Error("the token value is written into the adapted config")
+	}
+}
+
+// V2-M2 T2: the e2e multi app has the switch on, its own database and its
+// own loopback site; the V2-M1 suite's app keeps the switch off.
+func TestE2EMultiAppHasTheSwitchAndItsOwnDatabase(t *testing.T) {
+	e2e := loadE2E(t)
+	multi, ok := e2e.Services["hostbud-e2e-app-multi"]
+	if !ok {
+		t.Fatal("no hostbud-e2e-app-multi service")
+	}
+	for key, want := range map[string]string{
+		"HOSTBUD_PARALLEL_QUEUES": "true",
+		"HOSTBUD_DB_NAME":         "hostbud_multi",
+		"HOSTBUD_LOCAL_PORT":      "9058",
+		"HOSTBUD_HOOK_BASE_URL":   "http://hostbud-e2e-caddy:9058",
+	} {
+		if got, ok := env(multi, key); !ok || got != want {
+			t.Errorf("hostbud-e2e-app-multi %s = %q, present=%v; want %q", key, got, ok, want)
+		}
+	}
+	for _, name := range []string{"hostbud-e2e-app", "hostbud-e2e-app-notmux", "hostbud-e2e-app-ts"} {
+		if got, ok := env(e2e.Services[name], "HOSTBUD_PARALLEL_QUEUES"); ok && got != "false" {
+			t.Errorf("%s has HOSTBUD_PARALLEL_QUEUES=%q; the V2-M1 suite runs with the switch off", name, got)
+		}
+		if got, _ := env(e2e.Services[name], "HOSTBUD_DB_NAME"); got == "hostbud_multi" {
+			t.Errorf("%s shares the multi app's database", name)
+		}
 	}
 }

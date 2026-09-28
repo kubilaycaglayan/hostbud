@@ -11,7 +11,7 @@ Update this table in the same commit that finishes a task.
 | Task | Status |
 |---|---|
 | T1 Schema | Done |
-| T2 Several queues and the switch | Not started |
+| T2 Several queues and the switch | Done |
 | T3 Session naming | Not started |
 | T4 Dispatcher with slots | Not started |
 | T5 API and panel | Not started |
@@ -38,6 +38,7 @@ The v2 ROADMAP *Rules*, AGENTS.md and the V2-M1 milestone rules (fast checks per
 **Progress note:**
 - **Precondition** (2026-09-28): V2-M1 is done: every criterion ticked; only its on-demand e2e run and owner checks are open (allowed).
 - **T1** (2026-09-28): `0006_parallel_queues.sql` adds `machine_capacity`, `queues.waiting_since` and `queues_project_name`; store gets capacity get/set, the active-run count and the waiting order. The e2e `seedRun` now names its queues uniquely (the new index).
+- **T2** (2026-09-28): `HOSTBUD_PARALLEL_QUEUES` (config, compose `hostbud` only, `.env.example`); switch-on create with unique names (an unnamed queue takes the first free "Queue n"); the switch-off 409 while another queue is running or has an active run; `shared_directory` warnings on start/resume responses, `GET /api/queues` and the peers' `queue.changed`. e2e: `hostbud-e2e-app-multi` (own database `hostbud_multi` via the idempotent `hostbud-e2e-multidb`, Caddy `:9058`, ctl `/multi/restart`, the `multi` fixture and `multiDb` helpers, logs-clean check); `queues-multi.api.spec.ts` adds *Two queues in parallel*, *Same-directory warning* and a switch-off leftover-queue scenario on the V2-M1 app.
 
 ---
 

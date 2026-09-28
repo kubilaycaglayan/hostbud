@@ -160,6 +160,7 @@ func run() error {
 		agents.NewCodex(ssh, cfg.ExecTimeout),
 	)
 	queues := queue.NewService(st, adapters, bus)
+	queues.SetParallelQueues(cfg.ParallelQueues)
 	starter := queue.NewStarter(st, sessions, cfg.HookURL(), log)
 	dispatcher := queue.NewDispatcher(st, adapters, starter, queues, bus, cfg.RunStaleAfter, log)
 	dispatchDone := make(chan struct{})

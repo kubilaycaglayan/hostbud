@@ -73,12 +73,14 @@ playwright() {
 # contain any value a spec registered with forbidInLogs().
 logs_clean() {
 	[ -s results/log-markers.txt ] || return 0
-	docker logs hostbud-e2e-app >results/app.log 2>&1
-	if grep -F -f results/log-markers.txt results/app.log >results/log-leaks.txt; then
-		echo "e2e: FAIL logs clean: hostbud-e2e-app logs contain scenario paths/commands/markers:" >&2
-		cat results/log-leaks.txt >&2
-		return 1
-	fi
+	for app in hostbud-e2e-app hostbud-e2e-app-multi; do
+		docker logs "$app" >"results/$app.log" 2>&1
+		if grep -F -f results/log-markers.txt "results/$app.log" >results/log-leaks.txt; then
+			echo "e2e: FAIL logs clean: $app logs contain scenario paths/commands/markers:" >&2
+			cat results/log-leaks.txt >&2
+			return 1
+		fi
+	done
 	echo "e2e: logs clean ($(wc -l <results/log-markers.txt) markers checked)"
 }
 
