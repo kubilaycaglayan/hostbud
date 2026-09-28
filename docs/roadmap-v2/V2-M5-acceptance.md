@@ -17,7 +17,7 @@ Each box is one roadmap criterion. Its coverage line names the task that writes 
 - [ ] **3 Quiet and stale runs are classified from `capture-pane` and flagged, within budget.**
   - Due after the quiet window or on `stale`; claims count against the hourly budget.
   - U: T2 · I: T2 (against `test/sshd` and a fake provider) · E: T2 *Quiet run is flagged*, *Stale run is classified*, *Budget respected*.
-- [ ] **4 `capture-pane` is safe.**
+- [x] **4 `capture-pane` is safe.**
   - `sshx` argv, validated exact target `=<name>`, 256 KiB read cap and 200 lines; gone or renamed ⇒ skipped, no call, never a prefix match.
   - U: T2 · I: T2 · E: T2 *Session gone or renamed*.
 - [ ] **5 Only eligible runs are classified; budget and timer survive a restart.**
@@ -29,7 +29,7 @@ Each box is one roadmap criterion. Its coverage line names the task that writes 
 - [ ] **7 Provider failures and hostile pane text never change a status.**
   - Timeout, 429/5xx (≤ 3 attempts, ≤ 60 s), other 4xx, malformed or out-of-schema answers ⇒ `unknown`; injected instructions stay data.
   - U: T1, T3 · I: T1 (fake provider over HTTP) · E: T3 *Provider errors*, *Prompt injection*.
-- [ ] **8 No key or pane text in logs; pane text scrubbed, capped, never stored or shown beyond label and reason.**
+- [x] **8 No key or pane text in logs; pane text scrubbed, capped, never stored or shown beyond label and reason.**
   - Scrub on by default, run token always removed, 8 KiB cap after scrub.
   - U: T1, T4 · I: T1 log-hygiene · E: T4 *Scrubbed before sending*, *Pane text not exposed* (logs themselves: n/a, not observable in the browser).
 - [ ] **9 Flags show on desktop and phone and notify once per run and label.**

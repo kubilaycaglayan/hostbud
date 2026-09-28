@@ -34,11 +34,11 @@ The v2 ROADMAP *Rules*, AGENTS.md and the V2-M1 milestone rules (fast checks per
 | Checkpoint | After | Runs | Status |
 |---|---|---|---|
 | CP1 | T1 | `make lint test`, `scripts/compose-config.sh`, e2e `tsc` | `make lint test`, Compose config, e2e `tsc` passed |
-| CP2 | T2–T4 | `make lint test` **three times in a row** (timers, retries, races, restart), e2e `tsc` | Three consecutive `make lint test` passes; e2e `tsc` passed; T2 due-boundary and argv tests added afterward and covered by `make go-unit` |
+| CP2 | T2–T4 | `make lint test` **three times in a row** (timers, retries, races, restart), e2e `tsc` | Three consecutive passes on the current tree; e2e `tsc` passed; the T3 50-repeat result-race matrix remains open |
 | CP3 | T5–T6 | `make lint test`, `vue-tsc`, e2e `tsc`, `make gitleaks`, docs check | lint/test, e2e `tsc`, gitleaks and docs check passed once |
 | CP4 | T7 | `make lint test`, e2e `tsc`, `make gitleaks`, `make deploy` (no `make e2e`: on demand only) | Checks passed; deploy healthy with provider unset; milestone scenario gaps remain |
 
-**Progress note:** V2-M4 acceptance was checked before starting; it is complete with owner checks and on-demand e2e still open. Current branch has the provider and supervisor implementation commits. Three consecutive `make lint test` runs passed; Compose config, e2e `tsc`, docs check and `make gitleaks` passed. `make deploy` succeeded; health is OK and `HOSTBUD_LLM_PROVIDER` is empty in the deployed container. The protected status endpoint returned 401 without a session. `make docker-clean` was skipped because it removes active toolbox containers (including this session's tool container); unrelated project containers are also running. The full e2e suite has not been run (on-demand only), and uncovered scenario gaps remain.
+**Progress note:** V2-M4 acceptance was checked before starting; it is complete with owner checks and on-demand e2e still open. Provider and supervisor implementation commits are in the branch. Three consecutive current-tree `make lint test` runs passed, including Go race integration tests, web tests, docs checks and e2e `tsc`; `make gitleaks` is clean. A new `test/sshd` integration test verifies exact pane capture, prefix-neighbor exclusion, scrub-disabled run-token removal and log hygiene. `make deploy` succeeded; health is OK and `HOSTBUD_LLM_PROVIDER` is empty in the deployed container. The authenticated status endpoint and V2-M4 queue check remain unverified. `make docker-clean` was skipped because it removes active toolbox containers, including this session's tool container. The full e2e suite has not been run (on-demand only); the T3 50-repeat result-race matrix remains open. Owner checks for real OpenAI and cost review remain open.
 
 ---
 
