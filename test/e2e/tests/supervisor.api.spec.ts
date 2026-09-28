@@ -93,9 +93,10 @@ llmTest('(V2-M5 T2) Hourly classification budget is respected', async ({ llm, ta
   const project = await newProject(llm,target,'e2e-llm-budget'); const queue=await createQueue(llm,project.id)
   await stubs.setBehavior('e2e llm budget','quiet-print',0.1)
   const item=await addItem(llm,queue.id,{instruction:'/goal e2e llm budget'}); await control(llm,queue.id,'start')
-  await expect.poll(async()=>await (await llm.get('http://hostbud-e2e-llmfake:8080/ctl/requests')).json(),{timeout:40_000}).toHaveLength(2)
+  await expect.poll(async()=>await (await llm.get('http://hostbud-e2e-llmfake:8080/ctl/requests')).json(),{timeout:40_000}).toHaveLength(1)
   await new Promise((resolve)=>setTimeout(resolve,1500))
-  expect(await (await llm.get('http://hostbud-e2e-llmfake:8080/ctl/requests')).json()).toHaveLength(2)
+  expect(await (await llm.get('http://hostbud-e2e-llmfake:8080/ctl/requests')).json()).toHaveLength(1)
+  await expect.poll(async()=>await (await llm.get('http://hostbud-e2e-llmfake:8080/ctl/requests')).json(),{timeout:20_000}).toHaveLength(2)
   expect((await itemOf(llm,queue.id,item.id)).status).toBe('needs_attention')
 })
 
