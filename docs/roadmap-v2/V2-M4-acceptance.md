@@ -71,5 +71,5 @@ Written in T1–T5, first run in T7, on desktop and `iphone-13-pro`.
 - [x] Every criterion is ticked (E items as written and type-checked; `make e2e` runs only on demand and a pending run is listed as open). — 2026-09-28
 - [x] `make lint test` is green, `make gitleaks` is clean, and nothing host-specific is tracked. — 2026-09-28 (CP3)
 - [x] *(host)* `make deploy` succeeded: the stack is healthy, existing items have no gates, and V2-M3 queues still advance. — 2026-09-28: healthy, migration 0009 applied, 9 existing items with no gates; the ungated path is covered by the unchanged V2-M1–V2-M3 tests (the host's one queue is paused by the owner and was left as is)
-- [ ] T8 Docker cleanup is done, or skipped with the reason recorded; production, volumes and backups are intact, and the reclaimed space is reported.
-- [ ] The summary is delivered: changes, `HOSTBUD_VERIFY_TIMEOUT`, host steps (`timeout` on the host), e2e results and open owner items.
+- [x] T8 Docker cleanup is done, or skipped with the reason recorded; production, volumes and backups are intact, and the reclaimed space is reported. — 2026-09-28: toolbox containers removed (~4 MB); nothing else to reclaim without `CACHE=1`
+- [x] The summary is delivered: changes, `HOSTBUD_VERIFY_TIMEOUT`, host steps (`timeout` on the host), e2e results and open owner items. — 2026-09-28

@@ -17,7 +17,7 @@ Update this table in the same commit that finishes a task.
 | T5 Panel | Done |
 | T6 Docs | Done |
 | T7 Milestone acceptance | Done |
-| T8 Safe Docker cleanup | Not started |
+| T8 Safe Docker cleanup | Done |
 
 **Precondition:** V2-M3 is done (its checklist ticked, open owner items excepted). Record the check in the Progress note.
 
@@ -48,6 +48,7 @@ The v2 ROADMAP *Rules*, AGENTS.md and the V2-M1 milestone rules (fast checks per
 - T5: the item form has *Verify command* (monospace, autocomplete off, the argv hint) and *Require approval*; a needs-attention item gets *Edit gates* (gates-only form). The item shows its gates, the latest attempt ("Verify attempt n: outcome · exit · duration") and the output tail as text in a collapsible block with the "truncated" note. Approve, Reject (confirmed) and Re-run verify. Approve now also sets the run's detail to "approved by <email>", so a stale click's 409 says who acted ("… (approved by …)").
 - T6: README *Completion gates*; v2 ARCHITECTURE §5.4 (item states), new §5.6 (gates, slots, notifications, restart) and §6 (0009); v1 ARCHITECTURE §9 (routes, with T4), §12 and §15 (`HOSTBUD_VERIFY_TIMEOUT`); the v2 ROADMAP status line. The docs check (`scripts/check-docs.sh`) already covers the new var (config ⇒ `.env.example` ⇒ Compose) and the new routes (`routes.json` ⇒ §9).
 - T7: CP3 = CP4 checks (`make lint test`, e2e `tsc`, `make gitleaks`) green on 2bf455a; `make deploy` healthy, migration 0009 applied, the 9 existing items have no gates, the host's one (owner-paused) queue left as is. Checklist ticked; E items written and type-checked, the full e2e run stays open (on demand). Host step: coreutils' `timeout` is needed only for items with a verify command (present on Debian/Ubuntu).
+- T8 (2026-09-28): `make docker-clean` without `CACHE=1`, after checking nothing was in use (no e2e stack; the five toolbox containers ran only `sleep`). It removed the toolbox containers (~4 MB); there were no e2e containers, images or dangling hostbud images (0 B pruned). `hostbud`, `hostbud-caddy`, `hostbud-postgres`, their volumes and `backups/` untouched; the app stayed healthy. No tmux session was touched.
 
 ---
 
