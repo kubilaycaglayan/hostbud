@@ -16,8 +16,8 @@ Update this table in the same commit that finishes a task.
 | T4 Privacy | Implemented; e2e privacy assertions written and type-checked |
 | T5 Panel and notifications | Partial; badge and one-notification flow implemented, repeat/new-label coverage remains |
 | T6 Docs | Partial; source docs/env updated, docs check passed |
-| T7 Milestone acceptance | Not started |
-| T8 Safe Docker cleanup | Not started |
+| T7 Milestone acceptance | Partial; tests and deploy passed, scenario coverage remains incomplete |
+| T8 Safe Docker cleanup | Skipped; active toolbox and unrelated project containers make cleanup unsafe |
 
 **Precondition:** V2-M4 is done (its checklist ticked, open owner items excepted). Record the check in the Progress note.
 
@@ -36,9 +36,9 @@ The v2 ROADMAP *Rules*, AGENTS.md and the V2-M1 milestone rules (fast checks per
 | CP1 | T1 | `make lint test`, `scripts/compose-config.sh`, e2e `tsc` | `make lint test`, Compose config, e2e `tsc` passed |
 | CP2 | T2–T4 | `make lint test` **three times in a row** (timers, retries, races, restart), e2e `tsc` | Three consecutive `make lint test` passes; e2e `tsc` passed; scenario gaps remain |
 | CP3 | T5–T6 | `make lint test`, `vue-tsc`, e2e `tsc`, `make gitleaks`, docs check | lint/test, e2e `tsc`, gitleaks and docs check passed once |
-| CP4 | T7 | `make lint test`, e2e `tsc`, `make gitleaks`, `make deploy` (no `make e2e`: on demand only) | Pending |
+| CP4 | T7 | `make lint test`, e2e `tsc`, `make gitleaks`, `make deploy` (no `make e2e`: on demand only) | Checks passed; deploy healthy with provider unset; milestone scenario gaps remain |
 
-**Progress note:** V2-M4 acceptance was checked before starting; it is complete with owner checks and on-demand e2e still open. Current branch has the provider and supervisor implementation commits. Three consecutive `make lint test` runs passed; Compose config, e2e `tsc`, docs check and `make gitleaks` passed. Missing scenario work remains. The full e2e suite has not been run (on-demand only).
+**Progress note:** V2-M4 acceptance was checked before starting; it is complete with owner checks and on-demand e2e still open. Current branch has the provider and supervisor implementation commits. Three consecutive `make lint test` runs passed; Compose config, e2e `tsc`, docs check and `make gitleaks` passed. `make deploy` succeeded; health is OK and `HOSTBUD_LLM_PROVIDER` is empty in the deployed container. The protected status endpoint returned 401 without a session. `make docker-clean` was skipped because it removes active toolbox containers (including this session's tool container); unrelated project containers are also running. The full e2e suite has not been run (on-demand only), and uncovered scenario gaps remain.
 
 ---
 

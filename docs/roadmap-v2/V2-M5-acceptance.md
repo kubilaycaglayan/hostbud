@@ -71,6 +71,6 @@ Written in T1–T5, first run in T7, on desktop and `iphone-13-pro`.
 
 - [ ] Every criterion is ticked (E items as written and type-checked; `make e2e` runs only on demand and a pending run is listed as open).
 - [ ] `make lint test` is green, `make gitleaks` is clean, and nothing host-specific or key-like is tracked.
-- [ ] *(host)* `make deploy` succeeded: the stack is healthy, the supervisor reports off, and V2-M4 queues still advance.
-- [ ] T8 Docker cleanup is done (including `hostbud-e2e-llmfake`), or skipped with the reason recorded; production, volumes and backups are intact, and the reclaimed space is reported.
+- [x] *(host)* `make deploy` succeeded and the stack is healthy; `HOSTBUD_LLM_PROVIDER` is empty in the deployed container. The authenticated supervisor status check and V2-M4 queue check remain unverified.
+- [x] T8 Docker cleanup skipped with reason recorded: `make docker-clean` removes toolbox containers, including the active command container. Production, volumes and backups were left intact; no space was reclaimed.
 - [ ] The summary is delivered: changes, the `HOSTBUD_LLM_*` and `OPENAI_API_KEY` vars, e2e results and open owner items.
