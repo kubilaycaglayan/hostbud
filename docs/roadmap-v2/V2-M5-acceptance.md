@@ -52,7 +52,7 @@ Written in T1–T5, first run in T7, on desktop and `iphone-13-pro`.
 - [x] (T2) Restart keeps budget and timer — written and type-checked; run pending
 - [x] (T3) Completed label never advances — written and type-checked; run pending
 - [x] (T3) Completed races achieved — written and type-checked; run pending
-- [ ] (T3) Run ends mid-classification
+- [x] (T3) Run ends mid-classification — achieved-during-classification race written and type-checked; run pending
 - [x] (T3) Owner action during classification — skip race written and type-checked; run pending
 - [x] (T3) Provider errors — 503 exhaustion written and type-checked; run pending
 - [x] (T3) Prompt injection — fixed system prompt and pane-as-user-data assertions written and type-checked; run pending

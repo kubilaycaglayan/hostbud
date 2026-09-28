@@ -11,8 +11,8 @@ Update this table in the same commit that finishes a task.
 | Task | Status |
 |---|---|
 | T1 Provider, config and status | Implemented; e2e scenarios written and type-checked |
-| T2 Trigger and capture | Partial; due/budget/capture implemented, stale/restart/gone-session coverage remains |
-| T3 Result handling | Partial; guarded flag-only result implemented, race/error/injection scenarios remain |
+| T2 Trigger and capture | Partial; due/budget/capture, stale/restart/gone-session scenarios covered; rename and capture-specific coverage remain |
+| T3 Result handling | Partial; guarded flag-only result and race/injection scenarios covered; provider failure matrix remains |
 | T4 Privacy | Implemented; e2e privacy assertions written and type-checked |
 | T5 Panel and notifications | Partial; badge and one-notification flow implemented, repeat/new-label coverage remains |
 | T6 Docs | Partial; source docs/env updated, docs check passed |
