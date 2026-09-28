@@ -78,6 +78,14 @@ func (f *fakeQueues) Resume(_ context.Context, id string) (queue.View, error) {
 	f.rec("resume " + id)
 	return queue.View{}, f.err
 }
+func (f *fakeQueues) Approve(_ context.Context, id string, actor queue.Actor) (queue.View, error) {
+	f.rec("approve " + id + " by " + actor.ID)
+	return queue.View{}, f.err
+}
+func (f *fakeQueues) Reject(_ context.Context, id string, actor queue.Actor) (queue.View, error) {
+	f.rec("reject " + id + " by " + actor.ID)
+	return queue.View{}, f.err
+}
 func (f *fakeQueues) Override(_ context.Context, id, action string) (queue.View, error) {
 	f.rec(action + " " + id)
 	return queue.View{}, f.err
@@ -279,5 +287,30 @@ func TestQueueItemGateFields(t *testing.T) {
 	var item store.QueueItem
 	if err := json.Unmarshal([]byte(`{"verifyCommand":"make test","requiresApproval":true}`), &item); err != nil || item.VerifyCommand != "make test" || !item.RequiresApproval {
 		t.Fatalf("item JSON carries the gates: %+v, %v", item, err)
+	}
+}
+
+// V2-M4 T3: Approve and Reject pass the signed-in account; foreign Origins
+// never reach the service.
+func TestQueueApprovalRoutes(t *testing.T) {
+	q := &fakeQueues{}
+	h := queueEnv(t, q)
+	for path, call := range map[string]string{
+		"/api/queue-items/item_a/approve": "approve item_a by u1",
+		"/api/queue-items/item_a/reject":  "reject item_a by u1",
+	} {
+		q.calls = nil
+		if rec := queueRequest(t, h, "POST", path, "", nil); rec.Code != 200 || len(q.calls) != 1 || q.calls[0] != call {
+			t.Errorf("%s: %d, calls %v", path, rec.Code, q.calls)
+		}
+		q.calls = nil
+		if rec := queueRequest(t, h, "POST", path, "", map[string]string{"Origin": "http://evil.example.com"}); rec.Code != http.StatusForbidden || len(q.calls) != 0 {
+			t.Errorf("%s foreign Origin: %d, calls %v", path, rec.Code, q.calls)
+		}
+	}
+	q.err = &queue.Error{Status: http.StatusConflict, Message: "this item is done; Approve is only for items awaiting approval"}
+	rec := queueRequest(t, h, "POST", "/api/queue-items/item_a/approve", "", nil)
+	if body := decodeBody[errorBody](t, rec); rec.Code != http.StatusConflict || !strings.Contains(body.Error, "this item is done") {
+		t.Fatalf("conflict: %d %+v", rec.Code, body)
 	}
 }

@@ -183,4 +183,72 @@ test.describe('completion gates', () => {
     const events = await queues.events(item.run!.id)
     expect(events.filter((e) => e.source === 'verify' && e.kind === 'verify_started')).toHaveLength(1)
   })
+
+  test('(V2-M4 T3) Approval', async ({ request, target }) => {
+    const { queue, items } = await gatedQueue(request, target, 'e2e-approval', [
+      { condition: 'e2e approval first', requiresApproval: true },
+      { condition: 'e2e approval second', requiresApproval: true },
+      { condition: 'e2e approval third' },
+    ])
+    expect((await control(request, queue.id, 'start')).status()).toBe(200)
+    // The queue waits (running, not paused); the next item doesn't start.
+    const waiting = await waitItem(request, queue.id, items[0].id, 'awaiting_approval')
+    expect(waiting.run?.status).toBe('achieved')
+    expect((await getQueue(request, queue.id)).status).toBe('running')
+    await new Promise((r) => setTimeout(r, 2_000))
+    expect((await itemOf(request, queue.id, items[1].id)).status).toBe('queued')
+
+    // Approve ⇒ done and the queue advances.
+    const approved = await gateAction(request, items[0].id, 'approve')
+    expect(approved.status(), await approved.text()).toBe(200)
+    expect((await itemOf(request, queue.id, items[0].id)).status).toBe('done')
+    await waitItem(request, queue.id, items[1].id, 'awaiting_approval')
+
+    // Reject ⇒ needs attention; the queue pauses.
+    const rejected = await gateAction(request, items[1].id, 'reject')
+    expect(rejected.status(), await rejected.text()).toBe(200)
+    const item = await itemOf(request, queue.id, items[1].id)
+    expect(item.status).toBe('needs_attention')
+    expect(item.run?.detail).toMatch(/^rejected by /)
+    expect((await getQueue(request, queue.id)).status).toBe('paused')
+    expect((await itemOf(request, queue.id, items[2].id)).status).toBe('queued')
+    const events = await queues.events(item.run!.id)
+    expect(events.filter((e) => e.source === 'user' && e.kind === 'rejected')).toHaveLength(1)
+    expect(events.find((e) => e.kind === 'rejected')!.payload_json).not.toContain('@')
+
+    // Only from awaiting approval.
+    const late = await gateAction(request, items[0].id, 'reject')
+    expect(late.status()).toBe(409)
+    expect((await late.json() as { error: string }).error).toContain('this item is done')
+  })
+
+  test('(V2-M4 T3) Approve and reject race', async ({ request, target }) => {
+    const { queue, items } = await gatedQueue(request, target, 'e2e-approval-race', [
+      { condition: 'e2e approval race', requiresApproval: true },
+    ])
+    expect((await control(request, queue.id, 'start')).status()).toBe(200)
+    await waitItem(request, queue.id, items[0].id, 'awaiting_approval')
+    const [a, r] = await Promise.all([gateAction(request, items[0].id, 'approve'), gateAction(request, items[0].id, 'reject')])
+    expect([a.status(), r.status()].sort()).toEqual([200, 409])
+    const loser = a.status() === 409 ? a : r
+    expect((await loser.json() as { error: string }).error).toMatch(/this item is (done|waiting for your attention)/)
+    const item = await itemOf(request, queue.id, items[0].id)
+    const events = await queues.events(item.run!.id)
+    expect(events.filter((e) => e.source === 'user' && (e.kind === 'approved' || e.kind === 'rejected'))).toHaveLength(1)
+  })
+
+  test('(V2-M4 T3) Restart while awaiting approval', async ({ request, target }) => {
+    const { queue, items } = await gatedQueue(request, target, 'e2e-approval-restart', [
+      { condition: 'e2e approval restart', requiresApproval: true },
+      { condition: 'e2e approval restart next' },
+    ])
+    expect((await control(request, queue.id, 'start')).status()).toBe(200)
+    await waitItem(request, queue.id, items[0].id, 'awaiting_approval')
+    await ctl.appRestart()
+    expect((await itemOf(request, queue.id, items[0].id)).status).toBe('awaiting_approval')
+    expect((await getQueue(request, queue.id)).status).toBe('running')
+    expect((await itemOf(request, queue.id, items[1].id)).status).toBe('queued')
+    expect((await gateAction(request, items[0].id, 'approve')).status()).toBe(200)
+    await waitItem(request, queue.id, items[1].id, 'done')
+  })
 })

@@ -1,7 +1,7 @@
 import type { APIRequestContext } from '@playwright/test'
 import { expect, test } from '../helpers/multi.ts'
 import { multiDb } from '../helpers/db.ts'
-import { addItem, control, createQueue, getQueue, itemOf, newProject, type QueueItem } from '../helpers/queues.ts'
+import { addItem, control, createQueue, gateAction, getQueue, itemOf, newProject, type QueueItem } from '../helpers/queues.ts'
 import { Stubs } from '../helpers/stubs.ts'
 
 // V2-M4 gates and run slots on hostbud-e2e-app-multi (parallel queues, a
@@ -47,5 +47,22 @@ test.describe('gates and run slots', () => {
     await expect.poll(async () => (await status(multi, b)).run?.status ?? 'none', { timeout: 20_000 }).not.toBe('none')
     const order = await multiDb.runOrder()
     expect(order.map((r) => r.queue_id)).toEqual([a.queue.id, b.queue.id])
+  })
+
+  test('(V2-M4 T3) Awaiting approval frees the slot', async ({ multi, target }) => {
+    await multiDb.setCapacity(1)
+    const pa = await newProject(multi, target, 'e2e-gate-free-a')
+    const pb = await newProject(multi, target, 'e2e-gate-free-b')
+    const a = await oneItemQueue(multi, pa.id, 'Alpha', 'e2e gate free a', { requiresApproval: true })
+    const b = await oneItemQueue(multi, pb.id, 'Beta', 'e2e gate free b')
+    expect((await control(multi, a.queue.id, 'start')).status()).toBe(200)
+    await expect.poll(async () => (await status(multi, a)).status, { timeout: 30_000 }).toBe('awaiting_approval')
+    // Nothing runs for Alpha now: Beta takes the only slot while Alpha waits.
+    expect((await control(multi, b.queue.id, 'start')).status()).toBe(200)
+    await expect.poll(async () => (await status(multi, b)).status, { timeout: 30_000 }).toBe('done')
+    expect((await status(multi, a)).status).toBe('awaiting_approval')
+    expect((await getQueue(multi, a.queue.id)).status).toBe('running')
+    expect((await gateAction(multi, a.item.id, 'approve')).status()).toBe(200)
+    await expect.poll(async () => (await getQueue(multi, a.queue.id)).status).toBe('finished')
   })
 })

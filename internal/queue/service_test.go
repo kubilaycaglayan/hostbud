@@ -36,6 +36,10 @@ func (d *recordingDispatch) CapacityChanged() {
 	d.capacityChanges++
 }
 
+func (d *recordingDispatch) ResolveApproval(context.Context, string, bool, Actor) error {
+	return nil
+}
+
 func (d *recordingDispatch) EndActiveRun(_ context.Context, item store.QueueItem, action string) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()

@@ -3,7 +3,7 @@ import { notifications } from '../helpers/db.ts'
 import { expect, test } from '../helpers/fixtures.ts'
 import { putNotificationSettings } from '../helpers/notifications.ts'
 import { newDevice, pushfake, received, subscribe } from '../helpers/push.ts'
-import { addItem, control, createQueue, getQueue, itemOf, newProject } from '../helpers/queues.ts'
+import { addItem, control, createQueue, gateAction, getQueue, itemOf, newProject } from '../helpers/queues.ts'
 import { Stubs } from '../helpers/stubs.ts'
 
 // V2-M4 gates and notifications (Web Push to hostbud-e2e-pushfake): a
@@ -46,5 +46,26 @@ test.describe('gate notifications', () => {
     expect(text).not.toContain(project.path)
     // No done notification for an item that didn't pass its gates.
     expect((await notifications.outbox()).map((o) => o.key)).not.toContain(`run:${run.id}:done`)
+  })
+
+  test('(V2-M4 T3) Approval notifies', async ({ request, target }) => {
+    const d = newDevice()
+    expect((await subscribe(request, d)).status()).toBe(204)
+    await putNotificationSettings(request, { enabled: true })
+    const project = await newProject(request, target, 'e2e-gate-notify-approval')
+    const queue = await createQueue(request, project.id)
+    await stubs.setBehavior('e2e gate notify approval', 'achieve:1', 0.5)
+    const item = await addItem(request, queue.id, { instruction: '/goal e2e gate notify approval', requiresApproval: true })
+    expect((await control(request, queue.id, 'start')).status()).toBe(200)
+    await expect.poll(async () => (await itemOf(request, queue.id, item.id)).status, { timeout: 60_000 }).toBe('awaiting_approval')
+    const run = (await itemOf(request, queue.id, item.id)).run!
+    await expect.poll(async () => (await received(d)).length, { timeout: 15_000 }).toBe(1)
+    expect((await received(d))[0]).toMatchObject({ kind: 'attention', outcome: 'awaiting_approval', key: `run:${run.id}:approval` })
+    // No done notification until Approve.
+    await new Promise((r) => setTimeout(r, 2_000))
+    expect((await received(d)).map((p) => p.key)).toEqual([`run:${run.id}:approval`])
+    expect((await gateAction(request, item.id, 'approve')).status()).toBe(200)
+    await expect.poll(async () => (await received(d)).map((p) => p.key).sort(), { timeout: 15_000 })
+      .toEqual([`queue:${queue.id}:finished:${run.id}`, `run:${run.id}:approval`, `run:${run.id}:done`].sort())
   })
 })

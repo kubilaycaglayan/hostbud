@@ -12,7 +12,7 @@ Update this table in the same commit that finishes a task.
 |---|---|
 | T1 Schema, item API and gate edits | Done |
 | T2 Verify runner | Done |
-| T3 Approval | Not started |
+| T3 Approval | Done |
 | T4 Owner actions | Not started |
 | T5 Panel | Not started |
 | T6 Docs | Not started |
@@ -43,6 +43,7 @@ The v2 ROADMAP *Rules*, AGENTS.md and the V2-M1 milestone rules (fast checks per
 - Precondition checked 2026-09-28: V2-M3's tasks are all Done and its checklist is ticked (open owner items and the on-demand e2e run excepted).
 - T1: migration `0009_completion_gates.sql`. A gate-only edit is a PATCH that sends no `agent`, `flags` or `instruction` (sending one, even unchanged, counts as an edit of it). The V2-M2 and V2-M3 migration tests checksum `queue_items` by its pre-0009 columns, since 0009 adds two. CP1 passed.
 - T2: `sshx.ExecTo` streams a remote command's stdout without the 10 s Exec cap (the caller's deadline bounds it). The verify call is `sh -c` with a fixed script that `cd`s and `exec`s `timeout -k 10s <secs>s` with the item's argv as separate quoted arguments; a preflight call checks the directory and `timeout`. The local deadline is the timeout + 15 s. `HOSTBUD_VERIFY_TIMEOUT` accepts 5s–2h (not 10s–2h), so the e2e apps can use 5s. The e2e scenarios create and read files with the runner's existing `target` shell on the throwaway target instead of a new ctl action: the ctl service holds the Docker socket, so it stays limited to its hard-coded commands. A failed gate's detail is also the run's `detail` (the panel's "why"); a passing attempt clears it. The dispatcher's item view carries `verify` (latest attempt: running, outcome, exit code, duration, `truncated`, output tail).
+- T3: Approve and Reject run on the dispatcher goroutine; the store's `ResolveApproval` is the guarded update, the owner's `run_events` row (`{"account": <user id>}`) and the notice in one transaction. Reject's detail names the account's email (shown in the panel, never logged). Reject sends no notification (the owner acted). Approving an item of a paused queue marks it done without advancing.
 
 ---
 

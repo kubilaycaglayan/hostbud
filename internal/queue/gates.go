@@ -29,6 +29,7 @@ type GateStore interface {
 	VerifyEvents(ctx context.Context, runID string) ([]store.RunEvent, error)
 	ItemsWithStatus(ctx context.Context, machineID, status string) ([]store.QueueItem, error)
 	LatestRunForItem(ctx context.Context, itemID string) (store.Run, error)
+	ResolveApproval(ctx context.Context, itemID, runID, to, kind string, payload []byte, n *store.Notice) (store.QueueItem, error)
 }
 
 // VerifyRunner runs a verify command (Verifier; a fake in tests).
@@ -265,4 +266,58 @@ func openAttempt(events []store.RunEvent, err error) int {
 		return 0
 	}
 	return started
+}
+
+// Actor is the account behind an owner action (V2-M4 approvals).
+type Actor struct {
+	ID    string
+	Email string
+}
+
+// ResolveApproval applies Approve (done, then the queue advances) or
+// Reject (needs attention, queue paused) to an item awaiting approval, on
+// the dispatcher goroutine. store.ErrConflict: another action got there
+// first.
+func (d *Dispatcher) ResolveApproval(ctx context.Context, itemID string, approve bool, actor Actor) error {
+	done := make(chan error, 1)
+	d.enqueue(func(ctx context.Context) { done <- d.resolveApproval(ctx, itemID, approve, actor) })
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (d *Dispatcher) resolveApproval(ctx context.Context, itemID string, approve bool, actor Actor) error {
+	item, err := d.store.QueueItem(ctx, itemID)
+	if err != nil {
+		return err
+	}
+	if item.Status != store.ItemAwaitingApproval {
+		return store.ErrConflict
+	}
+	run, err := d.store.LatestRunForItem(ctx, itemID)
+	if err != nil {
+		return err
+	}
+	payload, _ := json.Marshal(map[string]string{"account": actor.ID})
+	if approve {
+		notice := d.notice(ctx, notify.KindDone, run, item, item.QueueID)
+		if _, err := d.store.ResolveApproval(ctx, itemID, run.ID, store.ItemDone, store.KindApproved, payload, d.outbox(notice)); err != nil {
+			return err
+		}
+		d.log.Info("item approved", "item", itemID)
+		d.gatesPassed(ctx, item.QueueID, notice)
+		return nil
+	}
+	if _, err := d.store.ResolveApproval(ctx, itemID, run.ID, store.ItemNeedsAttention, store.KindRejected, payload, nil); err != nil {
+		return err
+	}
+	d.log.Info("item rejected", "item", itemID)
+	d.setRunDetail(ctx, run, item.QueueID, "rejected by "+actor.Email)
+	// The owner acted: no notification; the queue pauses like any
+	// needs-attention item.
+	d.gateAttention(ctx, item.QueueID, nil)
+	return nil
 }

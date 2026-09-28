@@ -49,6 +49,8 @@
   {"method":"POST","path":"/api/queue-items/{id}/retry","stateChanging":true,"authRequired":true,"websocket":false,"jsonBody":false},
   {"method":"POST","path":"/api/queue-items/{id}/skip","stateChanging":true,"authRequired":true,"websocket":false,"jsonBody":false},
   {"method":"POST","path":"/api/queue-items/{id}/mark-done","stateChanging":true,"authRequired":true,"websocket":false,"jsonBody":false},
+  {"method":"POST","path":"/api/queue-items/{id}/approve","stateChanging":true,"authRequired":true,"websocket":false,"jsonBody":false},
+  {"method":"POST","path":"/api/queue-items/{id}/reject","stateChanging":true,"authRequired":true,"websocket":false,"jsonBody":false},
   {"method":"GET","path":"/api/machines/{machine}/capacity","stateChanging":false,"authRequired":true,"websocket":false,"jsonBody":false},
   {"method":"PUT","path":"/api/machines/{machine}/capacity","stateChanging":true,"authRequired":true,"websocket":false,"jsonBody":true},
   {"method":"PUT","path":"/api/machines/{machine}/parallel-queues","stateChanging":true,"authRequired":true,"websocket":false,"jsonBody":true},

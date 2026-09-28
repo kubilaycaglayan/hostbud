@@ -157,3 +157,22 @@ func (v *fakeVerifier) callCount() int {
 	defer v.mu.Unlock()
 	return len(v.calls)
 }
+
+func (m *memStore) ResolveApproval(_ context.Context, itemID, runID, to, kind string, payload []byte, n *store.Notice) (store.QueueItem, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	it, ok := m.q().items[itemID]
+	if !ok {
+		return it, store.ErrNotFound
+	}
+	if it.Status != store.ItemAwaitingApproval {
+		return store.QueueItem{}, store.ErrConflict
+	}
+	it.Status = to
+	m.q().items[itemID] = it
+	m.events = append(m.events, store.RunEvent{ID: int64(len(m.events) + 1), RunID: runID, Source: store.SourceUser, Kind: kind, Payload: append([]byte(nil), payload...)})
+	if n != nil {
+		m.outbox = append(m.outbox, *n)
+	}
+	return it, nil
+}

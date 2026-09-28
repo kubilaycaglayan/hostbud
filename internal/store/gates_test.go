@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -231,5 +232,50 @@ func TestVerifyingItemHoldsASlotInCreateRunInSlot(t *testing.T) {
 	}
 	if _, err := s.CreateRunInSlot(ctx, next.ID, tokenHash("next"), time.Now()); err != nil {
 		t.Fatalf("awaiting approval must free the slot: %v", err)
+	}
+}
+
+// V2-M4 T3: Approve and Reject raced 50 times: exactly one applies, with
+// exactly one owner event.
+func TestResolveApprovalRaceHasOneWinner(t *testing.T) {
+	ctx := context.Background()
+	s, p := queueFixture(t)
+	q, _ := s.CreateQueue(ctx, p.ID, "Milestones")
+	it, run := gatedRun(t, s, q, ItemGates{RequiresApproval: true})
+	if _, err := s.TransitionQueueItem(ctx, it.ID, []string{ItemRunning}, ItemAwaitingApproval); err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	wins := map[string]int{}
+	for i := range 50 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			to, kind := ItemDone, KindApproved
+			if i%2 == 1 {
+				to, kind = ItemNeedsAttention, KindRejected
+			}
+			_, err := s.ResolveApproval(ctx, it.ID, run.ID, to, kind, []byte(`{"account":"user_a"}`), nil)
+			mu.Lock()
+			defer mu.Unlock()
+			switch {
+			case err == nil:
+				wins[kind]++
+			case !errors.Is(err, ErrConflict):
+				t.Errorf("race: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+	if wins[KindApproved]+wins[KindRejected] != 1 {
+		t.Fatalf("winners %v, want exactly one", wins)
+	}
+	var events int
+	if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM run_events WHERE run_id = $1 AND source = 'user' AND kind IN ('approved', 'rejected')`, run.ID).Scan(&events); err != nil || events != 1 {
+		t.Fatalf("owner events %d, %v", events, err)
+	}
+	if _, err := s.ResolveApproval(ctx, it.ID, run.ID, ItemQueued, KindApproved, []byte(`{}`), nil); err == nil {
+		t.Fatal("ResolveApproval accepted a target state other than done or needs_attention")
 	}
 }

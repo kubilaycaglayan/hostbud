@@ -138,3 +138,37 @@ func (s *Store) LatestRunForItem(ctx context.Context, itemID string) (Run, error
 	r, err := scanRun(s.db.QueryRowContext(ctx, `SELECT `+runCols+` FROM runs WHERE item_id = $1 ORDER BY id DESC LIMIT 1`, itemID))
 	return r, notFound(err)
 }
+
+// Approval run-event kinds (source 'user').
+const (
+	KindApproved = "approved"
+	KindRejected = "rejected"
+)
+
+// ResolveApproval applies the owner's Approve (to done) or Reject (to
+// needs_attention) to an item awaiting approval: the guarded update, the
+// owner's run event on run and the notice (nil: none) in one transaction,
+// so of two racing actions exactly one applies. ErrConflict: the item is
+// no longer awaiting approval.
+func (s *Store) ResolveApproval(ctx context.Context, itemID, runID, to, kind string, payload []byte, n *Notice) (QueueItem, error) {
+	if to != ItemDone && to != ItemNeedsAttention {
+		return QueueItem{}, fmt.Errorf("invalid approval outcome %q", to)
+	}
+	var it QueueItem
+	err := s.inTx(ctx, func(tx *sql.Tx) error {
+		var err error
+		it, err = scanItem(tx.QueryRowContext(ctx, `
+			UPDATE queue_items SET status = $2, updated_at = $3 WHERE id = $1 AND status = 'awaiting_approval' RETURNING `+itemCols,
+			itemID, to, s.now()))
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrConflict
+		} else if err != nil {
+			return err
+		}
+		if err := insertRunEvent(ctx, tx, runID, SourceUser, kind, payload, s.now()); err != nil {
+			return err
+		}
+		return enqueueNotice(ctx, tx, n, s.now())
+	})
+	return it, err
+}

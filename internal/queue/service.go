@@ -87,6 +87,9 @@ type Control interface {
 	Kick(queueID string)
 	EndActiveRun(ctx context.Context, item store.QueueItem, action string) error
 	CapacityChanged()
+	// ResolveApproval applies Approve or Reject (V2-M4); store.ErrConflict
+	// when the item left awaiting_approval first.
+	ResolveApproval(ctx context.Context, itemID string, approve bool, actor Actor) error
 }
 
 // RunSummary is an item's latest run, as the panel shows it.
@@ -868,6 +871,40 @@ func (s *Service) Override(ctx context.Context, itemID, action string) (View, er
 		return View{}, err
 	}
 	return s.changed(ctx, "item_"+action, it.QueueID)
+}
+
+// Approve marks an item awaiting approval done; its queue then advances
+// (unless it was paused). Reject sets it to needs attention and pauses the
+// queue. Both are guarded: of two racing actions one applies and the other
+// gets 409 naming the item's state.
+func (s *Service) Approve(ctx context.Context, itemID string, actor Actor) (View, error) {
+	return s.resolveApproval(ctx, itemID, true, actor)
+}
+
+// Reject: see Approve.
+func (s *Service) Reject(ctx context.Context, itemID string, actor Actor) (View, error) {
+	return s.resolveApproval(ctx, itemID, false, actor)
+}
+
+func (s *Service) resolveApproval(ctx context.Context, itemID string, approve bool, actor Actor) (View, error) {
+	it, err := s.item(ctx, itemID)
+	if err != nil {
+		return View{}, err
+	}
+	action := map[bool]string{true: "Approve", false: "Reject"}[approve]
+	stateConflict := func(status string) error {
+		return conflict("this item is "+statusWords(status)+"; "+action+" is only for items awaiting approval", hintReload)
+	}
+	if it.Status != store.ItemAwaitingApproval || s.dispatch == nil {
+		return View{}, stateConflict(it.Status)
+	}
+	if err := s.dispatch.ResolveApproval(ctx, itemID, approve, actor); errors.Is(err, store.ErrConflict) {
+		now, _ := s.store.QueueItem(ctx, itemID)
+		return View{}, stateConflict(now.Status)
+	} else if err != nil {
+		return View{}, err
+	}
+	return s.Get(ctx, it.QueueID)
 }
 
 func statusWords(status string) string {

@@ -27,6 +27,8 @@ type QueueService interface {
 	Pause(ctx context.Context, id string) (queue.View, error)
 	Resume(ctx context.Context, id string) (queue.View, error)
 	Override(ctx context.Context, itemID, action string) (queue.View, error)
+	Approve(ctx context.Context, itemID string, actor queue.Actor) (queue.View, error)
+	Reject(ctx context.Context, itemID string, actor queue.Actor) (queue.View, error)
 	ParallelQueues() bool
 	Capacity(ctx context.Context) (*int, error)
 	SetCapacity(ctx context.Context, maxRuns *int) (*int, error)
@@ -49,6 +51,9 @@ func mountQueueRoutes(s *server, addFunc func(string, http.HandlerFunc)) {
 	for _, action := range []string{queue.ActionRetry, queue.ActionSkip, queue.ActionMarkDone} {
 		addFunc("POST /api/queue-items/{id}/"+action, s.queueOverride(action))
 	}
+	// V2-M4: the approval gate's owner actions.
+	addFunc("POST /api/queue-items/{id}/approve", s.queueApproval(true))
+	addFunc("POST /api/queue-items/{id}/reject", s.queueApproval(false))
 	// V2-M2: the per-machine cap on active runs (Settings).
 	addFunc("GET /api/machines/{machine}/capacity", s.getCapacity)
 	addFunc("PUT /api/machines/{machine}/capacity", s.putCapacity)
@@ -323,6 +328,29 @@ func (s *server) queueControl(action string) http.HandlerFunc {
 func (s *server) queueOverride(action string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		v, err := s.cfg.Queues.Override(r.Context(), r.PathValue("id"), action)
+		if err != nil {
+			s.queueError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, v)
+	}
+}
+
+func (s *server) queueApproval(approve bool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u, _ := r.Context().Value(userKey{}).(store.User)
+		if u.ID == "" {
+			writeError(w, http.StatusUnauthorized, "sign in first", "")
+			return
+		}
+		actor := queue.Actor{ID: u.ID, Email: u.Email}
+		var v queue.View
+		var err error
+		if approve {
+			v, err = s.cfg.Queues.Approve(r.Context(), r.PathValue("id"), actor)
+		} else {
+			v, err = s.cfg.Queues.Reject(r.Context(), r.PathValue("id"), actor)
+		}
 		if err != nil {
 			s.queueError(w, err)
 			return
