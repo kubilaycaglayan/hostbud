@@ -74,8 +74,8 @@ export const queues = {
     const token = runToken()
     const hash = createHash('sha256').update(token).digest()
     await sql(
-      `INSERT INTO queues (id, machine_id, project_id, name) SELECT $1, machine_id, id, 'e2e' FROM projects WHERE id = $2`,
-      [queueId, projectId],
+      `INSERT INTO queues (id, machine_id, project_id, name) SELECT $1, machine_id, id, $3 FROM projects WHERE id = $2`,
+      [queueId, projectId, `e2e-${suffix}`],
     )
     await sql(
       `INSERT INTO queue_items (id, queue_id, machine_id, position, agent, instruction, status)
@@ -90,6 +90,14 @@ export const queues = {
     )
     return { queueId, itemId, runId, token }
   },
+  /** Marks an active run stale, as the stale timer would (V2-M2: a stale
+   * run still holds its slot). */
+  markStale: (runId: string) =>
+    sql(
+      `UPDATE runs SET status = 'stale', detail = 'no signal from the agent (seeded by e2e)'
+       WHERE id = $1 AND status IN ('starting', 'running')`,
+      [runId],
+    ),
   /** The run's audit rows, oldest first. */
   events: (runId: string) =>
     sql(`SELECT source, kind, payload_json FROM run_events WHERE run_id = $1 ORDER BY id`, [runId]) as Promise<
@@ -103,4 +111,18 @@ export const queues = {
     await sql(`DELETE FROM queue_items`)
     await sql(`DELETE FROM queues`)
   },
+}
+
+// V2-M2 per-machine run cap (machine_capacity), for the slot scenarios that
+// need a cap before the capacity API exists or a reset between tests.
+export const capacity = {
+  /** Sets the host's cap; null means no cap. */
+  set: (maxConcurrentRuns: number | null) =>
+    sql(
+      `INSERT INTO machine_capacity (machine_id, max_concurrent_runs, updated_at) VALUES ('host', $1, now())
+       ON CONFLICT (machine_id) DO UPDATE SET max_concurrent_runs = EXCLUDED.max_concurrent_runs, updated_at = now()`,
+      [maxConcurrentRuns],
+    ),
+  /** Removes every cap (no row = no cap). */
+  clear: () => sql(`DELETE FROM machine_capacity`),
 }

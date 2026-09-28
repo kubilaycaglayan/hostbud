@@ -11,9 +11,12 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// v2 queue schema (migrations/0005_queues.sql, docs/roadmap-v2/ARCHITECTURE.md §6).
+// v2 queue schema (migrations/0005_queues.sql and 0006_parallel_queues.sql,
+// docs/roadmap-v2/ARCHITECTURE.md §6).
 
 // Queue statuses.
 const (
@@ -93,6 +96,9 @@ type Queue struct {
 	Status    string    `json:"status"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
+	// WaitingSince is when the queue last started waiting for a run slot
+	// (start, resume, or its previous run ending; V2-M2 FIFO order).
+	WaitingSince *time.Time `json:"waitingSince,omitempty"`
 }
 
 // QueueItem is one agent run request: agent, flags and instruction.
@@ -163,7 +169,7 @@ type RunUpdate struct {
 }
 
 const (
-	queueCols = `id, machine_id, project_id, name, status, created_at, updated_at`
+	queueCols = `id, machine_id, project_id, name, status, created_at, updated_at, waiting_since`
 	itemCols  = `id, queue_id, machine_id, position, agent, flags, instruction, status, created_at, updated_at`
 	runCols   = `id, item_id, machine_id, session_name, agent_session_id, transcript_path, transcript_offset,
 		client_version, token_hash, status, started_at, ended_at, last_signal_at, detail`
@@ -174,7 +180,12 @@ type scanner interface{ Scan(...any) error }
 
 func scanQueue(row scanner) (Queue, error) {
 	var q Queue
-	err := row.Scan(&q.ID, &q.MachineID, &q.ProjectID, &q.Name, &q.Status, &q.CreatedAt, &q.UpdatedAt)
+	var waiting sql.NullTime
+	err := row.Scan(&q.ID, &q.MachineID, &q.ProjectID, &q.Name, &q.Status, &q.CreatedAt, &q.UpdatedAt, &waiting)
+	if waiting.Valid {
+		t := waiting.Time.UTC()
+		q.WaitingSince = &t
+	}
 	return q, err
 }
 
@@ -296,10 +307,20 @@ func (s *Store) CreateQueue(ctx context.Context, projectID, name string) (Queue,
 		return Queue{}, err
 	}
 	now := s.now()
-	return scanQueue(s.db.QueryRowContext(ctx, `
+	q, err := scanQueue(s.db.QueryRowContext(ctx, `
 		INSERT INTO queues (id, machine_id, project_id, name, status, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, 'idle', $5, $5) RETURNING `+queueCols,
 		id, p.MachineID, p.ID, name, now))
+	return q, duplicateName(err)
+}
+
+// duplicateName maps the per-project name index to ErrDuplicate.
+func duplicateName(err error) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "queues_project_name" {
+		return ErrDuplicate
+	}
+	return err
 }
 
 // Queues lists a machine's queues in creation order.
@@ -333,7 +354,7 @@ func (s *Store) RenameQueue(ctx context.Context, id, name string) (Queue, error)
 		return Queue{}, err
 	}
 	q, err := scanQueue(s.db.QueryRowContext(ctx, `UPDATE queues SET name = $2, updated_at = $3 WHERE id = $1 RETURNING `+queueCols, id, name, s.now()))
-	return q, notFound(err)
+	return q, duplicateName(notFound(err))
 }
 
 // TransitionQueue sets a queue's status if it is currently one of from.

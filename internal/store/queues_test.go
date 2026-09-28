@@ -122,17 +122,20 @@ func TestQueueSchemaHasMachineIDsAndIndexes(t *testing.T) {
 			t.Errorf("%s.machine_id: %d, %v", table, n, err)
 		}
 	}
-	for _, index := range []string{"runs_item", "runs_status", "run_events_run_created"} {
+	for _, index := range []string{"runs_item", "runs_status", "run_events_run_created", "queues_project_name"} {
 		var ok bool
 		if err := s.db.QueryRowContext(ctx, `SELECT to_regclass($1) IS NOT NULL`, index).Scan(&ok); err != nil || !ok {
 			t.Errorf("index %s missing: %v", index, err)
 		}
 	}
-	for _, table := range []string{"tasks", "machine_capacity"} {
-		var ok bool
-		if err := s.db.QueryRowContext(ctx, `SELECT to_regclass($1) IS NOT NULL`, table).Scan(&ok); err != nil || ok {
-			t.Errorf("superseded table %s exists", table)
-		}
+	// The v1 sketch's tasks table is superseded; machine_capacity arrived
+	// with V2-M2 (0006).
+	var ok bool
+	if err := s.db.QueryRowContext(ctx, `SELECT to_regclass('tasks') IS NOT NULL`).Scan(&ok); err != nil || ok {
+		t.Errorf("superseded table tasks exists")
+	}
+	if err := s.db.QueryRowContext(ctx, `SELECT to_regclass('machine_capacity') IS NOT NULL`).Scan(&ok); err != nil || !ok {
+		t.Errorf("machine_capacity missing: %v", err)
 	}
 }
 

@@ -10,7 +10,7 @@ Update this table in the same commit that finishes a task.
 
 | Task | Status |
 |---|---|
-| T1 Schema | Not started |
+| T1 Schema | Done |
 | T2 Several queues and the switch | Not started |
 | T3 Session naming | Not started |
 | T4 Dispatcher with slots | Not started |
@@ -35,7 +35,9 @@ The v2 ROADMAP *Rules*, AGENTS.md and the V2-M1 milestone rules (fast checks per
 | CP3 | T5–T6 | `make lint test`, `vue-tsc`, e2e `tsc`, `make gitleaks`, docs check | Not run |
 | CP4 | T7 | `make lint test`, e2e `tsc`, `make gitleaks`, `make deploy` (no `make e2e`: on demand only) | Not run |
 
-**Progress note:** (precondition and checkpoint results go here.)
+**Progress note:**
+- **Precondition** (2026-09-28): V2-M1 is done: every criterion ticked; only its on-demand e2e run and owner checks are open (allowed).
+- **T1** (2026-09-28): `0006_parallel_queues.sql` adds `machine_capacity`, `queues.waiting_since` and `queues_project_name`; store gets capacity get/set, the active-run count and the waiting order. The e2e `seedRun` now names its queues uniquely (the new index).
 
 ---
 
