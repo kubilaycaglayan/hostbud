@@ -16,7 +16,7 @@ Update this table in the same commit that finishes a task.
 | T4 Dispatcher with slots | Done |
 | T5 API and panel | Done |
 | T6 Docs | Done |
-| T7 Milestone acceptance | Not started |
+| T7 Milestone acceptance | Done |
 | T8 Safe Docker cleanup | Not started |
 
 **Precondition:** V2-M1 is done (its checklist ticked, open owner items excepted). Record the check in the Progress note.
@@ -33,7 +33,7 @@ The v2 ROADMAP *Rules*, AGENTS.md and the V2-M1 milestone rules (fast checks per
 | CP1 | T1–T3 | `make lint test`, `scripts/compose-config.sh`, e2e `tsc` | Green (2026-09-28) |
 | CP2 | T4 | `make lint test` **three times in a row** (concurrent signals, timers), e2e `tsc` | Green (2026-09-28, 3/3) |
 | CP3 | T5–T6 | `make lint test`, `vue-tsc`, e2e `tsc`, `make gitleaks`, docs check | Green (2026-09-28) |
-| CP4 | T7 | `make lint test`, e2e `tsc`, `make gitleaks`, `make deploy` (no `make e2e`: on demand only) | Not run |
+| CP4 | T7 | `make lint test`, e2e `tsc`, `make gitleaks`, `make deploy` (no `make e2e`: on demand only) | Green (2026-09-28) |
 
 **Progress note:**
 - **Precondition** (2026-09-28): V2-M1 is done: every criterion ticked; only its on-demand e2e run and owner checks are open (allowed).
@@ -44,6 +44,7 @@ The v2 ROADMAP *Rules*, AGENTS.md and the V2-M1 milestone rules (fast checks per
 - **T4** (2026-09-28): `dispatch` on the dispatcher goroutine hands out slots FIFO by `waiting_since` (a queue whose run ended goes behind everyone in line, even at an equal timestamp); `store.CreateRunInSlot` re-checks the cap under a per-machine advisory lock; `failed`/`exited`/cancelled runs free their slot at once, stale ones hold it; cap changes go through `Service.SetCapacity` → `CapacityChanged`; `waitingForSlot` is derived in the view and published on change; with the switch off the V2-M1 `advance` path runs unchanged. v2 §5.5/§6 added. e2e `queue-slots.api.spec.ts`: *Cap of one*, *Slots in start order*, *Stale holds a slot*, *Cap after restart* (the cap is seeded in the multi database until T5's API).
 - **T5** (2026-09-28): `GET`/`PUT /api/machines/{machine}/capacity` (`{machine}` like the other machine routes; 1–32 or null, anything else 400, another machine 404; publishes `queue.changed` for every queue), `GET /api/queues` adds `parallelQueues`; `routes.json` and v1 ARCHITECTURE §9 list the route. Panel: a switcher (a `nav` of buttons on desktop, not a list, so the V2-M1 specs' `listitem` rows stay the items; a select on the phone), New queue (disabled with the switch explained when off), Rename, confirmed Delete of the shown queue, the warning banner, "Queued · waiting for a free slot". There was no Settings screen: a new Settings dialog (Account menu and the palette's "Open settings") holds the cap. e2e: *Queues panel* in `queues.spec.ts` and `queues.phone.spec.ts` (multi app; the page fixture resets the multi database), *Capacity API* in `queues-multi.api.spec.ts`.
 - **T6** (2026-09-28): README *Parallel queues (opt-in)* (switch, switcher, warning, cap in Settings, FIFO, stale holds a slot) and session names; v1 ARCHITECTURE §9 (capacity route, list fields, the switch-off 409), §10 and §12 (`HOSTBUD_PARALLEL_QUEUES`); v2 §5.1/§5.5/§6 (T3/T4); the v2 ROADMAP status line links these files; the docs check fixture now covers the new var and route (dropping either fails) and asserts the real docs name both. This file and the acceptance file now say e2e runs on demand only (they said "in T7").
+- **T7 / CP4** (2026-09-28): `make lint test` green, `make gitleaks` clean; `make backup` taken, then `make deploy`: health ok, migration 6, every v1/V2-M1 row count and the queue/item/run checksums unchanged, no cap row, `HOSTBUD_PARALLEL_QUEUES=false` (not set by the owner). Checklist ticked; the e2e run stays open (on demand).
 - **CP3** (2026-09-28): `make lint test` green (after a vue-tsc typing fix in a new Vitest spec), `make gitleaks` clean.
 - **CP2** (2026-09-28): `make lint test` green three times in a row (a first try failed only on gosec's weak-random warning in a test; fixed with deterministic picks).
 

@@ -8,40 +8,42 @@ Each box is one roadmap criterion. Its coverage line names the task that writes 
 
 ## Criteria
 
-- [ ] **1 Two queues advance independently, each sequential** (switch on).
+- [x] **1 Two queues advance independently, each sequential** (switch on).
   - Both first items run at once; within a queue the next item starts only after its own achieved record.
   - U: T4 · I: T4 · E: T2 *Two queues in parallel*, T5 *Queues panel*.
-- [ ] **2 The cap is respected and slots are fair.**
+- [x] **2 The cap is respected and slots are fair.**
   - A `stale` run holds its slot; only a late achieved or an owner action (Retry, Skip, Mark done) frees it. `failed`/`exited` free it at once.
   - Order is FIFO by `waiting_since` (start, resume, or previous run ending), so with a cap of 1 queues take turns and none starves.
   - One machine-wide decision point plus a locked re-count in the store: concurrent signals never exceed the cap.
   - After a restart, active runs are reloaded before any dispatch, so the cap and the order still hold.
   - Lowering the cap stops nothing; raising or clearing it dispatches at once.
   - U: T4 · I: T4 (simultaneous finishes, restart) · E: T4 *Cap of one*, *Slots in start order*, *Stale holds a slot*, *Cap after restart*.
-- [ ] **3 With the switch off, V2-M1 behavior is unchanged.**
+- [x] **3 With the switch off, V2-M1 behavior is unchanged.**
   - `HOSTBUD_PARALLEL_QUEUES` defaults to `false`, is validated, and reaches only `hostbud`.
   - The one-queue rule and message are identical; the V2-M1 unit, integration and e2e tests run unchanged.
   - Queues left over from switch-on stay listed; starting one while another has an active run → 409 naming the switch. No run is cancelled.
   - U: T2 · I: T2 (V2-M1 queue tests with the switch off, `deploytest`) · E: the V2-M1 suite on the switch-off app (unchanged), plus T2 *Switch off: a leftover queue waits for the active one*.
-- [ ] **4 Session names never collide; the first queue keeps the V2-M1 name.**
+- [x] **4 Session names never collide; the first queue keeps the V2-M1 name.**
   - First queue (oldest) → `<project>-q<pos>`; others → `<project>-<queue>-q<pos>`; suffixes as in v1, with a bounded retry on a duplicate at creation.
   - U: T3 · I: T3 (concurrent creation on `test/sshd`) · E: T3 *Name collision*.
-- [ ] **5 The migration is append-only and keeps V2-M1 data.**
+- [x] **5 The migration is append-only and keeps V2-M1 data.**
   - Adds `machine_capacity`, `queues.waiting_since` and the per-project name index only; no drop, rename, update or delete.
   - U: T1 · I: T1 (a seeded V2-M1 copy keeps its checksums; a second apply is a no-op) · E: n/a (not user-visible; indirect through T4).
-- [ ] **6 Two running queues on one project directory show a warning.**
+- [x] **6 Two running queues on one project directory show a warning.**
   - Same project or two projects with the same cleaned path; shown on both queues; never blocks.
   - U: T2, T5 · I: n/a (pure logic over stored paths) · E: T2 *Same-directory warning*, T5 *Queues panel*.
-- [ ] **7 Queues and the cap are manageable from desktop and phone.**
+- [x] **7 Queues and the cap are manageable from desktop and phone.**
   - Switcher, create, rename, delete (confirmed); the cap in Settings; "waiting for a free slot" shown; updates come from `queue.changed` only.
   - The capacity route is authenticated, Origin-checked and in `routes.json`; out-of-range values → 400.
   - U: T5 · I: T5 (route table, Origin) · E: T5 *Queues panel* (desktop and phone), *Capacity API*.
-- [ ] **8 The docs are aligned** as listed in R T6 and T6.
+- [x] **8 The docs are aligned** as listed in R T6 and T6.
   - U/I: T6 docs check · E: n/a (documents).
+
+Status (2026-09-28): criteria 1–8 are ticked with their U/I tests passing (CP1–CP4; CP2 three times in a row) and their E items counted as written. Commits: T1 `982375a`, T2 `af7fcae`, T3 `99ef4a7`, T4 `59c402b`, T5 `e193a79`, T6 `0ef8c68`.
 
 ## E2E scenarios
 
-Written in T2–T5 and type-checked; run on demand (desktop and `iphone-13-pro`).
+Written in T2–T5 and type-checked; run on demand (desktop and `iphone-13-pro`). Status (2026-09-28): every scenario below is **written and type-checked**; none has run yet (e2e runs only on demand). Each box is ticked when an on-demand run passes it.
 
 - [ ] (T2) Two queues in parallel
 - [ ] (T2) Same-directory warning
@@ -62,8 +64,8 @@ Written in T2–T5 and type-checked; run on demand (desktop and `iphone-13-pro`)
 
 ## Definition of done
 
-- [ ] Every criterion is ticked (E items as written and type-checked; `make e2e` runs only on demand and a pending run is listed as open).
-- [ ] `make lint test` is green, `make gitleaks` is clean, and nothing host-specific is tracked.
-- [ ] *(host)* `make deploy` succeeded: the stack is healthy, V2-M1 queues are intact, and the switch is as the owner set it.
+- [x] Every criterion is ticked (E items as written and type-checked; `make e2e` runs only on demand and a pending run is listed as open).
+- [x] `make lint test` is green, `make gitleaks` is clean, and nothing host-specific is tracked. (CP4, 2026-09-28)
+- [x] *(host)* `make deploy` succeeded: the stack is healthy, V2-M1 queues are intact, and the switch is as the owner set it. (2026-09-28: backup first; health ok; migration 6; row counts of users, projects, session links, queues, items, runs, run events and UI state unchanged, and the queue/item/run checksums equal; no `machine_capacity` row; `HOSTBUD_PARALLEL_QUEUES=false`, the owner hasn't set it; the capacity route and panel strings are live.)
 - [ ] T8 Docker cleanup is done, or skipped with the reason recorded; production, volumes and backups are intact, and the reclaimed space is reported.
 - [ ] The summary is delivered: changes, the new env var, host steps, e2e results and open owner items.
