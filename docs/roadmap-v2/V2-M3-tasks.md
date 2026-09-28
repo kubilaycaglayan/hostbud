@@ -16,14 +16,14 @@ Update this table in the same commit that finishes a task.
 | T3 Outbound delivery | Done |
 | T4 Settings UI | Done |
 | T5 Docs | Done |
-| T6 Milestone acceptance | Not started |
+| T6 Milestone acceptance | Done |
 | T7 Safe Docker cleanup | Not started |
 
 **Precondition:** V2-M2 is done (its checklist ticked, open owner items excepted). Record the check in the Progress note.
 
 ## Rules for this milestone
 
-The v2 ROADMAP *Rules*, AGENTS.md and the V2-M1 milestone rules (fast checks per commit, production untouched until the acceptance task, design changes into v2 docs in the same commit, bugs as failing test then fix, explicit staging) apply in full. e2e is written per task and **runs only in T6**; T7 is the safe Docker cleanup. This milestone adds:
+The v2 ROADMAP *Rules*, AGENTS.md and the V2-M1 milestone rules (fast checks per commit, production untouched until the acceptance task, design changes into v2 docs in the same commit, bugs as failing test then fix, explicit staging) apply in full. e2e is written per task and type-checked per commit; it **runs only on demand** (the v2 ROADMAP *Rules*, owner's decision 2026-09-27), never in T6. T7 is the safe Docker cleanup. This milestone adds:
 
 - **The switch** is per account, stored server-side (T0); no row = off. With every account off, nothing new runs: no permission prompt, no service worker `push` subscription, no outbox rows, no outbound request. The V2-M1 and V2-M2 tests stay unchanged and green.
 - **Payload allowlist.** A notification carries only `{v, kind, key, project, position, outcome, url}`. `url` is an app path (`/queues/<id>?item=<id>`). Never instruction text, flags, paths, session names, `detail`, pane output, tokens or emails. One builder (`internal/notify`) makes every title and body, for in-app and push alike; it caps the payload at 1 KiB.
@@ -34,8 +34,8 @@ The v2 ROADMAP *Rules*, AGENTS.md and the V2-M1 milestone rules (fast checks per
 |---|---|---|---|
 | CP1 | T0–T1 | `make lint test`, `scripts/compose-config.sh`, e2e `tsc` | Passed 2026-09-28 |
 | CP2 | T2–T3 | `make lint test` **three times in a row** (retries, timers, restart), e2e `tsc` | Passed 2026-09-28 |
-| CP3 | T4–T5 | `make lint test`, `vue-tsc`, e2e `tsc`, `make gitleaks`, docs check | Not run |
-| CP4 | T6 | `make lint test`, e2e `tsc`, `make gitleaks`, `make deploy` (no `make e2e`: on demand only) | Not run |
+| CP3 | T4–T5 | `make lint test`, `vue-tsc`, e2e `tsc`, `make gitleaks`, docs check | Passed 2026-09-28 |
+| CP4 | T6 | `make lint test`, e2e `tsc`, `make gitleaks`, `make deploy` (no `make e2e`: on demand only) | Passed 2026-09-28 |
 
 **Progress note:**
 - **Precondition** (2026-09-28): V2-M2 is done: every criterion ticked; only its on-demand e2e run and owner checks are open (allowed).
@@ -47,6 +47,8 @@ The v2 ROADMAP *Rules*, AGENTS.md and the V2-M1 milestone rules (fast checks per
 - **T5** (2026-09-28): README *Notifications (opt-in)* (turning it on, iOS home-screen requirement, `make vapid-keys`, outbound HTTPS, what's shown); v1 ARCHITECTURE §9 routes, §10, §11 (notifications, service worker), §11.1 (CSP unchanged), §12 (VAPID vars, e2e-only test endpoint), §15 (payload, delivery, lifetime, outbox, test and endpoint limits); v2 §4 (notifier, outbox in the transition's transaction), §6 (schema), §9 (payload allowlist, endpoint rules); the v2 ROADMAP status line; `.env.example`; the docs check exempts e2e-only vars from the Compose rule (and fails if one reaches production), with fixture cases in `scripts/test-docs.sh`.
 - **CP2** (2026-09-28): `make lint test` green three times in a row; e2e `tsc` green.
 - **CP1** (2026-09-28): `make lint test` green (includes `scripts/compose-config.sh` and the e2e `tsc`).
+- **CP3** (2026-09-28): `make lint test` green (vue-tsc, e2e `tsc`, docs check), `make gitleaks` clean over the whole history.
+- **T6 / CP4** (2026-09-28): CP3's run is at the same tree; `make deploy` succeeded (checks in the acceptance file); no `make e2e` (on demand). Note: another session working in the tree at the same time had already deployed it with migration 0008 (harmless: append-only). Summary delivered.
 
 ---
 
