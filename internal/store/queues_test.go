@@ -402,6 +402,32 @@ func TestLLMStaleRunRespectsQuietAfterACompletedClaim(t *testing.T) {
 	}
 }
 
+func TestRecoveredLLMClaimDoesNotRunAgain(t *testing.T) {
+	ctx := context.Background()
+	s, p := queueFixture(t)
+	q, _ := s.CreateQueue(ctx, p.ID, "llm-recover")
+	item, _ := s.AddQueueItem(ctx, q.ID, "claude", "", "goal")
+	run, _ := s.CreateRun(ctx, item.ID, tokenHash("llm-recover"), time.Now().Add(-time.Hour))
+	_, _ = s.TransitionRun(ctx, run.ID, []string{RunStarting}, RunRunning, "", nil)
+	_, _ = s.TransitionQueueItem(ctx, item.ID, []string{ItemQueued}, ItemRunning)
+	if claimed, err := s.ClaimLLM(ctx, run.ID, nil, 2, time.Minute); err != nil || !claimed {
+		t.Fatalf("claim=%v err=%v", claimed, err)
+	}
+	if _, err := s.db.ExecContext(ctx, `UPDATE run_events SET created_at=now()-interval '71 seconds' WHERE run_id=$1 AND source='llm' AND kind='llm_started'`, run.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RecoverLLMClaims(ctx); err != nil {
+		t.Fatal(err)
+	}
+	events, err := s.RunEvents(ctx, run.ID, 10)
+	if err != nil || len(events) != 2 || events[1].Kind != KindLLMResult || !strings.Contains(string(events[1].Payload), "hostbud restarted during classification") {
+		t.Fatalf("events=%+v err=%v", events, err)
+	}
+	if claimed, err := s.ClaimLLM(ctx, run.ID, nil, 2, time.Second); err != nil || claimed {
+		t.Fatalf("recovered claim was repeated: claim=%v err=%v", claimed, err)
+	}
+}
+
 func TestLLMResultAfterNewSignalIsDiscardedWithoutQueueMutation(t *testing.T) {
 	ctx := context.Background()
 	s, p := queueFixture(t)
