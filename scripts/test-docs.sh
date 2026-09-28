@@ -78,6 +78,25 @@ grep -q 'HOSTBUD_PARALLEL_QUEUES' "$repo/README.md" || { echo 'README misses HOS
 grep -q '^GET|PUT /api/machines/:id/capacity' "$repo/docs/ARCHITECTURE.md" || { echo 'ARCHITECTURE §9 misses the capacity route' >&2; exit 1; }
 grep -q '^PUT    /api/machines/:id/parallel-queues' "$repo/docs/ARCHITECTURE.md" || { echo 'ARCHITECTURE §9 misses the parallel-queues route' >&2; exit 1; }
 
+# V2-M3: the VAPID vars are checked like every var; the e2e-only push test
+# endpoint must be in .env.example but never in the production hostbud service.
+printf 'var vapid = getenv("HOSTBUD_VAPID_PUBLIC_KEY")\nvar pushTest = getenv("HOSTBUD_PUSH_TEST_ENDPOINT")\n' >>"$fixture/internal/config/config.go"
+printf 'HOSTBUD_VAPID_PUBLIC_KEY=\nHOSTBUD_PUSH_TEST_ENDPOINT=\n' >>"$fixture/.env.example"
+assert_fail sh "$fixture/scripts/check-docs.sh" "$fixture" # VAPID not in the hostbud Compose environment yet
+printf '      HOSTBUD_VAPID_PUBLIC_KEY: ""\n' >>"$fixture/docker-compose.yml"
+assert_ok sh "$fixture/scripts/check-docs.sh" "$fixture"
+cp "$fixture/docker-compose.yml" "$tmp/compose.yml"
+printf '      HOSTBUD_PUSH_TEST_ENDPOINT: http://x/\n' >>"$fixture/docker-compose.yml"
+assert_fail sh "$fixture/scripts/check-docs.sh" "$fixture" # e2e only: never production
+cp "$tmp/compose.yml" "$fixture/docker-compose.yml"
+for route in 'GET|PUT /api/notifications/settings' 'POST   /api/notifications/subscriptions' 'DELETE /api/notifications/subscriptions' 'POST   /api/notifications/test'; do
+	grep -qF "$route" "$repo/docs/ARCHITECTURE.md" || { echo "ARCHITECTURE §9 misses $route" >&2; exit 1; }
+done
+for var in HOSTBUD_VAPID_PUBLIC_KEY HOSTBUD_VAPID_PRIVATE_KEY HOSTBUD_VAPID_SUBJECT HOSTBUD_PUSH_TEST_ENDPOINT; do
+	grep -q "^$var=" "$repo/.env.example" || { echo "$var missing from .env.example" >&2; exit 1; }
+done
+grep -q 'make vapid-keys' "$repo/README.md" || { echo 'README misses make vapid-keys' >&2; exit 1; }
+
 printf '\nAlso run `make missing-target`.\n' >>"$fixture/README.md"
 assert_fail sh "$fixture/scripts/check-docs.sh" "$fixture"
 sed -i '/HOSTBUD_LISTEN/d' "$fixture/.env.example"

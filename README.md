@@ -179,6 +179,18 @@ Requirements on the host: Claude Code **2.1.283** or newer and/or Codex **0.157.
 - **Codex asks once to trust hostbud's hooks** ("Hooks need review" → *Trust all and continue*) in the first run's session. The hook command is the same for every run, so this is a one-time step.
 - Codex starts with the plain condition as its prompt, and hostbud sets the goal through Codex's own app server (`codex app-server proxy`) right after the session starts.
 
+### Notifications (opt-in)
+
+hostbud can tell you when a queue item is **done**, when one **needs attention**, and when a **queue has finished**. It is off for every account until you turn it on, and each account chooses its own events.
+
+- **Turn it on** in **Account → Settings → Notifications** (*Notify me*). Only that click asks the browser for permission. If you deny it, the switch stays off and Settings says how to allow notifications in the browser's site settings. Pick the events under *Notify when*; **Send test notification** checks this device.
+- **While hostbud is open**, the page shows the notification itself. A click opens the Queue panel on that item.
+- **While hostbud is closed** (Web Push), the browser's push service delivers it. This needs VAPID keys on the server: run `make vapid-keys` (it prints a pair from a container and writes nothing), paste both lines into `.env`, set `HOSTBUD_VAPID_SUBJECT` to a `mailto:` address or an https URL of yours, and `make deploy`. Without the keys (or with an invalid one) hostbud still starts, in-app notifications still work, and Settings shows *Push is off* with the vars to set.
+- **iPhone and iPad** (iOS 16.4 or later) get notifications only in the installed app: in Safari tap **Share → Add to Home Screen**, open hostbud from the home screen, then turn notifications on there. In a Safari tab, Settings says so and asks for nothing.
+- **Each device** subscribes on its own and follows the signed-in account: signing out removes that device's subscription, and one that blocks notifications later drops its subscription (Settings says *Notifications are blocked on this device*). Other devices keep theirs.
+- **What's shown:** the project name, the item number and the outcome (for example "app: item 2 needs attention"). Never the instruction, flags, paths, session names, agent output or tokens.
+- **Outbound HTTPS:** push needs the `hostbud` container to reach the browsers' push services on port 443 (for example `fcm.googleapis.com`, `web.push.apple.com`, `*.push.services.mozilla.com`). hostbud only connects to public addresses there, follows no redirects, and retries a failed delivery at most three times; an expired subscription is removed.
+
 ## Limits and timeouts
 
 One SSH command and one SFTP metadata operation each time out after 10 seconds by default. Photo uploads allow up to 100 MiB and time out after 5 minutes by default; set `HOSTBUD_UPLOAD_TIMEOUT` in `.env` to adjust it (30 seconds through 10 minutes). A timeout returns an actionable error and the app retries the host connection; repeated SSH timeouts reset the app's ControlMaster connection. Set `HOSTBUD_EXEC_TIMEOUT` or `HOSTBUD_SFTP_TIMEOUT` in `.env` to change their limits (each accepts 2 seconds through 2 minutes).
