@@ -310,7 +310,7 @@ describe('tabs', () => {
   })
 
   it('list clicks open tabs; an open session focuses its tab; × closes', async () => {
-    const { wrapper, release, feed } = await signedInWith(null)
+    const { wrapper, release, feed } = await signedInWith(null, document.body, terminalFocusStub)
     release()
     await flushPromises()
     feed()
@@ -318,6 +318,7 @@ describe('tabs', () => {
     expect(wrapper.get('main').text()).toContain('Select a session')
     await wrapper.get('button[aria-label="acc-a"]').trigger('click')
     await wrapper.get('button[aria-label="acc-b"]').trigger('click')
+    expect(document.activeElement).toBe(wrapper.get('[data-focused="true"] .xterm-helper-textarea').element)
     expect(terms(wrapper)).toEqual(['acc-a', 'acc-b'])
     const tabs = () => wrapper.findAll('[role=tab]')
     expect(tabs().map((t) => t.attributes('aria-selected'))).toEqual(['false', 'true'])

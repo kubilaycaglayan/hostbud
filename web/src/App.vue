@@ -152,8 +152,14 @@ function onKilled(name: string) {
 
 /** Shows a session: its open tab, or a new one. */
 function openSession(name: string) {
+  if (drawerOpen.value) focusTerminalOnNextDrawerClose = true
   drawerOpen.value = false
-  if (layout.open(MACHINE, name)) app.showTerminal()
+  if (layout.open(MACHINE, name)) {
+    app.showTerminal()
+    // The newly active xterm may not be in the DOM until Vue applies the
+    // layout update. Focus it after that update so typing works immediately.
+    void nextTick(focusActiveTerminal)
+  }
 }
 
 function openAtWindow(name: string, window: string, pane?: string) {

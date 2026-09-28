@@ -48,8 +48,8 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
   - U: T5 key mapping (plain Ctrl+F unmapped) · `TerminalSearch` (options, count, invalid regex, Escape, selection pre-fill) · tmux output reaches the scrollback (`scrollback.spec.ts`, real xterm) (Vitest). I: n/a (client-side buffer). E: T5 *Search scrollback* · T5 *Search options* · T5 *Search on the phone*.
 
 ### Tabs and splits
-- [x] Several sessions can be open at once in tabs; picking an already open session focuses its tab; each tab's input reaches its own session.
-  - U: T7 layout store open/activate/close, the 16-terminal limit; tab bar roles and keys (Vitest). I: n/a (each pane is M1 T13's attach). E: T7 *Tabs*.
+- [x] Several sessions can be open at once in tabs; picking a session focuses its tab and terminal input; each tab's input reaches its own session.
+  - U: T7 layout store open/activate/close, terminal focus after row click, the 16-terminal limit; tab bar roles and keys (Vitest). I: n/a (each pane is M1 T13's attach). E: T7 *Tabs* (focus and typing).
 - [x] Closing a tab or pane only detaches the view (the tmux session keeps running; no confirmation).
   - U: T7 close · T8 close with collapse (Vitest). I: n/a (closing a socket ends only the attach; M1 T13). E: T7 *Close tab detaches* · T8 *Close pane*.
 - [x] Renaming a session in the UI updates its tabs/panes; a session that disappears (killed anywhere) closes its tabs/panes with a notice.

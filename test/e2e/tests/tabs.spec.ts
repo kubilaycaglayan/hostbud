@@ -70,6 +70,7 @@ test.describe('desktop', () => {
     // Picking an open session in the list activates its tab: no fourth tab.
     await ui.page.getByRole('button', { name: a, exact: true }).click()
     await ui.waitForTerminal(a)
+    await expect(ui.page.locator('[data-focused="true"] .xterm-helper-textarea')).toBeFocused()
     expect(await ui.tabNames()).toEqual([a, b, c])
     expect(await ui.activeTabName()).toBe(a)
   })

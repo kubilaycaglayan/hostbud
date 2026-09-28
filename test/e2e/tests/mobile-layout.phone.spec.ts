@@ -48,6 +48,7 @@ test('(T2) Tree drawer', async ({ page, target, ui }) => {
   await drawer.getByRole('button', { name: second, exact: true }).tap()
   await ui.waitForTerminal(second)
   await expect(drawer).toBeHidden()
+  await expect(page.locator('[data-focused="true"] .xterm-helper-textarea')).toBeFocused()
 
   await page.getByRole('banner').getByRole('button', { name: 'New session', exact: true }).tap()
   const sheet = page.getByRole('dialog', { name: 'New session' })

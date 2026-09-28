@@ -16,8 +16,8 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
   - U: T2 `COMPACT_QUERY` cases (portrait/landscape phone, tablet, desktop); `App` shows the tree without tabs and the drawer + terminal with tabs (Vitest).
   - I: n/a (frontend layout only; no server, tmux or database behavior).
   - E: T2 *Tree drawer* (both phone projects).
-- [x] The drawer is a labelled modal ("Project tree") that traps focus. It closes on backdrop tap, Escape, **Close project tree**, a left swipe, or picking a session, and returns focus to ☰ (not the terminal, so iOS doesn't open the keyboard). Picking a session in it shows that session (focus its tab or open one).
-  - U: T2 drawer open/close paths, focus trap and return, swipe threshold, session pick calls `layout.open` and closes (Vitest).
+- [x] The drawer is a labelled modal ("Project tree") that traps focus. It closes on backdrop tap, Escape, **Close project tree**, a left swipe, or picking a session. Closing it without picking returns focus to ☰; picking a session shows it and focuses the terminal so typing can start immediately.
+  - U: T2 drawer open/close paths, focus trap and return, swipe threshold, session pick calls `layout.open`, closes and focuses terminal (Vitest).
   - I: n/a (frontend only).
   - E: T2 *Tree drawer* (both phone projects). **Manual (T9):** the left swipe on a real iPhone.
 - [x] Opening and closing the drawer, and rotating the phone, neither re-attach nor resize the terminal behind it: the same tmux client stays attached, and its size changes only for the rotation itself.
