@@ -990,7 +990,7 @@ func (s *Store) ClaimLLM(ctx context.Context, runID string, signal *time.Time, l
 			WHERE r.id=$1 AND ((r.status='running' AND i.status='running') OR (r.status='stale' AND i.status='needs_attention'))
 			AND r.id=(SELECT max(r2.id) FROM runs r2 WHERE r2.item_id=r.item_id) AND r.last_signal_at IS NOT DISTINCT FROM $2
 			AND (SELECT count(*) FROM run_events e WHERE e.run_id=r.id AND e.source='llm' AND e.kind='llm_started' AND e.created_at > now()-interval '1 hour' AND NOT EXISTS(SELECT 1 FROM run_events z WHERE z.run_id=e.run_id AND z.source='llm' AND z.kind='llm_skipped' AND z.created_at>=e.created_at)) < $3
-			AND (r.status='stale' OR NOT EXISTS(SELECT 1 FROM run_events e WHERE e.run_id=r.id AND e.source='llm' AND e.kind='llm_started' AND e.created_at > now()-($4 * interval '1 second')))
+			AND NOT EXISTS(SELECT 1 FROM run_events e WHERE e.run_id=r.id AND e.source='llm' AND e.kind='llm_started' AND e.created_at > now()-($4 * interval '1 second'))
 			AND NOT EXISTS(SELECT 1 FROM run_events e WHERE e.run_id=r.id AND e.source='llm' AND e.kind='llm_started' AND NOT EXISTS(SELECT 1 FROM run_events z WHERE z.run_id=e.run_id AND z.source='llm' AND z.kind IN ('llm_result','llm_skipped','llm_discarded') AND z.created_at>=e.created_at)))`, runID, signal, limit, quiet.Seconds()).Scan(&exists)
 		if err != nil || !exists {
 			return err
