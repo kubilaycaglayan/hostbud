@@ -37,7 +37,7 @@ async function setCap(page: Page, value: string) {
   await expect(settings.getByLabel('Maximum parallel runs')).toBeEnabled()
   await settings.getByLabel('Maximum parallel runs').fill(value)
   await settings.getByRole('button', { name: 'Save' }).click()
-  await expect(settings.getByRole('status')).toContainText(value ? `at most ${value}` : 'no cap')
+  await expect(settings.getByRole('form', { name: 'Queue runs' }).getByRole('status')).toContainText(value ? `at most ${value}` : 'no cap')
   await settings.getByRole('button', { name: 'Close settings' }).click()
   await page.getByRole('banner').getByRole('button', { name: 'Queue', exact: true }).click()
 }

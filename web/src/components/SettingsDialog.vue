@@ -3,7 +3,9 @@ import { computed, ref, watch } from 'vue'
 import { DialogClose, DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
 import { queuesApi } from '@/api/client'
 import FormError from './FormError.vue'
+import NotificationSettings from './NotificationSettings.vue'
 import { capacityError, capacityValue } from '@/lib/queue'
+import { useNotificationsStore } from '@/stores/notifications'
 import { useQueuesStore } from '@/stores/queues'
 import { describeError } from '@/stores/toasts'
 
@@ -14,6 +16,7 @@ const props = defineProps<{ compact?: boolean; machine: string }>()
 const open = defineModel<boolean>('open', { default: false })
 
 const queues = useQueuesStore()
+const notifications = useNotificationsStore()
 const text = ref('')
 const saved = ref('')
 const loading = ref(false)
@@ -29,6 +32,7 @@ watch(open, async (isOpen) => {
   saved.value = ''
   loading.value = true
   if (!queues.loaded) void queues.load()
+  void notifications.load() // V2-M3: the account's current settings
   try {
     const c = await queuesApi.capacity(props.machine)
     text.value = c.maxConcurrentRuns === null ? '' : String(c.maxConcurrentRuns)
@@ -71,7 +75,7 @@ async function save() {
               Settings
             </DialogTitle>
             <DialogDescription class="text-sm text-muted">
-              Settings for this machine.
+              Notifications for your account, and settings for this machine.
             </DialogDescription>
           </div>
           <DialogClose aria-label="Close settings" title="Close" class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border">
@@ -79,6 +83,7 @@ async function save() {
           </DialogClose>
         </div>
         <div class="min-h-0 flex-1 overflow-y-auto p-3">
+          <NotificationSettings class="mb-4 border-b border-border pb-4" />
           <FormError v-if="error" id="settings-error" :title="error.title" :message="error.message" :hint="error.hint" />
           <form class="flex flex-col gap-2" aria-label="Queue runs" @submit.prevent="save">
             <h2 class="font-bold">

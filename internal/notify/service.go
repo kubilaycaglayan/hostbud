@@ -5,8 +5,15 @@ package notify
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
+	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
+	"sync"
+	"time"
 
 	"hostbud/internal/config"
 	"hostbud/internal/store"
@@ -24,9 +31,10 @@ type Store interface {
 
 // Error is a refusal the API shows as is.
 type Error struct {
-	Status  int
-	Message string
-	Hint    string
+	Status     int
+	Message    string
+	Hint       string
+	RetryAfter time.Duration // for 429
 }
 
 func (e *Error) Error() string { return e.Message }
@@ -56,6 +64,72 @@ type Service struct {
 	testPrefix string
 	sender     interface{ Wake() }
 	log        *slog.Logger
+	now        func() time.Time
+	testMu     sync.Mutex
+	testTokens map[string]testBucket // per account
+}
+
+// Test notifications per account: a burst of three, then one every 10 s
+// (a button, not a flood).
+const (
+	testBurst    = 3
+	testInterval = 10 * time.Second
+)
+
+type testBucket struct {
+	tokens float64
+	at     time.Time
+}
+
+// takeTest spends one of the account's test tokens, or says how long to wait.
+func (s *Service) takeTest(userID string) time.Duration {
+	s.testMu.Lock()
+	defer s.testMu.Unlock()
+	now := s.now()
+	b, ok := s.testTokens[userID]
+	if !ok {
+		b = testBucket{tokens: testBurst, at: now}
+	}
+	b.tokens = min(testBurst, b.tokens+now.Sub(b.at).Seconds()/testInterval.Seconds())
+	b.at = now
+	if b.tokens < 1 {
+		s.testTokens[userID] = b
+		return time.Duration((1 - b.tokens) * float64(testInterval))
+	}
+	b.tokens--
+	s.testTokens[userID] = b
+	return 0
+}
+
+// SendTest queues a test notification for one of the account's devices
+// (its push endpoint) only, and wakes the sender.
+func (s *Service) SendTest(ctx context.Context, userID, endpoint string) error {
+	if !s.push.Available {
+		return &Error{Status: http.StatusConflict, Message: s.push.Reason, Hint: "The test is shown in the app instead while hostbud is open."}
+	}
+	if wait := s.takeTest(userID); wait > 0 {
+		secs := int(math.Ceil(wait.Seconds()))
+		return &Error{Status: http.StatusTooManyRequests, Message: "Too many test notifications", Hint: fmt.Sprintf("Try again in %d s.", secs), RetryAfter: time.Duration(secs) * time.Second}
+	}
+	id := make([]byte, 8)
+	_, _ = rand.Read(id)
+	p, err := Build(Event{Kind: KindTest, RunID: hex.EncodeToString(id)})
+	if err != nil {
+		return err
+	}
+	b, err := p.JSON()
+	if err != nil {
+		return err
+	}
+	err = s.store.EnqueueTestNotification(ctx, userID, endpoint, store.Notice{Kind: KindTest, Key: p.Key, Payload: b})
+	if errors.Is(err, store.ErrNotFound) {
+		return &Error{Status: http.StatusNotFound, Message: "This device has no push subscription for your account", Hint: "Turn notifications off and on again on this device."}
+	}
+	if err != nil {
+		return err
+	}
+	s.Wake()
+	return nil
 }
 
 // SetPush wires Web Push delivery: the sender to wake and the e2e-only
@@ -100,7 +174,7 @@ func New(st Store, push config.Push, publicKey string, log *slog.Logger) *Servic
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
-	s := &Service{store: st, push: push, log: log}
+	s := &Service{store: st, push: push, log: log, now: time.Now, testTokens: map[string]testBucket{}}
 	if push.Available {
 		s.vapid = publicKey
 	}

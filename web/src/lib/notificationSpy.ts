@@ -12,6 +12,8 @@ declare global {
   interface Window {
     __notifications?: ShownNotification[]
     __clickNotification?: (index: number) => void
+    /** How often the page asked for notification permission. */
+    __notificationPermissionRequests?: number
   }
 }
 
@@ -24,6 +26,7 @@ export function installNotificationSpy(w: Window): void {
       return Real?.permission ?? 'default'
     }
     static requestPermission(cb?: NotificationPermissionCallback): Promise<NotificationPermission> {
+      w.__notificationPermissionRequests = (w.__notificationPermissionRequests ?? 0) + 1
       return Real ? Real.requestPermission(cb) : Promise.resolve('denied')
     }
     onclick: ((this: unknown, ev: Event) => unknown) | null = null
@@ -40,6 +43,7 @@ export function installNotificationSpy(w: Window): void {
     close() {}
   }
   w.__notifications = shown
+  w.__notificationPermissionRequests = 0
   w.__clickNotification = (index) => instances[index]?.onclick?.call(instances[index], new Event('click'))
   Object.defineProperty(w, 'Notification', { configurable: true, writable: true, value: SpyNotification })
 }

@@ -61,7 +61,7 @@ describe('SettingsDialog', () => {
       { method: 'PUT', path: '/api/machines/host/capacity', body: { maxConcurrentRuns: 2 } },
       { method: 'PUT', path: '/api/machines/host/capacity', body: { maxConcurrentRuns: null } },
     ])
-    expect($$('[role="status"]')[0].textContent).toContain('no cap')
+    expect($$('form[aria-label="Queue runs"] [role="status"]')[0].textContent).toContain('no cap')
   })
 
   it('shows the server error', async () => {

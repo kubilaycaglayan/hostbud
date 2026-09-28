@@ -129,3 +129,27 @@ describe('in-app notifications', () => {
     expect(opened).toEqual([])
   })
 })
+
+describe('revoked permission (V2-M3 T4)', () => {
+  afterEach(() => window.localStorage.clear())
+
+  it('marks this device revoked when the account is on, it was set up, and permission is gone', async () => {
+    fakeNotification('default')
+    window.localStorage.setItem('hostbud.notifications.device', 'on')
+    const store = await loadedStore(settings())
+    expect(store.revoked).toBe(true)
+  })
+
+  it('a device never set up is not revoked', async () => {
+    fakeNotification('default')
+    const store = await loadedStore(settings())
+    expect(store.revoked).toBe(false)
+  })
+
+  it('granted is not revoked', async () => {
+    fakeNotification('granted')
+    window.localStorage.setItem('hostbud.notifications.device', 'on')
+    const store = await loadedStore(settings())
+    expect(store.revoked).toBe(false)
+  })
+})

@@ -3,6 +3,8 @@ import { ref } from 'vue'
 import { notificationsApi } from '@/api/client'
 import type { NotificationPayload, NotificationSettings, ServerEvent } from '@/api/types'
 import { appPath, currentPermission, queueTarget, shouldNotify } from '@/lib/notifications'
+import { deviceWasSetUp } from '@/lib/notificationDevice'
+import { unsubscribeDevice } from '@/lib/push'
 
 /** Whether this device has a Web Push subscription (then push shows the
  * notifications, not the page). */
@@ -21,6 +23,9 @@ export async function hasPushSubscription(): Promise<boolean> {
 export const useNotificationsStore = defineStore('notifications', () => {
   const settings = ref<NotificationSettings | null>(null)
   const pushSubscribed = ref(false)
+  /** The account is on and this device was set up, but its permission was
+   * taken back: its subscription was removed (Settings says so). */
+  const revoked = ref(false)
   // Keys seen since the page loaded: a reconnect never replays one.
   const seen = new Set<string>()
   let opener: ((queueId: string, itemId: string | null) => void) | null = null
@@ -32,6 +37,13 @@ export const useNotificationsStore = defineStore('notifications', () => {
       settings.value = null // off until it loads
     }
     pushSubscribed.value = await hasPushSubscription()
+    // Revoked later: this device's subscription goes; other devices keep theirs.
+    const permission = currentPermission()
+    if (settings.value?.enabled && deviceWasSetUp() && permission !== 'granted' && permission !== 'unsupported') {
+      await unsubscribeDevice()
+      pushSubscribed.value = false
+      revoked.value = true
+    }
   }
 
   /** Where a click on a notification leads (App: the Queue panel). */
@@ -43,6 +55,11 @@ export const useNotificationsStore = defineStore('notifications', () => {
     const path = appPath(p.url, window.location.origin)
     const target = path ? queueTarget(path) : null
     if (target) opener?.(target.queueId, target.itemId)
+  }
+
+  /** Shows one notification on this page (Settings' test without push). */
+  function showLocal(n: { title: string; body: string; tag: string }) {
+    show({ v: 1, kind: 'done', key: n.tag, project: '', position: 0, outcome: 'test', url: '/', title: n.title, body: n.body })
   }
 
   function show(p: NotificationPayload) {
@@ -73,7 +90,8 @@ export const useNotificationsStore = defineStore('notifications', () => {
   function reset() {
     settings.value = null
     pushSubscribed.value = false
+    revoked.value = false
   }
 
-  return { settings, pushSubscribed, load, apply, onOpen, open, reset }
+  return { settings, pushSubscribed, revoked, load, apply, onOpen, open, showLocal, reset }
 })

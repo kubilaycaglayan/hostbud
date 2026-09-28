@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"hostbud/internal/notify"
 	"hostbud/internal/store"
@@ -16,6 +17,7 @@ type NotificationService interface {
 	PutSettings(ctx context.Context, userID string, p store.NotificationPrefs) (notify.Settings, error)
 	Subscribe(ctx context.Context, userID, endpoint, p256dh, auth string) error
 	Unsubscribe(ctx context.Context, userID, endpoint string) error
+	SendTest(ctx context.Context, userID, endpoint string) error
 }
 
 func mountNotificationRoutes(s *server, addFunc func(string, http.HandlerFunc)) {
@@ -23,6 +25,7 @@ func mountNotificationRoutes(s *server, addFunc func(string, http.HandlerFunc)) 
 	addFunc("PUT /api/notifications/settings", s.putNotificationSettings)
 	addFunc("POST /api/notifications/subscriptions", s.subscribePush)
 	addFunc("DELETE /api/notifications/subscriptions", s.unsubscribePush)
+	addFunc("POST /api/notifications/test", s.testNotification)
 }
 
 // notificationUser is the signed-in account, or a 401.
@@ -39,6 +42,9 @@ func (s *server) notificationError(w http.ResponseWriter, err error) {
 	var ne *notify.Error
 	switch {
 	case errors.As(err, &ne):
+		if ne.RetryAfter > 0 {
+			w.Header().Set("Retry-After", strconv.Itoa(int(ne.RetryAfter.Seconds())))
+		}
 		writeError(w, ne.Status, ne.Message, ne.Hint)
 	case errors.Is(err, store.ErrNotFound):
 		writeError(w, http.StatusNotFound, "not found", "Reload hostbud.")
@@ -148,4 +154,29 @@ func (s *server) unsubscribePush(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// testNotification: POST /api/notifications/test {endpoint} → 202; a test
+// push to this device (the caller's own subscription) only. Rate-limited
+// per account (429 with Retry-After).
+func (s *server) testNotification(w http.ResponseWriter, r *http.Request) {
+	user, ok := notificationUser(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		Endpoint string `json:"endpoint"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	if req.Endpoint == "" {
+		writeError(w, http.StatusBadRequest, "endpoint is required", "Send this device's subscription endpoint.")
+		return
+	}
+	if err := s.cfg.Notifications.SendTest(r.Context(), user, req.Endpoint); err != nil {
+		s.notificationError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusAccepted)
 }

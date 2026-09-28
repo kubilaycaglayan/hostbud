@@ -275,6 +275,7 @@ export const notificationsApi = {
     request<NotificationSettings>('PUT', '/api/notifications/settings', prefs),
   subscribe: (sub: { endpoint: string; keys: { p256dh: string; auth: string } }) =>
     request<void>('POST', '/api/notifications/subscriptions', sub),
+  test: (endpoint: string) => request<void>('POST', '/api/notifications/test', { endpoint }),
   unsubscribe: (endpoint: string, opts: { keepalive?: boolean } = {}) =>
     request<void>('DELETE', '/api/notifications/subscriptions', { endpoint }, opts.keepalive ? { keepalive: true } : {}),
 }

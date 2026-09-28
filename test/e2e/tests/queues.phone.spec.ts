@@ -43,7 +43,7 @@ test.describe('Queues panel on iPhone 13 Pro (parallel queues)', () => {
     await expect(settings.getByLabel('Maximum parallel runs')).toBeEnabled()
     await settings.getByLabel('Maximum parallel runs').fill(value)
     await settings.getByRole('button', { name: 'Save' }).tap()
-    await expect(settings.getByRole('status')).toContainText(value ? `at most ${value}` : 'no cap')
+    await expect(settings.getByRole('form', { name: 'Queue runs' }).getByRole('status')).toContainText(value ? `at most ${value}` : 'no cap')
     await settings.getByRole('button', { name: 'Close settings' }).tap()
     await page.getByRole('banner').getByRole('button', { name: 'Queue', exact: true }).tap()
   }

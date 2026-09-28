@@ -165,3 +165,35 @@ func TestNotificationSettingsPushAvailable(t *testing.T) {
 		t.Fatalf("push available: %+v", got)
 	}
 }
+
+// V2-M3 T4: the test route reaches only the caller's own device, and is
+// rate-limited per account.
+func TestTestNotificationRoute(t *testing.T) {
+	e := newEnv(t)
+	st := &fakeNotifyStore{subs: map[string]string{"https://push.example.com/mine": "u1", "https://push.example.com/theirs": "u2"}}
+	e.notifier = newNotifierWith(st, config.Push{Available: true})
+	e.rebuild()
+	if rec := e.do(t, http.MethodPost, "/api/notifications/test", `{"endpoint":"https://push.example.com/theirs"}`, nil); rec.Code != http.StatusNotFound {
+		t.Fatalf("another account's device: %d %s", rec.Code, rec.Body)
+	}
+	for i := range 2 {
+		if rec := e.do(t, http.MethodPost, "/api/notifications/test", `{"endpoint":"https://push.example.com/mine"}`, nil); rec.Code != http.StatusAccepted {
+			t.Fatalf("test %d: %d %s", i, rec.Code, rec.Body)
+		}
+	}
+	rec := e.do(t, http.MethodPost, "/api/notifications/test", `{"endpoint":"https://push.example.com/mine"}`, nil)
+	if rec.Code != http.StatusTooManyRequests || rec.Header().Get("Retry-After") == "" {
+		t.Fatalf("over the limit: %d %v", rec.Code, rec.Header())
+	}
+	// Another account has its own budget.
+	other := map[string]string{"Cookie": SessionCookie + "=" + otherToken}
+	if rec := e.do(t, http.MethodPost, "/api/notifications/test", `{"endpoint":"https://push.example.com/theirs"}`, other); rec.Code != http.StatusAccepted {
+		t.Fatalf("other account: %d %s", rec.Code, rec.Body)
+	}
+	if rec := e.do(t, http.MethodPost, "/api/notifications/test", `{"endpoint":"https://push.example.com/mine"}`, map[string]string{"Origin": "https://evil.example"}); rec.Code != http.StatusForbidden {
+		t.Fatalf("foreign Origin: %d", rec.Code)
+	}
+	if rec := e.do(t, http.MethodPost, "/api/notifications/test", `{}`, nil); rec.Code != http.StatusBadRequest {
+		t.Fatalf("no endpoint: %d", rec.Code)
+	}
+}

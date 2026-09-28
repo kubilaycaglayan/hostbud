@@ -47,3 +47,9 @@ export async function unsubscribeDevice(): Promise<void> {
   }
   await sub.unsubscribe().catch(() => false)
 }
+
+/** This device's push endpoint, or null without a subscription. */
+export async function pushEndpoint(): Promise<string | null> {
+  const sub = await (await registration())?.pushManager?.getSubscription().catch(() => null)
+  return sub?.endpoint ?? null
+}

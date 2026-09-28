@@ -13,6 +13,8 @@ const (
 	KindDone      = "done"
 	KindAttention = "attention"
 	KindFinished  = "finished"
+	// KindTest is Settings → Send test notification (not an event choice).
+	KindTest = "test"
 )
 
 // PayloadVersion is the payload's v field.
@@ -58,6 +60,8 @@ func DedupeKey(e Event) string {
 	switch e.Kind {
 	case KindFinished:
 		return "queue:" + e.QueueID + ":finished:" + e.RunID
+	case KindTest:
+		return "test:" + e.RunID
 	default:
 		return "run:" + e.RunID + ":" + e.Kind
 	}
@@ -89,6 +93,9 @@ func Build(e Event) (Payload, error) {
 		V: PayloadVersion, Kind: e.Kind, Key: DedupeKey(e), Project: project, Position: e.Position,
 		URL: "/queues/" + url.PathEscape(e.QueueID) + "?item=" + url.QueryEscape(e.ItemID),
 	}
+	if e.Kind == KindTest {
+		p.URL = "/"
+	}
 	switch e.Kind {
 	case KindDone:
 		p.Outcome = "done"
@@ -106,6 +113,10 @@ func Build(e Event) (Payload, error) {
 		p.Outcome = "finished"
 		p.Title = project + ": queue finished"
 		p.Body = fmt.Sprintf("Every item has run (last: item %d).", e.Position)
+	case KindTest:
+		p.Outcome = "test"
+		p.Title = "hostbud: test notification"
+		p.Body = "Notifications reach this device."
 	default:
 		return Payload{}, fmt.Errorf("unknown notification kind %q", e.Kind)
 	}

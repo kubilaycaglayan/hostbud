@@ -66,3 +66,10 @@ func TestPayloadAllowlistAndCap(t *testing.T) {
 		t.Fatalf("empty project = %q", p2.Project)
 	}
 }
+
+func TestBuildTestNotification(t *testing.T) {
+	p, err := Build(Event{Kind: KindTest, RunID: "abc"})
+	if err != nil || p.Key != "test:abc" || p.URL != "/" || p.Title != "hostbud: test notification" || p.Outcome != "test" {
+		t.Fatalf("test payload %+v, %v", p, err)
+	}
+}

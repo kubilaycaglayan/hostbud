@@ -56,5 +56,6 @@
   {"method":"PUT","path":"/api/notifications/settings","stateChanging":true,"authRequired":true,"websocket":false,"jsonBody":true},
   {"method":"POST","path":"/api/notifications/subscriptions","stateChanging":true,"authRequired":true,"websocket":false,"jsonBody":true},
   {"method":"DELETE","path":"/api/notifications/subscriptions","stateChanging":true,"authRequired":true,"websocket":false,"jsonBody":true},
+  {"method":"POST","path":"/api/notifications/test","stateChanging":true,"authRequired":true,"websocket":false,"jsonBody":true},
   {"method":"GET","path":"/","stateChanging":false,"authRequired":false,"websocket":false,"jsonBody":false}
 ]
