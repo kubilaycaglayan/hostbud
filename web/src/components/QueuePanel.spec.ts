@@ -101,7 +101,53 @@ describe('QueuePanel', () => {
     instruction.dispatchEvent(new Event('input'))
     button('Add item')!.click()
     await flushPromises()
-    expect(calls).toEqual([{ method: 'POST', path: '/api/queues/q1/items', body: { agent: 'claude', flags: '', instruction: '/goal ship M2' } }])
+    expect(calls).toEqual([{ method: 'POST', path: '/api/queues/q1/items', body: { agent: 'claude', flags: '--dangerously-skip-permissions', instruction: '/goal ship M2' } }])
+  })
+
+  it('defaults permission modes by agent, exposes a quick toggle, and preserves custom flags', async () => {
+    const calls = stubFetch(() => ({ status: 201, body: {} }))
+    await mountPanel(queue([], 'idle'))
+    const form = $$('form[aria-label="Add item"]')[0]
+    const agent = form.querySelector('select') as HTMLSelectElement
+    const flags = form.querySelector('input[spellcheck="false"]') as HTMLInputElement
+    const mode = form.querySelector('input[type="checkbox"]') as HTMLInputElement
+    expect(flags.value).toBe('--dangerously-skip-permissions')
+    expect(mode.checked).toBe(true)
+
+    agent.value = 'codex'
+    agent.dispatchEvent(new Event('change'))
+    await flushPromises()
+    expect(flags.value).toBe('--yolo')
+    expect(form.textContent).toContain('YOLO mode')
+
+    flags.value = "--model 'opus 4' --yolo"
+    flags.dispatchEvent(new Event('input'))
+    await flushPromises()
+    mode.checked = false
+    mode.dispatchEvent(new Event('change'))
+    await flushPromises()
+    expect(flags.value).toBe("--model 'opus 4'")
+    const instruction = form.querySelector('textarea') as HTMLTextAreaElement
+    instruction.value = '/goal verify flags'
+    instruction.dispatchEvent(new Event('input'))
+    button('Add item')!.click()
+    await flushPromises()
+    expect(calls[0].body).toEqual({ agent: 'codex', flags: "--model 'opus 4'", instruction: '/goal verify flags' })
+  })
+
+  it('offers the matching permission-mode toggle while editing an item', async () => {
+    await mountPanel(queue([{ ...queued, flags: "--model 'opus 4'" }]))
+    button('Edit item 2')!.click()
+    await flushPromises()
+    const form = $$('form[aria-label="Edit item 2"]')[0]
+    const flags = form.querySelector('input[spellcheck="false"]') as HTMLInputElement
+    const mode = form.querySelector('input[type="checkbox"]') as HTMLInputElement
+    expect(form.textContent).toContain('YOLO mode')
+    expect(mode.checked).toBe(false)
+    mode.checked = true
+    mode.dispatchEvent(new Event('change'))
+    await flushPromises()
+    expect(flags.value).toBe("--model 'opus 4' --yolo")
   })
 
   it('shows the server error with its hint (one-queue limit, 409s)', async () => {

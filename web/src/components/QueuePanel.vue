@@ -121,7 +121,31 @@ function saveRename() {
 
 // ---- adding and editing items ----
 interface Draft { agent: Agent; flags: string; instruction: string }
-const draft = ref<Draft>({ agent: 'claude', flags: '', instruction: INSTRUCTION_PREFIX })
+const permissionFlag: Record<Agent, string> = {
+  claude: '--dangerously-skip-permissions',
+  codex: '--yolo',
+}
+function hasFlag(flags: string, flag: string): boolean {
+  return new RegExp(`(?:^|\\s)${flag}(?=\\s|$)`).test(flags)
+}
+function setFlag(flags: string, flag: string, enabled: boolean): string {
+  const without = flags.replace(new RegExp(`(^|\\s)${flag}(?=\\s|$)`, 'g'), '$1').trim()
+  return enabled ? [without, flag].filter(Boolean).join(' ') : without
+}
+function switchAgentFlags(flags: string, agent: Agent): string {
+  const custom = setFlag(setFlag(flags, permissionFlag.claude, false), permissionFlag.codex, false)
+  return setFlag(custom, permissionFlag[agent], true)
+}
+const draft = ref<Draft>({ agent: 'claude', flags: permissionFlag.claude, instruction: INSTRUCTION_PREFIX })
+const draftPermissionFlag = computed({
+  get: () => draft.value.agent,
+  set: (agent: Agent) => { draft.value = { ...draft.value, agent, flags: switchAgentFlags(draft.value.flags, agent) } },
+})
+const edit = ref<Draft>({ agent: 'claude', flags: '', instruction: '' })
+const editPermissionFlag = computed({
+  get: () => edit.value.agent,
+  set: (agent: Agent) => { edit.value = { ...edit.value, agent, flags: switchAgentFlags(edit.value.flags, agent) } },
+})
 const draftTouched = ref(false)
 const draftErrors = computed(() => ({ flags: flagsError(draft.value.flags), instruction: instructionError(draft.value.instruction) }))
 function addItem() {
@@ -131,13 +155,12 @@ function addItem() {
   const d = { ...draft.value }
   void act("Couldn't add the item", async () => {
     await queuesApi.addItem(q.id, d)
-    draft.value = { agent: d.agent, flags: d.flags, instruction: INSTRUCTION_PREFIX }
+    draft.value = { agent: d.agent, flags: permissionFlag[d.agent], instruction: INSTRUCTION_PREFIX }
     draftTouched.value = false
   })
 }
 
 const editing = ref<string | null>(null)
-const edit = ref<Draft>({ agent: 'claude', flags: '', instruction: '' })
 const editErrors = computed(() => ({ flags: flagsError(edit.value.flags), instruction: instructionError(edit.value.instruction) }))
 function startEdit(item: QueueItem) {
   editing.value = item.id
@@ -395,12 +418,16 @@ const badge: Record<QueueItem['status'], string> = {
               >
                 <form v-if="editing === item.id" class="flex flex-col gap-2" :aria-label="`Edit item ${item.position}`" @submit.prevent="saveEdit(item)">
                   <label class="block">Agent
-                    <select v-model="edit.agent" autocomplete="off" class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 text-base">
+                    <select v-model="editPermissionFlag" autocomplete="off" class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 text-base">
                       <option v-for="a in AGENTS" :key="a" :value="a">{{ a }}</option>
                     </select>
                   </label>
                   <label class="block">Flags
-                    <input v-model="edit.flags" autocomplete="off" spellcheck="false" class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 font-mono text-base">
+                    <input v-model="edit.flags" autocomplete="off" autocapitalize="off" dir="ltr" spellcheck="false" class="mt-1 min-h-11 w-full min-w-0 rounded border border-border bg-bg px-3 text-left font-mono text-base">
+                  </label>
+                  <label class="flex min-h-11 items-center gap-2 text-sm">
+                    <input type="checkbox" autocomplete="off" class="size-4" :checked="hasFlag(edit.flags, permissionFlag[edit.agent])" @change="edit.flags = setFlag(edit.flags, permissionFlag[edit.agent], ($event.target as HTMLInputElement).checked)">
+                    {{ edit.agent === 'claude' ? 'Skip permission prompts' : 'YOLO mode' }}
                   </label>
                   <p v-if="editErrors.flags" class="text-sm text-danger">{{ editErrors.flags }}</p>
                   <label class="block">Instruction
@@ -456,14 +483,18 @@ const badge: Record<QueueItem['status'], string> = {
               <h4 class="font-bold">Add item</h4>
               <div class="flex flex-wrap gap-2">
                 <label class="block min-w-32">Agent
-                  <select v-model="draft.agent" autocomplete="off" class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 text-base">
+                  <select v-model="draftPermissionFlag" autocomplete="off" class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 text-base">
                     <option v-for="a in AGENTS" :key="a" :value="a">{{ a }}</option>
                   </select>
                 </label>
                 <label class="block min-w-0 flex-1">Flags
-                  <input v-model="draft.flags" autocomplete="off" spellcheck="false" placeholder="--dangerously-skip-permissions" class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 font-mono text-base">
+                  <input v-model="draft.flags" autocomplete="off" autocapitalize="off" dir="ltr" spellcheck="false" :placeholder="permissionFlag[draft.agent]" class="mt-1 min-h-11 w-full min-w-0 rounded border border-border bg-bg px-3 text-left font-mono text-base">
                 </label>
               </div>
+              <label class="flex min-h-11 items-center gap-2 text-sm">
+                <input type="checkbox" autocomplete="off" class="size-4" :checked="hasFlag(draft.flags, permissionFlag[draft.agent])" @change="draft.flags = setFlag(draft.flags, permissionFlag[draft.agent], ($event.target as HTMLInputElement).checked)">
+                {{ draft.agent === 'claude' ? 'Skip permission prompts' : 'YOLO mode' }}
+              </label>
               <p v-if="draftTouched && draftErrors.flags" class="text-sm text-danger">{{ draftErrors.flags }}</p>
               <label class="block">Instruction
                 <textarea v-model="draft.instruction" autocomplete="off" spellcheck="false" rows="2" class="mt-1 min-h-11 w-full resize-y rounded border border-border bg-bg px-2 py-1 font-mono text-base"></textarea>

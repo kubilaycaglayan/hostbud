@@ -21,6 +21,26 @@ test.describe('Queue panel on iPhone 13 Pro', () => {
   const panel = (page: Page) => page.getByRole('dialog', { name: 'Queue' })
   const row = (page: Page, condition: string) => panel(page).getByRole('listitem', { name: new RegExp(`: /goal ${condition}$`) })
 
+  test('(V2-M1 T16) Permission flags are quick to select and default by agent', async ({ page, ui, request, target }) => {
+    test.skip(test.info().project.name.endsWith('-domain'), 'uses the loopback access path for setup')
+    const project = await newProject(request, target, 'e2e-phone-queue-permission-flags')
+    await ui.open()
+    await openPanelAndCreate(page, project.id)
+    const form = panel(page).getByRole('form', { name: 'Add item' })
+    const flags = form.getByLabel('Flags')
+    await expect(flags).toHaveValue('--dangerously-skip-permissions')
+    await expect(form.getByLabel('Skip permission prompts')).toBeChecked()
+    await flags.fill('--')
+    await expect(flags).toHaveValue('--')
+    await form.getByLabel('Agent').selectOption('codex')
+    await expect(flags).toHaveValue('--yolo')
+    await expect(form.getByLabel('YOLO mode')).toBeChecked()
+    await form.getByLabel('Instruction').fill('/goal phone permission mode defaults')
+    await form.getByRole('button', { name: 'Add item' }).tap()
+    await expect(row(page, 'phone permission mode defaults')).toContainText('--yolo')
+    await noHorizontalScroll(page)
+  })
+
   async function openPanelAndCreate(page: Page, projectId: string) {
     await page.getByRole('banner').getByRole('button', { name: 'Queue', exact: true }).tap()
     await expect(panel(page)).toBeVisible()

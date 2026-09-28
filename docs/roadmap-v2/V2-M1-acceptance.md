@@ -113,8 +113,9 @@ Links: tasks in [V2-M1-tasks.md](V2-M1-tasks.md); criteria R1–R17, their base 
   - Autocomplete is off.
   - On the phone: a sheet, touch targets of at least 44 px, move buttons, and a handoff to the single-terminal view.
   - Queue forms and actions are compact: Add item is right-aligned; add/edit instructions use vertically resizable text areas; item edit/delete are icon buttons; action spacing is reduced; edits update the displayed item; phone touch targets remain at least 44 px and the sheet has no horizontal overflow.
-  - U: T10, T11, T15 (`QueuePanel.spec.ts`) · I: n/a (frontend) · E: T10, T11, T15 (`queue.spec.ts`, `queue.phone.spec.ts`).
-  - Status (2026-09-28, T15): U written and passing (`QueuePanel.spec.ts`); E written and type-checked (`queue.spec.ts`, `queue.phone.spec.ts`), run pending on demand.
+  - Agent permission modes are quick to select: Claude Code defaults to `--dangerously-skip-permissions`, Codex defaults to `--yolo`, and the quick toggle can remove its mode while preserving custom flags. Leading `--` stays left-aligned and visible while typing.
+  - U: T10, T11, T15, T16 (`QueuePanel.spec.ts`) · I: n/a (frontend) · E: T10, T11, T15, T16 (`queue.spec.ts`, `queue.phone.spec.ts`).
+  - Status (2026-09-28, T15–T16): U written and passing (`QueuePanel.spec.ts`); E written and type-checked (`queue.spec.ts`, `queue.phone.spec.ts`), run pending on demand.
 - [x] **R16 Restart safety.**
   - Active runs are reloaded and their timers re-armed, with one read each.
   - A goal achieved during the restart is picked up.
@@ -143,6 +144,7 @@ These run on the throwaway target with stubs, on desktop and `iphone-13-pro`. Th
 - [ ] (T10) Queue panel
 - [ ] (T11) Queue panel (phone), including a live hand-off from item 1 to item 2 and `finished`
 - [ ] (T15) Compact queue forms and actions on desktop and phone; add/edit instruction resize and saved display; touch target and overflow checks
+- [ ] (T16) Claude/Codex permission-mode defaults and quick toggles; quoted custom flags preserved; leading dashes visible on desktop and phone
 - [ ] (on demand) Full suite green: every v1 and v2 scenario, in both profiles, with no skips and no weakened assertions — run only when the owner asks; open until then, not a blocker
 
 ## Manual checks (owner; backlog, not blockers)

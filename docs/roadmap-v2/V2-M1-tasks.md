@@ -26,6 +26,7 @@ Update this table in the same commit that finishes a task.
 | T13 Milestone acceptance | Done (deployed 2026-09-28; e2e run on demand, pending) |
 | T14 Safe Docker cleanup | Done (2026-09-28; ~4 MB reclaimed: idle toolbox containers; no e2e or dangling images existed) |
 | T15 Queue panel visual density | Implemented; e2e written and type-checked, run pending (on demand) |
+| T16 Queue agent permission flags | Done (unit tests pass; e2e written and type-checked, run pending on demand) |
 
 ## Preconditions
 
@@ -389,6 +390,14 @@ Scope: owner request (2026-09-28). Make queue editing compact and usable with lo
 - Replace item Edit/Delete text controls with named icon buttons; tighten move, start, retry and owner-action buttons. Keep visible focus and at least 44 px touch targets on coarse-pointer devices.
 - Reduce unused action spacing within queue item cards and check the phone sheet for horizontal overflow.
 - **Tests:** U: `QueuePanel.spec.ts` checks both text areas, resize affordance, compact action classes, icon actions, and form alignment. I: n/a (frontend-only). E: add the T15 compact queue form/actions scenario to `queue.spec.ts` and `queue.phone.spec.ts`; verify edit updates the displayed instruction, icon controls stay accessible, and touch targets remain usable on phone. Type-check only; E2E runs on demand.
+
+## T16 — Queue agent permission flags
+
+Scope: owner request (2026-09-28). Make the common permission modes visible and quick to choose while avoiding manual entry of leading dashes:
+- Default Claude Code to `--dangerously-skip-permissions` and Codex to `--yolo` in the Add item form. Switching the selected agent selects its corresponding mode and preserves unrelated flags.
+- Add an accessible quick toggle for the selected agent's mode in Add and Edit forms. Users can remove the default mode while retaining other flags.
+- Keep flag input left-to-right and left-aligned so leading `--` remains visible while typing.
+- **Tests:** U: `QueuePanel.spec.ts` covers per-agent defaults, switching, toggling, preservation of custom flags, and submitted values. I: n/a (frontend-only). E: add T16 cases to `queue.spec.ts` and `queue.phone.spec.ts` for defaults, agent switch and quick toggle, plus leading-dash visibility; type-check only, E2E runs on demand.
 
 ---
 
