@@ -45,7 +45,7 @@ Written in T1–T5, first run in T7, on desktop and `iphone-13-pro`.
 - [x] (T1) Supervisor status — written and type-checked; run pending
 - [x] (T1) No provider, no calls — written and type-checked; run pending
 - [x] (T2) Quiet run is flagged — written and type-checked; run pending
-- [ ] (T2) Stale run is classified
+- [x] (T2) Stale run is classified — written and type-checked; run pending
 - [x] (T2) Budget respected — written and type-checked; run pending
 - [ ] (T2) Session gone or renamed
 - [x] (T2) Gated items not classified — written and type-checked; run pending
@@ -53,8 +53,8 @@ Written in T1–T5, first run in T7, on desktop and `iphone-13-pro`.
 - [x] (T3) Completed label never advances — written and type-checked; run pending
 - [ ] (T3) Completed races achieved
 - [ ] (T3) Run ends mid-classification
-- [ ] (T3) Owner action during classification
-- [ ] (T3) Provider errors
+- [x] (T3) Owner action during classification — skip race written and type-checked; run pending
+- [x] (T3) Provider errors — 503 exhaustion written and type-checked; run pending
 - [ ] (T3) Prompt injection
 - [x] (T4) Scrubbed before sending — written and type-checked; run pending
 - [ ] (T4) Pane text not exposed

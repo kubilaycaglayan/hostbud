@@ -1,7 +1,7 @@
 import { expect, test as base } from '../helpers/fixtures.ts'
 import { test as multiTest } from '../helpers/multi.ts'
 import { test as llmTest } from '../helpers/llm.ts'
-import { createQueue, addItem, control, getQueue, itemOf, newProject } from '../helpers/queues.ts'
+import { createQueue, addItem, control, getQueue, itemOf, newProject, override } from '../helpers/queues.ts'
 import { Stubs } from '../helpers/stubs.ts'
 import { llmDb, queues as mainQueues } from '../helpers/db.ts'
 import { newDevice, pushfake, received, subscribe } from '../helpers/push.ts'
@@ -107,6 +107,46 @@ llmTest('(V2-M5 T2) Gated items are never classified', async ({ llm, target }) =
   await expect.poll(async()=>(await itemOf(llm,queue.id,item.id)).status,{timeout:15_000}).toBe('awaiting_approval')
   await new Promise((resolve)=>setTimeout(resolve,11_000))
   expect(await (await llm.get('http://hostbud-e2e-llmfake:8080/ctl/requests')).json()).toEqual([])
+})
+
+llmTest('(V2-M5 T2) Stale runs are classified immediately', async ({ llm, target }) => {
+  await target.resetTmux(); await stubs.reset(); await llm.post('http://hostbud-e2e-llmfake:8080/ctl/reset')
+  const project=await newProject(llm,target,'e2e-llm-stale'); const queue=await createQueue(llm,project.id)
+  await stubs.setBehavior('e2e llm stale','silent',0.1)
+  const item=await addItem(llm,queue.id,{instruction:'/goal e2e llm stale'}); await control(llm,queue.id,'start')
+  await expect.poll(async()=>(await itemOf(llm,queue.id,item.id)).run?.status,{timeout:30_000}).toBe('stale')
+  await expect.poll(async()=>(await itemOf(llm,queue.id,item.id)).run?.flag?.label,{timeout:20_000}).toBe('waiting_input')
+  expect(await (await llm.get('http://hostbud-e2e-llmfake:8080/ctl/requests')).json()).toHaveLength(1)
+})
+
+llmTest('(V2-M5 T3) An owner skip while classification is in flight discards the result', async ({ llm, target }) => {
+  await target.resetTmux(); await stubs.reset(); await llm.post('http://hostbud-e2e-llmfake:8080/ctl/reset')
+  await llm.post('http://hostbud-e2e-llmfake:8080/ctl/script',{data:{delayMs:5000}})
+  const project=await newProject(llm,target,'e2e-llm-skip-race'); const queue=await createQueue(llm,project.id)
+  await stubs.setBehavior('e2e llm skip race','silent',0.1)
+  const item=await addItem(llm,queue.id,{instruction:'/goal e2e llm skip race'}); await control(llm,queue.id,'start')
+  await expect.poll(async()=>(await itemOf(llm,queue.id,item.id)).run?.status,{timeout:30_000}).toBe('stale')
+  await expect.poll(async()=>(await llm.get('http://hostbud-e2e-llmfake:8080/ctl/requests')).json(),{timeout:20_000}).toHaveLength(1)
+  expect((await override(llm,item.id,'skip')).status()).toBe(200)
+  await new Promise((resolve)=>setTimeout(resolve,5500))
+  const current=await itemOf(llm,queue.id,item.id)
+  expect(current).toMatchObject({status:'skipped'})
+  expect(current.run?.flag).toBeUndefined()
+  expect((await llmDb.events(current.run!.id)).filter((e)=>e.source==='llm').map((e)=>e.kind)).toEqual(['llm_started','llm_discarded'])
+})
+
+llmTest('(V2-M5 T3) Provider 503 exhaustion records unknown without changing the item', async ({ llm, target }) => {
+  await target.resetTmux(); await stubs.reset(); await llm.post('http://hostbud-e2e-llmfake:8080/ctl/reset')
+  await llm.post('http://hostbud-e2e-llmfake:8080/ctl/script',{data:{status:503}})
+  const project=await newProject(llm,target,'e2e-llm-provider-error'); const queue=await createQueue(llm,project.id)
+  await stubs.setBehavior('e2e llm provider error','silent',0.1)
+  const item=await addItem(llm,queue.id,{instruction:'/goal e2e llm provider error'}); await control(llm,queue.id,'start')
+  await expect.poll(async()=>(await itemOf(llm,queue.id,item.id)).run?.status,{timeout:30_000}).toBe('stale')
+  await expect.poll(async()=>(await llmDb.events((await itemOf(llm,queue.id,item.id)).run!.id)).filter((e)=>e.kind==='llm_result').length,{timeout:30_000}).toBe(1)
+  const current=await itemOf(llm,queue.id,item.id)
+  expect(current.status).toBe('needs_attention')
+  expect(current.run?.flag).toBeUndefined()
+  expect(await (await llm.get('http://hostbud-e2e-llmfake:8080/ctl/requests')).json()).toHaveLength(3)
 })
 
 llmTest('(V2-M5 T3) Completed label never advances the queue', async ({ llm, target }) => {
