@@ -160,5 +160,5 @@ Record the date and the result for each one. Anything still unchecked stays open
 - [x] Every criterion above is ticked (E items as written and type-checked; `make e2e` runs only on demand and a pending run is listed as open).
 - [x] `make lint test` is green, `make gitleaks` is clean, and nothing host-specific is tracked. (CP6, 2026-09-28)
 - [x] *(host)* `make deploy` succeeded: the stack is healthy, v1 data is intact, and the panel opens. (2026-09-28: `/api/health` ok, migration 5 applied, v1 row counts equal to the pre-deploy baseline, queue and hook routes answer, the served bundle has the Queue panel; the panel's look on real devices is an owner check.)
-- [ ] T14 Docker cleanup is done, or skipped with the reason recorded. Production, the volumes and the backups are intact, and the reclaimed space is reported.
-- [ ] The summary has been delivered: changes, the two optional env vars, host steps, e2e results and open owner items.
+- [x] T14 Docker cleanup is done, or skipped with the reason recorded. Production, the volumes and the backups are intact, and the reclaimed space is reported. (2026-09-28, ~4 MB)
+- [x] The summary has been delivered: changes, the two optional env vars, host steps, e2e results and open owner items. (2026-09-28)
