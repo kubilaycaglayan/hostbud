@@ -13,9 +13,14 @@ import (
 	"hostbud/internal/store"
 )
 
-type switchNotifications struct{ on bool }
+type switchNotifications struct {
+	on, push bool
+	wakes    int
+}
 
 func (s *switchNotifications) Enabled(context.Context) bool { return s.on }
+func (s *switchNotifications) PushAvailable() bool          { return s.push }
+func (s *switchNotifications) Wake()                        { s.wakes++ }
 
 // notices drains queue.changed events: each action, and the notification
 // key it carried ("" for none).
@@ -120,5 +125,41 @@ func TestDispatcherNotifiesStaleThenLateDone(t *testing.T) {
 	_, keys, _ = notices(ch)
 	if keys["item_done"] != "run:"+r.ID+":done" || len(keys) != 1 {
 		t.Fatalf("late achieved: %v", keys)
+	}
+}
+
+// V2-M3 T2: with push available the three transitions queue their outbox
+// rows through the store in the same call (the store writes them in the
+// transition's transaction) and wake the sender; without push, none.
+func TestDispatcherQueuesPushWithTheTransition(t *testing.T) {
+	for _, push := range []bool{true, false} {
+		e := newDispEnv(t, "one", "two")
+		n := &switchNotifications{on: true, push: push}
+		e.d.SetNotifications(n)
+		e.startQueue()
+		r1 := e.run(1)
+		e.hook(r1, EventSessionStart, "s1")
+		e.claude.set("s1", agents.Achieved)
+		e.hook(r1, EventTurnEnd, "s1")
+		e.hook(r1, EventTurnEnd, "s1") // a duplicate Stop hook
+		r2 := e.run(2)
+		e.hook(r2, EventSessionStart, "s2")
+		e.claude.set("s2", agents.Achieved)
+		e.hook(r2, EventTurnEnd, "s2")
+		want := []string{"run:" + r1.ID + ":done", "run:" + r2.ID + ":done", "queue:" + e.queue.ID + ":finished:" + r2.ID}
+		if !push {
+			want = nil
+		}
+		if got := e.st.outboxKeys(); !slices.Equal(got, want) {
+			t.Fatalf("push=%v: outbox %v, want %v", push, got, want)
+		}
+		if push && n.wakes != 3 || !push && n.wakes != 0 {
+			t.Fatalf("push=%v: %d wakes", push, n.wakes)
+		}
+		for _, notice := range e.st.outbox {
+			if len(notice.Payload) > notify.MaxPayload || strings.Contains(string(notice.Payload), "/goal") {
+				t.Fatalf("outbox payload %s", notice.Payload)
+			}
+		}
 	}
 }

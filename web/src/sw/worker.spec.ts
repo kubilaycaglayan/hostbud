@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { classifyRequest } from './routing'
-import { activateWorker, handleFetch, installWorker } from './worker'
+import { activateWorker, handleFetch, installWorker, notificationPath, openFromNotification, pushNotification } from './worker'
 
 function fakeRequest(url: string, method = 'GET', mode: RequestMode = 'cors') {
   return { url: new URL(url, 'https://hostbud.example.test').toString(), method, mode } as Request
@@ -87,5 +87,39 @@ describe('service worker cache lifecycle', () => {
     expect(fetcher).not.toHaveBeenCalled() // the browser performs the fetch when respondWith is omitted
     expect(records.get('hostbud-shell-v1')?.size).toBe(0)
     expect(putCalls()).toBe(0)
+  })
+})
+
+describe('service worker push (V2-M3)', () => {
+  const payload = { v: 1, kind: 'done', key: 'run:r1:done', project: 'app', position: 2, outcome: 'done', url: '/queues/q1?item=i2', title: 'app: item 2 done', body: 'Item 2 reached its goal.' }
+
+  it('shows the payload title and body with the key as tag', () => {
+    expect(pushNotification(JSON.stringify(payload))).toEqual({
+      title: 'app: item 2 done',
+      options: { body: 'Item 2 reached its goal.', tag: 'run:r1:done', icon: '/icons/icon-192.png', badge: '/icons/icon-192.png', data: { url: '/queues/q1?item=i2' } },
+    })
+  })
+
+  it.each([null, '', 'not json', '[]', JSON.stringify({ ...payload, v: 2 }), JSON.stringify({ ...payload, title: 7 })])('shows nothing for %s', (text) => {
+    expect(pushNotification(text)).toBeNull()
+  })
+
+  it('opens only same-origin paths', () => {
+    expect(notificationPath('/queues/q1?item=i2', 'https://hostbud.example.test')).toBe('/queues/q1?item=i2')
+    for (const bad of ['https://evil.example/x', '//evil.example/x', 'javascript:alert(1)', 7, undefined]) {
+      expect(notificationPath(bad, 'https://hostbud.example.test')).toBe('/')
+    }
+  })
+
+  it('focuses an open window and tells it the item, or opens one', async () => {
+    const focus = vi.fn(async () => undefined)
+    const postMessage = vi.fn()
+    const openWindow = vi.fn(async () => undefined)
+    await openFromNotification({ matchAll: async () => [{ url: 'https://hostbud.example.test/', focus, postMessage }], openWindow }, 'https://hostbud.example.test', '/queues/q1?item=i2')
+    expect(focus).toHaveBeenCalled()
+    expect(postMessage).toHaveBeenCalledWith({ type: 'hostbud.open', path: '/queues/q1?item=i2' })
+    expect(openWindow).not.toHaveBeenCalled()
+    await openFromNotification({ matchAll: async () => [{ url: 'https://other.example/', focus, postMessage }], openWindow }, 'https://hostbud.example.test', 'https://evil.example/')
+    expect(openWindow).toHaveBeenCalledWith('/')
   })
 })

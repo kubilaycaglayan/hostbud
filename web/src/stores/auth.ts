@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { ApiError, authApi, runtimeApi } from '@/api/client'
+import { unsubscribeDevice } from '@/lib/push'
 
 export type AuthStatus = 'loading' | 'anonymous' | 'authenticated' | 'unreachable' | 'server-error'
 
@@ -45,6 +46,8 @@ export const useAuthStore = defineStore('auth', () => {
   /** Signs out here first: that stops pending saves, which sent during the
    * logout request would reach the server with a revoked session (401). */
   async function logout() {
+    // V2-M3: this device's push subscription leaves with the account.
+    await unsubscribeDevice()
     status.value = 'anonymous'
     email.value = ''
     await authApi.logout()

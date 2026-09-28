@@ -24,6 +24,10 @@ type DispatchStore interface {
 	ActiveRuns(ctx context.Context) ([]store.Run, error)
 	WaitingQueues(ctx context.Context, machineID string) ([]store.Queue, error)
 	SetQueueWaiting(ctx context.Context, id string, since *time.Time) (store.Queue, error)
+	// V2-M3: the notifying transitions write their push outbox rows in the
+	// same transaction (nil notice: a plain transition).
+	TransitionQueueItemNotify(ctx context.Context, id string, from []string, to string, n *store.Notice) (store.QueueItem, error)
+	TransitionQueueNotify(ctx context.Context, id string, from []string, to string, n *store.Notice) (store.Queue, error)
 }
 
 // Adapters looks up an agent adapter by kind (agents.Registry).
@@ -92,6 +96,10 @@ type Dispatcher struct {
 // off, transitions carry none and nothing new runs.
 type Notifications interface {
 	Enabled(ctx context.Context) bool
+	// PushAvailable: VAPID keys are set, so transitions queue push deliveries.
+	PushAvailable() bool
+	// Wake tells the push sender that a transition queued deliveries.
+	Wake()
 }
 
 // SetNotifications turns V2-M3 notices on (nil turns them off).
@@ -812,10 +820,11 @@ func (d *Dispatcher) achieved(ctx context.Context, rc runCtx, source string) {
 		return
 	}
 	notice := d.notice(ctx, notify.KindDone, rc.run, rc.item, rc.queueID)
-	if _, err := d.store.TransitionQueueItem(ctx, rc.item.ID, []string{store.ItemRunning, store.ItemNeedsAttention}, store.ItemDone); err != nil {
+	if _, err := d.store.TransitionQueueItemNotify(ctx, rc.item.ID, []string{store.ItemRunning, store.ItemNeedsAttention}, store.ItemDone, d.outbox(notice)); err != nil {
 		d.service.Publish(ctx, "run_achieved", rc.queueID)
 		return
 	}
+	d.wakePush(notice)
 	d.service.PublishNotice(ctx, "item_done", rc.queueID, notice)
 	switch {
 	case !wasStale:
@@ -843,9 +852,10 @@ func (d *Dispatcher) untrackable(ctx context.Context, rc runCtx, source, detail 
 // stale run keeps its slot: it is still active).
 func (d *Dispatcher) needsAttention(ctx context.Context, run store.Run, item store.QueueItem, queueID, source string) {
 	notice := d.notice(ctx, notify.KindAttention, run, item, queueID)
-	if _, err := d.store.TransitionQueueItem(ctx, item.ID, []string{store.ItemRunning}, store.ItemNeedsAttention); err != nil {
+	if _, err := d.store.TransitionQueueItemNotify(ctx, item.ID, []string{store.ItemRunning}, store.ItemNeedsAttention, d.outbox(notice)); err != nil {
 		notice = nil // not this transition's: another signal got there first
 	}
+	d.wakePush(notice)
 	_, _ = d.store.TransitionQueue(ctx, queueID, []string{store.QueueRunning}, store.QueuePaused)
 	d.service.PublishNotice(ctx, "needs_attention", queueID, notice)
 	if d.slots() {
@@ -873,8 +883,28 @@ func (d *Dispatcher) finishQueue(ctx context.Context, queueID string) {
 			notice = d.notice(ctx, notify.KindFinished, last, lastItem, queueID)
 		}
 	}
-	if _, err := d.store.TransitionQueue(ctx, queueID, []string{store.QueueRunning}, store.QueueFinished); err == nil {
+	if _, err := d.store.TransitionQueueNotify(ctx, queueID, []string{store.QueueRunning}, store.QueueFinished, d.outbox(notice)); err == nil {
+		d.wakePush(notice)
 		d.service.PublishNotice(ctx, "finished", queueID, notice)
+	}
+}
+
+// outbox is a notice as push outbox rows (nil without push or notice).
+func (d *Dispatcher) outbox(p *notify.Payload) *store.Notice {
+	if p == nil || d.notifications == nil || !d.notifications.PushAvailable() {
+		return nil
+	}
+	b, err := p.JSON()
+	if err != nil {
+		d.log.Warn("notification not queued for push", "kind", p.Kind, "err", err)
+		return nil
+	}
+	return &store.Notice{Kind: p.Kind, Key: p.Key, Payload: b}
+}
+
+func (d *Dispatcher) wakePush(p *notify.Payload) {
+	if p != nil && d.notifications != nil && d.notifications.PushAvailable() {
+		d.notifications.Wake()
 	}
 }
 

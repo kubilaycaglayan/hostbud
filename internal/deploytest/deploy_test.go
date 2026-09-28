@@ -405,6 +405,15 @@ func TestNotificationSettingsOnlyReachHostbud(t *testing.T) {
 	if _, ok := env(e2e.Services["hostbud-e2e-app-multi"], "HOSTBUD_VAPID_PUBLIC_KEY"); ok {
 		t.Error("hostbud-e2e-app-multi has VAPID keys; it is the Push unavailable app")
 	}
+	// V2-M3 T2: the e2e app pushes to the fake push service only, which
+	// publishes no port.
+	if got, _ := env(e2e.Services["hostbud-e2e-app"], "HOSTBUD_PUSH_TEST_ENDPOINT"); got != "http://hostbud-e2e-pushfake:8080/push/" {
+		t.Errorf("hostbud-e2e-app HOSTBUD_PUSH_TEST_ENDPOINT = %q", got)
+	}
+	fake, ok := e2e.Services["hostbud-e2e-pushfake"]
+	if !ok || len(fake.Ports) != 0 {
+		t.Errorf("hostbud-e2e-pushfake missing or publishing ports: %+v", fake.Ports)
+	}
 }
 
 // Placeholder values scripts/compose-config.sh and caddy-config.sh render with.

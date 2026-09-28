@@ -273,6 +273,10 @@ export const notificationsApi = {
   settings: () => request<NotificationSettings>('GET', '/api/notifications/settings'),
   save: (prefs: Partial<Pick<NotificationSettings, 'enabled' | 'onDone' | 'onAttention' | 'onFinished'>>) =>
     request<NotificationSettings>('PUT', '/api/notifications/settings', prefs),
+  subscribe: (sub: { endpoint: string; keys: { p256dh: string; auth: string } }) =>
+    request<void>('POST', '/api/notifications/subscriptions', sub),
+  unsubscribe: (endpoint: string, opts: { keepalive?: boolean } = {}) =>
+    request<void>('DELETE', '/api/notifications/subscriptions', { endpoint }, opts.keepalive ? { keepalive: true } : {}),
 }
 
 /** UI state keys the server accepts (internal/api/uistate.go). */

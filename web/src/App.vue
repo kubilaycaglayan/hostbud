@@ -546,13 +546,23 @@ const flushState = () => {
 const onVisibilityChange = () => {
   if (document.visibilityState === 'visible') void tree.refresh()
 }
+// V2-M3: a push notification clicked while hostbud is open (the service
+// worker focused this window and names the item).
+const onWorkerMessage = (e: MessageEvent) => {
+  const data = e.data as { type?: unknown; path?: unknown } | null
+  if (data?.type !== 'hostbud.open' || typeof data.path !== 'string') return
+  const target = queueTarget(data.path)
+  if (target) openQueueItem(target.queueId, target.itemId)
+}
 onMounted(() => {
   void auth.check()
+  navigator.serviceWorker?.addEventListener('message', onWorkerMessage)
   window.addEventListener('pagehide', flushState)
   document.addEventListener('visibilitychange', onVisibilityChange)
   window.addEventListener('keydown', onShortcutKeydown, true)
 })
 onUnmounted(() => {
+  navigator.serviceWorker?.removeEventListener('message', onWorkerMessage)
   window.removeEventListener('pagehide', flushState)
   document.removeEventListener('visibilitychange', onVisibilityChange)
   window.removeEventListener('keydown', onShortcutKeydown, true)

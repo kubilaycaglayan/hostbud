@@ -48,12 +48,28 @@ build() {
 	build_if_changed hostbud-e2e-target-notmux hostbud-e2e-target-notmux:local test/sshd
 	build_if_changed hostbud-e2e-caddy hostbud-e2e-caddy:local deploy/caddy/Dockerfile
 	build_if_changed hostbud-e2e-ctl hostbud-e2e-ctl:local test/e2e/ctl
+	build_if_changed hostbud-e2e-pushfake hostbud-e2e-pushfake:local test/e2e/pushfake
 	build_if_changed hostbud-e2e-runner hostbud-e2e-runner:local \
 		test/e2e/Dockerfile test/e2e/package.json test/e2e/pnpm-lock.yaml test/e2e/pnpm-workspace.yaml
 }
 
+# vapid: the e2e app's Web Push key pair (V2-M3), generated once per stack
+# by the app image itself and kept in .cache/e2e (never committed).
+vapid() {
+	f="$stamps/vapid.env"
+	if [ ! -s "$f" ]; then
+		mkdir -p "$stamps"
+		(umask 077 && docker run --rm --entrypoint /usr/local/bin/hostbud hostbud-e2e-app:local vapid-keys |
+			sed -n 's/^HOSTBUD_\(VAPID_[A-Z_]*=\)/E2E_\1/p' >"$f.tmp") && mv "$f.tmp" "$f" || exit 1
+	fi
+	set -a
+	. "$f"
+	set +a
+}
+
 up() {
 	build
+	vapid
 	dc up -d --wait || exit 1
 }
 
@@ -86,6 +102,7 @@ logs_clean() {
 
 down() {
 	dc down -v --remove-orphans --timeout 5 >/dev/null 2>&1
+	rm -f "$stamps/vapid.env" # a fresh stack gets a fresh pair
 }
 
 cleanup() {

@@ -114,6 +114,7 @@ services:
       hostbud-e2e-target: { condition: service_healthy }
       hostbud-e2e-agent: { condition: service_healthy }
       hostbud-e2e-postgres: { condition: service_healthy }
+      hostbud-e2e-pushfake: { condition: service_healthy }
     environment:
       HOSTBUD_LISTEN: ":8080"
       HOSTBUD_DATA_DIR: /data
@@ -124,6 +125,13 @@ services:
       HOSTBUD_HOOK_BASE_URL: http://hostbud-e2e-caddy:9055
       # A short stale window so the stale scenarios finish quickly.
       HOSTBUD_RUN_STALE_AFTER: 10s
+      # V2-M3: Web Push to the fake push service. run.sh generates the VAPID
+      # pair at e2e-up (.cache/e2e/vapid.env, never committed); without it
+      # push is off. The multi app gets no keys (Push unavailable).
+      HOSTBUD_VAPID_PUBLIC_KEY: ${E2E_VAPID_PUBLIC_KEY:-}
+      HOSTBUD_VAPID_PRIVATE_KEY: ${E2E_VAPID_PRIVATE_KEY:-}
+      HOSTBUD_VAPID_SUBJECT: mailto:e2e@example.com
+      HOSTBUD_PUSH_TEST_ENDPOINT: http://hostbud-e2e-pushfake:8080/push/
       # Served over HTTPS by hostbud-e2e-caddy (internal CA); Origin allowlist.
       HOSTBUD_DOMAIN: hostbud.example.test
       HOSTBUD_HOST_ADDR: hostbud-e2e-target
@@ -283,6 +291,19 @@ services:
       - data-multi:/data
       - agent:/run/agent
       - hostpub:/run/host-keys:ro
+
+  # V2-M3: the fake Web Push service (records POSTs, answers as told).
+  hostbud-e2e-pushfake:
+    build: ./pushfake
+    image: hostbud-e2e-pushfake:local
+    container_name: hostbud-e2e-pushfake
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health"]
+      interval: 1s
+      retries: 30
 
   hostbud-e2e-tsfake:
     image: node:24.21.0-alpine

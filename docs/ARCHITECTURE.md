@@ -357,6 +357,8 @@ POST   /api/hooks/:run_id/:event      token-authenticated run hook (session_star
 
 # v2 notifications (V2-M3, opt-in per account; docs/roadmap-v2)
 GET|PUT /api/notifications/settings   the caller's account only: {enabled, onDone, onAttention, onFinished} (PUT: any subset), plus push {available, reason} and vapidPublicKey when push is available; no row = off
+POST   /api/notifications/subscriptions {endpoint, keys: {p256dh, auth}} — 204; this device's push subscription for the caller (an endpoint another account had moves here); https, port 443, DNS host (400 otherwise); push off → 409 with the reason
+DELETE /api/notifications/subscriptions {endpoint} — 204; the caller's own subscription only (sign-out, revoked permission)
 
 # later (multi-machine)
 POST   /api/machines                      add custom connection

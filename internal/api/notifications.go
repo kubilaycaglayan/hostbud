@@ -14,11 +14,15 @@ import (
 type NotificationService interface {
 	Settings(ctx context.Context, userID string) (notify.Settings, error)
 	PutSettings(ctx context.Context, userID string, p store.NotificationPrefs) (notify.Settings, error)
+	Subscribe(ctx context.Context, userID, endpoint, p256dh, auth string) error
+	Unsubscribe(ctx context.Context, userID, endpoint string) error
 }
 
 func mountNotificationRoutes(s *server, addFunc func(string, http.HandlerFunc)) {
 	addFunc("GET /api/notifications/settings", s.getNotificationSettings)
 	addFunc("PUT /api/notifications/settings", s.putNotificationSettings)
+	addFunc("POST /api/notifications/subscriptions", s.subscribePush)
+	addFunc("DELETE /api/notifications/subscriptions", s.unsubscribePush)
 }
 
 // notificationUser is the signed-in account, or a 401.
@@ -32,7 +36,10 @@ func notificationUser(w http.ResponseWriter, r *http.Request) (string, bool) {
 }
 
 func (s *server) notificationError(w http.ResponseWriter, err error) {
+	var ne *notify.Error
 	switch {
+	case errors.As(err, &ne):
+		writeError(w, ne.Status, ne.Message, ne.Hint)
 	case errors.Is(err, store.ErrNotFound):
 		writeError(w, http.StatusNotFound, "not found", "Reload hostbud.")
 	case store.IsUnavailable(err):
@@ -91,4 +98,54 @@ func (s *server) putNotificationSettings(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	writeJSON(w, http.StatusOK, settings)
+}
+
+// subscribePush: POST /api/notifications/subscriptions {endpoint, keys:
+// {p256dh, auth}} → 204. The endpoint moves to the caller's account if
+// another account had it.
+func (s *server) subscribePush(w http.ResponseWriter, r *http.Request) {
+	user, ok := notificationUser(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		Endpoint       string   `json:"endpoint"`
+		ExpirationTime *float64 `json:"expirationTime"`
+		Keys           struct {
+			P256dh string `json:"p256dh"`
+			Auth   string `json:"auth"`
+		} `json:"keys"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	if err := s.cfg.Notifications.Subscribe(r.Context(), user, req.Endpoint, req.Keys.P256dh, req.Keys.Auth); err != nil {
+		s.notificationError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// unsubscribePush: DELETE /api/notifications/subscriptions {endpoint} →
+// 204, for the caller's account only (sign-out, a revoked permission).
+func (s *server) unsubscribePush(w http.ResponseWriter, r *http.Request) {
+	user, ok := notificationUser(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		Endpoint string `json:"endpoint"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	if req.Endpoint == "" {
+		writeError(w, http.StatusBadRequest, "endpoint is required", "Send the subscription's endpoint.")
+		return
+	}
+	if err := s.cfg.Notifications.Unsubscribe(r.Context(), user, req.Endpoint); err != nil {
+		s.notificationError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

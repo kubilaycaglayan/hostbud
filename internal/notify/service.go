@@ -6,6 +6,7 @@ package notify
 import (
 	"context"
 	"log/slog"
+	"net/http"
 
 	"hostbud/internal/config"
 	"hostbud/internal/store"
@@ -16,7 +17,19 @@ type Store interface {
 	NotificationPrefs(ctx context.Context, userID string) (store.NotificationPrefs, error)
 	PutNotificationPrefs(ctx context.Context, userID string, p store.NotificationPrefs) error
 	NotificationsEnabled(ctx context.Context) (bool, error)
+	SavePushSubscription(ctx context.Context, userID, endpoint, p256dh, auth string) (store.PushSubscription, error)
+	DeletePushSubscription(ctx context.Context, userID, endpoint string) (bool, error)
+	EnqueueTestNotification(ctx context.Context, userID, endpoint string, n store.Notice) error
 }
+
+// Error is a refusal the API shows as is.
+type Error struct {
+	Status  int
+	Message string
+	Hint    string
+}
+
+func (e *Error) Error() string { return e.Message }
 
 // PushStatus says whether Web Push is available; Reason says how to turn
 // it on when it isn't.
@@ -34,12 +47,51 @@ type Settings struct {
 	VAPIDPublicKey string `json:"vapidPublicKey,omitempty"`
 }
 
-// Service serves the notification settings of each account.
+// Service serves the notification settings and push subscriptions of each
+// account, and wakes the sender when transitions queued notifications.
 type Service struct {
-	store Store
-	push  config.Push
-	vapid string
-	log   *slog.Logger
+	store      Store
+	push       config.Push
+	vapid      string
+	testPrefix string
+	sender     interface{ Wake() }
+	log        *slog.Logger
+}
+
+// SetPush wires Web Push delivery: the sender to wake and the e2e-only
+// endpoint prefix exempt from the endpoint rules.
+func (s *Service) SetPush(sender interface{ Wake() }, testPrefix string) {
+	s.sender, s.testPrefix = sender, testPrefix
+}
+
+// Wake tells the sender that transitions queued notifications.
+func (s *Service) Wake() {
+	if s.sender != nil {
+		s.sender.Wake()
+	}
+}
+
+// Subscribe stores this device's push subscription for the account (it
+// moves here from another account).
+func (s *Service) Subscribe(ctx context.Context, userID, endpoint, p256dh, auth string) error {
+	if !s.push.Available {
+		return &Error{Status: http.StatusConflict, Message: s.push.Reason, Hint: "In-app notifications still work while hostbud is open."}
+	}
+	if err := CheckEndpoint(endpoint, s.testPrefix); err != nil {
+		return &Error{Status: http.StatusBadRequest, Message: err.Error(), Hint: "Subscribe from the browser's own push service."}
+	}
+	if err := CheckKeys(p256dh, auth); err != nil {
+		return &Error{Status: http.StatusBadRequest, Message: err.Error(), Hint: "Send the subscription's keys as the browser reports them."}
+	}
+	_, err := s.store.SavePushSubscription(ctx, userID, endpoint, p256dh, auth)
+	return err
+}
+
+// Unsubscribe removes this device's subscription from the account (a
+// no-op if it has none there).
+func (s *Service) Unsubscribe(ctx context.Context, userID, endpoint string) error {
+	_, err := s.store.DeletePushSubscription(ctx, userID, endpoint)
+	return err
 }
 
 // New returns the notifier. push is config.Config.Push(); publicKey is the

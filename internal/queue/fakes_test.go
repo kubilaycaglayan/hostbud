@@ -26,6 +26,38 @@ type memStore struct {
 	capacity  *int
 	maxActive int
 	parallel  *bool
+	// V2-M3: the notices queued with a transition that went through.
+	outbox []store.Notice
+}
+
+func (m *memStore) TransitionQueueItemNotify(ctx context.Context, id string, from []string, to string, n *store.Notice) (store.QueueItem, error) {
+	it, err := m.TransitionQueueItem(ctx, id, from, to)
+	if err == nil && n != nil {
+		m.mu.Lock()
+		m.outbox = append(m.outbox, *n)
+		m.mu.Unlock()
+	}
+	return it, err
+}
+
+func (m *memStore) TransitionQueueNotify(ctx context.Context, id string, from []string, to string, n *store.Notice) (store.Queue, error) {
+	q, err := m.TransitionQueue(ctx, id, from, to)
+	if err == nil && n != nil {
+		m.mu.Lock()
+		m.outbox = append(m.outbox, *n)
+		m.mu.Unlock()
+	}
+	return q, err
+}
+
+func (m *memStore) outboxKeys() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out []string
+	for _, n := range m.outbox {
+		out = append(out, n.Key)
+	}
+	return out
 }
 
 func newMemStore() *memStore { return &memStore{runs: map[string]store.Run{}} }

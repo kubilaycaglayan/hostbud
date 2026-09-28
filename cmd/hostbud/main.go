@@ -170,18 +170,25 @@ func run() error {
 	}
 	starter := queue.NewStarter(st, sessions, cfg.HookURL(), log)
 	dispatcher := queue.NewDispatcher(st, adapters, starter, queues, bus, cfg.RunStaleAfter, log)
-	dispatchDone := make(chan struct{})
-	go func() { dispatcher.Run(ctx); close(dispatchDone) }()
-	defer func() { <-dispatchDone }()
-	hooks := queue.NewHooks(st, dispatcher, log)
-
 	// V2-M3 notifications: missing or invalid VAPID keys only turn push off.
 	push := cfg.Push()
 	if !push.Available {
 		log.Warn("web push is off; in-app notifications still work", "missing", push.Missing, "invalid", push.Invalid, "fix", "make vapid-keys")
 	}
 	notifier := notify.New(st, push, cfg.VAPIDPublicKey, log)
+	if push.Available {
+		sender := notify.NewSender(st, notify.VAPID{PublicKey: cfg.VAPIDPublicKey, PrivateKey: cfg.VAPIDPrivateKey, Subject: cfg.VAPIDSubject}, cfg.PushTestEndpoint, log)
+		notifier.SetPush(sender, cfg.PushTestEndpoint)
+		senderDone := make(chan struct{})
+		go func() { sender.Run(ctx); close(senderDone) }()
+		defer func() { <-senderDone }()
+	}
 	dispatcher.SetNotifications(notifier)
+	dispatchDone := make(chan struct{})
+	go func() { dispatcher.Run(ctx); close(dispatchDone) }()
+	defer func() { <-dispatchDone }()
+	hooks := queue.NewHooks(st, dispatcher, log)
+
 	srv := &http.Server{
 		Addr: cfg.Listen,
 		Handler: api.New(api.Config{
