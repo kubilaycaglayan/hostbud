@@ -16,6 +16,9 @@ case "${MOCK_MODE:-normal}:$*" in
 	*"printenv HOSTBUD_DB_NAME"*) echo hostbud_test; exit 0 ;;
 	check-fail:*createdb*) exit 1 ;;
 	check-fail:*"hostbud restore-check"*) exit 1 ;;
+	# The app's /tmp is a tmpfs: docker cp can't read it (like the real one).
+	*"compose cp hostbud:/tmp/"*) echo 'Could not find the file in container' >&2; exit 1 ;;
+	*"compose exec -T hostbud sh -c"*"hostbud backup"*) printf 'PGDMP-mock-dump' ; exit 0 ;;
 	*) exit 0 ;;
 esac
 MOCK
@@ -44,5 +47,16 @@ for mode in check-ok check-fail; do
 	grep -q 'hostbud restore-check' "$MOCK_DOCKER_LOG" || { echo "restore-check did not invoke isolated restore command ($mode)" >&2; exit 1; }
 	grep -q 'rm -f /tmp/hostbud-restore-check-' "$MOCK_DOCKER_LOG" || { echo "restore-check did not schedule dump-file cleanup ($mode)" >&2; exit 1; }
 done
+
+# make backup gets the dump out of the read-only app container (its /tmp is
+# a tmpfs, which docker cp can't read) into a private file in backups/.
+before=$(ls "$root/backups" 2>/dev/null | sort)
+: >"$MOCK_DOCKER_LOG"
+make -C "$root" backup >/dev/null 2>&1 || { echo 'make backup failed with a tmpfs /tmp' >&2; exit 1; }
+created=$(cd "$root/backups" && for f in *; do printf '%s\n' "$before" | grep -Fxq "$f" || printf '%s\n' "$f"; done)
+[ "$(printf '%s\n' "$created" | grep -c .)" = 1 ] || { echo "make backup created: $created" >&2; exit 1; }
+got=$(cat "$root/backups/$created"); mode=$(stat -c %a "$root/backups/$created"); rm -f "$root/backups/$created"
+[ "$got" = PGDMP-mock-dump ] || { echo "backup content: $got" >&2; exit 1; }
+[ "$mode" = 600 ] || { echo "backup mode: $mode" >&2; exit 1; }
 
 echo 'backup tool argument and cleanup checks passed'
