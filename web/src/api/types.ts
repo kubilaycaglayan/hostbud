@@ -65,7 +65,7 @@ export interface Project {
 
 // v2 queue (internal/queue, internal/store; V2-M1 and V2-M2).
 export type QueueStatus = 'idle' | 'running' | 'paused' | 'finished'
-export type QueueItemStatus = 'queued' | 'running' | 'done' | 'needs_attention' | 'skipped'
+export type QueueItemStatus = 'queued' | 'running' | 'verifying' | 'awaiting_approval' | 'done' | 'needs_attention' | 'skipped'
 export type RunStatus = 'starting' | 'running' | 'achieved' | 'failed' | 'exited' | 'stale' | 'cancelled'
 
 export interface RunSummary {
@@ -78,6 +78,19 @@ export interface RunSummary {
   endedAt?: string
 }
 
+/** V2-M4: the latest verify attempt of an item's latest run. */
+export interface VerifySummary {
+  attempt: number
+  running: boolean
+  outcome?: 'passed' | 'failed' | 'timeout' | 'missing_directory' | 'timeout_missing' | 'ssh_failed' | 'interrupted'
+  exitCode?: number
+  durationMs?: number
+  truncated?: boolean
+  /** Sanitized text (the last 16 KiB); render as text only. */
+  output?: string
+  detail?: string
+}
+
 export interface QueueItem {
   id: string
   queueId: string
@@ -86,6 +99,10 @@ export interface QueueItem {
   flags: string
   instruction: string
   status: QueueItemStatus
+  /** V2-M4 completion gates ("" = no verify command). */
+  verifyCommand?: string
+  requiresApproval?: boolean
+  verify?: VerifySummary
   run?: RunSummary
   /** V2-M2: the head item of a running queue while the machine's cap is reached. */
   waitingForSlot?: boolean

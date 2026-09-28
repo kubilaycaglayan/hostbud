@@ -349,3 +349,115 @@ describe('QueuePanel', () => {
     expect($$('[data-queue-item="i1"]')).toHaveLength(0)
   })
 })
+
+describe('QueuePanel completion gates (V2-M4)', () => {
+  const awaiting: Queue['items'][number] = {
+    id: 'i3', queueId: 'q1', position: 1, agent: 'claude', flags: '', instruction: '/goal m1', status: 'awaiting_approval',
+    verifyCommand: 'make test', requiresApproval: true,
+    verify: { attempt: 1, running: false, outcome: 'passed', exitCode: 0, durationMs: 1200, truncated: true, output: '<b>bold</b> ok\n' },
+    run: { id: 'r3', status: 'achieved', sessionName: 'app-q1', startedAt: '' },
+  }
+  const failedVerify: Queue['items'][number] = {
+    ...awaiting, id: 'i4', status: 'needs_attention', requiresApproval: false,
+    verify: { attempt: 2, running: false, outcome: 'failed', exitCode: 1, durationMs: 900, output: 'FAIL' },
+    run: { id: 'r4', status: 'achieved', sessionName: 'app-q1', startedAt: '', detail: 'verify failed (exit 1)' },
+  }
+
+  it('shows the gates, the attempt and the output as text, with Approve and Reject', async () => {
+    await mountPanel(queue([awaiting], 'running'))
+    const text = document.body.textContent ?? ''
+    expect(text).toContain('Awaiting approval · goal achieved')
+    expect(text).toContain('verify make test · requires approval')
+    expect(text).toContain('Verify attempt 1: passed · exit 0 · 1.2 s')
+    expect(text).toContain('truncated: the last 16 KiB')
+    const out = $$('[data-testid="verify-output"]')[0]
+    expect(out.textContent).toBe('<b>bold</b> ok\n')
+    expect(out.querySelector('b')).toBeNull()
+    for (const label of ['Approve item 1', 'Reject item 1']) expect(button(label), label).toBeTruthy()
+    for (const label of ['Retry item 1', 'Skip item 1', 'Mark item 1 done', 'Edit item 1', 'Re-run verify of item 1', 'Edit gates of item 1']) expect(button(label), label).toBeFalsy()
+  })
+
+  it('approves at once and asks before Reject', async () => {
+    const calls = stubFetch((_m, path) => ({ status: 200, body: queue([{ ...awaiting, status: path.endsWith('approve') ? 'done' : 'needs_attention' }], 'running') }))
+    await mountPanel(queue([awaiting], 'running'))
+    button('Reject item 1')!.click()
+    await flushPromises()
+    expect(calls).toHaveLength(0)
+    expect(document.body.textContent).toContain('Reject item 1?')
+    $$('[role="alertdialog"] button').find((b) => b.textContent?.trim() === 'Reject')!.click()
+    await flushPromises()
+    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual(['POST /api/queue-items/i3/reject'])
+  })
+
+  it('shows a 409 from a stale click and refetches', async () => {
+    const calls = stubFetch((method) => method === 'POST'
+      ? { status: 409, body: { error: 'this item is done; Approve is only for items awaiting approval (approved by a@example.com)', hint: 'Reload the queue and try again.' } }
+      : { status: 200, body: { queues: [queue([{ ...awaiting, status: 'done' }], 'running')], parallelQueues: false } })
+    await mountPanel(queue([awaiting], 'running'))
+    button('Approve item 1')!.click()
+    await flushPromises()
+    expect(document.body.textContent).toContain('(approved by a@example.com)')
+    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual(['POST /api/queue-items/i3/approve', 'GET /api/queues'])
+    expect(button('Approve item 1')).toBeFalsy()
+  })
+
+  it('re-runs verify and edits only the gates of a needs-attention item', async () => {
+    const calls = stubFetch(() => ({ status: 200, body: queue([failedVerify]) }))
+    await mountPanel(queue([failedVerify]))
+    expect(document.body.textContent).toContain('verify failed (exit 1)')
+    button('Re-run verify of item 1')!.click()
+    await flushPromises()
+    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual(['POST /api/queue-items/i4/reverify'])
+    calls.length = 0
+    button('Edit gates of item 1')!.click()
+    await flushPromises()
+    const form = $$('form[aria-label="Edit gates of item 1"]')[0]
+    expect(form.querySelector('textarea')).toBeNull() // the instruction is locked
+    expect(form.querySelector('select')).toBeNull()
+    const verify = form.querySelector('[data-testid="verify-command"]') as HTMLInputElement
+    expect(verify.value).toBe('make test')
+    expect(verify.className).toContain('font-mono')
+    verify.value = `make 'x`
+    verify.dispatchEvent(new Event('input'))
+    await flushPromises()
+    expect(document.body.textContent).toContain('The verify command has an unbalanced single quote.')
+    verify.value = 'go test ./...'
+    verify.dispatchEvent(new Event('input'))
+    ;(form.querySelector('[data-testid="requires-approval"]') as HTMLInputElement).click()
+    form.querySelector<HTMLButtonElement>('button[type="submit"]')!.click()
+    await flushPromises()
+    expect(calls).toEqual([{ method: 'PATCH', path: '/api/queue-items/i4', body: { verifyCommand: 'go test ./...', requiresApproval: true } }])
+  })
+
+  it('adds an item with gates only when set', async () => {
+    const calls = stubFetch(() => ({ status: 201, body: {} }))
+    await mountPanel(queue([], 'idle'))
+    const form = $$('form[aria-label="Add item"]')[0]
+    const instruction = form.querySelector('textarea') as HTMLTextAreaElement
+    instruction.value = '/goal ship'
+    instruction.dispatchEvent(new Event('input'))
+    const verify = form.querySelector('[data-testid="verify-command"]') as HTMLInputElement
+    verify.value = '  make test '
+    verify.dispatchEvent(new Event('input'))
+    ;(form.querySelector('[data-testid="requires-approval"]') as HTMLInputElement).click()
+    button('Add item')!.click()
+    await flushPromises()
+    expect(calls[0].body).toEqual({ agent: 'claude', flags: '--dangerously-skip-permissions', instruction: '/goal ship', verifyCommand: 'make test', requiresApproval: true })
+  })
+
+  it('follows live updates: the buttons go when another device approves', async () => {
+    await mountPanel(queue([awaiting], 'running'))
+    expect(button('Approve item 1')).toBeTruthy()
+    useQueuesStore().put(queue([{ ...awaiting, status: 'done' }], 'running'))
+    await flushPromises()
+    expect(button('Approve item 1')).toBeFalsy()
+    expect(document.body.textContent).toContain('Done · goal achieved')
+  })
+
+  it('shows a running verify attempt', async () => {
+    await mountPanel(queue([{ ...awaiting, status: 'verifying', verify: { attempt: 3, running: true } }], 'running'))
+    expect(document.body.textContent).toContain('Verifying · goal achieved')
+    expect(document.body.textContent).toContain('Verify attempt 3: running…')
+    for (const label of ['Approve item 1', 'Retry item 1', 'Mark item 1 done', 'Edit gates of item 1']) expect(button(label), label).toBeFalsy()
+  })
+})

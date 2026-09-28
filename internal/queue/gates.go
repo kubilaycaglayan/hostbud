@@ -308,6 +308,7 @@ func (d *Dispatcher) resolveApproval(ctx context.Context, itemID string, approve
 			return err
 		}
 		d.log.Info("item approved", "item", itemID)
+		d.setRunDetail(ctx, run, item.QueueID, "approved by "+actor.Email)
 		d.gatesPassed(ctx, item.QueueID, notice)
 		return nil
 	}

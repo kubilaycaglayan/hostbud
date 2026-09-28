@@ -14,7 +14,7 @@ Update this table in the same commit that finishes a task.
 | T2 Verify runner | Done |
 | T3 Approval | Done |
 | T4 Owner actions | Done |
-| T5 Panel | Not started |
+| T5 Panel | Done |
 | T6 Docs | Not started |
 | T7 Milestone acceptance | Not started |
 | T8 Safe Docker cleanup | Not started |
@@ -45,6 +45,7 @@ The v2 ROADMAP *Rules*, AGENTS.md and the V2-M1 milestone rules (fast checks per
 - T2: `sshx.ExecTo` streams a remote command's stdout without the 10 s Exec cap (the caller's deadline bounds it). The verify call is `sh -c` with a fixed script that `cd`s and `exec`s `timeout -k 10s <secs>s` with the item's argv as separate quoted arguments; a preflight call checks the directory and `timeout`. The local deadline is the timeout + 15 s. `HOSTBUD_VERIFY_TIMEOUT` accepts 5s–2h (not 10s–2h), so the e2e apps can use 5s. The e2e scenarios create and read files with the runner's existing `target` shell on the throwaway target instead of a new ctl action: the ctl service holds the Docker socket, so it stays limited to its hard-coded commands. A failed gate's detail is also the run's `detail` (the panel's "why"); a passing attempt clears it. The dispatcher's item view carries `verify` (latest attempt: running, outcome, exit code, duration, `truncated`, output tail).
 - T3: Approve and Reject run on the dispatcher goroutine; the store's `ResolveApproval` is the guarded update, the owner's `run_events` row (`{"account": <user id>}`) and the notice in one transaction. Reject's detail names the account's email (shown in the panel, never logged). Reject sends no notification (the owner acted). Approving an item of a paused queue marks it done without advancing.
 - T4: `POST /api/queue-items/{id}/reverify` starts a new attempt on the same run (no new session). Retry, Skip and Mark done return 409 from `verifying` ("wait for verify, at most <HOSTBUD_VERIFY_TIMEOUT>") and `awaiting_approval` ("Approve it, or Reject it first"); a lost race says the state the item is in now. CP2 passed (lint, then `make test` three times in a row green).
+- T5: the item form has *Verify command* (monospace, autocomplete off, the argv hint) and *Require approval*; a needs-attention item gets *Edit gates* (gates-only form). The item shows its gates, the latest attempt ("Verify attempt n: outcome · exit · duration") and the output tail as text in a collapsible block with the "truncated" note. Approve, Reject (confirmed) and Re-run verify. Approve now also sets the run's detail to "approved by <email>", so a stale click's 409 says who acted ("… (approved by …)").
 
 ---
 

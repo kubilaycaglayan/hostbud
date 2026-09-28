@@ -9,7 +9,7 @@ import { ArrowDown, ArrowUp, GripVertical, Pencil, Plus, Trash2, TriangleAlert }
 import { queuesApi } from '@/api/client'
 import type { QueueItem } from '@/api/types'
 import FormError from './FormError.vue'
-import { AGENTS, type Agent, flagsError, INSTRUCTION_PREFIX, instructionError, itemActions, moveQueued, queueControls, statusLabel } from '@/lib/queue'
+import { AGENTS, type Agent, flagsError, INSTRUCTION_PREFIX, instructionError, itemActions, moveQueued, queueControls, statusLabel, verifyCommandError, verifyLine } from '@/lib/queue'
 import { useQueuesStore } from '@/stores/queues'
 import { useProjectsStore } from '@/stores/projects'
 import { describeError } from '@/stores/toasts'
@@ -18,8 +18,10 @@ import { describeError } from '@/stores/toasts'
 // another in their own tmux session, advancing only when the agent's own
 // /goal is achieved. V2-M2 (HOSTBUD_PARALLEL_QUEUES): several queues, a
 // switcher (a list on desktop, a select on the phone), rename, the
-// shared-directory warning and "waiting for a free slot". It updates from
-// /ws/events (queue.changed, run.changed) only.
+// shared-directory warning and "waiting for a free slot". V2-M4: per-item
+// completion gates (verify command, approval), their state and output, and
+// Approve / Reject / Re-run verify. It updates from /ws/events
+// (queue.changed, run.changed) only.
 const props = withDefaults(defineProps<{ compact?: boolean; machine?: string }>(), { machine: 'host' })
 const open = defineModel<boolean>('open', { default: false })
 const emit = defineEmits<{ openSession: [name: string] }>()
@@ -120,7 +122,16 @@ function saveRename() {
 }
 
 // ---- adding and editing items ----
-interface Draft { agent: Agent; flags: string; instruction: string }
+interface Draft { agent: Agent; flags: string; instruction: string; verifyCommand: string; requiresApproval: boolean }
+const VERIFY_HINT = "Runs as argv in the project directory on the host, not in the agent's session; quote words like flags. For pipes or &&: sh -c '…'."
+/** The gate fields to send: none when unset (the server's default). */
+function gates(d: Pick<Draft, 'verifyCommand' | 'requiresApproval'>) {
+  const verifyCommand = d.verifyCommand.trim()
+  return {
+    ...(verifyCommand ? { verifyCommand } : {}),
+    ...(d.requiresApproval ? { requiresApproval: true } : {}),
+  }
+}
 const permissionFlag: Record<Agent, string> = {
   claude: '--dangerously-skip-permissions',
   codex: '--yolo',
@@ -136,41 +147,51 @@ function switchAgentFlags(flags: string, agent: Agent): string {
   const custom = setFlag(setFlag(flags, permissionFlag.claude, false), permissionFlag.codex, false)
   return setFlag(custom, permissionFlag[agent], true)
 }
-const draft = ref<Draft>({ agent: 'claude', flags: permissionFlag.claude, instruction: INSTRUCTION_PREFIX })
+const draft = ref<Draft>({ agent: 'claude', flags: permissionFlag.claude, instruction: INSTRUCTION_PREFIX, verifyCommand: '', requiresApproval: false })
 const draftPermissionFlag = computed({
   get: () => draft.value.agent,
   set: (agent: Agent) => { draft.value = { ...draft.value, agent, flags: switchAgentFlags(draft.value.flags, agent) } },
 })
-const edit = ref<Draft>({ agent: 'claude', flags: '', instruction: '' })
+const edit = ref<Draft>({ agent: 'claude', flags: '', instruction: '', verifyCommand: '', requiresApproval: false })
 const editPermissionFlag = computed({
   get: () => edit.value.agent,
   set: (agent: Agent) => { edit.value = { ...edit.value, agent, flags: switchAgentFlags(edit.value.flags, agent) } },
 })
 const draftTouched = ref(false)
-const draftErrors = computed(() => ({ flags: flagsError(draft.value.flags), instruction: instructionError(draft.value.instruction) }))
+const draftErrors = computed(() => ({ flags: flagsError(draft.value.flags), instruction: instructionError(draft.value.instruction), verify: verifyCommandError(draft.value.verifyCommand) }))
 function addItem() {
   draftTouched.value = true
-  if (!queue.value || draftErrors.value.flags || draftErrors.value.instruction) return
+  if (!queue.value || draftErrors.value.flags || draftErrors.value.instruction || draftErrors.value.verify) return
   const q = queue.value
   const d = { ...draft.value }
   void act("Couldn't add the item", async () => {
-    await queuesApi.addItem(q.id, d)
-    draft.value = { agent: d.agent, flags: permissionFlag[d.agent], instruction: INSTRUCTION_PREFIX }
+    await queuesApi.addItem(q.id, { agent: d.agent, flags: d.flags, instruction: d.instruction, ...gates(d) })
+    draft.value = { agent: d.agent, flags: permissionFlag[d.agent], instruction: INSTRUCTION_PREFIX, verifyCommand: '', requiresApproval: false }
     draftTouched.value = false
   })
 }
 
 const editing = ref<string | null>(null)
-const editErrors = computed(() => ({ flags: flagsError(edit.value.flags), instruction: instructionError(edit.value.instruction) }))
-function startEdit(item: QueueItem) {
+// V2-M4: a needs-attention item edits only its gates (the server refuses
+// other fields); a queued one edits everything.
+const gatesOnly = ref(false)
+const editErrors = computed(() => ({
+  flags: gatesOnly.value ? '' : flagsError(edit.value.flags),
+  instruction: gatesOnly.value ? '' : instructionError(edit.value.instruction),
+  verify: verifyCommandError(edit.value.verifyCommand),
+}))
+function startEdit(item: QueueItem, onlyGates = false) {
   editing.value = item.id
-  edit.value = { agent: item.agent, flags: item.flags, instruction: item.instruction }
+  gatesOnly.value = onlyGates
+  edit.value = { agent: item.agent, flags: item.flags, instruction: item.instruction, verifyCommand: item.verifyCommand ?? '', requiresApproval: Boolean(item.requiresApproval) }
 }
 function saveEdit(item: QueueItem) {
-  if (editErrors.value.flags || editErrors.value.instruction) return
+  if (editErrors.value.flags || editErrors.value.instruction || editErrors.value.verify) return
   const e = { ...edit.value }
-  void act("Couldn't save the item", async () => {
-    await queuesApi.updateItem(item.id, e)
+  const gateFields = { verifyCommand: e.verifyCommand.trim(), requiresApproval: e.requiresApproval }
+  const body = gatesOnly.value ? gateFields : { agent: e.agent, flags: e.flags, instruction: e.instruction, ...gateFields }
+  void act(gatesOnly.value ? "Couldn't save the gates" : "Couldn't save the item", async () => {
+    await queuesApi.updateItem(item.id, body)
     editing.value = null
   })
 }
@@ -211,9 +232,10 @@ function control(action: 'start' | 'pause' | 'resume') {
 
 // The pending confirmation. Its dialog's open state is separate: closing
 // the dialog (the action button closes it first) must not lose the action.
-const confirming = ref<{ kind: 'skip' | 'mark-done' | 'delete-queue'; item?: QueueItem } | null>(null)
+type ConfirmKind = 'skip' | 'mark-done' | 'delete-queue' | 'reject'
+const confirming = ref<{ kind: ConfirmKind; item?: QueueItem } | null>(null)
 const confirmOpen = ref(false)
-function ask(kind: 'skip' | 'mark-done' | 'delete-queue', item?: QueueItem) {
+function ask(kind: ConfirmKind, item?: QueueItem) {
   confirming.value = { kind, item }
   confirmOpen.value = true
 }
@@ -222,6 +244,7 @@ const confirmText = computed(() => {
   if (!c) return { title: '', body: '', action: '' }
   if (c.kind === 'delete-queue') return { title: `Delete queue ${queue.value?.name ?? ''}?`, body: 'Its items and their history are removed. Run sessions stay open; close them yourself.', action: 'Delete queue' }
   if (c.kind === 'skip') return { title: `Skip item ${c.item?.position}?`, body: 'The queue moves on without it when you resume.', action: 'Skip' }
+  if (c.kind === 'reject') return { title: `Reject item ${c.item?.position}?`, body: 'It will need your attention and the queue pauses. Retry reruns the agent; Mark done overrides.', action: 'Reject' }
   return { title: `Mark item ${c.item?.position} done?`, body: "This overrides the agent's own /goal verdict. The queue moves on when you resume.", action: 'Mark done' }
 })
 function confirmAction() {
@@ -236,10 +259,19 @@ function confirmAction() {
       store.queues = store.queues.filter((x) => x.id !== q.id)
       selectedId.value = null
     })
+  } else if (c.item && c.kind === 'reject') {
+    const it = c.item
+    void act("Couldn't reject the item", () => queuesApi.reject(it.id))
   } else if (c.item) {
     const it = c.item
     void act(c.kind === 'skip' ? "Couldn't skip the item" : "Couldn't mark the item done", () => (c.kind === 'skip' ? queuesApi.skip(it.id) : queuesApi.markDone(it.id)))
   }
+}
+function approve(item: QueueItem) {
+  void act("Couldn't approve the item", () => queuesApi.approve(item.id))
+}
+function reverify(item: QueueItem) {
+  void act("Couldn't re-run verify", () => queuesApi.reverify(item.id))
 }
 function retry(item: QueueItem) {
   void act("Couldn't retry the item", () => queuesApi.retry(item.id))
@@ -253,6 +285,8 @@ function openSession(item: QueueItem) {
 const badge: Record<QueueItem['status'], string> = {
   queued: 'border-border text-muted',
   running: 'border-accent text-accent',
+  verifying: 'border-accent text-accent',
+  awaiting_approval: 'border-accent text-fg',
   done: 'border-ok text-ok',
   needs_attention: 'border-danger text-danger',
   skipped: 'border-border text-muted',
@@ -416,7 +450,8 @@ const badge: Record<QueueItem['status'], string> = {
                 :class="highlighted === item.id ? 'border-accent ring-2 ring-accent' : 'border-border'"
                 @keydown="onRowKey($event, item)"
               >
-                <form v-if="editing === item.id" class="flex flex-col gap-2" :aria-label="`Edit item ${item.position}`" @submit.prevent="saveEdit(item)">
+                <form v-if="editing === item.id" class="flex flex-col gap-2" :aria-label="gatesOnly ? `Edit gates of item ${item.position}` : `Edit item ${item.position}`" @submit.prevent="saveEdit(item)">
+                  <template v-if="!gatesOnly">
                   <label class="block">Agent
                     <select v-model="editPermissionFlag" autocomplete="off" class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 text-base">
                       <option v-for="a in AGENTS" :key="a" :value="a">{{ a }}</option>
@@ -434,6 +469,16 @@ const badge: Record<QueueItem['status'], string> = {
                     <textarea v-model="edit.instruction" autocomplete="off" spellcheck="false" rows="2" class="mt-1 min-h-11 w-full resize-y rounded border border-border bg-bg px-2 py-1 font-mono text-base"></textarea>
                   </label>
                   <p v-if="editErrors.instruction" class="text-sm text-danger">{{ editErrors.instruction }}</p>
+                  </template>
+                  <label class="block">Verify command
+                    <input v-model="edit.verifyCommand" data-testid="verify-command" autocomplete="off" autocapitalize="off" dir="ltr" spellcheck="false" placeholder="e.g. make test" class="mt-1 min-h-11 w-full min-w-0 rounded border border-border bg-bg px-3 text-left font-mono text-base">
+                  </label>
+                  <p class="text-sm text-muted">{{ VERIFY_HINT }}</p>
+                  <p v-if="editErrors.verify" class="text-sm text-danger">{{ editErrors.verify }}</p>
+                  <label class="flex min-h-11 items-center gap-2 text-sm">
+                    <input v-model="edit.requiresApproval" data-testid="requires-approval" type="checkbox" autocomplete="off" class="size-4">
+                    Require approval
+                  </label>
                   <div class="flex justify-end gap-1.5">
                     <button type="submit" :disabled="busy" class="touch-target min-h-8 rounded bg-accent px-2 font-bold text-bg">Save</button>
                     <button type="button" class="touch-target min-h-8 rounded border border-border px-2" @click="editing = null">Cancel</button>
@@ -457,6 +502,18 @@ const badge: Record<QueueItem['status'], string> = {
                       <p v-if="item.run?.detail && (item.status === 'needs_attention' || item.run.status === 'failed')" role="status" class="mt-1 break-words text-sm text-danger">
                         {{ item.run.detail }}
                       </p>
+                      <p v-if="item.verifyCommand || item.requiresApproval" data-testid="item-gates" class="mt-1 break-words text-sm text-muted">
+                        <template v-if="item.verifyCommand">verify <span class="font-mono">{{ item.verifyCommand }}</span></template>
+                        <template v-if="item.verifyCommand && item.requiresApproval"> · </template>
+                        <template v-if="item.requiresApproval">requires approval</template>
+                      </p>
+                      <div v-if="item.verify" data-testid="item-verify" class="mt-1 text-sm">
+                        <p>{{ verifyLine(item.verify) }}</p>
+                        <details v-if="item.verify.output" class="mt-1">
+                          <summary class="cursor-pointer text-muted">Output<template v-if="item.verify.truncated"> (truncated: the last 16 KiB)</template></summary>
+                          <pre data-testid="verify-output" class="mt-1 max-h-64 overflow-auto whitespace-pre-wrap break-all rounded border border-border bg-bg p-2 font-mono text-xs">{{ item.verify.output }}</pre>
+                        </details>
+                      </div>
                     </div>
                   </div>
                   <div class="mt-1 flex flex-wrap justify-end gap-1">
@@ -470,6 +527,10 @@ const badge: Record<QueueItem['status'], string> = {
                     </template>
                     <button v-if="itemActions(item).edit" type="button" class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded border border-border" :aria-label="`Edit item ${item.position}`" title="Edit" @click="startEdit(item)"><Pencil :size="15" aria-hidden="true" /></button>
                     <button v-if="itemActions(item).remove" type="button" class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded border border-border text-danger" :aria-label="`Delete item ${item.position}`" title="Delete" :disabled="busy" @click="removeItem(item)"><Trash2 :size="15" aria-hidden="true" /></button>
+                    <button v-if="itemActions(item).approve" type="button" class="touch-target min-h-8 rounded bg-accent px-2 font-bold text-bg" :aria-label="`Approve item ${item.position}`" :disabled="busy" @click="approve(item)">Approve</button>
+                    <button v-if="itemActions(item).reject" type="button" class="touch-target min-h-8 rounded border border-border px-2" :aria-label="`Reject item ${item.position}`" :disabled="busy" @click="ask('reject', item)">Reject</button>
+                    <button v-if="itemActions(item).reverify" type="button" class="touch-target min-h-8 rounded border border-border px-2" :aria-label="`Re-run verify of item ${item.position}`" :disabled="busy" @click="reverify(item)">Re-run verify</button>
+                    <button v-if="itemActions(item).editGates" type="button" class="touch-target min-h-8 rounded border border-border px-2" :aria-label="`Edit gates of item ${item.position}`" @click="startEdit(item, true)">Edit gates</button>
                     <button v-if="itemActions(item).retry" type="button" class="touch-target min-h-8 rounded bg-accent px-2 font-bold text-bg" :aria-label="`Retry item ${item.position}`" :disabled="busy" @click="retry(item)">Retry</button>
                     <button v-if="itemActions(item).skip" type="button" class="touch-target min-h-8 rounded border border-border px-2" :aria-label="`Skip item ${item.position}`" :disabled="busy" @click="ask('skip', item)">Skip</button>
                     <button v-if="itemActions(item).markDone" type="button" class="touch-target min-h-8 rounded border border-border px-2" :aria-label="`Mark item ${item.position} done`" :disabled="busy" @click="ask('mark-done', item)">Mark done</button>
@@ -500,6 +561,15 @@ const badge: Record<QueueItem['status'], string> = {
                 <textarea v-model="draft.instruction" autocomplete="off" spellcheck="false" rows="2" class="mt-1 min-h-11 w-full resize-y rounded border border-border bg-bg px-2 py-1 font-mono text-base"></textarea>
               </label>
               <p v-if="draftTouched && draftErrors.instruction" class="text-sm text-danger">{{ draftErrors.instruction }}</p>
+              <label class="block">Verify command <span class="text-muted">(optional)</span>
+                <input v-model="draft.verifyCommand" data-testid="verify-command" autocomplete="off" autocapitalize="off" dir="ltr" spellcheck="false" placeholder="e.g. make test" class="mt-1 min-h-11 w-full min-w-0 rounded border border-border bg-bg px-3 text-left font-mono text-base">
+              </label>
+              <p class="text-sm text-muted">{{ VERIFY_HINT }}</p>
+              <p v-if="draftTouched && draftErrors.verify" class="text-sm text-danger">{{ draftErrors.verify }}</p>
+              <label class="flex min-h-11 items-center gap-2 text-sm">
+                <input v-model="draft.requiresApproval" data-testid="requires-approval" type="checkbox" autocomplete="off" class="size-4">
+                Require approval before the item is done
+              </label>
               <div class="flex justify-end">
                 <button type="submit" :disabled="busy" class="touch-target min-h-8 rounded bg-accent px-2 font-bold text-bg">Add item</button>
               </div>

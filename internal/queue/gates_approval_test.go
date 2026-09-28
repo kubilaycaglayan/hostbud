@@ -45,7 +45,7 @@ func TestApproveMarksDoneAndAdvances(t *testing.T) {
 	}
 	// A second action loses with 409 naming the state.
 	_, err := e.svc.Reject(e.ctx(), r.ItemID, owner)
-	if queueStatus(err) != http.StatusConflict || !strings.Contains(err.Error(), "this item is done") {
+	if queueStatus(err) != http.StatusConflict || !strings.Contains(err.Error(), "this item is done") || !strings.Contains(err.Error(), "(approved by a@example.com)") {
 		t.Fatalf("late Reject: %v", err)
 	}
 }

@@ -950,7 +950,14 @@ func (s *Service) resolveApproval(ctx context.Context, itemID string, approve bo
 	}
 	action := map[bool]string{true: "Approve", false: "Reject"}[approve]
 	stateConflict := func(status string) error {
-		return conflict("this item is "+statusWords(status)+"; "+action+" is only for items awaiting approval", hintReload)
+		msg := "this item is " + statusWords(status) + "; " + action + " is only for items awaiting approval"
+		// Say who acted when another device got there first.
+		if runs, err := s.store.LatestRuns(ctx, it.QueueID); err == nil {
+			if d := runs[itemID].Detail; strings.HasPrefix(d, "approved by ") || strings.HasPrefix(d, "rejected by ") {
+				msg += " (" + d + ")"
+			}
+		}
+		return conflict(msg, hintReload)
 	}
 	if it.Status != store.ItemAwaitingApproval || s.dispatch == nil {
 		return View{}, stateConflict(it.Status)

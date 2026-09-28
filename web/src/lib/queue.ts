@@ -1,4 +1,4 @@
-import type { QueueItem, QueueItemStatus, QueueStatus, RunStatus } from '@/api/types'
+import type { QueueItem, QueueItemStatus, QueueStatus, RunStatus, VerifySummary } from '@/api/types'
 
 // Pure rules for the Queue panel (V2-M1, V2-M2) (mirrors internal/queue and
 // internal/agents: the server enforces the same ones).
@@ -36,29 +36,66 @@ export function flagsError(flags: string): string {
   return quote ? `Flags have an unbalanced ${quote === "'" ? 'single' : 'double'} quote.` : ''
 }
 
+/** The verify command's problem, or '' (V2-M4: argv split like flags,
+ * one line, at most 4096 bytes; empty = no verify gate). */
+export function verifyCommandError(command: string): string {
+  if (new TextEncoder().encode(command.trim()).length > 4096) return 'The verify command must be at most 4096 bytes.'
+  if (/[\r\n]/.test(command)) return 'The verify command must be one line.'
+  return flagsError(command).replace(/^Flags have/, 'The verify command has').replace(/^Flags end/, 'The verify command ends')
+}
+
 /** What the owner can do with an item in its current state. */
 export interface ItemActions {
   edit: boolean
+  /** V2-M4: a needs-attention item may change only its gates. */
+  editGates: boolean
   remove: boolean
   move: boolean
   retry: boolean
   skip: boolean
   markDone: boolean
+  approve: boolean
+  reject: boolean
+  reverify: boolean
   openSession: boolean
 }
 
 export function itemActions(item: QueueItem): ItemActions {
   const queued = item.status === 'queued'
   const attention = item.status === 'needs_attention'
+  const awaiting = item.status === 'awaiting_approval'
   return {
     edit: queued,
+    editGates: attention,
     remove: queued,
     move: queued,
     retry: attention,
     skip: attention,
     markDone: attention,
+    approve: awaiting,
+    reject: awaiting,
+    reverify: attention && Boolean(item.verifyCommand) && item.run?.status === 'achieved',
     openSession: Boolean(item.run?.sessionName),
   }
+}
+
+const VERIFY_OUTCOMES: Record<NonNullable<VerifySummary['outcome']>, string> = {
+  passed: 'passed',
+  failed: 'failed',
+  timeout: 'timed out',
+  missing_directory: 'project directory missing',
+  timeout_missing: '`timeout` missing on the host',
+  ssh_failed: "didn't run (SSH)",
+  interrupted: 'interrupted by a restart',
+}
+
+/** One line about the latest verify attempt, e.g. "Verify attempt 2: failed · exit 1 · 3.2 s". */
+export function verifyLine(v: VerifySummary): string {
+  if (v.running) return `Verify attempt ${v.attempt}: running…`
+  const parts = [`Verify attempt ${v.attempt}: ${v.outcome ? VERIFY_OUTCOMES[v.outcome] ?? v.outcome : 'finished'}`]
+  if (v.exitCode !== undefined) parts.push(`exit ${v.exitCode}`)
+  if (v.durationMs !== undefined) parts.push(v.durationMs < 1000 ? `${v.durationMs} ms` : `${(v.durationMs / 1000).toFixed(1)} s`)
+  return parts.join(' · ')
 }
 
 export function queueControls(status: QueueStatus, hasQueued: boolean): { start: boolean; pause: boolean; resume: boolean } {
@@ -72,6 +109,8 @@ export function queueControls(status: QueueStatus, hasQueued: boolean): { start:
 const ITEM_LABELS: Record<QueueItemStatus, string> = {
   queued: 'Queued',
   running: 'Running',
+  verifying: 'Verifying',
+  awaiting_approval: 'Awaiting approval',
   done: 'Done',
   needs_attention: 'Needs attention',
   skipped: 'Skipped',

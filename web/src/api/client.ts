@@ -255,8 +255,10 @@ export const queuesApi = {
   create: (projectId: string, name: string) => request<Queue>('POST', '/api/queues', { projectId, name }),
   rename: (id: string, name: string) => request<Queue>('PATCH', `/api/queues/${q(id)}`, { name }),
   remove: (id: string) => request<void>('DELETE', `/api/queues/${q(id)}`),
-  addItem: (id: string, item: { agent: string; flags: string; instruction: string }) => request<QueueItem>('POST', `/api/queues/${q(id)}/items`, item),
-  updateItem: (id: string, item: { agent?: string; flags?: string; instruction?: string }) => request<QueueItem>('PATCH', `/api/queue-items/${q(id)}`, item),
+  addItem: (id: string, item: { agent: string; flags: string; instruction: string; verifyCommand?: string; requiresApproval?: boolean }) =>
+    request<QueueItem>('POST', `/api/queues/${q(id)}/items`, item),
+  updateItem: (id: string, item: { agent?: string; flags?: string; instruction?: string; verifyCommand?: string; requiresApproval?: boolean }) =>
+    request<QueueItem>('PATCH', `/api/queue-items/${q(id)}`, item),
   removeItem: (id: string) => request<void>('DELETE', `/api/queue-items/${q(id)}`),
   reorder: (id: string, itemIds: string[]) => request<Queue>('PUT', `/api/queues/${q(id)}/order`, { itemIds }),
   // Starting a run checks the client and creates its session over ssh.
@@ -266,6 +268,10 @@ export const queuesApi = {
   retry: (id: string) => request<Queue>('POST', `/api/queue-items/${q(id)}/retry`),
   skip: (id: string) => request<Queue>('POST', `/api/queue-items/${q(id)}/skip`),
   markDone: (id: string) => request<Queue>('POST', `/api/queue-items/${q(id)}/mark-done`),
+  // V2-M4 completion gates.
+  approve: (id: string) => request<Queue>('POST', `/api/queue-items/${q(id)}/approve`),
+  reject: (id: string) => request<Queue>('POST', `/api/queue-items/${q(id)}/reject`),
+  reverify: (id: string) => request<Queue>('POST', `/api/queue-items/${q(id)}/reverify`),
 }
 
 /** V2-M3 notifications: the caller's account only. */
