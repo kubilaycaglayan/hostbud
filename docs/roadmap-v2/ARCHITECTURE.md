@@ -174,6 +174,16 @@ run:     starting ► running ► achieved | failed | exited | stale | cancelled
 - A stale run sends no more hooks until its turn ends, so the owner's **Start or Resume reads each stale run of the queue once** before advancing: a goal it achieved without a hook is picked up then.
 - A run hostbud can no longer track ends as **`exited`** with a `detail`, and its session stays open: a second `SessionStart` with a different id, a `/clear`, or an `unknown` goal-state format.
 
+### 5.5 Parallel queues and run slots (V2-M2, opt-in)
+With `HOSTBUD_PARALLEL_QUEUES=true` a project may have several queues (names unique per project, case-insensitive) and they run at once; each queue stays strictly sequential. Off (the default), V2-M1's one-queue limit and paths are unchanged; queues left over from switch-on stay listed, but one may start or resume only while no other queue is running or has an active run (409 naming the switch). No run is ever cancelled by the switch.
+- **Slots.** An optional per-machine cap (`machine_capacity.max_concurrent_runs`, 1–32, NULL or no row = no cap, set in Settings) limits active runs (`starting`, `running`, `stale`). A stale run holds its slot because its session is alive; only a late achieved or an owner action (Retry, Skip, Mark done, which cancel it) frees it. `failed`/`exited` free it at once.
+- **One decision point.** Slots are handed out only on the dispatcher goroutine (`dispatch`), and the store re-checks the cap when it creates each run: `CreateRunInSlot` takes a per-machine advisory lock, re-counts active runs and refuses (`ErrNoSlot`) at the cap. Concurrent hooks, owner actions and timers can't exceed it.
+- **FIFO.** `queues.waiting_since` is set when a queue starts or resumes and again when its previous run ends, always behind every queue already in line (so equal timestamps still put it at the back), and cleared when it gets a run. A free slot goes to the running queue with the oldest `waiting_since` (ties by id); with a cap of 1 queues take turns and none starves.
+- **Waiting reason.** Derived on every read, never stored: the head item of a running queue with no active run while the cap is reached is `waitingForSlot` ("waiting for a free slot"). The dispatcher publishes `queue.changed` whenever that changes; a cap change publishes it for every queue.
+- **Cap changes.** Lowering the cap stops nothing (new runs wait); raising or clearing it dispatches at once.
+- **Restart.** Active runs are rows, so the count after a restart includes them before any dispatch; `waiting_since` keeps the order. A running queue without one (a V2-M1 row) joins the back.
+- **Shared directory.** When two busy queues (running, or paused with an active run) resolve to the same cleaned project path, both carry a `shared_directory` warning (start/resume responses, `GET /api/queues`, `queue.changed`). It never blocks.
+
 ---
 
 ## 6. Schema sketch (append-only migration)
@@ -196,7 +206,8 @@ run_events(id, run_id FK, source CHECK(source IN ('hook','poller','timer','user'
 - Implemented as `internal/store/migrations/0005_queues.sql` (V2-M1 T2). Design additions: `runs.transcript_path` (the bound transcript) and `runs.transcript_offset` (bytes read so far, for incremental reads, §7); `token_hash` is the 32-byte SHA-256; `run_events.payload_json` has a 64 KiB CHECK; `UNIQUE(queue_id, position)`; indexes on `runs(item_id)`, `runs(status)` and `run_events(run_id, created_at)`.
 - Nothing cascades: deleting a queue deletes its events, runs, items and row in one explicit transaction, and is refused while a run is active. A project with a queue can't be deleted (409) until its queue is.
 - `run_events` stores the forwarded hook JSON with a size cap and with `transcript_path` kept. These are the audit trail for "why did the queue advance?".
-- This replaces the `tasks`/`runs`/`machine_capacity` sketch in ARCHITECTURE §10. Capacity arrives with V2-M2.
+- This replaces the `tasks`/`runs`/`machine_capacity` sketch in ARCHITECTURE §10.
+- V2-M2 adds `internal/store/migrations/0006_parallel_queues.sql` (additions only): `machine_capacity(machine_id PK FK, max_concurrent_runs INT NULL CHECK 1–32, updated_at)`, `queues.waiting_since TIMESTAMPTZ NULL` and the unique index `queues_project_name` on `(project_id, lower(name))` (§5.5).
 
 ---
 

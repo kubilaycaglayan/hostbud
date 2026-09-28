@@ -13,7 +13,7 @@ Update this table in the same commit that finishes a task.
 | T1 Schema | Done |
 | T2 Several queues and the switch | Done |
 | T3 Session naming | Done |
-| T4 Dispatcher with slots | Not started |
+| T4 Dispatcher with slots | Done |
 | T5 API and panel | Not started |
 | T6 Docs | Not started |
 | T7 Milestone acceptance | Not started |
@@ -31,7 +31,7 @@ The v2 ROADMAP *Rules*, AGENTS.md and the V2-M1 milestone rules (fast checks per
 | Checkpoint | After | Runs | Status |
 |---|---|---|---|
 | CP1 | T1–T3 | `make lint test`, `scripts/compose-config.sh`, e2e `tsc` | Green (2026-09-28) |
-| CP2 | T4 | `make lint test` **three times in a row** (concurrent signals, timers), e2e `tsc` | Not run |
+| CP2 | T4 | `make lint test` **three times in a row** (concurrent signals, timers), e2e `tsc` | Green (2026-09-28, 3/3) |
 | CP3 | T5–T6 | `make lint test`, `vue-tsc`, e2e `tsc`, `make gitleaks`, docs check | Not run |
 | CP4 | T7 | `make lint test`, e2e `tsc`, `make gitleaks`, `make deploy` (no `make e2e`: on demand only) | Not run |
 
@@ -41,6 +41,8 @@ The v2 ROADMAP *Rules*, AGENTS.md and the V2-M1 milestone rules (fast checks per
 - **T2** (2026-09-28): `HOSTBUD_PARALLEL_QUEUES` (config, compose `hostbud` only, `.env.example`); switch-on create with unique names (an unnamed queue takes the first free "Queue n"); the switch-off 409 while another queue is running or has an active run; `shared_directory` warnings on start/resume responses, `GET /api/queues` and the peers' `queue.changed`. e2e: `hostbud-e2e-app-multi` (own database `hostbud_multi` via the idempotent `hostbud-e2e-multidb`, Caddy `:9058`, ctl `/multi/restart`, the `multi` fixture and `multiDb` helpers, logs-clean check); `queues-multi.api.spec.ts` adds *Two queues in parallel*, *Same-directory warning* and a switch-off leftover-queue scenario on the V2-M1 app.
 - **T3** (2026-09-28): `RunSessionName(project, queue, pos)`: the project's oldest queue (by `created_at, id`; queue ids are random, so "smallest id" means the oldest row) keeps `<project>-q<pos>`, others get `<project>-<queue>-q<pos>`; the session service's bounded duplicate retry covers simultaneous creation. v2 §5.1 updated. e2e *Name collision* (with a leftover session and a rename).
 - **CP1** (2026-09-28): `make lint test` green (includes `compose-config.sh` and the e2e `tsc`).
+- **T4** (2026-09-28): `dispatch` on the dispatcher goroutine hands out slots FIFO by `waiting_since` (a queue whose run ended goes behind everyone in line, even at an equal timestamp); `store.CreateRunInSlot` re-checks the cap under a per-machine advisory lock; `failed`/`exited`/cancelled runs free their slot at once, stale ones hold it; cap changes go through `Service.SetCapacity` → `CapacityChanged`; `waitingForSlot` is derived in the view and published on change; with the switch off the V2-M1 `advance` path runs unchanged. v2 §5.5/§6 added. e2e `queue-slots.api.spec.ts`: *Cap of one*, *Slots in start order*, *Stale holds a slot*, *Cap after restart* (the cap is seeded in the multi database until T5's API).
+- **CP2** (2026-09-28): `make lint test` green three times in a row (a first try failed only on gosec's weak-random warning in a test; fixed with deterministic picks).
 
 ---
 

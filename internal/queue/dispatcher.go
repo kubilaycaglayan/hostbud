@@ -21,6 +21,8 @@ type DispatchStore interface {
 	Run(ctx context.Context, id string) (store.Run, error)
 	ActiveRunForItem(ctx context.Context, itemID string) (store.Run, error)
 	ActiveRuns(ctx context.Context) ([]store.Run, error)
+	WaitingQueues(ctx context.Context, machineID string) ([]store.Queue, error)
+	SetQueueWaiting(ctx context.Context, id string, since *time.Time) (store.Queue, error)
 }
 
 // Adapters looks up an agent adapter by kind (agents.Registry).
@@ -78,6 +80,9 @@ type Dispatcher struct {
 	work    chan func(context.Context)
 	timers  map[string]Timer   // stale timer per run
 	follows map[string][]Timer // follow-up reads per run
+	waiting map[string]bool    // queues last published as waiting for a slot
+
+	dispatching, again bool // dispatch is running / was asked for again meanwhile
 }
 
 // NewDispatcher wires the dispatcher to the service (Kick, overrides) and
@@ -88,9 +93,10 @@ func NewDispatcher(st DispatchStore, adapters Adapters, starter *Starter, servic
 	}
 	d := &Dispatcher{
 		store: st, adapters: adapters, starter: starter, service: service, bus: bus, clock: realClock{}, log: log, staleAfter: staleAfter,
-		work: make(chan func(context.Context), 4096), timers: map[string]Timer{}, follows: map[string][]Timer{},
+		work: make(chan func(context.Context), 4096), timers: map[string]Timer{}, follows: map[string][]Timer{}, waiting: map[string]bool{},
 	}
 	service.SetDispatcher(d)
+	starter.inSlot = service.ParallelQueues
 	return d
 }
 
@@ -111,7 +117,18 @@ func (d *Dispatcher) enqueue(f func(context.Context)) {
 func (d *Dispatcher) Kick(queueID string) {
 	d.enqueue(func(ctx context.Context) {
 		d.readStale(ctx, queueID)
-		d.advance(ctx, queueID, store.SourceUser)
+		d.next(ctx, queueID, store.SourceUser)
+	})
+}
+
+// CapacityChanged hands out slots after the owner changed the machine's
+// cap: raising or clearing it starts waiting queues at once; lowering it
+// stops nothing (V2-M2).
+func (d *Dispatcher) CapacityChanged() {
+	d.enqueue(func(ctx context.Context) {
+		if d.slots() {
+			d.dispatch(ctx, store.SourceUser)
+		}
 	})
 }
 
@@ -151,6 +168,9 @@ func (d *Dispatcher) EndActiveRun(ctx context.Context, item store.QueueItem, act
 		}
 		_, err = d.finish(ctx, run, store.RunCancelled, "cancelled by the owner ("+action+")", store.SourceUser, false)
 		done <- err
+		if err == nil && d.slots() {
+			d.dispatch(ctx, store.SourceUser) // its slot is free
+		}
 	})
 	select {
 	case err := <-done:
@@ -214,6 +234,12 @@ func (d *Dispatcher) recover(ctx context.Context) {
 			d.read(ctx, run, store.SourcePoller, false)
 		}
 	}
+	if d.slots() {
+		// Active runs are in the store before any dispatch, so the count
+		// includes them; waiting_since keeps the order across the restart.
+		d.dispatch(ctx, store.SourcePoller)
+		return
+	}
 	queues, err := d.store.Queues(ctx, store.HostMachineID)
 	if err != nil {
 		d.log.Error("queue recovery: list queues", "err", err)
@@ -274,32 +300,192 @@ func (d *Dispatcher) advance(ctx context.Context, queueID, source string) {
 		d.log.Error("queue: next item", "err", err)
 		return
 	}
+	d.startItem(ctx, q, item, source)
+}
+
+// startItem creates the item's run and session. It reports false only when
+// the store's locked re-check found no free slot (the item is queued
+// again and the queue keeps its place in line).
+func (d *Dispatcher) startItem(ctx context.Context, q store.Queue, item store.QueueItem, source string) bool {
 	if _, err := d.store.TransitionQueueItem(ctx, item.ID, []string{store.ItemQueued}, store.ItemRunning); err != nil {
-		return
+		return true
 	}
 	project, err := d.store.Project(ctx, q.ProjectID)
 	if err != nil {
 		d.log.Error("queue: project", "err", err)
-		return
+		return true
 	}
 	var adapter RunAgent
 	if a := d.adapters.Get(item.Agent); a != nil {
 		adapter = a
 	}
 	run, err := d.starter.Start(ctx, source, project, d.sessionLabel(ctx, q), item, adapter)
+	if errors.Is(err, store.ErrNoSlot) {
+		_, _ = d.store.TransitionQueueItem(ctx, item.ID, []string{store.ItemRunning}, store.ItemQueued)
+		return false
+	}
+	if d.slots() {
+		_, _ = d.store.SetQueueWaiting(ctx, q.ID, nil) // out of line: it holds a slot now
+	}
 	if err != nil {
 		d.log.Error("queue: start run", "err", err)
 		if run.ID == "" {
-			return
+			return true
 		}
 	}
 	d.publishRun(ctx, run, q.ID)
 	if run.Status == store.RunFailed {
-		d.needsAttention(ctx, run, item, q.ID)
-		return
+		d.needsAttention(ctx, run, item, q.ID, source)
+		return true
 	}
 	d.armStale(run)
 	d.service.Publish(ctx, "run_started", q.ID)
+	return true
+}
+
+// ---------------------------------------------------------------- slots (V2-M2)
+
+// slots reports whether V2-M2 slot dispatch is on (HOSTBUD_PARALLEL_QUEUES).
+// Off, V2-M1's paths run unchanged and the cap isn't consulted.
+func (d *Dispatcher) slots() bool { return d.service.ParallelQueues() }
+
+// next runs when a queue may take its next item: V2-M1 starts it at once;
+// with slots the queue goes to the back of the line (waiting_since = now)
+// and the machine's free slots are handed out, so with a cap queues take
+// turns and none starves.
+func (d *Dispatcher) next(ctx context.Context, queueID, source string) {
+	if !d.slots() {
+		d.advance(ctx, queueID, source)
+		return
+	}
+	if q, err := d.store.Queue(ctx, queueID); err == nil && q.Status == store.QueueRunning {
+		d.toBack(ctx, queueID)
+	}
+	d.dispatch(ctx, source)
+}
+
+// toBack sets a queue's waiting_since to now, or just after the latest one
+// in line when the clock hasn't moved past it (same instant, clock skew),
+// so it really goes to the back.
+func (d *Dispatcher) toBack(ctx context.Context, queueID string) {
+	at := d.clock.Now().UTC().Truncate(time.Microsecond) // the column's precision
+	if waiting, err := d.store.WaitingQueues(ctx, store.HostMachineID); err == nil {
+		for _, q := range waiting {
+			if q.ID != queueID && !q.WaitingSince.Before(at) {
+				at = q.WaitingSince.Add(time.Microsecond)
+			}
+		}
+	}
+	_, _ = d.store.SetQueueWaiting(ctx, queueID, &at)
+}
+
+// dispatch is the machine-wide decision point (it only runs on the
+// dispatcher goroutine): free slots go to the running queues without an
+// active run, oldest waiting_since first; the store re-checks the cap when
+// it creates each run. It then publishes queue.changed for every queue
+// whose "waiting for a free slot" state changed.
+func (d *Dispatcher) dispatch(ctx context.Context, source string) {
+	// A start that fails inside the loop pauses its queue, which asks for
+	// another dispatch: run it after this pass instead of nested.
+	if d.dispatching {
+		d.again = true
+		return
+	}
+	d.dispatching = true
+	defer func() { d.dispatching = false }()
+	machine := store.HostMachineID
+	for again := true; again; {
+		d.again = false
+		d.dispatchOnce(ctx, machine, source)
+		again = d.again
+	}
+	d.publishWaiting(ctx, machine)
+}
+
+func (d *Dispatcher) dispatchOnce(ctx context.Context, machine, source string) {
+	queues, err := d.store.Queues(ctx, machine)
+	if err != nil {
+		d.log.Error("queue: list queues", "err", err)
+		return
+	}
+	for _, q := range queues {
+		// A running queue out of line: one from before V2-M2, or one whose
+		// start raced a restart. It joins at the back.
+		if q.Status == store.QueueRunning && q.WaitingSince == nil {
+			if busy, err := d.queueBusy(ctx, q.ID); err == nil && !busy {
+				d.toBack(ctx, q.ID)
+			}
+		}
+	}
+	waiting, err := d.store.WaitingQueues(ctx, machine)
+	if err != nil {
+		d.log.Error("queue: waiting queues", "err", err)
+		return
+	}
+	for _, q := range waiting {
+		if busy, err := d.queueBusy(ctx, q.ID); err != nil {
+			continue
+		} else if busy {
+			_, _ = d.store.SetQueueWaiting(ctx, q.ID, nil)
+			continue
+		}
+		item, err := d.store.FirstQueuedItem(ctx, q.ID)
+		if errors.Is(err, store.ErrNotFound) {
+			_, _ = d.store.SetQueueWaiting(ctx, q.ID, nil)
+			if _, err := d.store.TransitionQueue(ctx, q.ID, []string{store.QueueRunning}, store.QueueFinished); err == nil {
+				d.service.Publish(ctx, "finished", q.ID)
+			}
+			continue
+		} else if err != nil {
+			d.log.Error("queue: next item", "err", err)
+			continue
+		}
+		if !d.slotFree(ctx, machine) || !d.startItem(ctx, q, item, source) {
+			return
+		}
+	}
+}
+
+// slotFree reports whether the machine has a free run slot (no cap: always).
+// A store error counts as no slot: nothing starts on a guess.
+func (d *Dispatcher) slotFree(ctx context.Context, machine string) bool {
+	limit, err := d.store.MachineCapacity(ctx, machine)
+	if err != nil {
+		return false
+	}
+	if limit == nil {
+		return true
+	}
+	active, err := d.store.CountActiveRuns(ctx, machine)
+	return err == nil && active < *limit
+}
+
+// publishWaiting publishes queue.changed for each queue whose "waiting for
+// a free slot" state changed since the last dispatch.
+func (d *Dispatcher) publishWaiting(ctx context.Context, machine string) {
+	queues, err := d.store.Queues(ctx, machine)
+	if err != nil {
+		return
+	}
+	now := map[string]bool{}
+	for _, q := range queues {
+		if head, err := d.service.waitingForSlot(ctx, q); err == nil && head != "" {
+			now[q.ID] = true
+		}
+	}
+	for id := range now {
+		if !d.waiting[id] {
+			d.service.Publish(ctx, "waiting_for_slot", id)
+		}
+	}
+	for id := range d.waiting {
+		if !now[id] {
+			if _, err := d.store.Queue(ctx, id); err == nil {
+				d.service.Publish(ctx, "slot_free", id)
+			}
+		}
+	}
+	d.waiting = now
 }
 
 // sessionLabel is "" for the project's first (oldest) queue, which keeps
@@ -558,7 +744,7 @@ func (d *Dispatcher) staleCheck(ctx context.Context, runID string) {
 	}
 	d.event(ctx, run, store.SourceTimer, store.RunStale, detail)
 	d.publishRun(ctx, run, rc.queueID)
-	d.needsAttention(ctx, run, rc.item, rc.queueID)
+	d.needsAttention(ctx, run, rc.item, rc.queueID, store.SourceTimer)
 }
 
 func (d *Dispatcher) scheduleFollowUps(runID string) {
@@ -622,29 +808,37 @@ func (d *Dispatcher) achieved(ctx context.Context, rc runCtx, source string) {
 		return
 	}
 	d.service.Publish(ctx, "item_done", rc.queueID)
-	if !wasStale {
-		d.advance(ctx, rc.queueID, source)
+	switch {
+	case !wasStale:
+		d.next(ctx, rc.queueID, source)
+	case d.slots():
+		d.dispatch(ctx, source) // the stale run's slot is free; its queue stays paused
 	}
 }
 
 func (d *Dispatcher) fail(ctx context.Context, rc runCtx, source, detail string) {
 	if run, err := d.finish(ctx, rc.run, store.RunFailed, detail, source, false); err == nil {
-		d.needsAttention(ctx, run, rc.item, rc.queueID)
+		d.needsAttention(ctx, run, rc.item, rc.queueID, source)
 	}
 }
 
 // untrackable ends a run hostbud can no longer follow as exited (§5.4).
 func (d *Dispatcher) untrackable(ctx context.Context, rc runCtx, source, detail string) {
 	if run, err := d.finish(ctx, rc.run, store.RunExited, detail, source, false); err == nil {
-		d.needsAttention(ctx, run, rc.item, rc.queueID)
+		d.needsAttention(ctx, run, rc.item, rc.queueID, source)
 	}
 }
 
 // needsAttention sets the item to needs_attention and pauses its queue.
-func (d *Dispatcher) needsAttention(ctx context.Context, _ store.Run, item store.QueueItem, queueID string) {
+// With slots, an ended run's slot goes to the next waiting queue at once (a
+// stale run keeps its slot: it is still active).
+func (d *Dispatcher) needsAttention(ctx context.Context, _ store.Run, item store.QueueItem, queueID, source string) {
 	_, _ = d.store.TransitionQueueItem(ctx, item.ID, []string{store.ItemRunning}, store.ItemNeedsAttention)
 	_, _ = d.store.TransitionQueue(ctx, queueID, []string{store.QueueRunning}, store.QueuePaused)
 	d.service.Publish(ctx, "needs_attention", queueID)
+	if d.slots() {
+		d.dispatch(ctx, source)
+	}
 }
 
 func (d *Dispatcher) event(ctx context.Context, run store.Run, source, kind, detail string) {

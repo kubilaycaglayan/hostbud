@@ -56,6 +56,9 @@ type Store interface {
 	ReorderQueueItems(ctx context.Context, queueID string, itemIDs []string) ([]store.QueueItem, error)
 	TransitionQueueItem(ctx context.Context, id string, from []string, to string) (store.QueueItem, error)
 	LatestRuns(ctx context.Context, queueID string) (map[string]store.Run, error)
+	MachineCapacity(ctx context.Context, machineID string) (*int, error)
+	SetMachineCapacity(ctx context.Context, machineID string, maxRuns *int) error
+	CountActiveRuns(ctx context.Context, machineID string) (int, error)
 }
 
 // ItemValidator checks an item's agent, flags and instruction
@@ -66,10 +69,12 @@ type ItemValidator interface {
 
 // Control is what the service hands work to (the Dispatcher): Kick looks
 // for the next item of a running queue; EndActiveRun cancels an item's
-// active run before an owner override (its session stays open).
+// active run before an owner override (its session stays open);
+// CapacityChanged hands out slots after a cap change (V2-M2).
 type Control interface {
 	Kick(queueID string)
 	EndActiveRun(ctx context.Context, item store.QueueItem, action string) error
+	CapacityChanged()
 }
 
 // RunSummary is an item's latest run, as the panel shows it.
@@ -87,6 +92,9 @@ type RunSummary struct {
 type ItemView struct {
 	store.QueueItem
 	Run *RunSummary `json:"run,omitempty"`
+	// WaitingForSlot marks the head item of a running queue that has no
+	// active run while the machine's cap is reached (V2-M2; derived).
+	WaitingForSlot bool `json:"waitingForSlot,omitempty"`
 }
 
 // View is a queue with its project and items.
@@ -313,7 +321,86 @@ func (s *Service) view(ctx context.Context, q store.Queue) (View, error) {
 		}
 		v.Items = append(v.Items, iv)
 	}
+	head, err := s.waitingFor(ctx, q, items, runs)
+	if err != nil {
+		return v, err
+	}
+	for i := range v.Items {
+		v.Items[i].WaitingForSlot = v.Items[i].ID == head
+	}
 	return v, nil
+}
+
+// waitingForSlot returns the id of q's head item when it waits for a free
+// slot, else "".
+func (s *Service) waitingForSlot(ctx context.Context, q store.Queue) (string, error) {
+	if !s.parallel || q.Status != store.QueueRunning {
+		return "", nil
+	}
+	items, err := s.store.QueueItems(ctx, q.ID)
+	if err != nil {
+		return "", err
+	}
+	runs, err := s.store.LatestRuns(ctx, q.ID)
+	if err != nil {
+		return "", err
+	}
+	return s.waitingFor(ctx, q, items, runs)
+}
+
+// waitingFor: the head (first queued) item of a running queue with no
+// active run waits for a slot while the machine's active runs reach its
+// cap. Derived on every read, never stored.
+func (s *Service) waitingFor(ctx context.Context, q store.Queue, items []store.QueueItem, runs map[string]store.Run) (string, error) {
+	if !s.parallel || q.Status != store.QueueRunning {
+		return "", nil
+	}
+	head := ""
+	for _, it := range items {
+		if r, ok := runs[it.ID]; ok && r.Active() {
+			return "", nil
+		}
+		if head == "" && it.Status == store.ItemQueued {
+			head = it.ID
+		}
+	}
+	if head == "" {
+		return "", nil
+	}
+	limit, err := s.store.MachineCapacity(ctx, q.MachineID)
+	if err != nil || limit == nil {
+		return "", err
+	}
+	active, err := s.store.CountActiveRuns(ctx, q.MachineID)
+	if err != nil || active < *limit {
+		return "", err
+	}
+	return head, nil
+}
+
+// Capacity returns the machine's cap on active runs (nil: no cap).
+func (s *Service) Capacity(ctx context.Context) (*int, error) {
+	return s.store.MachineCapacity(ctx, s.machine)
+}
+
+// SetCapacity sets or clears (nil) the machine's cap. Lowering it stops no
+// run; raising or clearing it hands out slots at once. Every queue gets a
+// queue.changed, since their waiting state may change (V2-M2).
+func (s *Service) SetCapacity(ctx context.Context, maxRuns *int) (*int, error) {
+	if err := s.store.SetMachineCapacity(ctx, s.machine, maxRuns); errors.Is(err, store.ErrCapacityRange) {
+		return nil, invalid(err.Error(), "Leave it empty for no cap.")
+	} else if err != nil {
+		return nil, err
+	}
+	if s.dispatch != nil {
+		s.dispatch.CapacityChanged()
+	}
+	if queues, err := s.store.Queues(ctx, s.machine); err == nil && s.bus != nil {
+		for _, q := range queues {
+			s.publishOne(ctx, "capacity_changed", q.ID)
+		}
+	}
+	return s.store.MachineCapacity(ctx, s.machine)
 }
 
 // Publish sends queue.changed with the queue's current view (the

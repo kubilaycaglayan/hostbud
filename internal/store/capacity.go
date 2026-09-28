@@ -97,3 +97,51 @@ func (s *Store) SetQueueWaiting(ctx context.Context, id string, since *time.Time
 	q, err := scanQueue(s.db.QueryRowContext(ctx, `UPDATE queues SET waiting_since = $2 WHERE id = $1 RETURNING `+queueCols, id, v))
 	return q, notFound(err)
 }
+
+// ErrNoSlot means the machine's cap on active runs is reached.
+var ErrNoSlot = errors.New("no free run slot on this machine")
+
+// CreateRunInSlot is CreateRun behind the machine's cap: in one
+// transaction it takes the machine's run-slot lock (an advisory lock, so
+// every writer on any connection queues behind it), re-counts the active
+// runs and inserts the run only while that count is below the cap
+// (ErrNoSlot otherwise). The dispatcher decides first; this is the
+// store's re-check, so concurrent callers can never exceed the cap.
+func (s *Store) CreateRunInSlot(ctx context.Context, itemID string, tokenHash []byte, startedAt time.Time) (Run, error) {
+	if len(tokenHash) != 32 {
+		return Run{}, errors.New("run token hash must be a SHA-256")
+	}
+	id, err := NewULID(startedAt)
+	if err != nil {
+		return Run{}, err
+	}
+	var r Run
+	err = s.inTx(ctx, func(tx *sql.Tx) error {
+		var machine string
+		if err := tx.QueryRowContext(ctx, `SELECT machine_id FROM queue_items WHERE id = $1`, itemID).Scan(&machine); err != nil {
+			return notFound(err)
+		}
+		if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext('hostbud-run-slots:' || $1))`, machine); err != nil {
+			return err
+		}
+		var limit sql.NullInt64
+		err := tx.QueryRowContext(ctx, `SELECT max_concurrent_runs FROM machine_capacity WHERE machine_id = $1`, machine).Scan(&limit)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		if limit.Valid {
+			var active int64
+			if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM runs WHERE machine_id = $1 AND status = ANY($2)`, machine, ActiveRunStatuses).Scan(&active); err != nil {
+				return err
+			}
+			if active >= limit.Int64 {
+				return ErrNoSlot
+			}
+		}
+		r, err = scanRun(tx.QueryRowContext(ctx, `
+			INSERT INTO runs (id, item_id, machine_id, token_hash, status, started_at)
+			VALUES ($1, $2, $3, $4, 'starting', $5) RETURNING `+runCols, id, itemID, machine, tokenHash, startedAt.UTC()))
+		return err
+	})
+	return r, err
+}

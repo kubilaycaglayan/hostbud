@@ -43,6 +43,36 @@ test.describe('Queue panel on iPhone 13 Pro', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   }
 
+  test('(V2-M1 T15) Compact queue forms and touch-sized actions on phone', async ({ page, ui, request, target }) => {
+    test.skip(test.info().project.name.endsWith('-domain'), 'uses the loopback access path for setup')
+    const project = await newProject(request, target, 'e2e-phone-queue-compact')
+    await ui.open()
+    await openPanelAndCreate(page, project.id)
+    const dialog = panel(page)
+    const form = dialog.getByRole('form', { name: 'Add item' })
+    const instruction = form.getByLabel('Instruction')
+    await expect(instruction).toHaveJSProperty('tagName', 'TEXTAREA')
+    await expect(instruction).toHaveCSS('resize', 'vertical')
+    await instruction.fill('/goal phone compact form')
+    await form.getByRole('button', { name: 'Add item' }).tap()
+    const item = row(page, 'phone compact form')
+    await expect(item).toBeVisible()
+    for (const label of [/^Move item .* up$/, /^Edit item/, /^Delete item/]) {
+      const targetBox = await item.getByRole('button', { name: label }).boundingBox()
+      expect(targetBox!.width).toBeGreaterThanOrEqual(44)
+      expect(targetBox!.height).toBeGreaterThanOrEqual(44)
+    }
+    await item.getByRole('button', { name: /^Edit item/ }).tap()
+    const edit = dialog.getByRole('form', { name: /^Edit item/ })
+    const editInstruction = edit.getByLabel('Instruction')
+    await expect(editInstruction).toHaveJSProperty('tagName', 'TEXTAREA')
+    await expect(editInstruction).toHaveCSS('resize', 'vertical')
+    await editInstruction.fill('/goal phone edit saved')
+    await edit.getByRole('button', { name: 'Save' }).tap()
+    await expect(dialog.getByRole('listitem', { name: /: \/goal phone edit saved$/ })).toBeVisible()
+    await noHorizontalScroll(page)
+  })
+
   test('(V2-M1 T11) Queue panel (phone): live hand-off to finished', async ({ page, ui, request, target }) => {
     test.skip(test.info().project.name.endsWith('-domain'), 'uses the loopback access path for setup')
     const project = await newProject(request, target, 'e2e-phone-queue')

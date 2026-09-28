@@ -21,6 +21,10 @@ type memStore struct {
 	events []store.RunEvent
 	seq    int
 	mq     *memQueues
+	// V2-M2: the machine cap (nil: none), and the most active runs ever
+	// seen at once.
+	capacity  *int
+	maxActive int
 }
 
 func newMemStore() *memStore { return &memStore{runs: map[string]store.Run{}} }
@@ -33,7 +37,96 @@ func (m *memStore) CreateRun(_ context.Context, itemID string, hash []byte, star
 	r := store.Run{ID: id, ItemID: itemID, MachineID: store.HostMachineID, TokenHash: hash, Status: store.RunStarting, StartedAt: startedAt}
 	m.runs[id] = r
 	m.order = append(m.order, id)
+	m.maxActive = max(m.maxActive, m.activeLocked())
 	return r, nil
+}
+
+// CreateRunInSlot is CreateRun behind the cap, like the store's locked
+// re-check.
+func (m *memStore) CreateRunInSlot(ctx context.Context, itemID string, hash []byte, startedAt time.Time) (store.Run, error) {
+	m.mu.Lock()
+	if m.capacity != nil && m.activeLocked() >= *m.capacity {
+		m.mu.Unlock()
+		return store.Run{}, store.ErrNoSlot
+	}
+	m.mu.Unlock()
+	return m.CreateRun(ctx, itemID, hash, startedAt)
+}
+
+func (m *memStore) activeLocked() int {
+	n := 0
+	for _, r := range m.runs {
+		if r.Active() {
+			n++
+		}
+	}
+	return n
+}
+
+func (m *memStore) MachineCapacity(context.Context, string) (*int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.capacity == nil {
+		return nil, nil
+	}
+	v := *m.capacity
+	return &v, nil
+}
+
+func (m *memStore) SetMachineCapacity(_ context.Context, _ string, maxRuns *int) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if maxRuns != nil && (*maxRuns < store.MinConcurrentRuns || *maxRuns > store.MaxConcurrentRuns) {
+		return store.ErrCapacityRange
+	}
+	if maxRuns == nil {
+		m.capacity = nil
+		return nil
+	}
+	v := *maxRuns
+	m.capacity = &v
+	return nil
+}
+
+func (m *memStore) CountActiveRuns(context.Context, string) (int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.activeLocked(), nil
+}
+
+func (m *memStore) WaitingQueues(_ context.Context, machine string) ([]store.Queue, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out []store.Queue
+	for _, q := range m.q().queues {
+		if q.MachineID == machine && q.Status == store.QueueRunning && q.WaitingSince != nil {
+			out = append(out, q)
+		}
+	}
+	slices.SortFunc(out, func(a, b store.Queue) int {
+		if c := a.WaitingSince.Compare(*b.WaitingSince); c != 0 {
+			return c
+		}
+		return strings.Compare(a.ID, b.ID)
+	})
+	return out, nil
+}
+
+func (m *memStore) SetQueueWaiting(_ context.Context, id string, since *time.Time) (store.Queue, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	q, ok := m.q().queues[id]
+	if !ok {
+		return q, store.ErrNotFound
+	}
+	if since == nil {
+		q.WaitingSince = nil
+	} else {
+		t := *since
+		q.WaitingSince = &t
+	}
+	m.q().queues[id] = q
+	return q, nil
 }
 
 func (m *memStore) Run(_ context.Context, id string) (store.Run, error) {

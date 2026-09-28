@@ -24,6 +24,8 @@ export interface QueueItem {
   instruction: string
   status: 'queued' | 'running' | 'done' | 'needs_attention' | 'skipped'
   run?: RunSummary
+  /** V2-M2: the head item of a running queue while the machine's cap is reached. */
+  waitingForSlot?: boolean
 }
 
 export interface QueueWarning {

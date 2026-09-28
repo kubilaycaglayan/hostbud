@@ -37,6 +37,7 @@ type SessionCreator interface {
 // StarterStore is what the starter needs from the store.
 type StarterStore interface {
 	CreateRun(ctx context.Context, itemID string, tokenHash []byte, startedAt time.Time) (store.Run, error)
+	CreateRunInSlot(ctx context.Context, itemID string, tokenHash []byte, startedAt time.Time) (store.Run, error)
 	UpdateRun(ctx context.Context, id string, u store.RunUpdate) (store.Run, error)
 	TransitionRun(ctx context.Context, id string, from []string, to, detail string, endedAt *time.Time) (store.Run, error)
 	AppendRunEvent(ctx context.Context, runID, source, kind string, payload []byte) (store.RunEvent, error)
@@ -49,6 +50,9 @@ type Starter struct {
 	hookURL  string
 	log      *slog.Logger
 	now      func() time.Time
+	// inSlot reports whether runs are created behind the machine's cap
+	// (V2-M2, the parallel-queues switch; set by the dispatcher).
+	inSlot func() bool
 }
 
 // NewStarter returns a Starter. hookURL is HOSTBUD_URL inside run sessions.
@@ -91,7 +95,11 @@ func (s *Starter) Start(ctx context.Context, source string, project store.Projec
 	if err != nil {
 		return store.Run{}, err
 	}
-	run, err := s.store.CreateRun(ctx, item.ID, hash, s.now())
+	create := s.store.CreateRun
+	if s.inSlot != nil && s.inSlot() {
+		create = s.store.CreateRunInSlot // store.ErrNoSlot when the cap is reached
+	}
+	run, err := create(ctx, item.ID, hash, s.now())
 	if err != nil {
 		return store.Run{}, err
 	}

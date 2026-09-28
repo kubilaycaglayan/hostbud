@@ -25,6 +25,7 @@ Update this table in the same commit that finishes a task.
 | T12 Docs alignment | Done |
 | T13 Milestone acceptance | Done (deployed 2026-09-28; e2e run on demand, pending) |
 | T14 Safe Docker cleanup | Done (2026-09-28; ~4 MB reclaimed: idle toolbox containers; no e2e or dangling images existed) |
+| T15 Queue panel visual density | Implemented; e2e written and type-checked, run pending (on demand) |
 
 ## Preconditions
 
@@ -379,6 +380,15 @@ Follow v1 [M7 T15](../roadmap/M7-tasks.md#t15--safe-docker-cleanup) step by step
 - never close a tmux session, including the spike's and the runs' leftovers.
 
 If anything is in use, skip the cleanup and record why. Report the space reclaimed, and commit only the Progress update.
+
+## T15 — Queue panel visual density
+
+Scope: owner request (2026-09-28). Make queue editing compact and usable with longer instructions on desktop and phone:
+- Use vertically resizable text areas for instructions in both Add item and Edit item; saving an edit updates the displayed item.
+- Place Add item at the form's right edge.
+- Replace item Edit/Delete text controls with named icon buttons; tighten move, start, retry and owner-action buttons. Keep visible focus and at least 44 px touch targets on coarse-pointer devices.
+- Reduce unused action spacing within queue item cards and check the phone sheet for horizontal overflow.
+- **Tests:** U: `QueuePanel.spec.ts` checks both text areas, resize affordance, compact action classes, icon actions, and form alignment. I: n/a (frontend-only). E: add the T15 compact queue form/actions scenario to `queue.spec.ts` and `queue.phone.spec.ts`; verify edit updates the displayed instruction, icon controls stay accessible, and touch targets remain usable on phone. Type-check only; E2E runs on demand.
 
 ---
 

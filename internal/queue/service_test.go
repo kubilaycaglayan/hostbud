@@ -20,12 +20,20 @@ type recordingDispatch struct {
 	kicks  []string
 	ended  []string
 	endErr error
+
+	capacityChanges int
 }
 
 func (d *recordingDispatch) Kick(queueID string) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.kicks = append(d.kicks, queueID)
+}
+
+func (d *recordingDispatch) CapacityChanged() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.capacityChanges++
 }
 
 func (d *recordingDispatch) EndActiveRun(_ context.Context, item store.QueueItem, action string) error {

@@ -3,6 +3,8 @@ package store
 import (
 	"context"
 	"errors"
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 )
@@ -157,5 +159,75 @@ func TestQueueNamesUniquePerProject(t *testing.T) {
 	}
 	if _, err := s.RenameQueue(ctx, a.ID, "docs"); err != nil {
 		t.Fatalf("renaming a queue to its own name in another case: %v", err)
+	}
+}
+
+// V2-M2 T4: the store re-checks the cap under a per-machine lock, so
+// concurrent callers never exceed it; no cap never refuses.
+func TestCreateRunInSlotHoldsTheCapUnderConcurrency(t *testing.T) {
+	ctx := context.Background()
+	s, p := queueFixture(t)
+	q, err := s.CreateQueue(ctx, p.ID, "Queue")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var items []QueueItem
+	for i := range 20 {
+		it, err := s.AddQueueItem(ctx, q.ID, "claude", "", fmt.Sprintf("/goal %d", i))
+		if err != nil {
+			t.Fatal(err)
+		}
+		items = append(items, it)
+	}
+	// No cap: every run is created.
+	for i := range 2 {
+		if _, err := s.CreateRunInSlot(ctx, items[i].ID, tokenHash(fmt.Sprint("free", i)), time.Now()); err != nil {
+			t.Fatalf("no cap: %v", err)
+		}
+	}
+	three := 3
+	if err := s.SetMachineCapacity(ctx, HostMachineID, &three); err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	created, refused := 0, 0
+	for i := 2; i < len(items); i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := s.CreateRunInSlot(ctx, items[i].ID, tokenHash(fmt.Sprint("race", i)), time.Now())
+			mu.Lock()
+			defer mu.Unlock()
+			switch {
+			case err == nil:
+				created++
+			case errors.Is(err, ErrNoSlot):
+				refused++
+			default:
+				t.Errorf("run %d: %v", i, err)
+			}
+		}()
+	}
+	wg.Wait()
+	if created != 1 || refused != len(items)-3 {
+		t.Fatalf("created %d, refused %d; want 1 and %d (2 active + 1 = cap 3)", created, refused, len(items)-3)
+	}
+	if n, _ := s.CountActiveRuns(ctx, HostMachineID); n != 3 {
+		t.Fatalf("active runs = %d, want 3", n)
+	}
+	// A stale run still holds its slot; an ended one frees it.
+	runs, _ := s.ActiveRuns(ctx)
+	if _, err := s.TransitionRun(ctx, runs[0].ID, []string{RunStarting}, RunStale, "", nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateRunInSlot(ctx, items[19].ID, tokenHash("after-stale"), time.Now()); !errors.Is(err, ErrNoSlot) {
+		t.Fatalf("a stale run must hold its slot: %v", err)
+	}
+	if _, err := s.TransitionRun(ctx, runs[0].ID, []string{RunStale}, RunCancelled, "", nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateRunInSlot(ctx, items[19].ID, tokenHash("after-cancel"), time.Now()); err != nil {
+		t.Fatalf("an ended run frees its slot: %v", err)
 	}
 }

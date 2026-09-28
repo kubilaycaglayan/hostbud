@@ -99,6 +99,7 @@ type scriptAdapter struct {
 	verErr  error
 	reads   int
 	armed   []string
+	def     string // the state of sessions without a script (default pending)
 }
 
 func newScriptAdapter(kind string) *scriptAdapter {
@@ -139,6 +140,9 @@ func (a *scriptAdapter) ReadGoalState(_ context.Context, _ string, b agents.Bind
 	}
 	st, ok := a.states[b.SessionID]
 	if !ok {
+		if a.def != "" {
+			return agents.GoalState{Status: a.def}, nil
+		}
 		return agents.GoalState{Status: agents.Pending, Offset: run.TranscriptOffset}, nil
 	}
 	return st, nil

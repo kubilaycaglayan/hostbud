@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"slices"
@@ -229,4 +230,170 @@ func TestIntegrationDispatcherRecoversAfterRestart(t *testing.T) {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
+}
+
+// slotRig is the real dispatcher with the stub clients on test/sshd and
+// the parallel-queues switch on (V2-M2 T4).
+type slotRig struct {
+	e     *itEnv
+	svc   *Service
+	d     *Dispatcher
+	stop  func()
+	url   string
+	reg   *agents.Registry
+	hooks *Hooks
+}
+
+func newSlotRig(t *testing.T) *slotRig {
+	t.Helper()
+	e := newITEnv(t)
+	testenv.Sh(t, e.c, "rm -rf ~/.hostbud-stubs ~/.codex/stub-goals.json")
+	t.Cleanup(func() { testenv.Sh(t, e.c, "rm -rf ~/.hostbud-stubs ~/.codex ~/.claude") })
+	files := fsbrowse.New(e.c, sshx.HostMachineID, time.Minute, 5*time.Second)
+	t.Cleanup(func() { _ = files.Close() })
+	reg := agents.NewRegistry(
+		agents.NewClaude(e.c, func(string) agents.Files { return files }, func(string) string { return "/home/dev" }),
+		agents.NewCodex(e.c, 10*time.Second),
+	)
+	svc := NewService(e.st, reg, e.bus)
+	svc.SetParallelQueues(true)
+	hooks := NewHooks(e.st, nil, nil)
+	r := &slotRig{e: e, svc: svc, url: hookServer(t, hooks), reg: reg, hooks: hooks}
+	r.run(t)
+	return r
+}
+
+// run starts a dispatcher (again, after a restart) wired to the hooks.
+func (r *slotRig) run(t *testing.T) {
+	t.Helper()
+	r.d = NewDispatcher(r.e.st, r.reg, NewStarter(r.e.st, r.e.sessions, r.url, nil), r.svc, r.e.bus, time.Hour, nil)
+	r.hooks.SetNotifier(r.d)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { r.d.Run(ctx); close(done) }()
+	r.stop = func() { cancel(); <-done }
+	t.Cleanup(func() { r.stop() })
+}
+
+func (r *slotRig) itemStatuses(t *testing.T, queueID string) []string {
+	t.Helper()
+	items, err := r.e.st.QueueItems(context.Background(), queueID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out []string
+	for _, it := range items {
+		out = append(out, it.Status)
+	}
+	return out
+}
+
+func (r *slotRig) waitFor(t *testing.T, what string, timeout time.Duration, ok func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for !ok() {
+		if time.Now().After(deadline) {
+			runs, _ := r.e.st.ActiveRuns(context.Background())
+			queues, _ := r.e.st.Queues(context.Background(), store.HostMachineID)
+			var state []string
+			for _, q := range queues {
+				latest, _ := r.e.st.LatestRuns(context.Background(), q.ID)
+				for _, run := range latest {
+					state = append(state, q.Name+":"+run.Status+":"+run.Detail)
+				}
+				state = append(state, fmt.Sprintf("%s %s %v", q.Name, q.Status, r.itemStatuses(t, q.ID)))
+			}
+			t.Fatalf("timed out waiting for %s (%d active; %v)", what, len(runs), state)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+// V2-M2 T4: two queues whose runs achieve at the same moment with a cap of
+// 1 start exactly one next run; after a restart with that run active the
+// count still holds and the other queue keeps waiting.
+func TestIntegrationSlotsSimultaneousFinishesAndRestart(t *testing.T) {
+	r := newSlotRig(t)
+	ctx := context.Background()
+	st := r.e.st
+	alpha := r.e.queue // the project's first queue ("Milestones")
+	beta, err := r.svc.Create(ctx, r.e.project.ID, "Beta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []struct{ id, name string }{{alpha.ID, "alpha"}, {beta.ID, "beta"}} {
+		setStubBehavior(t, r.e.c, "it slots "+q.name+" 1", "achieve:2")
+		setStubBehavior(t, r.e.c, "it slots "+q.name+" 2", "pending")
+		for n := 1; n <= 2; n++ {
+			if _, err := r.svc.AddItem(ctx, q.id, "claude", "", fmt.Sprintf("/goal it slots %s %d", q.name, n)); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	for _, id := range []string{alpha.ID, beta.ID} {
+		if _, err := r.svc.Start(ctx, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// No cap yet: both first items run at once.
+	r.waitFor(t, "both first runs", 20*time.Second, func() bool {
+		n, _ := st.CountActiveRuns(ctx, store.HostMachineID)
+		return n == 2
+	})
+	if _, err := r.svc.SetCapacity(ctx, intp(1)); err != nil {
+		t.Fatal(err)
+	}
+	// Both achieve (about 0.4 s apart at most); exactly one second item starts.
+	r.waitFor(t, "both first items done", 30*time.Second, func() bool {
+		return r.itemStatuses(t, alpha.ID)[0] == store.ItemDone && r.itemStatuses(t, beta.ID)[0] == store.ItemDone
+	})
+	r.waitFor(t, "one next run", 20*time.Second, func() bool {
+		n, _ := st.CountActiveRuns(ctx, store.HostMachineID)
+		return n == 1
+	})
+	for range 20 { // it stays at one
+		if n, _ := st.CountActiveRuns(ctx, store.HostMachineID); n != 1 {
+			t.Fatalf("%d active runs over cap 1", n)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	second := map[string]string{alpha.ID: r.itemStatuses(t, alpha.ID)[1], beta.ID: r.itemStatuses(t, beta.ID)[1]}
+	running, waitingID := "", ""
+	for id, status := range second {
+		switch status {
+		case store.ItemRunning:
+			running = id
+		case store.ItemQueued:
+			waitingID = id
+		}
+	}
+	if running == "" || waitingID == "" {
+		t.Fatalf("second items %v: want one running, one queued", second)
+	}
+	v, err := r.svc.Get(ctx, waitingID)
+	if err != nil || !v.Items[1].WaitingForSlot {
+		t.Fatalf("the other queue isn't waiting for a slot: %+v, %v", v.Items[1], err)
+	}
+
+	// Restart with that run active: the count includes it before any
+	// dispatch; the other queue keeps waiting.
+	r.stop()
+	r.run(t)
+	time.Sleep(2 * time.Second)
+	if n, _ := st.CountActiveRuns(ctx, store.HostMachineID); n != 1 {
+		t.Fatalf("after restart: %d active runs, cap 1", n)
+	}
+	if got := r.itemStatuses(t, waitingID)[1]; got != store.ItemQueued {
+		t.Fatalf("after restart the waiting queue's item is %s", got)
+	}
+	if q, _ := st.Queue(ctx, waitingID); q.WaitingSince == nil {
+		t.Fatal("the waiting order was lost across the restart")
+	}
+	// Raising the cap dispatches at once.
+	if _, err := r.svc.SetCapacity(ctx, intp(2)); err != nil {
+		t.Fatal(err)
+	}
+	r.waitFor(t, "the waiting queue's run after raising the cap", 20*time.Second, func() bool {
+		return r.itemStatuses(t, waitingID)[1] == store.ItemRunning
+	})
 }
