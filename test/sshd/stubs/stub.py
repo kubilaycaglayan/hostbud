@@ -21,6 +21,9 @@ behavior file holds one line, e.g. "achieve:2 delay=0.5":
   clear                    after one turn, a new session id (/clear)
   pending                  keeps answering not met (Claude) / active (Codex)
   slow:S                   one long turn of S seconds, then achieved (with its Stop hook)
+Options after the behavior: delay=<s per turn>, verdict_delay=<s>, and
+stops=N (Claude achieve: the last Stop hook fires N times, once more after
+the verdict each; a duplicate signal, V2-M3).
 Switches: ~/.hostbud-stubs/old-version (report an old version),
 ~/.hostbud-stubs/missing-<client> (behave as not installed: exit 127).
 Every start logs argv, cwd and the HOSTBUD_* env (the token only as a
@@ -32,6 +35,10 @@ HOME = os.path.expanduser("~")
 STATE = os.path.join(HOME, ".hostbud-stubs")
 VERSIONS = {"claude": ("2.1.283 (Claude Code)", "1.9.3 (Claude Code)"), "codex": ("codex-cli 0.157.1", "codex-cli 0.150.0")}
 DECOY = '{"type":"attachment","attachment":{"type":"goal_status","met":true,"condition":"decoy"}} achieved'
+
+
+# The last behavior's options (behavior() fills it).
+OPTIONS = {}
 
 
 def now_iso():
@@ -55,6 +62,8 @@ def behavior(condition):
         line = "achieve:1"
     words = line.split()
     opts = dict(w.split("=", 1) for w in words[1:] if "=" in w)
+    OPTIONS.clear()
+    OPTIONS.update(opts)
     name, _, arg = words[0].partition(":")
     return name, arg, float(opts.get("delay", "1")), float(opts.get("verdict_delay", "0.5"))
 
@@ -162,6 +171,9 @@ def claude(argv):
             else:
                 goal({"met": True, "reason": "stub achieved", "iterations": total, "durationMs": 1, "tokens": 0})
                 say("✔ Goal achieved")
+                for _ in range(int(OPTIONS.get("stops", "1")) - 1):
+                    time.sleep(verdict_delay)
+                    fire("Stop", {"stop_hook_active": True})
     elif name == "fail":
         turn(1, "this goal can never be met")
         fire("Stop")

@@ -1,6 +1,6 @@
 import { createDecipheriv, createECDH, hkdfSync, randomBytes, type ECDH } from 'node:crypto'
 import type { APIRequestContext } from '@playwright/test'
-import { mutate } from './api.ts'
+import { forbidInLogs, mutate } from './api.ts'
 
 // V2-M3 Web Push against hostbud-e2e-pushfake: devices are key pairs the
 // scenario holds (like a browser's), subscribed through the API; bodies are
@@ -31,6 +31,7 @@ export function newDevice(): Device {
 }
 
 export async function subscribe(request: APIRequestContext, d: Device, origin?: string) {
+  forbidInLogs(d.id) // info logs name the subscription id, never the endpoint
   return await mutate(request, 'POST', '/api/notifications/subscriptions', { endpoint: d.endpoint, keys: { p256dh: d.p256dh, auth: d.auth } }, origin)
 }
 

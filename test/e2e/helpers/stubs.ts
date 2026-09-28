@@ -40,9 +40,10 @@ export class Stubs {
   }
 
   /** The behavior for every run of an item with this goal condition (the
-   * instruction after "/goal "). delay = seconds per turn. */
-  async setBehavior(condition: string, behavior: StubBehavior, delay = 0.5): Promise<void> {
-    await this.target.run(`mkdir -p ${STATE}/goal && echo ${shq(`${behavior} delay=${delay}`)} > ${STATE}/goal/${sha256(condition)}`)
+   * instruction after "/goal "). delay = seconds per turn; extra = more
+   * options, e.g. "stops=2" (V2-M3: the last Stop hook fires twice). */
+  async setBehavior(condition: string, behavior: StubBehavior, delay = 0.5, extra = ''): Promise<void> {
+    await this.target.run(`mkdir -p ${STATE}/goal && echo ${shq(`${behavior} delay=${delay}${extra ? ` ${extra}` : ''}`)} > ${STATE}/goal/${sha256(condition)}`)
   }
 
   /** The behavior for one run id (wins over the condition's). */

@@ -7,6 +7,7 @@ import { putNotificationSettings } from '../helpers/notifications.ts'
 import { newDevice, pushfake, received, subscribe, unsubscribe, type Device } from '../helpers/push.ts'
 import { addItem, control, createQueue, getQueue, newProject } from '../helpers/queues.ts'
 import { Stubs } from '../helpers/stubs.ts'
+import { ctl } from '../helpers/ctl.ts'
 
 // V2-M3 T2/T3: Web Push to hostbud-e2e-pushfake. Devices are test-held key
 // pairs subscribed through the API (the browser's push service can't be
@@ -26,9 +27,9 @@ test.describe('Web Push (API)', () => {
 
   /** One item that behaves as told, started; resolves when the queue is
    * paused or finished. */
-  async function runItem(request: import('@playwright/test').APIRequestContext, target: import('../helpers/target.ts').Target, condition: string, behavior: 'achieve:1' | 'fail', opts: { flags?: string; prefix?: string } = {}) {
+  async function runItem(request: import('@playwright/test').APIRequestContext, target: import('../helpers/target.ts').Target, condition: string, behavior: 'achieve:1' | 'fail', opts: { flags?: string; prefix?: string; extra?: string } = {}) {
     const project = await newProject(request, target, opts.prefix ?? 'e2e-push')
-    await stubs.setBehavior(condition, behavior)
+    await stubs.setBehavior(condition, behavior, 0.5, opts.extra)
     const queue = await createQueue(request, project.id)
     await addItem(request, queue.id, { instruction: `/goal ${condition}`, flags: opts.flags })
     expect((await control(request, queue.id, 'start')).status()).toBe(200)
@@ -130,5 +131,47 @@ test.describe('Web Push (API)', () => {
       const res = await mutate(request, 'POST', '/api/notifications/subscriptions', { endpoint, keys: { p256dh: d.p256dh, auth: d.auth } })
       expect(res.status(), endpoint).toBe(400)
     }
+  })
+
+  test('(V2-M3 T3) Expired subscription', async ({ request, target }) => {
+    const [gone, missing, ok] = [newDevice(), newDevice(), newDevice()]
+    for (const d of [gone, missing, ok]) expect((await subscribe(request, d)).status()).toBe(204)
+    await pushfake.answer(gone.path, [410])
+    await pushfake.answer(missing.path, [404])
+    await putNotificationSettings(request, { enabled: true })
+
+    await runItem(request, target, 'e2e push expired', 'achieve:1')
+    await waitFor(ok, 2)
+    // Removed at once, never retried.
+    await expect.poll(async () => (await notifications.subscriptions()).map((s) => s.endpoint), { timeout: 15_000 }).not.toContain(gone.endpoint)
+    const left = (await notifications.subscriptions()).map((s) => s.endpoint)
+    expect(left).not.toContain(missing.endpoint)
+    expect(left).toContain(ok.endpoint)
+    expect((await pushfake.posts(gone.path)).length).toBe(1)
+    expect((await pushfake.posts(missing.path)).length).toBe(1)
+
+    // The next event doesn't reach them.
+    await runItem(request, target, 'e2e push expired again', 'achieve:1')
+    await waitFor(ok, 4)
+    expect((await pushfake.posts(gone.path)).length).toBe(1)
+    expect((await pushfake.posts(missing.path)).length).toBe(1)
+  })
+
+  test('(V2-M3 T3) No duplicates', async ({ request, target }) => {
+    const d = newDevice()
+    expect((await subscribe(request, d)).status()).toBe(204)
+    await putNotificationSettings(request, { enabled: true })
+    // The stub fires its last Stop hook twice; then the app restarts.
+    const { queue } = await runItem(request, target, 'e2e push no duplicates', 'achieve:1', { extra: 'stops=2' })
+    const run = queue.items[0].run!
+    await waitFor(d, 2)
+    await ctl.appRestart()
+    await expect.poll(async () => (await request.get('/api/health')).status(), { timeout: 30_000 }).toBe(200)
+    // Give a replay after the restart the time a delivery takes.
+    await expect.poll(async () => (await pushfake.posts(d.path)).length, { timeout: 5_000, intervals: [1_000] }).toBe(2)
+    await new Promise((r) => setTimeout(r, 2_000))
+    const keys = (await received(d)).map((p) => p.key)
+    expect(keys.sort()).toEqual([`queue:${queue.id}:finished:${run.id}`, `run:${run.id}:done`].sort())
+    expect((await notifications.outbox()).filter((o) => o.key.includes(run.id))).toHaveLength(2)
   })
 })
