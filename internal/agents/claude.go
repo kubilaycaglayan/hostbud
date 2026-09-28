@@ -150,7 +150,12 @@ type claudeGoalStatus struct {
 // line is parsed as JSON: text is never searched. No record ⇒ pending.
 func (c *Claude) ReadGoalState(ctx context.Context, machine string, b Binding, run store.Run, condition string) (GoalState, error) {
 	files := c.files(machine)
-	root := strings.TrimSuffix(c.home(machine), "/") + "/.claude/projects"
+	home := strings.TrimSuffix(c.home(machine), "/")
+	if home == "" {
+		// Not probed yet (right after a restart): retry, don't judge the path.
+		return GoalState{Offset: run.TranscriptOffset}, errors.New("the host's home directory isn't known yet")
+	}
+	root := home + "/.claude/projects"
 	if err := ValidTranscriptPath(ctx, files, b.TranscriptPath, root); err != nil {
 		return GoalState{Status: Unknown, Reason: err.Error(), Offset: run.TranscriptOffset}, nil
 	}

@@ -22,6 +22,7 @@ import (
 	"hostbud/internal/events"
 	"hostbud/internal/fsbrowse"
 	"hostbud/internal/inventory"
+	"hostbud/internal/llm"
 	"hostbud/internal/notify"
 	"hostbud/internal/projects"
 	"hostbud/internal/queue"
@@ -158,12 +159,25 @@ func run() error {
 
 	// v2 agent queue: adapters, the queue service and the run hooks
 	// (docs/roadmap-v2/ARCHITECTURE.md).
-	hostHome := func(string) string { m, _ := inv.Snapshot(); return m.Home }
+	// Until the first probe after a restart, fall back to the home saved by
+	// the last one, so recovered runs' transcripts can be read.
+	hostHome := func(string) string {
+		if m, _ := inv.Snapshot(); m.Home != "" {
+			return m.Home
+		}
+		readCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		m, _ := st.Machine(readCtx, store.HostMachineID)
+		return m.Home
+	}
 	adapters := agents.NewRegistry(
 		agents.NewClaude(ssh, func(string) agents.Files { return filesystem }, hostHome),
 		agents.NewCodex(ssh, cfg.ExecTimeout),
 	)
 	queues := queue.NewService(st, adapters, bus)
+	llmConfig := llm.Config{Provider: cfg.LLMProvider, Model: cfg.LLMModel, APIKey: cfg.OpenAIAPIKey, BaseURL: cfg.LLMBaseURL, QuietAfter: cfg.LLMQuietAfter, MaxPerRunHour: cfg.LLMMaxPerRunHour, Scrub: cfg.LLMScrub}
+	supervisorStatus, _ := llm.Check(llmConfig)
+	if cfg.LLMProvider != "" && !supervisorStatus.Enabled { log.Warn(supervisorStatus.Reason) }
 	queues.SetParallelQueues(cfg.ParallelQueues)
 	queues.SetVerifyTimeout(cfg.VerifyTimeout)
 	if err := queues.LoadParallelQueues(ctx); err != nil {
@@ -198,6 +212,7 @@ func run() error {
 			Hooks:         hooks,
 			Queues:        queues,
 			Notifications: notifier,
+			Supervisor: supervisorStatus,
 			Log:           log, Dist: web.Dist(),
 			ExecTimeout:           cfg.ExecTimeout,
 			SFTPTimeout:           cfg.SFTPTimeout,

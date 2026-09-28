@@ -216,6 +216,12 @@ func TestClaudeReadGoalStateIsIncremental(t *testing.T) {
 	if s3.Status != Pending || s3.Offset != int64(len(achieved)) {
 		t.Fatalf("third read: %+v", s3)
 	}
+	// An unknown home (hostbud just restarted, host not probed yet) is an
+	// error (retried), not an "outside /.claude/projects" verdict.
+	noHome := NewClaude(nil, func(string) Files { return files }, func(string) string { return "" })
+	if s, err := noHome.ReadGoalState(ctx, "host", b, run, condDone); err == nil || s.Status == Unknown {
+		t.Fatalf("unknown home: %+v, %v (want a retryable error)", s, err)
+	}
 	// An SFTP failure is an error (retried on the next signal), not a verdict.
 	files.err = errors.New("sftp: timeout")
 	if _, err := c.ReadGoalState(ctx, "host", b, run, condDone); err == nil {
