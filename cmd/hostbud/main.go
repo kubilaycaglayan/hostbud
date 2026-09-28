@@ -177,7 +177,9 @@ func run() error {
 	queues := queue.NewService(st, adapters, bus)
 	llmConfig := llm.Config{Provider: cfg.LLMProvider, Model: cfg.LLMModel, APIKey: cfg.OpenAIAPIKey, BaseURL: cfg.LLMBaseURL, QuietAfter: cfg.LLMQuietAfter, MaxPerRunHour: cfg.LLMMaxPerRunHour, Scrub: cfg.LLMScrub}
 	supervisorStatus, _ := llm.Check(llmConfig)
-	if cfg.LLMProvider != "" && !supervisorStatus.Enabled { log.Warn(supervisorStatus.Reason) }
+	if cfg.LLMProvider != "" && !supervisorStatus.Enabled {
+		log.Warn(supervisorStatus.Reason)
+	}
 	queues.SetParallelQueues(cfg.ParallelQueues)
 	queues.SetVerifyTimeout(cfg.VerifyTimeout)
 	if err := queues.LoadParallelQueues(ctx); err != nil {
@@ -212,7 +214,7 @@ func run() error {
 			Hooks:         hooks,
 			Queues:        queues,
 			Notifications: notifier,
-			Supervisor: supervisorStatus,
+			Supervisor:    supervisorStatus,
 			Log:           log, Dist: web.Dist(),
 			ExecTimeout:           cfg.ExecTimeout,
 			SFTPTimeout:           cfg.SFTPTimeout,

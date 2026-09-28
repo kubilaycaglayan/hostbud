@@ -24,6 +24,7 @@ import (
 	"hostbud/internal/events"
 	"hostbud/internal/fsbrowse"
 	"hostbud/internal/inventory"
+	"hostbud/internal/llm"
 	"hostbud/internal/tmux"
 )
 
@@ -67,6 +68,7 @@ type Config struct {
 	Queues QueueService
 	// Notifications is the V2-M3 notifier (/api/notifications/*).
 	Notifications NotificationService
+	Supervisor    llm.Status
 }
 
 // HookReceiver checks and records one run hook (queue.Hooks). It returns a
@@ -182,6 +184,7 @@ func mountRoutes(s *server, mux *http.ServeMux) {
 	addFunc := func(pattern string, h http.HandlerFunc) { add(pattern, h) }
 	addFunc("GET /api/health", s.health)
 	addFunc("GET /api/runtime/limits", s.runtimeLimits)
+	addFunc("GET /api/supervisor", s.supervisorStatus)
 	if cfg.Auth != nil {
 		addFunc("POST /api/auth/register", s.register)
 		addFunc("POST /api/auth/login", s.login)
@@ -337,6 +340,10 @@ func (s *server) runtimeLimits(w http.ResponseWriter, _ *http.Request) {
 		"sftpTimeoutMs":   s.cfg.SFTPTimeout.Milliseconds(),
 		"uploadTimeoutMs": s.cfg.UploadTimeout.Milliseconds(),
 	})
+}
+
+func (s *server) supervisorStatus(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.cfg.Supervisor)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

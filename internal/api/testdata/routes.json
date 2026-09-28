@@ -2,6 +2,7 @@
   {"method":"GET","path":"/api/machines/{machine}/sessions/{name}/output","stateChanging":false,"authRequired":true,"websocket":false,"jsonBody":false},
   {"method":"GET","path":"/api/health","stateChanging":false,"authRequired":false,"websocket":false,"jsonBody":false},
   {"method":"GET","path":"/api/runtime/limits","stateChanging":false,"authRequired":true,"websocket":false,"jsonBody":false},
+  {"method":"GET","path":"/api/supervisor","stateChanging":false,"authRequired":true,"websocket":false,"jsonBody":false},
   {"method":"POST","path":"/api/auth/register","stateChanging":true,"authRequired":false,"websocket":false,"jsonBody":true},
   {"method":"POST","path":"/api/auth/login","stateChanging":true,"authRequired":false,"websocket":false,"jsonBody":true},
   {"method":"POST","path":"/api/auth/logout","stateChanging":true,"authRequired":true,"websocket":false,"jsonBody":false},

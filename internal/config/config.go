@@ -53,6 +53,13 @@ type Config struct {
 	RunStaleAfter       time.Duration // HOSTBUD_RUN_STALE_AFTER (v2: no-signal window before a run is stale)
 	ParallelQueues      bool          // HOSTBUD_PARALLEL_QUEUES (V2-M2 opt-in: several queues, parallel runs)
 	VerifyTimeout       time.Duration // HOSTBUD_VERIFY_TIMEOUT (V2-M4: bound on an item's verify command)
+	LLMProvider         string        // HOSTBUD_LLM_PROVIDER (V2-M5; empty disables)
+	LLMModel            string        // HOSTBUD_LLM_MODEL
+	OpenAIAPIKey        string        // OPENAI_API_KEY
+	LLMBaseURL          string        // HOSTBUD_LLM_BASE_URL (optional)
+	LLMQuietAfter       time.Duration // HOSTBUD_LLM_QUIET_AFTER
+	LLMMaxPerRunHour    int           // HOSTBUD_LLM_MAX_PER_RUN_HOUR
+	LLMScrub            bool          // HOSTBUD_LLM_SCRUB
 
 	// Web Push (V2-M3). Missing or invalid keys never fail startup: Push()
 	// reports push as unavailable, with the reason.
@@ -140,6 +147,13 @@ func Load(getenv func(string) string) (Config, error) {
 	cfg.UploadTimeout = durationRange("HOSTBUD_UPLOAD_TIMEOUT", "5m", 30*time.Second, 10*time.Minute)
 	cfg.RunStaleAfter = durationRange("HOSTBUD_RUN_STALE_AFTER", "2h", 10*time.Second, 24*time.Hour)
 	cfg.VerifyTimeout = durationRange("HOSTBUD_VERIFY_TIMEOUT", "10m", 5*time.Second, 2*time.Hour)
+	cfg.LLMProvider = strings.TrimSpace(getenv("HOSTBUD_LLM_PROVIDER"))
+	cfg.LLMModel = strings.TrimSpace(getenv("HOSTBUD_LLM_MODEL"))
+	cfg.OpenAIAPIKey = strings.TrimSpace(getenv("OPENAI_API_KEY"))
+	cfg.LLMBaseURL = strings.TrimSpace(getenv("HOSTBUD_LLM_BASE_URL"))
+	cfg.LLMQuietAfter, _ = time.ParseDuration(get("HOSTBUD_LLM_QUIET_AFTER", "20m"))
+	cfg.LLMMaxPerRunHour, _ = strconv.Atoi(get("HOSTBUD_LLM_MAX_PER_RUN_HOUR", "2"))
+	cfg.LLMScrub = strings.ToLower(get("HOSTBUD_LLM_SCRUB", "true")) != "false"
 	cfg.MaxTerminalsPerUser = countRange("HOSTBUD_MAX_TERMINALS_PER_USER", "32", 1, 256)
 	cfg.MaxTerminals = countRange("HOSTBUD_MAX_TERMINALS", "128", 1, 1024)
 	cfg.SessionTTL = duration("HOSTBUD_SESSION_TTL", "720h", time.Minute)
