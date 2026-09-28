@@ -22,7 +22,7 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 | T12 Agent marks on session rows | Implemented; focused unit/integration pass; e2e written and type-checked, run pending (on demand) |
 | T13 Provider hook status on session rows | In progress |
 | T14 Solarized and Dimmed theme levels | Implemented; E2E written and type-checked, run pending (on demand) |
-| T15 Selected-session clarity and list decluttering | In progress |
+| T15 Selected-session clarity and list decluttering | Implemented; U/contrast pass, E written and type-checked, screenshots inspected; browser run pending (on demand) |
 
 **Progress note (T2–T4, 2026-09-27):** Vitest (447 tests), eslint, `vue-tsc` and the e2e `tsc` passed; deployed to the host from a clean checkout of `f664bb8` (a pre-deploy `pg_dump` is in `backups/`), and the stack came up healthy. Still open for these tasks:
 - **E2E runs:** the scenarios *(T2) Compact tree*, *(T3) Compact file browser*, *(T3) No browser autocomplete outside login password* and *(T4) Custom tab order* type-check but haven't run: e2e runs only on demand. The T2 commit also updated two M6 scenarios that expanded single-window sessions (*(T4) Inline rename a session*, *(T3) Window rows follow the real terminal*).
