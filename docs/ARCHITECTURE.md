@@ -26,7 +26,7 @@ It is reachable two ways:
 - File editing / previews, git integration.
 - Multi-user authorization beyond the single-user v1 account model. v1 still has one trusted host machine, but the web app requires an account; reachability is not sufficient by itself.
 
-**v2** — see §10 and [roadmap-v2/ARCHITECTURE.md](roadmap-v2/ARCHITECTURE.md): task queue, per-machine capacity, hook-based session status, and an optional LLM supervisor. V2-M1–V2-M4 are implemented; V2-M5 implementation is in progress. The LLM supervisor is off unless explicitly configured.
+**v2** — see §10 and [roadmap-v2/ARCHITECTURE.md](roadmap-v2/ARCHITECTURE.md): task queue, per-machine capacity, hook-based session status, and an optional LLM supervisor. V2-M1–V2-M5 are implemented; the full V2-M5 browser suite runs on demand. The LLM supervisor is off unless explicitly configured.
 
 ---
 

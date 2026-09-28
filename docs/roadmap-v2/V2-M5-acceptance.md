@@ -8,7 +8,7 @@ Each box is one roadmap criterion. Its coverage line names the task that writes 
 
 ## Criteria
 
-- [ ] **1 Off unless configured; with no provider, V2-M4 behavior is unchanged.**
+- [x] **1 Off unless configured; with no provider, V2-M4 behavior is unchanged.**
   - No timer, `capture-pane`, outbound request, `llm` row, `flag` field or notification; the V2-M1–V2-M4 tests run unchanged.
   - U: T1, T2 · I: T1, T2 (no `capture-pane` in the `sshx` log) · E: T1 *No provider, no calls*; the V2-M1–V2-M4 suites in T7.
 - [x] **2 A missing, partial or invalid provider config turns the supervisor off with an actionable message.**
@@ -71,7 +71,7 @@ Written in T1–T5, first run in T7, on desktop and `iphone-13-pro`.
 
 ## Definition of done
 
-- [ ] Every criterion is ticked (E items as written and type-checked; `make e2e` runs only on demand and a pending run is listed as open).
+- [x] Every criterion is ticked (E items as written and type-checked; `make e2e` runs only on demand and a pending run is listed as open).
 - [x] `make lint test` is green, `make gitleaks` is clean, and nothing host-specific or key-like is tracked.
 - [x] *(host)* `make deploy` succeeded and the stack is healthy; `HOSTBUD_LLM_PROVIDER` is empty in the deployed container. The authenticated supervisor status check and V2-M4 queue check remain unverified.
 - [x] T8 Docker cleanup skipped with reason recorded: `make docker-clean` removes toolbox containers, including the active command container. Production, volumes and backups were left intact; no space was reclaimed.
