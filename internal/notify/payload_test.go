@@ -36,6 +36,21 @@ func TestBuildTheThreeEvents(t *testing.T) {
 	}
 }
 
+func TestLLMFlagNoticeUsesAllowlistAndStableKey(t *testing.T) {
+	e := Event{Kind: KindAttention, RunID: "run-a", QueueID: "q", ItemID: "i", Project: "app", Position: 3, Outcome: "completed", Key: "run:run-a:llm:completed"}
+	p, err := Build(e)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Key != e.Key || p.Outcome != "completed" || !strings.Contains(p.Body, "queue has not advanced") || strings.Contains(p.Body, "reason") {
+		t.Fatalf("unexpected payload: %+v", p)
+	}
+	b, err := p.JSON()
+	if err != nil || strings.Contains(string(b), "pane") || strings.Contains(string(b), "instruction") {
+		t.Fatalf("payload=%s err=%v", b, err)
+	}
+}
+
 // The payload carries exactly the allowlisted fields, each ≤ 1 KiB in all,
 // and control characters in a project name can't break the text.
 func TestPayloadAllowlistAndCap(t *testing.T) {

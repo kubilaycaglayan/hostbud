@@ -56,6 +56,7 @@ type Event struct {
 	Outcome string
 	// Attempt is the verify attempt of an OutcomeVerifyFailed notice.
 	Attempt int
+	Key     string
 }
 
 // V2-M4 completion-gate outcomes of KindAttention notices.
@@ -66,6 +67,9 @@ const (
 
 // DedupeKey is the event's key: one notification per event and device.
 func DedupeKey(e Event) string {
+	if e.Key != "" {
+		return e.Key
+	}
 	switch e.Kind {
 	case KindFinished:
 		return "queue:" + e.QueueID + ":finished:" + e.RunID
@@ -93,6 +97,9 @@ var attentionWords = map[string]string{
 	// V2-M4 gates.
 	OutcomeVerifyFailed:     "failed its verify command",
 	OutcomeAwaitingApproval: "is waiting for your approval",
+	"waiting_input":         "is asking for input",
+	"blocked":               "is blocked",
+	"completed":             "looks finished",
 }
 
 // Build makes the payload for an event. It fails only for an unknown kind.
@@ -131,6 +138,9 @@ func Build(e Event) (Payload, error) {
 		p.Body = fmt.Sprintf("Item %d %s. The queue is paused.", e.Position, words)
 		if e.Outcome == OutcomeAwaitingApproval {
 			p.Body = fmt.Sprintf("Item %d %s. The queue waits.", e.Position, words)
+		}
+		if strings.Contains(e.Key, ":llm:") {
+			p.Body = fmt.Sprintf("Item %d %s. Check its session; the queue has not advanced.", e.Position, words)
 		}
 	case KindFinished:
 		p.Outcome = "finished"

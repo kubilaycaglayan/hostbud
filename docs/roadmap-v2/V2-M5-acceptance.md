@@ -42,24 +42,24 @@ Each box is one roadmap criterion. Its coverage line names the task that writes 
 
 Written in T1–T5, first run in T7, on desktop and `iphone-13-pro`.
 
-- [ ] (T1) Supervisor status
-- [ ] (T1) No provider, no calls
-- [ ] (T2) Quiet run is flagged
+- [x] (T1) Supervisor status — written and type-checked; run pending
+- [x] (T1) No provider, no calls — written and type-checked; run pending
+- [x] (T2) Quiet run is flagged — written and type-checked; run pending
 - [ ] (T2) Stale run is classified
-- [ ] (T2) Budget respected
+- [x] (T2) Budget respected — written and type-checked; run pending
 - [ ] (T2) Session gone or renamed
-- [ ] (T2) Gated items not classified
+- [x] (T2) Gated items not classified — written and type-checked; run pending
 - [ ] (T2) Restart keeps budget and timer
-- [ ] (T3) Completed label never advances
+- [x] (T3) Completed label never advances — written and type-checked; run pending
 - [ ] (T3) Completed races achieved
 - [ ] (T3) Run ends mid-classification
 - [ ] (T3) Owner action during classification
 - [ ] (T3) Provider errors
 - [ ] (T3) Prompt injection
-- [ ] (T4) Scrubbed before sending
+- [x] (T4) Scrubbed before sending — written and type-checked; run pending
 - [ ] (T4) Pane text not exposed
-- [ ] (T5) Flag badge (desktop and phone)
-- [ ] (T5) Flag notifies once
+- [x] (T5) Flag badge (desktop and phone) — written and type-checked; run pending
+- [x] (T5) Flag notifies once — written and type-checked; run pending
 - [ ] (on demand) Full suite green on every e2e app: every v1 and V2-M1–V2-M5 scenario, both profiles, no skips or weakened assertions — run only when the owner asks; open until then, not a blocker
 
 ## Manual checks (owner; backlog, not blockers)

@@ -148,16 +148,19 @@ restore-check: ## Restore FILE into a temporary database and verify it without t
 tools-down: ## Remove the toolbox containers (recreated on next use)
 	-docker rm -f $$(docker ps -aq --filter label=hostbud.tools=1) 2>/dev/null
 
-docker-clean: ## Free hostbud's Docker disk: untagged images, the e2e stack (with the V2-M2 multi app and the V2-M3 push fake) and images, toolbox containers (CACHE=1 also prunes build cache >72h, all projects)
+docker-clean: ## Free hostbud's Docker disk: untagged images, the e2e stack (with V2-M2 multi, V2-M3 push fake and V2-M5 LLM fake) and images, toolbox containers (CACHE=1 also prunes build cache >72h, all projects)
 	-test/e2e/run.sh down
 	@# V2-M2: the multi app and its database step (their volume holds only its data; hostbud_multi lives in the e2e pgdata volume run.sh drops).
 	-docker rm -f hostbud-e2e-app-multi hostbud-e2e-multidb 2>/dev/null
 	-docker volume rm hostbud-e2e-data-multi 2>/dev/null
 	@# V2-M3: the fake push service (its VAPID pair in .cache/e2e goes with run.sh down).
 	-docker rm -f hostbud-e2e-pushfake 2>/dev/null
+	@# V2-M5: the deterministic LLM app/fake and isolated disposable data.
+	-docker rm -f hostbud-e2e-app-llm hostbud-e2e-llmfake hostbud-e2e-llmdb 2>/dev/null
+	-docker volume rm hostbud-e2e-data-llm 2>/dev/null
 	-docker rm -f $$(docker ps -aq --filter label=hostbud.tools=1) 2>/dev/null
 	-docker rmi hostbud-e2e-app:local hostbud-e2e-target:local hostbud-e2e-target-notmux:local \
-		hostbud-e2e-caddy:local hostbud-e2e-ctl:local hostbud-e2e-runner:local hostbud-e2e-pushfake:local 2>/dev/null
+		hostbud-e2e-caddy:local hostbud-e2e-ctl:local hostbud-e2e-runner:local hostbud-e2e-pushfake:local hostbud-e2e-llmfake:local 2>/dev/null
 	docker image prune -f --filter label=hostbud.image=1
 	@if [ "$(CACHE)" = 1 ]; then docker builder prune -af --filter until=72h; fi
 	@docker system df

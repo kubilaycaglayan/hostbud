@@ -502,6 +502,11 @@ const badge: Record<QueueItem['status'], string> = {
                       <p v-if="item.run?.detail && (item.status === 'needs_attention' || item.run.status === 'failed')" role="status" class="mt-1 break-words text-sm text-danger">
                         {{ item.run.detail }}
                       </p>
+                      <div v-if="item.run?.flag && !['running', 'unknown'].includes(item.run.flag.label)" data-testid="llm-flag" class="mt-2 rounded border border-warning p-2 text-sm" role="status">
+                        <p class="font-semibold">{{ item.run.flag.label === 'completed' ? 'Looks finished — check and Mark done' : `Supervisor: ${item.run.flag.label.replace('_', ' ')}` }}</p>
+                        <p class="mt-1 break-words text-muted">{{ item.run.flag.reason }}</p>
+                        <time class="mt-1 block text-xs text-muted" :datetime="item.run.flag.at">{{ new Date(item.run.flag.at).toLocaleString() }}</time>
+                      </div>
                       <p v-if="item.verifyCommand || item.requiresApproval" data-testid="item-gates" class="mt-1 break-words text-sm text-muted">
                         <template v-if="item.verifyCommand">verify <span class="font-mono">{{ item.verifyCommand }}</span></template>
                         <template v-if="item.verifyCommand && item.requiresApproval"> · </template>

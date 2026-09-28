@@ -71,6 +71,7 @@ type Store interface {
 	ParallelQueuesSetting(ctx context.Context, machineID string) (*bool, error)
 	SetParallelQueuesSetting(ctx context.Context, machineID string, on bool) error
 	VerifyEvents(ctx context.Context, runID string) ([]store.RunEvent, error)
+	RunEvents(ctx context.Context, runID string, limit int) ([]store.RunEvent, error)
 }
 
 // ItemValidator checks an item's agent, flags and instruction
@@ -104,6 +105,13 @@ type RunSummary struct {
 	ClientVersion string     `json:"clientVersion,omitempty"`
 	StartedAt     time.Time  `json:"startedAt"`
 	EndedAt       *time.Time `json:"endedAt,omitempty"`
+	Flag          *RunFlag   `json:"flag,omitempty"`
+}
+
+type RunFlag struct {
+	Label  string    `json:"label"`
+	Reason string    `json:"reason"`
+	At     time.Time `json:"at"`
 }
 
 // VerifySummary is the latest verify attempt of an item's latest run
@@ -402,6 +410,13 @@ func (s *Service) view(ctx context.Context, q store.Queue) (View, error) {
 		iv := ItemView{QueueItem: it}
 		if r, ok := runs[it.ID]; ok {
 			iv.Run = &RunSummary{ID: r.ID, Status: r.Status, SessionName: r.SessionName, Detail: r.Detail, ClientVersion: r.ClientVersion, StartedAt: r.StartedAt, EndedAt: r.EndedAt}
+			if r.Status == store.RunRunning || r.Status == store.RunStale {
+				if flag, err := s.latestFlag(ctx, r.ID); err != nil {
+					return v, err
+				} else {
+					iv.Run.Flag = flag
+				}
+			}
 			if r.Status == store.RunAchieved && (it.VerifyCommand != "" || it.Status == store.ItemVerifying) {
 				if iv.Verify, err = s.verifySummary(ctx, r.ID); err != nil {
 					return v, err
@@ -418,6 +433,30 @@ func (s *Service) view(ctx context.Context, q store.Queue) (View, error) {
 		v.Items[i].WaitingForSlot = v.Items[i].ID == head
 	}
 	return v, nil
+}
+
+func (s *Service) latestFlag(ctx context.Context, runID string) (*RunFlag, error) {
+	events, err := s.store.RunEvents(ctx, runID, 100)
+	if err != nil {
+		return nil, err
+	}
+	for _, event := range events {
+		if event.Source == store.SourceHook {
+			return nil, nil
+		}
+		if event.Source != store.SourceLLM || event.Kind != store.KindLLMResult {
+			continue
+		}
+		var result struct {
+			Label  string `json:"label"`
+			Reason string `json:"reason"`
+		}
+		if json.Unmarshal(event.Payload, &result) != nil || result.Label == "running" || result.Label == "unknown" {
+			continue
+		}
+		return &RunFlag{Label: result.Label, Reason: result.Reason, At: event.CreatedAt}, nil
+	}
+	return nil, nil
 }
 
 // verifySummary returns a run's latest verify attempt, or nil.

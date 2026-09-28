@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { DialogClose, DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
-import { queuesApi } from '@/api/client'
+import { queuesApi, supervisorApi } from '@/api/client'
+import type { SupervisorStatus } from '@/api/types'
 import FormError from './FormError.vue'
 import NotificationSettings from './NotificationSettings.vue'
 import { capacityError, capacityValue } from '@/lib/queue'
@@ -24,6 +25,7 @@ const busy = ref(false)
 const touched = ref(false)
 const error = ref<{ title: string; message: string; hint?: string } | null>(null)
 const problem = computed(() => capacityError(text.value))
+const supervisor = ref<SupervisorStatus | null>(null)
 
 watch(open, async (isOpen) => {
   if (!isOpen) return
@@ -33,6 +35,7 @@ watch(open, async (isOpen) => {
   loading.value = true
   if (!queues.loaded) void queues.load()
   void notifications.load() // V2-M3: the account's current settings
+  void supervisorApi.status().then((status) => { supervisor.value = status }).catch(() => { supervisor.value = null })
   try {
     const c = await queuesApi.capacity(props.machine)
     text.value = c.maxConcurrentRuns === null ? '' : String(c.maxConcurrentRuns)
@@ -84,6 +87,11 @@ async function save() {
         </div>
         <div class="min-h-0 flex-1 overflow-y-auto p-3">
           <NotificationSettings class="mb-4 border-b border-border pb-4" />
+          <section v-if="supervisor" data-testid="supervisor-settings" class="mb-4 border-b border-border pb-4 text-sm">
+            <h2 class="font-bold">Quiet run supervisor</h2>
+            <p v-if="!supervisor.enabled" class="mt-1 text-muted">Off. {{ supervisor.reason }}</p>
+            <p v-else class="mt-1 text-muted">On: {{ supervisor.provider }} / {{ supervisor.model }}; up to {{ supervisor.maxPerRunHour }} classifications per run per hour. Recent pane text leaves this host for the provider. {{ supervisor.scrub ? 'Common secrets are scrubbed first.' : 'Secret scrubbing is disabled.' }} Flags are advisory and never advance a queue.</p>
+          </section>
           <FormError v-if="error" id="settings-error" :title="error.title" :message="error.message" :hint="error.hint" />
           <form class="flex flex-col gap-2" aria-label="Queue runs" @submit.prevent="save">
             <h2 class="font-bold">

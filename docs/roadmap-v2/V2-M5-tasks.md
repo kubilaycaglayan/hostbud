@@ -10,12 +10,12 @@ Update this table in the same commit that finishes a task.
 
 | Task | Status |
 |---|---|
-| T1 Provider, config and status | Not started |
-| T2 Trigger and capture | Not started |
-| T3 Result handling | Not started |
-| T4 Privacy | Not started |
-| T5 Panel and notifications | Not started |
-| T6 Docs | Not started |
+| T1 Provider, config and status | Implemented; e2e scenarios written and type-checked |
+| T2 Trigger and capture | Partial; due/budget/capture implemented, stale/restart/gone-session coverage remains |
+| T3 Result handling | Partial; guarded flag-only result implemented, race/error/injection scenarios remain |
+| T4 Privacy | Implemented; e2e privacy assertions written and type-checked |
+| T5 Panel and notifications | Partial; badge and one-notification flow implemented, repeat/new-label coverage remains |
+| T6 Docs | Partial; source docs/env updated, docs check passed |
 | T7 Milestone acceptance | Not started |
 | T8 Safe Docker cleanup | Not started |
 
@@ -33,12 +33,12 @@ The v2 ROADMAP *Rules*, AGENTS.md and the V2-M1 milestone rules (fast checks per
 
 | Checkpoint | After | Runs | Status |
 |---|---|---|---|
-| CP1 | T1 | `make lint test`, `scripts/compose-config.sh`, e2e `tsc` | Not run |
-| CP2 | T2–T4 | `make lint test` **three times in a row** (timers, retries, races, restart), e2e `tsc` | Not run |
-| CP3 | T5–T6 | `make lint test`, `vue-tsc`, e2e `tsc`, `make gitleaks`, docs check | Not run |
-| CP4 | T7 | `make lint test`, e2e `tsc`, `make gitleaks`, `make deploy` (no `make e2e`: on demand only) | Not run |
+| CP1 | T1 | `make lint test`, `scripts/compose-config.sh`, e2e `tsc` | `make lint test`, Compose config, e2e `tsc` passed |
+| CP2 | T2–T4 | `make lint test` **three times in a row** (timers, retries, races, restart), e2e `tsc` | One `make lint test` pass; required repeated runs and missing scenarios pending |
+| CP3 | T5–T6 | `make lint test`, `vue-tsc`, e2e `tsc`, `make gitleaks`, docs check | lint/test, e2e `tsc`, gitleaks and docs check passed once |
+| CP4 | T7 | `make lint test`, e2e `tsc`, `make gitleaks`, `make deploy` (no `make e2e`: on demand only) | Pending |
 
-**Progress note:** (precondition and checkpoint results go here.)
+**Progress note:** V2-M4 acceptance was checked before starting; it is complete with owner checks and on-demand e2e still open. Current branch has the initial T1 provider commit plus the implementation described above. `make lint test` passed once; Compose config, e2e `tsc`, docs check and `make gitleaks` passed. CP2's three consecutive `make lint test` runs and the missing scenarios remain outstanding. The full e2e suite has not been run (on-demand only).
 
 ---
 

@@ -53,13 +53,17 @@ const (
 
 // Run event sources.
 const (
-	SourceHook   = "hook"
-	SourcePoller = "poller"
-	SourceTimer  = "timer"
-	SourceUser   = "user"
-	SourceLLM    = "llm"
+	SourceHook       = "hook"
+	SourcePoller     = "poller"
+	SourceTimer      = "timer"
+	SourceUser       = "user"
+	SourceLLM        = "llm"
+	SourceVerify     = "verify"
+	KindLLMStarted   = "llm_started"
+	KindLLMResult    = "llm_result"
+	KindLLMSkipped   = "llm_skipped"
+	KindLLMDiscarded = "llm_discarded"
 	// SourceVerify: the V2-M4 verify runner (attempts and their results).
-	SourceVerify = "verify"
 )
 
 // MaxRunEventPayload caps a run event's JSON payload (the hook body cap).
@@ -245,6 +249,31 @@ func scanRun(row scanner) (Run, error) {
 	}
 	r.StartedAt = r.StartedAt.UTC()
 	return r, nil
+}
+
+func scanRunAndQueue(row scanner) (Run, string, error) {
+	var r Run
+	var q string
+	var agentSession, transcript, version, detail sql.NullString
+	var offset sql.NullInt64
+	var ended, signal sql.NullTime
+	err := row.Scan(&r.ID, &r.ItemID, &r.MachineID, &r.SessionName, &agentSession, &transcript, &offset,
+		&version, &r.TokenHash, &r.Status, &r.StartedAt, &ended, &signal, &detail, &q)
+	if err != nil {
+		return r, q, err
+	}
+	r.AgentSessionID, r.TranscriptPath, r.ClientVersion, r.Detail = agentSession.String, transcript.String, version.String, detail.String
+	r.TranscriptOffset = offset.Int64
+	if ended.Valid {
+		t := ended.Time.UTC()
+		r.EndedAt = &t
+	}
+	if signal.Valid {
+		t := signal.Time.UTC()
+		r.LastSignalAt = &t
+	}
+	r.StartedAt = r.StartedAt.UTC()
+	return r, q, nil
 }
 
 func scanEvent(row scanner) (RunEvent, error) {
@@ -906,4 +935,127 @@ func (s *Store) RunEvents(ctx context.Context, runID string, limit int) ([]RunEv
 		out = append(out, e)
 	}
 	return out, rows.Err()
+}
+
+// LLMEligibleRuns returns running and stale runs whose item is in the
+// matching state and for which this run remains the item's latest attempt.
+func (s *Store) LLMEligibleRuns(ctx context.Context) ([]Run, error) {
+	return s.queryRuns(ctx, `SELECT `+prefixCols("r.", runCols)+` FROM runs r JOIN queue_items i ON i.id=r.item_id
+		WHERE ((r.status='running' AND i.status='running') OR (r.status='stale' AND i.status='needs_attention'))
+		AND r.id=(SELECT max(r2.id) FROM runs r2 WHERE r2.item_id=r.item_id) ORDER BY r.started_at`)
+}
+
+// RecoverLLMClaims closes abandoned claims after the provider's maximum
+// classification duration; the stored claim prevents a repeat call.
+func (s *Store) RecoverLLMClaims(ctx context.Context) error {
+	return s.inTx(ctx, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `INSERT INTO run_events (run_id,machine_id,source,kind,payload_json,created_at)
+		SELECT e.run_id,e.machine_id,'llm','llm_result','{"label":"unknown","reason":"hostbud restarted during classification"}',$1
+		FROM run_events e WHERE e.source='llm' AND e.kind='llm_started' AND e.created_at < $1-interval '70 seconds'
+		AND NOT EXISTS(SELECT 1 FROM run_events z WHERE z.run_id=e.run_id AND z.source='llm' AND z.kind IN ('llm_result','llm_skipped','llm_discarded') AND z.created_at>=e.created_at)`, s.now())
+		return err
+	})
+}
+
+// SkipLLM closes a claim when capture proves its exact tmux target is gone.
+// Skips are not charged against the provider-call budget.
+func (s *Store) SkipLLM(ctx context.Context, runID string) error {
+	return s.inTx(ctx, func(tx *sql.Tx) error {
+		var locked string
+		if err := tx.QueryRowContext(ctx, `SELECT id FROM runs WHERE id=$1 FOR UPDATE`, runID).Scan(&locked); err != nil {
+			return notFound(err)
+		}
+		var machine string
+		if err := tx.QueryRowContext(ctx, `SELECT machine_id FROM runs WHERE id=$1`, runID).Scan(&machine); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(ctx, `INSERT INTO run_events(run_id,machine_id,source,kind,payload_json,created_at)
+		SELECT $1,$2,'llm','llm_skipped','{}',$3 WHERE EXISTS(SELECT 1 FROM run_events WHERE run_id=$1 AND source='llm' AND kind='llm_started')
+		AND NOT EXISTS(SELECT 1 FROM run_events WHERE run_id=$1 AND source='llm' AND kind IN ('llm_result','llm_skipped'))`, runID, machine, s.now())
+		return err
+	})
+}
+
+// ClaimLLM commits the claim before capture/provider work and enforces the
+// per-run hourly budget. A claim is never automatically repeated.
+func (s *Store) ClaimLLM(ctx context.Context, runID string, signal *time.Time, limit int, quiet time.Duration) (bool, error) {
+	claimed := false
+	err := s.inTx(ctx, func(tx *sql.Tx) error {
+		var locked string
+		if err := tx.QueryRowContext(ctx, `SELECT id FROM runs WHERE id=$1 FOR UPDATE`, runID).Scan(&locked); err != nil {
+			return err
+		}
+		var exists bool
+		err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM runs r JOIN queue_items i ON i.id=r.item_id
+			WHERE r.id=$1 AND ((r.status='running' AND i.status='running') OR (r.status='stale' AND i.status='needs_attention'))
+			AND r.id=(SELECT max(r2.id) FROM runs r2 WHERE r2.item_id=r.item_id) AND r.last_signal_at IS NOT DISTINCT FROM $2
+			AND (SELECT count(*) FROM run_events e WHERE e.run_id=r.id AND e.source='llm' AND e.kind='llm_started' AND e.created_at > now()-interval '1 hour' AND NOT EXISTS(SELECT 1 FROM run_events z WHERE z.run_id=e.run_id AND z.source='llm' AND z.kind='llm_skipped' AND z.created_at>=e.created_at)) < $3
+			AND (r.status='stale' OR NOT EXISTS(SELECT 1 FROM run_events e WHERE e.run_id=r.id AND e.source='llm' AND e.kind='llm_started' AND e.created_at > now()-($4 * interval '1 second')))
+			AND NOT EXISTS(SELECT 1 FROM run_events e WHERE e.run_id=r.id AND e.source='llm' AND e.kind='llm_started' AND NOT EXISTS(SELECT 1 FROM run_events z WHERE z.run_id=e.run_id AND z.source='llm' AND z.kind IN ('llm_result','llm_skipped','llm_discarded') AND z.created_at>=e.created_at)))`, runID, signal, limit, quiet.Seconds()).Scan(&exists)
+		if err != nil || !exists {
+			return err
+		}
+		payload, _ := json.Marshal(map[string]any{"signalAt": signal})
+		if err := insertRunEvent(ctx, tx, runID, SourceLLM, KindLLMStarted, payload, s.now()); err != nil {
+			return err
+		}
+		claimed = true
+		return nil
+	})
+	return claimed, err
+}
+
+// FinishLLM stores a classification only while the run and signal are still
+// current. It cannot mutate queue, item, run or slot state.
+func (s *Store) FinishLLM(ctx context.Context, runID string, signal *time.Time, result []byte) (bool, Run, string, error) {
+	return s.FinishLLMNotify(ctx, runID, signal, result, nil)
+}
+
+// LLMNoticeContext contains only the allowlisted notification fields.
+func (s *Store) LLMNoticeContext(ctx context.Context, runID string) (string, string, int, error) {
+	var queueID, project string
+	var position int
+	err := s.db.QueryRowContext(ctx, `SELECT q.id,p.name,i.position FROM runs r JOIN queue_items i ON i.id=r.item_id JOIN queues q ON q.id=i.queue_id JOIN projects p ON p.id=q.project_id WHERE r.id=$1`, runID).Scan(&queueID, &project, &position)
+	return queueID, project, position, notFound(err)
+}
+
+// FinishLLMNotify inserts the flag and eligible push outbox rows in the same
+// guarded transaction; the notice key is unique per account and run/label.
+func (s *Store) FinishLLMNotify(ctx context.Context, runID string, signal *time.Time, result []byte, notice *Notice) (bool, Run, string, error) {
+	if len(result) > MaxRunEventPayload || !json.Valid(result) {
+		return false, Run{}, "", ErrPayloadTooLarge
+	}
+	var run Run
+	var queueID string
+	inserted := false
+	err := s.inTx(ctx, func(tx *sql.Tx) error {
+		var err error
+		run, queueID, err = scanRunAndQueue(tx.QueryRowContext(ctx, `SELECT `+prefixCols("r.", runCols)+`,q.id FROM runs r JOIN queue_items i ON i.id=r.item_id JOIN queues q ON q.id=i.queue_id
+		WHERE r.id=$1 AND ((r.status='running' AND i.status='running') OR (r.status='stale' AND i.status='needs_attention'))
+		AND r.id=(SELECT max(r2.id) FROM runs r2 WHERE r2.item_id=r.item_id) AND r.last_signal_at IS NOT DISTINCT FROM $2
+		FOR UPDATE OF r,i`, runID, signal))
+		if errors.Is(err, sql.ErrNoRows) {
+			var claimExists bool
+			if e := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM run_events WHERE run_id=$1 AND source='llm' AND kind=$2)`, runID, KindLLMStarted).Scan(&claimExists); e != nil {
+				return e
+			}
+			if claimExists {
+				discarded, _ := json.Marshal(map[string]string{"label": "unknown", "reason": "classification discarded because the run changed"})
+				return insertRunEvent(ctx, tx, runID, SourceLLM, KindLLMDiscarded, discarded, s.now())
+			}
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if err := insertRunEvent(ctx, tx, runID, SourceLLM, KindLLMResult, result, s.now()); err != nil {
+			return err
+		}
+		if err := enqueueNotice(ctx, tx, notice, s.now()); err != nil {
+			return err
+		}
+		inserted = true
+		return nil
+	})
+	return inserted, run, queueID, err
 }

@@ -63,11 +63,12 @@ const sessionGrace = 15 * time.Second
 
 // RunChanged is the run.changed payload.
 type RunChanged struct {
-	RunID   string `json:"runId"`
-	ItemID  string `json:"itemId"`
-	QueueID string `json:"queueId"`
-	Status  string `json:"status"`
-	Detail  string `json:"detail,omitempty"`
+	RunID   string          `json:"runId"`
+	ItemID  string          `json:"itemId"`
+	QueueID string          `json:"queueId"`
+	Status  string          `json:"status"`
+	Detail  string          `json:"detail,omitempty"`
+	Flag    json.RawMessage `json:"flag,omitempty"`
 }
 
 // Dispatcher runs the v2 state machines (§5): it starts items, reacts to
@@ -92,6 +93,7 @@ type Dispatcher struct {
 	dispatching, again bool // dispatch is running / was asked for again meanwhile
 
 	notifications Notifications // V2-M3; nil = off
+	llmFlags      bool
 
 	// V2-M4: the verify runner, the context verify commands run under (Run's)
 	// and the running ones.
@@ -112,6 +114,10 @@ type Notifications interface {
 
 // SetNotifications turns V2-M3 notices on (nil turns them off).
 func (d *Dispatcher) SetNotifications(n Notifications) { d.notifications = n }
+
+// SetLLMFlags enables explicit flag clears on run.changed only when the
+// supervisor is configured. When off, old event payloads are unchanged.
+func (d *Dispatcher) SetLLMFlags(enabled bool) { d.llmFlags = enabled }
 
 // NewDispatcher wires the dispatcher to the service (Kick, overrides) and
 // the hook receiver (Notify).
@@ -981,8 +987,12 @@ func (d *Dispatcher) publishRun(_ context.Context, run store.Run, queueID string
 	if d.bus == nil {
 		return
 	}
-	d.bus.Publish(events.Event{Type: events.RunChanged, Machine: run.MachineID, Payload: RunChanged{
+	change := RunChanged{
 		RunID: run.ID, ItemID: run.ItemID, QueueID: queueID, Status: run.Status, Detail: run.Detail,
-	}})
+	}
+	if d.llmFlags {
+		change.Flag = json.RawMessage("null")
+	}
+	d.bus.Publish(events.Event{Type: events.RunChanged, Machine: run.MachineID, Payload: change})
 	d.log.Info("run changed", "run", run.ID, "status", run.Status)
 }

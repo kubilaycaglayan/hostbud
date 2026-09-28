@@ -13,6 +13,7 @@ export interface RunSummary {
   clientVersion?: string
   startedAt: string
   endedAt?: string
+  flag?: { label: string; reason: string; at: string } | null
 }
 
 /** V2-M4: the latest verify attempt of an item's latest run. */

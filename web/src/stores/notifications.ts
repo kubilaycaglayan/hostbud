@@ -80,8 +80,8 @@ export const useNotificationsStore = defineStore('notifications', () => {
 
   /** Feeds one live server event. */
   function apply(e: ServerEvent) {
-    if (e.type !== 'queue.changed' || !e.payload.notification) return
-    const p = e.payload.notification
+    const p = e.type === 'queue.changed' ? e.payload.notification : e.type === 'run.changed' ? e.payload.notification : undefined
+    if (!p) return
     const notify = shouldNotify(p, { settings: settings.value, permission: currentPermission(), pushSubscribed: pushSubscribed.value, seen })
     seen.add(p.key)
     if (notify) show(p)

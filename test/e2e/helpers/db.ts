@@ -185,3 +185,25 @@ export const multiDb = {
       `SELECT r.id, i.queue_id, r.status FROM runs r JOIN queue_items i ON i.id = r.item_id ORDER BY r.id`,
     ) as Promise<{ id: string; queue_id: string; status: string }[]>,
 }
+
+// V2-M5: isolated database for the configured supervisor test app.
+const llmSql = (text: string, params: unknown[] = []) => sql(text, params, process.env.E2E_DB_LLM_URL)
+export const llmDb = {
+  allow: (email: string) => llmSql(`INSERT INTO email_allowlist(email_normalized) VALUES($1) ON CONFLICT(email_normalized) DO UPDATE SET enabled=TRUE,updated_at=now()`, [email]),
+  clearRateLimits: () => llmSql(`DELETE FROM login_rate_limits`),
+  reset: async () => {
+    await llmSql(`DELETE FROM run_events`)
+    await llmSql(`DELETE FROM runs`)
+    await llmSql(`DELETE FROM queue_items`)
+    await llmSql(`DELETE FROM queues`)
+    await llmSql(`DELETE FROM session_links`)
+    await llmSql(`DELETE FROM recent_commands`)
+    await llmSql(`DELETE FROM projects`)
+    await llmSql(`DELETE FROM machine_capacity`)
+    await llmSql(`DELETE FROM notification_deliveries`)
+    await llmSql(`DELETE FROM notification_outbox`)
+    await llmSql(`DELETE FROM push_subscriptions`)
+    await llmSql(`DELETE FROM notification_prefs`)
+  },
+  events: (runId:string) => llmSql(`SELECT source,kind,payload_json FROM run_events WHERE run_id=$1 ORDER BY id`,[runId]) as Promise<{source:string;kind:string;payload_json:string}[]>,
+}

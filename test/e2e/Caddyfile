@@ -45,3 +45,7 @@ http://:9056 {
 http://:9058 {
 	reverse_proxy hostbud-e2e-app-multi:8080
 }
+
+http://:9059 {
+	reverse_proxy hostbud-e2e-app-llm:8080
+}

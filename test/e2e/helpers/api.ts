@@ -48,6 +48,8 @@ export async function listSessions(request: APIRequestContext): Promise<Session[
 
 // V2-M2: the multi app's loopback site (HOSTBUD_PARALLEL_QUEUES=true).
 export const MULTI_URL = 'http://localhost:9058'
+// V2-M5 app with a deterministic provider fake and its own disposable database.
+export const LLM_URL = 'http://localhost:9059'
 
 // The allowed Origin of request contexts made for another app (the multi
 // app); everything else is the loopback site's.

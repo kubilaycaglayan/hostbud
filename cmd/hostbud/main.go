@@ -175,10 +175,14 @@ func run() error {
 		agents.NewCodex(ssh, cfg.ExecTimeout),
 	)
 	queues := queue.NewService(st, adapters, bus)
-	llmConfig := llm.Config{Provider: cfg.LLMProvider, Model: cfg.LLMModel, APIKey: cfg.OpenAIAPIKey, BaseURL: cfg.LLMBaseURL, QuietAfter: cfg.LLMQuietAfter, MaxPerRunHour: cfg.LLMMaxPerRunHour, Scrub: cfg.LLMScrub}
+	llmConfig := llm.Config{Provider: cfg.LLMProvider, Model: cfg.LLMModel, APIKey: cfg.OpenAIAPIKey, BaseURL: cfg.LLMBaseURL, QuietAfter: cfg.LLMQuietAfter, MaxPerRunHour: cfg.LLMMaxPerRunHour, Scrub: cfg.LLMScrub, ScrubValid: !cfg.LLMScrubInvalid}
 	supervisorStatus, _ := llm.Check(llmConfig)
 	if cfg.LLMProvider != "" && !supervisorStatus.Enabled {
 		log.Warn(supervisorStatus.Reason)
+	}
+	var llmSupervisor *llm.Supervisor
+	if supervisorStatus.Enabled {
+		llmSupervisor = llm.NewSupervisor(st, ssh, llm.NewOpenAI(llmConfig), bus, cfg.LLMQuietAfter, cfg.LLMMaxPerRunHour, cfg.LLMScrub, log)
 	}
 	queues.SetParallelQueues(cfg.ParallelQueues)
 	queues.SetVerifyTimeout(cfg.VerifyTimeout)
@@ -187,6 +191,7 @@ func run() error {
 	}
 	starter := queue.NewStarter(st, sessions, cfg.HookURL(), log)
 	dispatcher := queue.NewDispatcher(st, adapters, starter, queues, bus, cfg.RunStaleAfter, log)
+	dispatcher.SetLLMFlags(supervisorStatus.Enabled)
 	// V2-M4: items' verify commands run on the host through sshx.
 	dispatcher.SetVerifier(queue.NewVerifier(ssh, cfg.VerifyTimeout))
 	// V2-M3 notifications: missing or invalid VAPID keys only turn push off.
@@ -203,9 +208,15 @@ func run() error {
 		defer func() { <-senderDone }()
 	}
 	dispatcher.SetNotifications(notifier)
+	if llmSupervisor != nil {
+		llmSupervisor.SetNotifier(notifier)
+	}
 	dispatchDone := make(chan struct{})
 	go func() { dispatcher.Run(ctx); close(dispatchDone) }()
 	defer func() { <-dispatchDone }()
+	if llmSupervisor != nil {
+		go llmSupervisor.Run(ctx)
+	}
 	hooks := queue.NewHooks(st, dispatcher, log)
 
 	srv := &http.Server{

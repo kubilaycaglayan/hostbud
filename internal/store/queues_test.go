@@ -344,6 +344,71 @@ func TestRunLookupsUpdatesAndEvents(t *testing.T) {
 	}
 }
 
+func TestLLMClaimsBudgetAndGuardedFlagOnlyResult(t *testing.T) {
+	ctx := context.Background()
+	s, p := queueFixture(t)
+	q, _ := s.CreateQueue(ctx, p.ID, "llm")
+	item, _ := s.AddQueueItem(ctx, q.ID, "claude", "", "goal")
+	run, _ := s.CreateRun(ctx, item.ID, tokenHash("llm"), time.Now().Add(-time.Hour))
+	if _, err := s.TransitionRun(ctx, run.ID, []string{RunStarting}, RunRunning, "", nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.TransitionQueueItem(ctx, item.ID, []string{ItemQueued}, ItemRunning); err != nil {
+		t.Fatal(err)
+	}
+	claimed, err := s.ClaimLLM(ctx, run.ID, nil, 2, time.Minute)
+	if err != nil || !claimed {
+		t.Fatalf("claim=%v err=%v", claimed, err)
+	}
+	claimed, err = s.ClaimLLM(ctx, run.ID, nil, 2, time.Minute)
+	if err != nil || claimed {
+		t.Fatalf("duplicate claim=%v err=%v", claimed, err)
+	}
+	result := []byte(`{"label":"completed","reason":"looks done"}`)
+	inserted, got, queueID, err := s.FinishLLM(ctx, run.ID, nil, result)
+	if err != nil || !inserted || got.ID != run.ID || queueID != q.ID {
+		t.Fatalf("finish=%v run=%+v queue=%q err=%v", inserted, got, queueID, err)
+	}
+	unchanged, _ := s.QueueItem(ctx, item.ID)
+	unchangedRun, _ := s.Run(ctx, run.ID)
+	unchangedQueue, _ := s.Queue(ctx, q.ID)
+	if unchanged.Status != ItemRunning || unchangedRun.Status != RunRunning || unchangedQueue.Status != QueueIdle {
+		t.Fatalf("LLM changed state: item=%s run=%s queue=%s", unchanged.Status, unchangedRun.Status, unchangedQueue.Status)
+	}
+}
+
+func TestLLMResultAfterNewSignalIsDiscardedWithoutQueueMutation(t *testing.T) {
+	ctx := context.Background()
+	s, p := queueFixture(t)
+	q, _ := s.CreateQueue(ctx, p.ID, "llm-race")
+	it, _ := s.AddQueueItem(ctx, q.ID, "claude", "", "goal")
+	run, _ := s.CreateRun(ctx, it.ID, tokenHash("llm-race"), time.Now().Add(-time.Hour))
+	_, _ = s.TransitionRun(ctx, run.ID, []string{RunStarting}, RunRunning, "", nil)
+	_, _ = s.TransitionQueueItem(ctx, it.ID, []string{ItemQueued}, ItemRunning)
+	claimed, err := s.ClaimLLM(ctx, run.ID, nil, 2, time.Minute)
+	if err != nil || !claimed {
+		t.Fatalf("claim=%v err=%v", claimed, err)
+	}
+	signal := time.Now().UTC()
+	if _, err = s.UpdateRun(ctx, run.ID, RunUpdate{LastSignalAt: &signal}); err != nil {
+		t.Fatal(err)
+	}
+	inserted, _, _, err := s.FinishLLM(ctx, run.ID, nil, []byte(`{"label":"completed","reason":"looks done"}`))
+	if err != nil || inserted {
+		t.Fatalf("finish=%v err=%v", inserted, err)
+	}
+	events, err := s.RunEvents(ctx, run.ID, 10)
+	if err != nil || len(events) != 2 || events[0].Kind != KindLLMDiscarded || events[1].Kind != KindLLMStarted {
+		t.Fatalf("events=%+v err=%v", events, err)
+	}
+	item, _ := s.QueueItem(ctx, it.ID)
+	runAfter, _ := s.Run(ctx, run.ID)
+	queue, _ := s.Queue(ctx, q.ID)
+	if item.Status != ItemRunning || runAfter.Status != RunRunning || queue.Status != QueueIdle {
+		t.Fatalf("state changed item=%s run=%s queue=%s", item.Status, runAfter.Status, queue.Status)
+	}
+}
+
 // Deleting a queue removes only its own rows, and never while a run is
 // active. A project can't be deleted while a queue uses it.
 func TestDeleteQueueRemovesOnlyItsRows(t *testing.T) {

@@ -9,7 +9,7 @@ import (
 )
 
 func validConfig() Config {
-	return Config{Provider: "openai", Model: "test-model", APIKey: "key", QuietAfter: 20 * time.Minute, MaxPerRunHour: 2, Scrub: true}
+	return Config{Provider: "openai", Model: "test-model", APIKey: "key", QuietAfter: 20 * time.Minute, MaxPerRunHour: 2, Scrub: true, ScrubValid: true}
 }
 func TestCheckDisabledAndInvalid(t *testing.T) {
 	for name, mutate := range map[string]func(*Config){

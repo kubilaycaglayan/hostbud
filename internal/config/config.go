@@ -60,6 +60,7 @@ type Config struct {
 	LLMQuietAfter       time.Duration // HOSTBUD_LLM_QUIET_AFTER
 	LLMMaxPerRunHour    int           // HOSTBUD_LLM_MAX_PER_RUN_HOUR
 	LLMScrub            bool          // HOSTBUD_LLM_SCRUB
+	LLMScrubInvalid     bool
 
 	// Web Push (V2-M3). Missing or invalid keys never fail startup: Push()
 	// reports push as unavailable, with the reason.
@@ -149,11 +150,13 @@ func Load(getenv func(string) string) (Config, error) {
 	cfg.VerifyTimeout = durationRange("HOSTBUD_VERIFY_TIMEOUT", "10m", 5*time.Second, 2*time.Hour)
 	cfg.LLMProvider = strings.TrimSpace(getenv("HOSTBUD_LLM_PROVIDER"))
 	cfg.LLMModel = strings.TrimSpace(getenv("HOSTBUD_LLM_MODEL"))
-	cfg.OpenAIAPIKey = strings.TrimSpace(getenv("OPENAI_API_KEY"))
+	cfg.OpenAIAPIKey = getenv("OPENAI_API_KEY")
 	cfg.LLMBaseURL = strings.TrimSpace(getenv("HOSTBUD_LLM_BASE_URL"))
 	cfg.LLMQuietAfter, _ = time.ParseDuration(get("HOSTBUD_LLM_QUIET_AFTER", "20m"))
 	cfg.LLMMaxPerRunHour, _ = strconv.Atoi(get("HOSTBUD_LLM_MAX_PER_RUN_HOUR", "2"))
-	cfg.LLMScrub = strings.ToLower(get("HOSTBUD_LLM_SCRUB", "true")) != "false"
+	scrubValue := strings.ToLower(get("HOSTBUD_LLM_SCRUB", "true"))
+	cfg.LLMScrub = scrubValue != "false"
+	cfg.LLMScrubInvalid = scrubValue != "true" && scrubValue != "false"
 	cfg.MaxTerminalsPerUser = countRange("HOSTBUD_MAX_TERMINALS_PER_USER", "32", 1, 256)
 	cfg.MaxTerminals = countRange("HOSTBUD_MAX_TERMINALS", "128", 1, 1024)
 	cfg.SessionTTL = duration("HOSTBUD_SESSION_TTL", "720h", time.Minute)

@@ -1,7 +1,7 @@
 import { request, type APIRequestContext } from '@playwright/test'
-import { DOMAIN_STORAGE_STATE, MULTI_STORAGE_STATE, TS_DOMAIN_STORAGE_STATE, newAccount, STORAGE_STATE } from './helpers/auth.ts'
-import { DOMAIN_URL, MULTI_URL, TS_DOMAIN_URL, forbidInLogs, ORIGIN } from './helpers/api.ts'
-import { multiDb, owner } from './helpers/db.ts'
+import { DOMAIN_STORAGE_STATE, LLM_STORAGE_STATE, MULTI_STORAGE_STATE, TS_DOMAIN_STORAGE_STATE, newAccount, STORAGE_STATE } from './helpers/auth.ts'
+import { DOMAIN_URL, LLM_URL, MULTI_URL, TS_DOMAIN_URL, forbidInLogs, ORIGIN } from './helpers/api.ts'
+import { llmDb, multiDb, owner } from './helpers/db.ts'
 import { Target } from './helpers/target.ts'
 
 // Polls GET /api/health until it answers ok.
@@ -45,6 +45,8 @@ export default async function globalSetup() {
   // V2-M2: the multi app (HOSTBUD_PARALLEL_QUEUES=true, its own database).
   const multi = await request.newContext({ baseURL: MULTI_URL, extraHTTPHeaders: { Origin: MULTI_URL } })
   await waitHealthy(multi, 'the multi app')
+  const llm = await request.newContext({ baseURL: LLM_URL, extraHTTPHeaders: { Origin: LLM_URL } })
+  await waitHealthy(llm, 'the LLM app')
   await new Target().run('true')
 
   await owner.clearRateLimits()
@@ -63,7 +65,13 @@ export default async function globalSetup() {
   const multiReg = await multi.post('/api/auth/register', { data: account })
   if (multiReg.status() !== 201) throw new Error(`setup registration (multi app): ${multiReg.status()} ${await multiReg.text()}`)
   await signIn(multi, account, MULTI_STORAGE_STATE)
+  await llmDb.clearRateLimits()
+  await llmDb.allow(account.email)
+  const llmReg = await llm.post('/api/auth/register', { data: account })
+  if (llmReg.status() !== 201) throw new Error(`setup registration (LLM app): ${llmReg.status()} ${await llmReg.text()}`)
+  await signIn(llm, account, LLM_STORAGE_STATE)
   await multi.dispose()
+  await llm.dispose()
   await api.dispose()
   await domain.dispose()
   await tsDomain.dispose()

@@ -237,6 +237,23 @@ services:
         psql -tAc "SELECT 1 FROM pg_database WHERE datname = 'hostbud_multi'" | grep -q 1 ||
           psql -c 'CREATE DATABASE hostbud_multi'
 
+  hostbud-e2e-llmdb:
+    image: postgres:15.13-bookworm
+    container_name: hostbud-e2e-llmdb
+    depends_on:
+      hostbud-e2e-postgres: { condition: service_healthy }
+    environment:
+      PGHOST: hostbud-e2e-postgres
+      PGUSER: hostbud
+      PGPASSWORD: e2e-placeholder-password
+      PGDATABASE: hostbud
+    entrypoint:
+      - sh
+      - -ec
+      - |
+        psql -tAc "SELECT 1 FROM pg_database WHERE datname = 'hostbud_llm'" | grep -q 1 ||
+          psql -c 'CREATE DATABASE hostbud_llm'
+
   # V2-M2: the app with HOSTBUD_PARALLEL_QUEUES=true on the shared target,
   # served by Caddy on :9058, with its own database. Its run hooks reach it
   # through that site.
@@ -273,6 +290,8 @@ services:
       HOSTBUD_PARALLEL_QUEUES: "true"
       HOSTBUD_HOOK_BASE_URL: http://hostbud-e2e-caddy:9058
       HOSTBUD_RUN_STALE_AFTER: 10s
+      HOSTBUD_LLM_PROVIDER: openai
+      HOSTBUD_LLM_MODEL: e2e-placeholder-model
       # V2-M4: a short verify timeout for the timeout scenario.
       HOSTBUD_VERIFY_TIMEOUT: 5s
       HOSTBUD_HOST_ADDR: hostbud-e2e-target
@@ -308,6 +327,74 @@ services:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health"]
       interval: 1s
       retries: 30
+
+  hostbud-e2e-llmfake:
+    build: ./llmfake
+    image: hostbud-e2e-llmfake:local
+    container_name: hostbud-e2e-llmfake
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health"]
+      interval: 1s
+      retries: 30
+
+  hostbud-e2e-app-llm:
+    image: hostbud-e2e-app:local
+    pull_policy: never
+    container_name: hostbud-e2e-app-llm
+    user: *app-uid
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 1024
+    healthcheck:
+      test: ["CMD", "hostbud", "healthcheck"]
+      interval: 10s
+      timeout: 2s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      hostbud-e2e-target: { condition: service_healthy }
+      hostbud-e2e-agent: { condition: service_healthy }
+      hostbud-e2e-llmdb: { condition: service_completed_successfully }
+      hostbud-e2e-pushfake: { condition: service_healthy }
+      hostbud-e2e-llmfake: { condition: service_healthy }
+    environment:
+      HOSTBUD_LISTEN: ":8080"
+      HOSTBUD_DATA_DIR: /data
+      HOSTBUD_POLL_INTERVAL: 1s
+      HOSTBUD_LOG_LEVEL: info
+      HOSTBUD_LOCAL_PORT: "9059"
+      HOSTBUD_HOOK_BASE_URL: http://hostbud-e2e-caddy:9059
+      HOSTBUD_RUN_STALE_AFTER: 10s
+      HOSTBUD_LLM_PROVIDER: openai
+      HOSTBUD_LLM_MODEL: e2e-placeholder-model
+      OPENAI_API_KEY: e2e-placeholder-key
+      HOSTBUD_LLM_BASE_URL: http://hostbud-e2e-llmfake:8080
+      HOSTBUD_LLM_QUIET_AFTER: 10s
+      HOSTBUD_LLM_MAX_PER_RUN_HOUR: "2"
+      HOSTBUD_LLM_SCRUB: "true"
+      HOSTBUD_VAPID_PUBLIC_KEY: ${E2E_VAPID_PUBLIC_KEY:-}
+      HOSTBUD_VAPID_PRIVATE_KEY: ${E2E_VAPID_PRIVATE_KEY:-}
+      HOSTBUD_VAPID_SUBJECT: mailto:e2e@example.com
+      HOSTBUD_PUSH_TEST_ENDPOINT: http://hostbud-e2e-pushfake:8080/push/
+      HOSTBUD_DOMAIN: hostbud.example.test
+      HOSTBUD_HOST_ADDR: hostbud-e2e-target
+      HOSTBUD_HOST_LABEL: E2E target
+      HOSTBUD_DB_HOST: hostbud-e2e-postgres
+      HOSTBUD_DB_PORT: "5432"
+      HOSTBUD_DB_NAME: hostbud_llm
+      HOSTBUD_DB_USER: hostbud
+      HOSTBUD_DB_PASSWORD: e2e-placeholder-password
+      HOST_SSH_USER: dev
+      SSH_AUTH_SOCK: /run/agent/ssh-agent.sock
+    volumes:
+      - data-llm:/data
+      - agent:/run/agent
+      - hostpub:/run/host-keys:ro
 
   hostbud-e2e-tsfake:
     image: node:24.21.0-alpine
@@ -387,6 +474,7 @@ services:
       hostbud-e2e-app-notmux: { condition: service_healthy }
       hostbud-e2e-app-ts: { condition: service_healthy }
       hostbud-e2e-app-multi: { condition: service_healthy }
+      hostbud-e2e-app-llm: { condition: service_healthy }
     read_only: true
     tmpfs: [/tmp]
     cap_drop: [ALL]
@@ -440,6 +528,7 @@ services:
       E2E_DB_URL: postgres://hostbud:e2e-placeholder-password@hostbud-e2e-postgres:5432/hostbud
       # V2-M2: the multi app's own database.
       E2E_DB_MULTI_URL: postgres://hostbud:e2e-placeholder-password@hostbud-e2e-postgres:5432/hostbud_multi
+      E2E_DB_LLM_URL: postgres://hostbud:e2e-placeholder-password@hostbud-e2e-postgres:5432/hostbud_llm
       # Mirrors the app's limits above.
       E2E_LOGIN_MAX_FAILURES: "3"
       E2E_IP_MAX_FAILURES: "6"
@@ -470,3 +559,4 @@ volumes:
   ts: { name: hostbud-e2e-ts }
   data-ts: { name: hostbud-e2e-data-ts }
   data-multi: { name: hostbud-e2e-data-multi }
+  data-llm: { name: hostbud-e2e-data-llm }

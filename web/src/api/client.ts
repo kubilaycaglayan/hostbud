@@ -286,6 +286,9 @@ export const notificationsApi = {
     request<void>('DELETE', '/api/notifications/subscriptions', { endpoint }, opts.keepalive ? { keepalive: true } : {}),
 }
 
+/** V2-M5 read-only status; never includes provider credentials. */
+export const supervisorApi = { status: () => request<import('./types').SupervisorStatus>('GET', '/api/supervisor') }
+
 /** UI state keys the server accepts (internal/api/uistate.go). */
 export type UIStateKey = 'layout' | 'tree' | 'theme'
 

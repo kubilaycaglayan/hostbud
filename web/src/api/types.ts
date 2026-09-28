@@ -76,6 +76,7 @@ export interface RunSummary {
   clientVersion?: string
   startedAt: string
   endedAt?: string
+  flag?: RunFlag | null
 }
 
 /** V2-M4: the latest verify attempt of an item's latest run. */
@@ -185,6 +186,24 @@ export interface RunChanged {
   queueId: string
   status: RunStatus
   detail?: string
+  flag?: RunFlag | null
+  notification?: NotificationPayload
+}
+
+export interface RunFlag {
+  label: 'running' | 'waiting_input' | 'blocked' | 'completed' | 'failed' | 'unknown'
+  reason: string
+  at: string
+}
+
+export interface SupervisorStatus {
+  enabled: boolean
+  reason?: string
+  provider?: string
+  model?: string
+  scrub?: boolean
+  quietAfter?: string
+  maxPerRunHour?: number
 }
 
 export type ServerEvent =
