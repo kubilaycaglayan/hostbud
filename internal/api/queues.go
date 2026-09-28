@@ -19,7 +19,7 @@ type QueueService interface {
 	Create(ctx context.Context, projectID, name string) (queue.View, error)
 	Rename(ctx context.Context, id, name string) (queue.View, error)
 	Delete(ctx context.Context, id string) error
-	AddItem(ctx context.Context, queueID, agent, flags, instruction string) (queue.ItemView, error)
+	AddItem(ctx context.Context, queueID, agent, flags, instruction string, gates ...store.ItemGates) (queue.ItemView, error)
 	UpdateItem(ctx context.Context, id string, u store.QueueItemUpdate) (queue.ItemView, error)
 	DeleteItem(ctx context.Context, id string) error
 	Reorder(ctx context.Context, queueID string, itemIDs []string) (queue.View, error)
@@ -227,6 +227,9 @@ type queueItemRequest struct {
 	Agent       *string `json:"agent"`
 	Flags       *string `json:"flags"`
 	Instruction *string `json:"instruction"`
+	// V2-M4 completion gates ("" = no verify command).
+	VerifyCommand    *string `json:"verifyCommand"`
+	RequiresApproval *bool   `json:"requiresApproval"`
 }
 
 func (s *server) addQueueItem(w http.ResponseWriter, r *http.Request) {
@@ -240,7 +243,11 @@ func (s *server) addQueueItem(w http.ResponseWriter, r *http.Request) {
 		}
 		return *p
 	}
-	it, err := s.cfg.Queues.AddItem(r.Context(), r.PathValue("id"), value(req.Agent), value(req.Flags), value(req.Instruction))
+	var gates []store.ItemGates
+	if req.VerifyCommand != nil || req.RequiresApproval != nil {
+		gates = append(gates, store.ItemGates{VerifyCommand: value(req.VerifyCommand), RequiresApproval: req.RequiresApproval != nil && *req.RequiresApproval})
+	}
+	it, err := s.cfg.Queues.AddItem(r.Context(), r.PathValue("id"), value(req.Agent), value(req.Flags), value(req.Instruction), gates...)
 	if err != nil {
 		s.queueError(w, err)
 		return
@@ -253,7 +260,9 @@ func (s *server) updateQueueItem(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
-	it, err := s.cfg.Queues.UpdateItem(r.Context(), r.PathValue("id"), store.QueueItemUpdate{Agent: req.Agent, Flags: req.Flags, Instruction: req.Instruction})
+	it, err := s.cfg.Queues.UpdateItem(r.Context(), r.PathValue("id"), store.QueueItemUpdate{
+		Agent: req.Agent, Flags: req.Flags, Instruction: req.Instruction, VerifyCommand: req.VerifyCommand, RequiresApproval: req.RequiresApproval,
+	})
 	if err != nil {
 		s.queueError(w, err)
 		return

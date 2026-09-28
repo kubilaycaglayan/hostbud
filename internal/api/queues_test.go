@@ -22,6 +22,7 @@ type fakeQueues struct {
 	calls    []string
 	err      error
 	upd      store.QueueItemUpdate
+	gates    []store.ItemGates
 	order    []string
 	parallel bool
 	capacity *int
@@ -46,8 +47,9 @@ func (f *fakeQueues) Rename(_ context.Context, id, name string) (queue.View, err
 	return queue.View{}, f.err
 }
 func (f *fakeQueues) Delete(_ context.Context, id string) error { f.rec("delete " + id); return f.err }
-func (f *fakeQueues) AddItem(_ context.Context, queueID, agent, flags, instruction string) (queue.ItemView, error) {
+func (f *fakeQueues) AddItem(_ context.Context, queueID, agent, flags, instruction string, gates ...store.ItemGates) (queue.ItemView, error) {
 	f.rec("add " + queueID + " " + agent + "|" + flags + "|" + instruction)
+	f.gates = gates
 	return queue.ItemView{QueueItem: store.QueueItem{ID: "item_a", Agent: agent}}, f.err
 }
 func (f *fakeQueues) UpdateItem(_ context.Context, id string, u store.QueueItemUpdate) (queue.ItemView, error) {
@@ -255,5 +257,27 @@ func TestCapacityRouteAndParallelFlag(t *testing.T) {
 	rec = queueRequest(t, h, "PUT", "/api/machines/host/capacity", `{"maxConcurrentRuns":2}`, map[string]string{"Origin": "http://evil.example.com"})
 	if rec.Code != http.StatusForbidden || len(q.calls) != 0 {
 		t.Fatalf("bad origin: %d, calls %v", rec.Code, q.calls)
+	}
+}
+
+// V2-M4 T1: items take the gate fields on create and edit; without them the
+// service gets no gates (V2-M3 behavior).
+func TestQueueItemGateFields(t *testing.T) {
+	q := &fakeQueues{}
+	h := queueEnv(t, q)
+	if rec := queueRequest(t, h, "POST", "/api/queues/queue_a/items", `{"agent":"claude","instruction":"/goal m1"}`, nil); rec.Code != 201 || len(q.gates) != 0 {
+		t.Fatalf("no gates: %d, %+v", rec.Code, q.gates)
+	}
+	rec := queueRequest(t, h, "POST", "/api/queues/queue_a/items", `{"agent":"claude","instruction":"/goal m1","verifyCommand":"make test","requiresApproval":true}`, nil)
+	if rec.Code != 201 || len(q.gates) != 1 || q.gates[0] != (store.ItemGates{VerifyCommand: "make test", RequiresApproval: true}) {
+		t.Fatalf("gates: %d, %+v", rec.Code, q.gates)
+	}
+	rec = queueRequest(t, h, "PATCH", "/api/queue-items/item_a", `{"verifyCommand":"","requiresApproval":false}`, nil)
+	if rec.Code != 200 || q.upd.VerifyCommand == nil || *q.upd.VerifyCommand != "" || q.upd.RequiresApproval == nil || *q.upd.RequiresApproval || q.upd.Instruction != nil {
+		t.Fatalf("gate edit: %d, %+v", rec.Code, q.upd)
+	}
+	var item store.QueueItem
+	if err := json.Unmarshal([]byte(`{"verifyCommand":"make test","requiresApproval":true}`), &item); err != nil || item.VerifyCommand != "make test" || !item.RequiresApproval {
+		t.Fatalf("item JSON carries the gates: %+v, %v", item, err)
 	}
 }

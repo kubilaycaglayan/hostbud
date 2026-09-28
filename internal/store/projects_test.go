@@ -62,7 +62,7 @@ func TestMigrationsAreAppendOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"migrations/0001_init.sql", "migrations/0002_machine_home.sql", "migrations/0003_auth.sql", "migrations/0004_projects.sql", "migrations/0005_queues.sql", "migrations/0006_parallel_queues.sql", "migrations/0007_parallel_queues_setting.sql", "migrations/0008_notifications.sql"}
+	want := []string{"migrations/0001_init.sql", "migrations/0002_machine_home.sql", "migrations/0003_auth.sql", "migrations/0004_projects.sql", "migrations/0005_queues.sql", "migrations/0006_parallel_queues.sql", "migrations/0007_parallel_queues_setting.sql", "migrations/0008_notifications.sql", "migrations/0009_completion_gates.sql"}
 	if !slices.Equal(files, want) {
 		t.Fatalf("migration sequence = %v", files)
 	}

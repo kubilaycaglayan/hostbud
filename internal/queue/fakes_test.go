@@ -421,6 +421,11 @@ func (m *memStore) DeleteQueue(_ context.Context, id string) error {
 			return store.ErrConflict
 		}
 	}
+	for _, it := range m.q().items {
+		if it.QueueID == id && it.Status == store.ItemVerifying {
+			return store.ErrConflict
+		}
+	}
 	for iid, it := range m.q().items {
 		if it.QueueID == id {
 			delete(m.q().items, iid)
@@ -488,7 +493,7 @@ func (m *memStore) FirstQueuedItem(_ context.Context, queueID string) (store.Que
 	return store.QueueItem{}, store.ErrNotFound
 }
 
-func (m *memStore) AddQueueItem(_ context.Context, queueID, agent, flags, instruction string) (store.QueueItem, error) {
+func (m *memStore) AddQueueItem(_ context.Context, queueID, agent, flags, instruction string, gates ...store.ItemGates) (store.QueueItem, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	q, ok := m.q().queues[queueID]
@@ -498,6 +503,13 @@ func (m *memStore) AddQueueItem(_ context.Context, queueID, agent, flags, instru
 	m.q().seq++
 	it := store.QueueItem{ID: fmt.Sprintf("item_%02d", m.q().seq), QueueID: queueID, MachineID: q.MachineID, Position: len(m.itemsOf(queueID)) + 1,
 		Agent: agent, Flags: flags, Instruction: instruction, Status: store.ItemQueued}
+	if len(gates) > 0 {
+		verify, err := store.NormalizeVerifyCommand(gates[0].VerifyCommand)
+		if err != nil {
+			return store.QueueItem{}, err
+		}
+		it.VerifyCommand, it.RequiresApproval = verify, gates[0].RequiresApproval
+	}
 	m.q().items[it.ID] = it
 	return it, nil
 }
@@ -509,20 +521,15 @@ func (m *memStore) UpdateQueueItem(_ context.Context, id string, u store.QueueIt
 	if !ok {
 		return it, store.ErrNotFound
 	}
-	if it.Status != store.ItemQueued {
+	next, err := store.ApplyItemUpdate(it, u)
+	if err != nil {
+		return store.QueueItem{}, err
+	}
+	if !slices.Contains(store.EditableStatuses(u), it.Status) {
 		return store.QueueItem{}, store.ErrConflict
 	}
-	if u.Agent != nil {
-		it.Agent = *u.Agent
-	}
-	if u.Flags != nil {
-		it.Flags = *u.Flags
-	}
-	if u.Instruction != nil {
-		it.Instruction = *u.Instruction
-	}
-	m.q().items[id] = it
-	return it, nil
+	m.q().items[id] = next
+	return next, nil
 }
 
 func (m *memStore) DeleteQueueItem(_ context.Context, id string) error {

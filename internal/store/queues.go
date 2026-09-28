@@ -15,8 +15,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// v2 queue schema (migrations/0005_queues.sql and 0006_parallel_queues.sql,
-// docs/roadmap-v2/ARCHITECTURE.md §6).
+// v2 queue schema (migrations/0005_queues.sql, 0006_parallel_queues.sql and
+// 0009_completion_gates.sql, docs/roadmap-v2/ARCHITECTURE.md §6).
 
 // Queue statuses.
 const (
@@ -33,6 +33,10 @@ const (
 	ItemDone           = "done"
 	ItemNeedsAttention = "needs_attention"
 	ItemSkipped        = "skipped"
+	// V2-M4 completion gates: the run achieved its goal and the item waits
+	// for its verify command, then for the owner's approval.
+	ItemVerifying        = "verifying"
+	ItemAwaitingApproval = "awaiting_approval"
 )
 
 // Run statuses. Starting, running and stale runs are active: their session
@@ -54,6 +58,8 @@ const (
 	SourceTimer  = "timer"
 	SourceUser   = "user"
 	SourceLLM    = "llm"
+	// SourceVerify: the V2-M4 verify runner (attempts and their results).
+	SourceVerify = "verify"
 )
 
 // MaxRunEventPayload caps a run event's JSON payload (the hook body cap).
@@ -63,13 +69,15 @@ const (
 	maxQueueNameBytes   = 255
 	maxItemFlagsBytes   = 4096
 	maxInstructionBytes = 16 << 10
+	// MaxVerifyCommandBytes caps an item's verify command (V2-M4).
+	MaxVerifyCommandBytes = 4096
 )
 
 var (
 	queueStatuses = []string{QueueIdle, QueueRunning, QueuePaused, QueueFinished}
-	itemStatuses  = []string{ItemQueued, ItemRunning, ItemDone, ItemNeedsAttention, ItemSkipped}
+	itemStatuses  = []string{ItemQueued, ItemRunning, ItemVerifying, ItemAwaitingApproval, ItemDone, ItemNeedsAttention, ItemSkipped}
 	runStatuses   = []string{RunStarting, RunRunning, RunAchieved, RunFailed, RunExited, RunStale, RunCancelled}
-	eventSources  = []string{SourceHook, SourcePoller, SourceTimer, SourceUser, SourceLLM}
+	eventSources  = []string{SourceHook, SourcePoller, SourceTimer, SourceUser, SourceLLM, SourceVerify}
 	// ActiveRunStatuses are the run states that still hold the queue.
 	ActiveRunStatuses = []string{RunStarting, RunRunning, RunStale}
 	agentKinds        = []string{"claude", "codex"}
@@ -113,7 +121,20 @@ type QueueItem struct {
 	Status      string    `json:"status"`
 	CreatedAt   time.Time `json:"createdAt"`
 	UpdatedAt   time.Time `json:"updatedAt"`
+	// V2-M4 gates: the verify command ("" = none; NULL in the store) and
+	// whether the owner must approve before the item is done.
+	VerifyCommand    string `json:"verifyCommand"`
+	RequiresApproval bool   `json:"requiresApproval"`
 }
+
+// ItemGates are an item's V2-M4 completion gates; the zero value is none.
+type ItemGates struct {
+	VerifyCommand    string
+	RequiresApproval bool
+}
+
+// Gated reports whether the item has any completion gate.
+func (it QueueItem) Gated() bool { return it.VerifyCommand != "" || it.RequiresApproval }
 
 // Run is one attempt at an item: its session, binding and state. TokenHash
 // is the SHA-256 of the bearer token; the token itself is never stored.
@@ -154,6 +175,9 @@ type QueueItemUpdate struct {
 	Agent       *string
 	Flags       *string
 	Instruction *string
+	// V2-M4 gates: the only fields a needs-attention item may change.
+	VerifyCommand    *string
+	RequiresApproval *bool
 }
 
 // RunUpdate lists the run fields to set; nil fields stay.
@@ -170,8 +194,9 @@ type RunUpdate struct {
 
 const (
 	queueCols = `id, machine_id, project_id, name, status, created_at, updated_at, waiting_since`
-	itemCols  = `id, queue_id, machine_id, position, agent, flags, instruction, status, created_at, updated_at`
-	runCols   = `id, item_id, machine_id, session_name, agent_session_id, transcript_path, transcript_offset,
+	itemCols  = `id, queue_id, machine_id, position, agent, flags, instruction, status, created_at, updated_at,
+		verify_command, requires_approval`
+	runCols = `id, item_id, machine_id, session_name, agent_session_id, transcript_path, transcript_offset,
 		client_version, token_hash, status, started_at, ended_at, last_signal_at, detail`
 	eventCols = `id, run_id, machine_id, source, kind, payload_json, created_at`
 )
@@ -191,7 +216,10 @@ func scanQueue(row scanner) (Queue, error) {
 
 func scanItem(row scanner) (QueueItem, error) {
 	var it QueueItem
-	err := row.Scan(&it.ID, &it.QueueID, &it.MachineID, &it.Position, &it.Agent, &it.Flags, &it.Instruction, &it.Status, &it.CreatedAt, &it.UpdatedAt)
+	var verify sql.NullString
+	err := row.Scan(&it.ID, &it.QueueID, &it.MachineID, &it.Position, &it.Agent, &it.Flags, &it.Instruction, &it.Status, &it.CreatedAt, &it.UpdatedAt,
+		&verify, &it.RequiresApproval)
+	it.VerifyCommand = verify.String
 	return it, err
 }
 
@@ -278,6 +306,28 @@ func validQueueName(name string) (string, error) {
 		return "", errors.New("queue name must be 1–255 bytes")
 	}
 	return name, nil
+}
+
+// NormalizeVerifyCommand trims a verify command and checks the store's
+// limits: at most MaxVerifyCommandBytes, one line, no NUL. "" means no
+// verify gate. (That it splits into argv is the queue service's check.)
+func NormalizeVerifyCommand(cmd string) (string, error) {
+	cmd = strings.TrimSpace(cmd)
+	switch {
+	case len(cmd) > MaxVerifyCommandBytes:
+		return "", errors.New("the verify command must be at most 4096 bytes")
+	case strings.ContainsAny(cmd, "\x00\n\r"):
+		return "", errors.New("the verify command must be one line")
+	}
+	return cmd, nil
+}
+
+// nullIfEmpty stores "" as NULL.
+func nullIfEmpty(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
 }
 
 func validItem(agent, flags, instruction string) error {
@@ -376,7 +426,8 @@ func (s *Store) TransitionQueue(ctx context.Context, id string, from []string, t
 }
 
 // DeleteQueue deletes a queue with its items, runs and run events in one
-// explicit transaction. It refuses (ErrConflict) while a run is active.
+// explicit transaction. It refuses (ErrConflict) while a run is active or
+// an item is verifying.
 func (s *Store) DeleteQueue(ctx context.Context, id string) error {
 	return s.inTx(ctx, func(tx *sql.Tx) error {
 		if err := lockQueue(ctx, tx, id); err != nil {
@@ -388,7 +439,12 @@ func (s *Store) DeleteQueue(ctx context.Context, id string) error {
 			WHERE i.queue_id = $1 AND r.status = ANY($2)`, id, ActiveRunStatuses).Scan(&active); err != nil {
 			return err
 		}
-		if active > 0 {
+		// V2-M4: a verify command running on the host holds the queue too.
+		var verifying int
+		if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM queue_items WHERE queue_id = $1 AND status = $2`, id, ItemVerifying).Scan(&verifying); err != nil {
+			return err
+		}
+		if active > 0 || verifying > 0 {
 			return ErrConflict
 		}
 		for _, stmt := range []string{
@@ -424,9 +480,18 @@ func lockQueue(ctx context.Context, tx *sql.Tx, id string) error {
 	return notFound(err)
 }
 
-// AddQueueItem appends a queued item at the end of the queue.
-func (s *Store) AddQueueItem(ctx context.Context, queueID, agent, flags, instruction string) (QueueItem, error) {
+// AddQueueItem appends a queued item at the end of the queue, with its
+// completion gates if given (V2-M4; none by default).
+func (s *Store) AddQueueItem(ctx context.Context, queueID, agent, flags, instruction string, gates ...ItemGates) (QueueItem, error) {
 	if err := validItem(agent, flags, instruction); err != nil {
+		return QueueItem{}, err
+	}
+	var g ItemGates
+	if len(gates) > 0 {
+		g = gates[0]
+	}
+	verify, err := NormalizeVerifyCommand(g.VerifyCommand)
+	if err != nil {
 		return QueueItem{}, err
 	}
 	id, err := newQueueRowID("item")
@@ -440,11 +505,12 @@ func (s *Store) AddQueueItem(ctx context.Context, queueID, agent, flags, instruc
 		}
 		now := s.now()
 		it, err = scanItem(tx.QueryRowContext(ctx, `
-			INSERT INTO queue_items (id, queue_id, machine_id, position, agent, flags, instruction, status, created_at, updated_at)
+			INSERT INTO queue_items (id, queue_id, machine_id, position, agent, flags, instruction, status, created_at, updated_at,
+				verify_command, requires_approval)
 			SELECT $1, q.id, q.machine_id, COALESCE((SELECT max(position) FROM queue_items WHERE queue_id = q.id), 0) + 1,
-				$3, $4, $5, 'queued', $6, $6
+				$3, $4, $5, 'queued', $6, $6, $7, $8
 			FROM queues q WHERE q.id = $2
-			RETURNING `+itemCols, id, queueID, agent, flags, instruction, now))
+			RETURNING `+itemCols, id, queueID, agent, flags, instruction, now, nullIfEmpty(verify), g.RequiresApproval))
 		return err
 	})
 	return it, err
@@ -481,33 +547,62 @@ func (s *Store) FirstQueuedItem(ctx context.Context, queueID string) (QueueItem,
 	return it, notFound(err)
 }
 
-// UpdateQueueItem edits a queued item. It returns ErrConflict unless the
-// item is queued.
+// UpdateQueueItem edits a queued item. A needs-attention item may change
+// only its gates (V2-M4: fix a verify command before Re-run verify). It
+// returns ErrConflict when the item is in another state.
 func (s *Store) UpdateQueueItem(ctx context.Context, id string, u QueueItemUpdate) (QueueItem, error) {
 	cur, err := s.QueueItem(ctx, id)
 	if err != nil {
 		return QueueItem{}, err
 	}
-	agent, flags, instruction := cur.Agent, cur.Flags, cur.Instruction
-	if u.Agent != nil {
-		agent = *u.Agent
-	}
-	if u.Flags != nil {
-		flags = *u.Flags
-	}
-	if u.Instruction != nil {
-		instruction = *u.Instruction
-	}
-	if err := validItem(agent, flags, instruction); err != nil {
+	next, err := ApplyItemUpdate(cur, u)
+	if err != nil {
 		return QueueItem{}, err
 	}
+	editable := EditableStatuses(u)
 	it, err := scanItem(s.db.QueryRowContext(ctx, `
-		UPDATE queue_items SET agent = $2, flags = $3, instruction = $4, updated_at = $5
-		WHERE id = $1 AND status = 'queued' RETURNING `+itemCols, id, agent, flags, instruction, s.now()))
+		UPDATE queue_items SET agent = $2, flags = $3, instruction = $4, verify_command = $5, requires_approval = $6, updated_at = $7
+		WHERE id = $1 AND status = ANY($8) RETURNING `+itemCols,
+		id, next.Agent, next.Flags, next.Instruction, nullIfEmpty(next.VerifyCommand), next.RequiresApproval, s.now(), editable))
 	if errors.Is(err, sql.ErrNoRows) {
 		return QueueItem{}, ErrConflict
 	}
 	return it, err
+}
+
+// ApplyItemUpdate returns cur with u applied and checked (the store's
+// limits; the verify command normalized).
+func ApplyItemUpdate(cur QueueItem, u QueueItemUpdate) (QueueItem, error) {
+	next := cur
+	if u.Agent != nil {
+		next.Agent = *u.Agent
+	}
+	if u.Flags != nil {
+		next.Flags = *u.Flags
+	}
+	if u.Instruction != nil {
+		next.Instruction = *u.Instruction
+	}
+	if u.RequiresApproval != nil {
+		next.RequiresApproval = *u.RequiresApproval
+	}
+	if u.VerifyCommand != nil {
+		verify, err := NormalizeVerifyCommand(*u.VerifyCommand)
+		if err != nil {
+			return cur, err
+		}
+		next.VerifyCommand = verify
+	}
+	return next, validItem(next.Agent, next.Flags, next.Instruction)
+}
+
+// EditableStatuses are the item states u may be applied in: any field
+// while queued; the gates alone also while the item needs attention.
+func EditableStatuses(u QueueItemUpdate) []string {
+	if u.Agent == nil && u.Flags == nil && u.Instruction == nil {
+		return []string{ItemQueued, ItemNeedsAttention}
+	}
+	return []string{ItemQueued}
 }
 
 // TransitionQueueItem sets an item's status if it is currently one of from.

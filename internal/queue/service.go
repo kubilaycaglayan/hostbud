@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"hostbud/internal/agents"
 	"hostbud/internal/events"
 	"hostbud/internal/notify"
 	"hostbud/internal/store"
@@ -38,6 +39,11 @@ const (
 	msgActiveRun   = "A run is still active in this queue — pause it and wait for the run to end, or mark its item done/skip it first"
 	hintReload     = "Reload the queue and try again."
 	hintOnlyQueued = "Only queued items can be edited, deleted or moved. A needs-attention item goes back to the queue with Retry."
+	// V2-M4 gate edits.
+	msgGatesFixed   = "gates are fixed while the item is %s; they apply as they were when the run started"
+	hintGatesFixed  = "Wait for the item to leave its gates (or Reject it), then edit its gates."
+	hintVerifyArgv  = "The verify command runs as argv in the project directory, not through a shell: quote words like flags, and use sh -c '…' for pipes or &&."
+	hintGatesOnlyNA = "A needs-attention item can change only its verify command and approval; Retry puts it back in the queue for other edits."
 )
 
 // Store is what the queue service needs from the store.
@@ -52,7 +58,7 @@ type Store interface {
 	QueueItems(ctx context.Context, queueID string) ([]store.QueueItem, error)
 	QueueItem(ctx context.Context, id string) (store.QueueItem, error)
 	FirstQueuedItem(ctx context.Context, queueID string) (store.QueueItem, error)
-	AddQueueItem(ctx context.Context, queueID, agent, flags, instruction string) (store.QueueItem, error)
+	AddQueueItem(ctx context.Context, queueID, agent, flags, instruction string, gates ...store.ItemGates) (store.QueueItem, error)
 	UpdateQueueItem(ctx context.Context, id string, u store.QueueItemUpdate) (store.QueueItem, error)
 	DeleteQueueItem(ctx context.Context, id string) error
 	ReorderQueueItems(ctx context.Context, queueID string, itemIDs []string) ([]store.QueueItem, error)
@@ -570,15 +576,36 @@ func (s *Service) validate(agent, flags, instruction string) error {
 	return nil
 }
 
-// AddItem appends a queued item.
-func (s *Service) AddItem(ctx context.Context, queueID, agent, flags, instruction string) (ItemView, error) {
+// validateVerify checks a verify command (V2-M4): the store's limits, and
+// that it splits into argv like flags. "" (no gate) is valid.
+func validateVerify(cmd string) error {
+	cmd, err := store.NormalizeVerifyCommand(cmd)
+	if err == nil && cmd != "" {
+		if _, err = agents.SplitFlags(cmd); err != nil {
+			err = errors.New("verify command: " + strings.TrimPrefix(err.Error(), "flags: "))
+		}
+	}
+	if err != nil {
+		return invalid(err.Error(), hintVerifyArgv)
+	}
+	return nil
+}
+
+// AddItem appends a queued item, with its completion gates if given
+// (V2-M4; none by default).
+func (s *Service) AddItem(ctx context.Context, queueID, agent, flags, instruction string, gates ...store.ItemGates) (ItemView, error) {
 	if _, err := s.queue(ctx, queueID); err != nil {
 		return ItemView{}, err
 	}
 	if err := s.validate(agent, flags, instruction); err != nil {
 		return ItemView{}, err
 	}
-	it, err := s.store.AddQueueItem(ctx, queueID, agent, flags, instruction)
+	if len(gates) > 0 {
+		if err := validateVerify(gates[0].VerifyCommand); err != nil {
+			return ItemView{}, err
+		}
+	}
+	it, err := s.store.AddQueueItem(ctx, queueID, agent, flags, instruction, gates...)
 	if err != nil {
 		if store.IsUnavailable(err) || errors.Is(err, store.ErrNotFound) {
 			return ItemView{}, err
@@ -589,26 +616,31 @@ func (s *Service) AddItem(ctx context.Context, queueID, agent, flags, instructio
 	return ItemView{QueueItem: it}, nil
 }
 
-// UpdateItem edits a queued item.
+// UpdateItem edits a queued item. A needs-attention item may change only
+// its gates; running and gated items refuse every edit (V2-M4 T1).
 func (s *Service) UpdateItem(ctx context.Context, id string, u store.QueueItemUpdate) (ItemView, error) {
 	cur, err := s.item(ctx, id)
 	if err != nil {
 		return ItemView{}, err
 	}
-	agent, flags, instruction := cur.Agent, cur.Flags, cur.Instruction
-	if u.Agent != nil {
-		agent = *u.Agent
+	if u.VerifyCommand != nil {
+		if err := validateVerify(*u.VerifyCommand); err != nil {
+			return ItemView{}, err
+		}
 	}
-	if u.Flags != nil {
-		flags = *u.Flags
+	next, err := store.ApplyItemUpdate(cur, u)
+	if err != nil {
+		return ItemView{}, invalid(err.Error(), "")
 	}
-	if u.Instruction != nil {
-		instruction = *u.Instruction
-	}
-	if cur.Status != store.ItemQueued {
+	switch {
+	case cur.Status == store.ItemRunning || cur.Status == store.ItemVerifying || cur.Status == store.ItemAwaitingApproval:
+		return ItemView{}, conflict(fmt.Sprintf(msgGatesFixed, statusWords(cur.Status)), hintGatesFixed)
+	case !slices.Contains(store.EditableStatuses(u), cur.Status) && cur.Status == store.ItemNeedsAttention:
+		return ItemView{}, conflict("this item is "+statusWords(cur.Status)+"; only its gates can be edited", hintGatesOnlyNA)
+	case !slices.Contains(store.EditableStatuses(u), cur.Status):
 		return ItemView{}, conflict("this item is "+statusWords(cur.Status)+" and can't be edited", hintOnlyQueued)
 	}
-	if err := s.validate(agent, flags, instruction); err != nil {
+	if err := s.validate(next.Agent, next.Flags, next.Instruction); err != nil {
 		return ItemView{}, err
 	}
 	it, err := s.store.UpdateQueueItem(ctx, id, u)
@@ -783,6 +815,10 @@ func statusWords(status string) string {
 		return "waiting for your attention"
 	case store.ItemRunning:
 		return "running"
+	case store.ItemVerifying:
+		return "verifying"
+	case store.ItemAwaitingApproval:
+		return "awaiting approval"
 	default:
 		return status
 	}

@@ -134,6 +134,10 @@ func TestIntegrationQueueMigrationKeepsV1Data(t *testing.T) {
 
 // columnChecksums is tableChecksums over fixed columns, so a table that
 // gains a column keeps a comparable checksum.
+// v2m1ItemCols are queue_items' columns before V2-M4 (0009 adds the gate
+// columns, whose defaults would change a "*" checksum).
+const v2m1ItemCols = "id, queue_id, machine_id, position, agent, flags, instruction, status, created_at, updated_at"
+
 func columnChecksums(t *testing.T, db *sql.DB, tables map[string]string) map[string]string {
 	t.Helper()
 	out := map[string]string{}
@@ -238,7 +242,7 @@ func TestIntegrationParallelQueuesMigrationKeepsV2M1Data(t *testing.T) {
 		"machines":    "*",
 		"projects":    "*",
 		"queues":      "id, machine_id, project_id, name, status, created_at, updated_at",
-		"queue_items": "*",
+		"queue_items": v2m1ItemCols,
 		"runs":        "*",
 		"run_events":  "*",
 	}

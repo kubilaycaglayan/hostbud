@@ -10,7 +10,7 @@ Update this table in the same commit that finishes a task.
 
 | Task | Status |
 |---|---|
-| T1 Schema, item API and gate edits | Not started |
+| T1 Schema, item API and gate edits | Done |
 | T2 Verify runner | Not started |
 | T3 Approval | Not started |
 | T4 Owner actions | Not started |
@@ -34,12 +34,14 @@ The v2 ROADMAP *Rules*, AGENTS.md and the V2-M1 milestone rules (fast checks per
 
 | Checkpoint | After | Runs | Status |
 |---|---|---|---|
-| CP1 | T1 | `make lint test`, `scripts/compose-config.sh`, e2e `tsc` | Not run |
+| CP1 | T1 | `make lint test`, `scripts/compose-config.sh`, e2e `tsc` | Passed 2026-09-28 |
 | CP2 | T2–T4 | `make lint test` **three times in a row** (timeouts, races, restart), e2e `tsc` | Not run |
 | CP3 | T5–T6 | `make lint test`, `vue-tsc`, e2e `tsc`, `make gitleaks`, docs check | Not run |
 | CP4 | T7 | `make lint test`, e2e `tsc`, `make gitleaks`, `make deploy` (no `make e2e`: on demand only) | Not run |
 
-**Progress note:** (precondition and checkpoint results go here.)
+**Progress note:**
+- Precondition checked 2026-09-28: V2-M3's tasks are all Done and its checklist is ticked (open owner items and the on-demand e2e run excepted).
+- T1: migration `0009_completion_gates.sql`. A gate-only edit is a PATCH that sends no `agent`, `flags` or `instruction` (sending one, even unchanged, counts as an edit of it). The V2-M2 and V2-M3 migration tests checksum `queue_items` by its pre-0009 columns, since 0009 adds two. CP1 passed.
 
 ---
 

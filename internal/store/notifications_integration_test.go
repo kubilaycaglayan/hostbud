@@ -100,6 +100,7 @@ func TestIntegrationNotificationsMigrationKeepsV2M2Data(t *testing.T) {
 	for _, table := range []string{"machines", "users", "email_allowlist", "auth_sessions", "ui_state", "projects", "machine_capacity", "queues", "queue_items", "runs", "run_events"} {
 		tables[table] = "*"
 	}
+	tables["queue_items"] = v2m1ItemCols
 	before := columnChecksums(t, db, tables)
 
 	if err := migrate(ctx, db); err != nil {
@@ -112,7 +113,7 @@ func TestIntegrationNotificationsMigrationKeepsV2M2Data(t *testing.T) {
 		}
 	}
 	var version int64
-	if err := db.QueryRowContext(ctx, `SELECT max(version_id) FROM goose_db_version WHERE is_applied`).Scan(&version); err != nil || version != 8 {
+	if err := db.QueryRowContext(ctx, `SELECT max(version_id) FROM goose_db_version WHERE is_applied`).Scan(&version); err != nil || version < 8 {
 		t.Fatalf("version = %d, %v", version, err)
 	}
 	for _, table := range []string{"notification_prefs", "push_subscriptions", "notification_outbox", "notification_deliveries"} {

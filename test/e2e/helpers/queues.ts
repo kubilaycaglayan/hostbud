@@ -22,7 +22,10 @@ export interface QueueItem {
   agent: 'claude' | 'codex'
   flags: string
   instruction: string
-  status: 'queued' | 'running' | 'done' | 'needs_attention' | 'skipped'
+  status: 'queued' | 'running' | 'verifying' | 'awaiting_approval' | 'done' | 'needs_attention' | 'skipped'
+  /** V2-M4 completion gates ("" = no verify command). */
+  verifyCommand: string
+  requiresApproval: boolean
   run?: RunSummary
   /** V2-M2: the head item of a running queue while the machine's cap is reached. */
   waitingForSlot?: boolean
@@ -69,8 +72,11 @@ export async function createQueue(request: APIRequestContext, projectId: string,
   return await res.json() as Queue
 }
 
-export async function addItem(request: APIRequestContext, queueId: string, item: { agent?: 'claude' | 'codex'; flags?: string; instruction: string }): Promise<QueueItem> {
-  const res = await mutate(request, 'POST', `/api/queues/${queueId}/items`, { agent: item.agent ?? 'claude', flags: item.flags ?? '', instruction: item.instruction })
+export async function addItem(request: APIRequestContext, queueId: string, item: { agent?: 'claude' | 'codex'; flags?: string; instruction: string; verifyCommand?: string; requiresApproval?: boolean }): Promise<QueueItem> {
+  const gates = item.verifyCommand !== undefined || item.requiresApproval !== undefined
+    ? { verifyCommand: item.verifyCommand ?? '', requiresApproval: item.requiresApproval ?? false }
+    : {}
+  const res = await mutate(request, 'POST', `/api/queues/${queueId}/items`, { agent: item.agent ?? 'claude', flags: item.flags ?? '', instruction: item.instruction, ...gates })
   expect(res.status(), await res.text()).toBe(201)
   return await res.json() as QueueItem
 }
