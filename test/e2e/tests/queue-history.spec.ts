@@ -27,5 +27,6 @@ test('(V2-M9 T2/T3) queue history survives deletion and is visible in the Histor
   await expect(view.getByText(`/goal ${marker}`)).toBeVisible()
   await expect(view.getByText(/needs attention/).first()).toBeVisible()
   await expect(view.getByText(detail)).toBeVisible()
-  await expect(view).not.toContainText('terminal output marker')
+  await expect(view).not.toContainText('HISTORY_PRIVATE_OUTPUT_SENTINEL')
+  expect(JSON.stringify(history)).not.toContain('HISTORY_PRIVATE_OUTPUT_SENTINEL')
 })

@@ -110,6 +110,11 @@ export const queues = {
        VALUES ($1, $2, 'host', $3, 'failed', now(), now(), $4)`,
       [runId, itemId, tokenHash, detail],
     )
+    await sql(
+      `INSERT INTO run_events (run_id, machine_id, source, kind, payload_json)
+       VALUES ($1, 'host', 'verify', 'verify_result', $2)`,
+      [runId, JSON.stringify({ detail, output: 'HISTORY_PRIVATE_OUTPUT_SENTINEL' })],
+    )
     await sql(`UPDATE queue_items SET status = 'needs_attention', updated_at = now() WHERE id = $1`, [itemId])
   },
   /** The run's audit rows, oldest first. */
