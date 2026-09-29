@@ -67,10 +67,10 @@ describe('QueuePanel', () => {
     expect(text).toContain('Needs attention · no signal (stale)')
     expect(text).toContain('no signal from the agent for 2h0m0s')
     expect(text).toContain('app-q1')
-    for (const label of ['Retry item 1', 'Skip item 1', 'Mark item 1 done', 'Open session of item 1', 'Edit item 2', 'Delete item 2', 'Move item 2 up']) {
+    for (const label of ['Retry item 1', 'Skip item 1', 'Mark item 1 done', 'Open session of item 1', 'Edit item 2', 'Delete item 2']) {
       expect(button(label), label).toBeTruthy()
     }
-    for (const label of ['Edit item 1', 'Delete item 1', 'Move item 1 up', 'Retry item 2', 'Skip item 2']) expect(button(label), label).toBeFalsy()
+    for (const label of ['Edit item 1', 'Delete item 1', 'Move item 1 up', 'Retry item 2', 'Skip item 2', 'Move item 2 up', 'Move item 2 down']) expect(button(label), label).toBeFalsy()
     expect(button('Resume')).toBeTruthy()
     expect(button('Pause')).toBeFalsy()
     for (const input of $$('input, select')) expect(input.getAttribute('autocomplete')).toBe('off')
@@ -254,6 +254,14 @@ describe('QueuePanel', () => {
     expect(calls[1].body).toEqual({ itemIds: ['i2', 'i3'] })
   })
 
+  it('shows a move button only where the queued item can move that way', async () => {
+    const third = { ...queued, id: 'i3', position: 3, instruction: '/goal m3' }
+    await mountPanel(queue([attention, queued, third]))
+    for (const label of ['Move item 2 down', 'Move item 3 up']) expect(button(label), label).toBeTruthy()
+    for (const label of ['Move item 2 up', 'Move item 3 down']) expect(button(label), label).toBeFalsy()
+    expect((button('Move item 2 down') as HTMLButtonElement).disabled).toBe(false)
+  })
+
   it('opens a run session and closes the panel', async () => {
     const w = await mountPanel(queue([attention, queued]), true)
     button('Open session of item 1')!.click()
@@ -313,7 +321,7 @@ describe('QueuePanel', () => {
   })
 
   it('uses compact actions and resizable instruction areas on desktop', async () => {
-    await mountPanel(queue([queued]))
+    await mountPanel(queue([{ ...queued, id: 'i0', position: 1 }, queued]))
     const up = button('Move item 2 up')!
     expect(up.className).toContain('min-h-8')
     expect(up.className).toContain('min-w-8')
@@ -329,7 +337,7 @@ describe('QueuePanel', () => {
   })
 
   it('is a full-screen sheet on the phone, without drag handles and with phone-sized actions', async () => {
-    await mountPanel(queue([attention, queued]), true)
+    await mountPanel(queue([attention, { ...queued, id: 'i1b', position: 1 }, queued]), true)
     const dialog = $$('[role="dialog"]')[0]
     expect(dialog.className).toContain('inset-0')
     expect($$('.queue-drag-handle')).toHaveLength(0)

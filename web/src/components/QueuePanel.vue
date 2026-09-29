@@ -342,9 +342,13 @@ function reorder(ids: string[]) {
   const q = queue.value
   void act("Couldn't reorder the queue", () => queuesApi.reorder(q.id, ids))
 }
+// Whether the item can move that way; the buttons show only then.
+function canMove(item: QueueItem, delta: -1 | 1) {
+  return moveQueued(items.value, item.id, delta) !== null
+}
 function move(item: QueueItem, delta: -1 | 1) {
   const ids = moveQueued(items.value, item.id, delta)
-  if (!ids) return
+  if (!ids || busy.value) return
   reorder(ids)
   void nextTick(() => document.querySelector<HTMLElement>(`[data-queue-item="${item.id}"]`)?.focus())
 }
@@ -842,10 +846,10 @@ const badge: Record<QueueItem['status'], string> = {
                   </div>
                   <div class="mt-1 flex flex-wrap justify-end gap-1">
                     <template v-if="itemActions(item).move">
-                      <button type="button" class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded border border-border" :aria-label="`Move item ${item.position} up`" :disabled="busy" @click="move(item, -1)">
+                      <button v-if="canMove(item, -1)" type="button" class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded border border-border" :aria-label="`Move item ${item.position} up`" title="Move up" @click="move(item, -1)">
                         <ArrowUp :size="16" aria-hidden="true" />
                       </button>
-                      <button type="button" class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded border border-border" :aria-label="`Move item ${item.position} down`" :disabled="busy" @click="move(item, 1)">
+                      <button v-if="canMove(item, 1)" type="button" class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded border border-border" :aria-label="`Move item ${item.position} down`" title="Move down" @click="move(item, 1)">
                         <ArrowDown :size="16" aria-hidden="true" />
                       </button>
                     </template>

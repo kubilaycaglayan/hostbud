@@ -126,7 +126,10 @@ test.describe('Queue panel on iPhone 13 Pro', () => {
     await form.getByRole('button', { name: 'Add item' }).tap()
     const item = row(page, 'phone compact form')
     await expect(item).toBeVisible()
-    for (const label of [/^Move item .* up$/, /^Edit item/, /^Delete item/]) {
+    // The only queued item can't move: no move buttons.
+    await expect(item.getByRole('button', { name: /^Move item/ })).toHaveCount(0)
+    await addItem(page, 'phone compact second')
+    for (const label of [/^Move item .* down$/, /^Edit item/, /^Delete item/]) {
       const targetBox = await item.getByRole('button', { name: label }).boundingBox()
       expect(targetBox!.width).toBeGreaterThanOrEqual(44)
       expect(targetBox!.height).toBeGreaterThanOrEqual(44)
@@ -152,6 +155,9 @@ test.describe('Queue panel on iPhone 13 Pro', () => {
     await addItem(page, 'e2e phone one')
     // No drag handles on the phone: move buttons, at least 44 px.
     await expect(panel(page).getByRole('button', { name: /^Drag to reorder/ })).toHaveCount(0)
+    // Move buttons show only where a move is possible.
+    await expect(row(page, 'e2e phone two').getByRole('button', { name: /^Move item \d+ up$/ })).toHaveCount(0)
+    await expect(row(page, 'e2e phone one').getByRole('button', { name: /^Move item \d+ down$/ })).toHaveCount(0)
     const up = row(page, 'e2e phone one').getByRole('button', { name: /^Move item \d+ up$/ })
     const size = await up.boundingBox()
     expect(size!.height).toBeGreaterThanOrEqual(44)
