@@ -111,6 +111,17 @@ body {
   overscroll-behavior: none;
 }
 
+/* JetBrains Mono's contextual ligatures merge "->" and "--" into one glyph,
+   which hides the first "-" while typing; show every character as typed. */
+body,
+input,
+textarea,
+select,
+button {
+  font-variant-ligatures: none;
+  font-feature-settings: 'liga' 0, 'calt' 0;
+}
+
 :root:not([data-theme='light']):not([data-theme='solarized']) [data-agent='codex'] img {
   filter: invert(1);
 }

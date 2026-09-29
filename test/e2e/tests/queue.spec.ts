@@ -42,6 +42,25 @@ test.describe('Queue panel (desktop)', { tag: '@desktop' }, () => {
   test.describe.configure({ timeout: 120_000 })
   // The phone variant is queue.phone.spec.ts.
 
+  test('Queue dialog inputs show every "-" in "->" and "--"', async ({ page, ui, request, target }) => {
+    const project = await newProject(request, target, 'e2e-queue-dashes')
+    await ui.open()
+    await page.getByRole('banner').getByRole('button', { name: 'Queue', exact: true }).click()
+    const dialog = panel(page)
+    await dialog.getByLabel('Project').selectOption(project.id)
+    await dialog.getByRole('button', { name: 'Create queue' }).click()
+    const instruction = dialog.getByRole('form', { name: 'Add item' }).getByLabel('Instruction')
+    await instruction.fill('a -> b -- c')
+    await expect(instruction).toHaveValue('a -> b -- c')
+    // A ligature would draw "->" or "--" as one merged glyph and hide a "-".
+    const style = await instruction.evaluate((el) => {
+      const cs = getComputedStyle(el)
+      return { ligatures: cs.fontVariantLigatures, features: cs.fontFeatureSettings }
+    })
+    expect(style.ligatures).toBe('none')
+    expect(style.features).toContain('"calt" 0')
+  })
+
   test('(V2-M8 T3) Schedule a command for an existing session', async ({ page, ui, request, target }) => {
     const project = await newProject(request, target, 'e2e-scheduled-ui')
     await target.run(`tmux new-session -d -s schedule-ui-target -c ${shq(project.path)}`)
