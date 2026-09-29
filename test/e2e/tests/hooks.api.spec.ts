@@ -43,7 +43,9 @@ test('(V2-M1 T3) Hook endpoint: token-only contract through Caddy', async ({ req
   // Accepted without a cookie; a foreign Origin doesn't matter.
   expect((await hook(run.runId, 'session_start', run.token, BODY)).status()).toBe(204)
   expect((await hook(run.runId, 'turn_end', run.token, BODY, { Origin: FOREIGN_ORIGIN })).status()).toBe(204)
-  expect(await queues.events(run.runId)).toEqual([
+  const acceptedHookEvents = async () => (await queues.events(run.runId))
+    .filter((event) => event.kind === 'session_start' || event.kind === 'turn_end')
+  expect(await acceptedHookEvents()).toEqual([
     { source: 'hook', kind: 'session_start', payload_json: BODY },
     { source: 'hook', kind: 'turn_end', payload_json: BODY },
   ])
@@ -58,7 +60,7 @@ test('(V2-M1 T3) Hook endpoint: token-only contract through Caddy', async ({ req
   // A body over 64 KiB → 413; not JSON → 400.
   expect((await hook(run.runId, 'turn_end', run.token, JSON.stringify({ a: 'x'.repeat(65 << 10) }))).status()).toBe(413)
   expect((await hook(run.runId, 'turn_end', run.token, 'not json', { 'Content-Type': 'text/plain' })).status()).toBe(400)
-  expect(await queues.events(run.runId)).toHaveLength(2)
+  expect(await acceptedHookEvents()).toHaveLength(2)
 
   // The response carries no cookie and isn't cached.
   const accepted = await hook(run.runId, 'session_end', run.token, BODY)

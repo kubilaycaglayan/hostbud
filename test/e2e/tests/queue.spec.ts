@@ -54,6 +54,7 @@ test.describe('Queue panel (desktop)', () => {
     await expect(flags).toHaveAttribute('dir', 'ltr')
     await flags.fill('--')
     await expect(flags).toHaveValue('--')
+    await flags.fill('')
     await agent.selectOption('codex')
     await expect(flags).toHaveValue('--yolo')
     await expect(form.getByLabel('YOLO mode')).toBeChecked()

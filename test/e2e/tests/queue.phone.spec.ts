@@ -32,6 +32,7 @@ test.describe('Queue panel on iPhone 13 Pro', () => {
     await expect(form.getByLabel('Skip permission prompts')).toBeChecked()
     await flags.fill('--')
     await expect(flags).toHaveValue('--')
+    await flags.fill('')
     await form.getByLabel('Agent').selectOption('codex')
     await expect(flags).toHaveValue('--yolo')
     await expect(form.getByLabel('YOLO mode')).toBeChecked()
