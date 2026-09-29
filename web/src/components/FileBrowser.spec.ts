@@ -10,6 +10,8 @@ let projectCount = 0
 let deferredPath: string | null = null
 let releaseListing: (() => void) | null = null
 let failNextListing = false
+let releaseHome: (() => void) | null = null
+let deferHome = false
 vi.stubGlobal('fetch', fetchMock)
 
 describe('FileBrowser', () => {
@@ -22,10 +24,15 @@ describe('FileBrowser', () => {
     deferredPath = null
     releaseListing = null
     failNextListing = false
+    releaseHome = null
+    deferHome = false
     fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
       const parsed = new URL(String(url), 'http://localhost')
       let body: unknown = {}
-      if (parsed.pathname.endsWith('/fs/home')) body = { path: '/home/dev' }
+      if (parsed.pathname.endsWith('/fs/home')) {
+        if (deferHome) await new Promise<void>((resolve) => { releaseHome = resolve })
+        body = { path: '/home/dev' }
+      }
       else if (parsed.pathname.endsWith('/fs/stat')) body = { name: 'broken-link', path: '/home/dev/broken-link', kind: 'symlink', symlink: true, symlinkState: 'broken' }
       else if (parsed.pathname.endsWith('/fs') && failNextListing) {
         failNextListing = false
@@ -71,6 +78,20 @@ describe('FileBrowser', () => {
       else if (parsed.pathname.endsWith('/sessions')) body = { name: 'work' }
       return { ok: true, status: 200, headers: new Headers(), text: async () => JSON.stringify(body) }
     })
+  })
+
+  it('keeps a path the user went to before the home directory loaded', async () => {
+    deferHome = true
+    const wrapper = mount(FileBrowser, { props: { machine: 'host' } })
+    await flushPromises()
+    await wrapper.get('#browser-path').setValue('/srv/app')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(wrapper.get<HTMLInputElement>('#browser-path').element.value).toBe('/srv/app')
+    releaseHome!()
+    await flushPromises()
+    expect(wrapper.get<HTMLInputElement>('#browser-path').element.value).toBe('/srv/app')
+    expect(wrapper.get('[aria-label="Breadcrumbs"]').text()).toContain('srv')
   })
 
   it('navigates by breadcrumb, filters autocomplete and switches hidden entries', async () => {
