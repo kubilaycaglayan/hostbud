@@ -13,7 +13,9 @@ from that milestone's triage index.
 
 ## Required report contents
 
-- Milestone, pass number, date, full command and commit under test.
+- Milestone, pass number, date, start–end time, full command and commit under test.
+- Write all times in UTC+3 (the container clock is UTC: add 3 hours).
+  Quote captured error output verbatim, even when it contains UTC timestamps.
 - Exact Playwright passed, failed, skipped, flaky and total counts.
 - Skipped should be 0: profiles are targeted in `playwright.config.ts`
   (file names and `@desktop`/`@phone`/`@loopback` tags), and runtime
