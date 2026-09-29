@@ -10,6 +10,12 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
   - E: T1 *Header actions and compact controls* (desktop and phone).
   - Status (2026-09-27): U written and passing (`web/src/App.spec.ts`); E written and type-checked (`test/e2e/tests/header.actions.spec.ts`; M6 T13 phone/wide scenarios and helpers updated for the move), run pending (on demand). Not ticked until the e2e run passes.
 
+- [ ] On compact screens, application dialogs remain above the project-tree gutter when both are open; the dialog content stays visible and usable.
+  - U: T16 `App.spec.ts` verifies the compact drawer layer is below application dialog layers.
+  - I: n/a: frontend stacking only; no server contract changes.
+  - E: T16 *Dialogs stay above the reopened tree gutter* (iPhone 13 Pro), opening New session while the drawer is present and checking layer order and Name input usability.
+  - Status: regression test added and confirmed failing against the current drawer layer; E2E written and awaiting type-check. Browser run is on demand.
+
 ## Project and session tree
 
 - [ ] Project drag/reorder and expand/collapse affordances sit close together; project/session row padding and margins are compact. Session names are the leading, prominent content. No session chevron is rendered where the session row has no expandable children; actual expandable content remains discoverable and operable. Reorder, collapse, keyboard access, focus and phone usability continue to work.

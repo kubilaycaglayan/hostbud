@@ -23,6 +23,7 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 | T13 Provider hook status on session rows | In progress |
 | T14 Solarized and Dimmed theme levels | Implemented; E2E written and type-checked, run pending (on demand) |
 | T15 Selected-session clarity and list decluttering | Implemented; U/contrast pass, E written and type-checked, screenshots inspected; browser run pending (on demand) |
+| T16 Dialog and compact gutter stacking | In progress |
 
 **Progress note (T2–T4, 2026-09-27):** Vitest (447 tests), eslint, `vue-tsc` and the e2e `tsc` passed; deployed to the host from a clean checkout of `f664bb8` (a pre-deploy `pg_dump` is in `backups/`), and the stack came up healthy. Still open for these tasks:
 - **E2E runs:** the scenarios *(T2) Compact tree*, *(T3) Compact file browser*, *(T3) No browser autocomplete outside login password* and *(T4) Custom tab order* type-check but haven't run: e2e runs only on demand. The T2 commit also updated two M6 scenarios that expanded single-window sessions (*(T4) Inline rename a session*, *(T3) Window rows follow the real terminal*).
@@ -203,6 +204,14 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 **Tests:** U: T15 `SessionList.spec.ts` covers non-control row selection, button isolation, selected-row styling, and absent age/attachment indicators; `SessionTree.spec.ts` covers collapsed-only counts; `TabBar.spec.ts` covers selected styling; `check-theme-contrast.test.mjs` checks selected foreground/background contrast for every theme. I: n/a; presentation and browser click handling only, no server contract changes. E: T15 *Selected session and active tab stand out across themes* (desktop) and *Whole session row selects on touch* (iPhone 13 Pro), including action-button isolation, collapsed-only count, and removed activity/dot indicators.
 
 **E2E:** Add T15 *Selected session and active tab stand out across themes* to `test/e2e/tests/theme.spec.ts` and *Whole session row selects on touch* to `test/e2e/tests/tree.custom.phone.spec.ts`. Type-check only; runs on demand.
+
+## T16 — Dialog and compact gutter stacking
+
+- Keep the compact project-tree drawer below application dialogs in the shared portal stacking order, so opening a dialog while the gutter is expanded leaves the dialog visible and usable.
+
+**Tests:** U: `App.spec.ts` asserts the compact drawer's layer remains below dialog layers; I: n/a (frontend stacking only); E: T16 *Dialogs stay above the reopened tree gutter* opens New session while the drawer is present on iPhone 13 Pro and verifies the dialog's computed layer and input usability.
+
+**E2E:** Add T16 *Dialogs stay above the reopened tree gutter* (iPhone 13 Pro): open the drawer, invoke New session through its keyboard shortcut, and assert the create dialog stays above the drawer and its Name input is usable. Type-check only; run on demand.
 
 ## Done
 

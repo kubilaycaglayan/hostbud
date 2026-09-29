@@ -59,6 +59,29 @@ test('(T2) Tree drawer', async ({ page, target, ui }) => {
   await ui.waitForTerminal(created)
 })
 
+test('(T16) Dialogs stay above the reopened tree gutter', async ({ page, target, ui }) => {
+  const name = uniqueName('e2e-dialog-gutter')
+  await target.tmux('new-session', '-d', '-s', name, '-c', '/home/dev')
+  await ui.open()
+  await ui.openTerminal(name)
+
+  await page.locator('header button[aria-controls="sessions-sidebar"]').tap()
+  const drawer = page.getByRole('dialog', { name: 'Project tree' })
+  await expect(drawer).toBeVisible()
+
+  // A global New session shortcut can open while the gutter drawer is open.
+  // The modal dialog must occupy the higher layer and remain usable.
+  await page.keyboard.press('Control+n')
+  const create = page.getByRole('dialog', { name: 'New session' })
+  await expect(create).toBeVisible()
+  const [drawerLayer, dialogLayer] = await Promise.all([
+    drawer.evaluate((element) => Number(getComputedStyle(element).zIndex)),
+    create.evaluate((element) => Number(getComputedStyle(element).zIndex)),
+  ])
+  expect(dialogLayer).toBeGreaterThan(drawerLayer)
+  await expect(create.getByLabel('Name')).toBeVisible()
+})
+
 test('(T2) Drawer keeps the terminal attached', async ({ page, target, ui }) => {
   const name = uniqueName('e2e-drawer-attached')
   const marker = uniqueName('e2e-drawer-input')
