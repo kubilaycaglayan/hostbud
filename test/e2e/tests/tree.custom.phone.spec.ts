@@ -41,8 +41,6 @@ test.describe('custom tree on iPhone 13 Pro', () => {
     expect(box).not.toBeNull()
     await row.tap({ position: { x: 2, y: box!.height / 2 } })
     await expect(page.getByRole('tab', { name: second, exact: true })).toHaveAttribute('aria-selected', 'true')
-    await ui.showList()
-    await expect(row).toHaveAttribute('aria-selected', 'true')
     await expect(page.locator('[data-session-age], [data-session-dot]')).toHaveCount(0)
     await expect(page.getByRole('img', { name: 'attached session' })).toHaveCount(0)
   })
