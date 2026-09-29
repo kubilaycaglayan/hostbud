@@ -115,6 +115,7 @@ test.describe('custom tree on iPhone 13 Pro', () => {
     const input = page.getByRole('textbox', { name: `Rename ${oldName}` })
     await input.fill(nextName)
     await input.press('Enter')
+    await ui.showList()
     await expect(ui.treeItem(nextName)).toBeVisible()
     await expect(ui.treeItem(session)).toBeVisible()
   })
