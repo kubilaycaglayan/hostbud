@@ -840,6 +840,10 @@ func TestQueueItemHistorySurvivesDeleteAndStoresOnlyMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	agentSession := "c0ffee00-1111-2222-3333-444455556666"
+	if _, err := s.UpdateRun(ctx, run.ID, RunUpdate{AgentSessionID: &agentSession}); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := s.TransitionRun(ctx, run.ID, []string{RunStarting}, RunFailed, "", nil); err != nil {
 		t.Fatal(err)
 	}
@@ -856,7 +860,7 @@ func TestQueueItemHistorySurvivesDeleteAndStoresOnlyMetadata(t *testing.T) {
 	if len(rows) < 2 {
 		t.Fatalf("history rows = %d; want create and status snapshots", len(rows))
 	}
-	if rows[0].Status != ItemNeedsAttention || rows[0].Detail != "verify failed (exit 1)" || rows[0].Instruction != "/goal keep the metadata" {
+	if rows[0].Status != ItemNeedsAttention || rows[0].Detail != "verify failed (exit 1)" || rows[0].Instruction != "/goal keep the metadata" || rows[0].AgentSessionID != agentSession {
 		t.Fatalf("latest snapshot = %+v", rows[0])
 	}
 	if err := s.DeleteQueue(ctx, q.ID); err != nil {
@@ -866,7 +870,7 @@ func TestQueueItemHistorySurvivesDeleteAndStoresOnlyMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rows[0].QueueID != q.ID || rows[0].QueueName != q.Name || rows[0].Command != "" || rows[0].Detail != "verify failed (exit 1)" {
+	if rows[0].QueueID != q.ID || rows[0].QueueName != q.Name || rows[0].Command != "" || rows[0].Detail != "verify failed (exit 1)" || rows[0].AgentSessionID != agentSession {
 		t.Fatalf("history lost on queue delete: %+v", rows[0])
 	}
 	for _, row := range rows {

@@ -190,6 +190,8 @@ export interface QueueItemHistory {
   status: QueueItemStatus
   action: 'created' | 'edited' | 'status' | 'deleted'
   detail?: string
+  /** The coding agent's own session id (Claude session_id, Codex thread id). */
+  agentSessionId?: string
   occurredAt: string
 }
 

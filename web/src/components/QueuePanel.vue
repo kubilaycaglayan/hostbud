@@ -550,6 +550,7 @@ const badge: Record<QueueItem['status'], string> = {
                       <template v-if="entry.verifyCommand && entry.requiresApproval"> · </template>
                       <template v-if="entry.requiresApproval">Requires approval</template>
                     </p>
+                    <p v-if="entry.agentSessionId" class="mt-1 break-all text-sm text-muted">{{ entry.agent === 'codex' ? 'Codex thread' : 'Claude session' }}: <span class="select-all font-mono" data-testid="history-agent-session">{{ entry.agentSessionId }}</span></p>
                     <p v-if="entry.detail" class="mt-1 break-words text-sm text-danger">{{ entry.detail }}</p>
                   </li>
                 </ol>

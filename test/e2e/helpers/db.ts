@@ -91,13 +91,13 @@ export const queues = {
     return { queueId, itemId, runId, token }
   },
   /** Attaches a failed synthetic run and transitions its item for history coverage. */
-  async setItemFailure(itemId: string, detail: string) {
+  async setItemFailure(itemId: string, detail: string, agentSessionId = '') {
     const runId = ulid()
     const tokenHash = createHash('sha256').update(runToken()).digest()
     await sql(
-      `INSERT INTO runs (id, item_id, machine_id, token_hash, status, started_at, ended_at, detail)
-       VALUES ($1, $2, 'host', $3, 'failed', now(), now(), $4)`,
-      [runId, itemId, tokenHash, detail],
+      `INSERT INTO runs (id, item_id, machine_id, token_hash, status, started_at, ended_at, detail, agent_session_id)
+       VALUES ($1, $2, 'host', $3, 'failed', now(), now(), $4, NULLIF($5, ''))`,
+      [runId, itemId, tokenHash, detail, agentSessionId],
     )
     await sql(
       `INSERT INTO run_events (run_id, machine_id, source, kind, payload_json)

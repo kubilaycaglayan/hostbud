@@ -90,7 +90,7 @@ describe('QueuePanel', () => {
     const historyEntry = {
       id: 42, machineId: 'host', queueId: 'deleted-q', queueName: 'Old queue', projectName: 'app', itemId: 'deleted-i',
       position: 1, executionMode: 'agent' as const, agent: 'claude' as const, flags: '--safe', instruction: '/goal recover release', command: '',
-      status: 'needs_attention' as const, action: 'status' as const, detail: '<script>failed</script>', occurredAt: '2026-09-29T10:00:00Z',
+      status: 'needs_attention' as const, action: 'status' as const, detail: '<script>failed</script>', agentSessionId: 'c0ffee00-1111-2222-3333-444455556666', occurredAt: '2026-09-29T10:00:00Z',
     }
     const calls = stubFetch((_method, path) => path === '/api/queue-history?limit=100&offset=0' ? { status: 200, body: { items: [historyEntry] } } : { status: 200, body: { queues: [], parallelQueues: false } })
     await mountPanel(null)
@@ -106,6 +106,7 @@ describe('QueuePanel', () => {
     expect(document.body.textContent).toContain('Item 1 — Status: needs attention')
     expect(document.body.textContent).toContain('/goal recover release')
     expect(document.body.textContent).toContain('<script>failed</script>')
+    expect(document.body.textContent).toContain('Claude session: c0ffee00-1111-2222-3333-444455556666')
     expect(document.body.querySelector('[data-testid="queue-history"] script')).toBeNull()
     expect(calls.map((call) => call.path)).toContain('/api/queue-history?limit=100&offset=0')
   })

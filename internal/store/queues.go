@@ -254,25 +254,28 @@ type RunEvent struct {
 // QueueItemHistory is a metadata-only snapshot of an item lifecycle event.
 // It is intentionally independent of live queues and runs.
 type QueueItemHistory struct {
-	ID               int64     `json:"id"`
-	MachineID        string    `json:"machineId"`
-	QueueID          string    `json:"queueId"`
-	QueueName        string    `json:"queueName"`
-	ProjectName      string    `json:"projectName"`
-	ItemID           string    `json:"itemId"`
-	Position         int       `json:"position"`
-	ExecutionMode    string    `json:"executionMode"`
-	TargetSession    string    `json:"targetSession,omitempty"`
-	Agent            string    `json:"agent"`
-	Flags            string    `json:"flags"`
-	Instruction      string    `json:"instruction"`
-	Command          string    `json:"command"`
-	VerifyCommand    string    `json:"verifyCommand,omitempty"`
-	RequiresApproval bool      `json:"requiresApproval,omitempty"`
-	Status           string    `json:"status"`
-	Action           string    `json:"action"`
-	Detail           string    `json:"detail,omitempty"`
-	OccurredAt       time.Time `json:"occurredAt"`
+	ID               int64  `json:"id"`
+	MachineID        string `json:"machineId"`
+	QueueID          string `json:"queueId"`
+	QueueName        string `json:"queueName"`
+	ProjectName      string `json:"projectName"`
+	ItemID           string `json:"itemId"`
+	Position         int    `json:"position"`
+	ExecutionMode    string `json:"executionMode"`
+	TargetSession    string `json:"targetSession,omitempty"`
+	Agent            string `json:"agent"`
+	Flags            string `json:"flags"`
+	Instruction      string `json:"instruction"`
+	Command          string `json:"command"`
+	VerifyCommand    string `json:"verifyCommand,omitempty"`
+	RequiresApproval bool   `json:"requiresApproval,omitempty"`
+	Status           string `json:"status"`
+	Action           string `json:"action"`
+	Detail           string `json:"detail,omitempty"`
+	// AgentSessionID is the coding agent's own session id (Claude
+	// session_id, Codex thread id) from the item's latest bound run.
+	AgentSessionID string    `json:"agentSessionId,omitempty"`
+	OccurredAt     time.Time `json:"occurredAt"`
 }
 
 // QueueItemUpdate lists the item fields to change; nil fields stay.
@@ -673,7 +676,7 @@ func (s *Store) QueueItemHistory(ctx context.Context, machineID string, limit, o
 		offset = 0
 	}
 	rows, err := s.db.QueryContext(ctx, `SELECT id, machine_id, queue_id, queue_name, project_name, item_id,
-		position, execution_mode, target_session, agent, flags, instruction, command, verify_command, requires_approval, item_status, action, detail, occurred_at
+		position, execution_mode, target_session, agent, flags, instruction, command, verify_command, requires_approval, item_status, action, detail, agent_session_id, occurred_at
 		FROM queue_item_history WHERE machine_id = $1 ORDER BY occurred_at DESC, id DESC LIMIT $2 OFFSET $3`, machineID, limit, offset)
 	if err != nil {
 		return nil, err
@@ -683,7 +686,7 @@ func (s *Store) QueueItemHistory(ctx context.Context, machineID string, limit, o
 	for rows.Next() {
 		var h QueueItemHistory
 		if err := rows.Scan(&h.ID, &h.MachineID, &h.QueueID, &h.QueueName, &h.ProjectName, &h.ItemID,
-			&h.Position, &h.ExecutionMode, &h.TargetSession, &h.Agent, &h.Flags, &h.Instruction, &h.Command, &h.VerifyCommand, &h.RequiresApproval, &h.Status, &h.Action, &h.Detail, &h.OccurredAt); err != nil {
+			&h.Position, &h.ExecutionMode, &h.TargetSession, &h.Agent, &h.Flags, &h.Instruction, &h.Command, &h.VerifyCommand, &h.RequiresApproval, &h.Status, &h.Action, &h.Detail, &h.AgentSessionID, &h.OccurredAt); err != nil {
 			return nil, err
 		}
 		out = append(out, h)

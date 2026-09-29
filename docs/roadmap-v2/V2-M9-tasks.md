@@ -12,11 +12,12 @@ Goal: preserve status transitions and useful queue item metadata as historical d
 | T4 Docs, acceptance, verification and deploy | Done: `make lint test`, `make gitleaks`, deploy and health check passed |
 | T5 Safe Docker cleanup | Done: skipped because hostbud toolbox containers were active; production services and volumes left untouched |
 | T6 Queue progress in the panel title | Done: web lint and E2E type-check passed; browser run remains on demand |
+| T7 Agent session id on history | Done: store/api integration tests, QueuePanel Vitest, lint and E2E type-check passed; browser run remains on demand |
 
 ## Tasks
 
 ### T1 — Append-only history schema and store
-Add an independent history table with metadata snapshots for item creation, edits, status changes and deletion. Preserve queue/project labels, item position, execution mode, agent, flags, instruction or command, status, transition kind, actionable detail and timestamp. No foreign key to the live queue/item means history survives deletion. Never store transcript paths, raw hook payloads, terminal output, tokens or agent session ids. Tests: U: scan/order and snapshot privacy; I: migration on populated schema, transition snapshots and queue deletion retention. E2E: n/a (store only).
+Add an independent history table with metadata snapshots for item creation, edits, status changes and deletion. Preserve queue/project labels, item position, execution mode, agent, flags, instruction or command, status, transition kind, actionable detail and timestamp. No foreign key to the live queue/item means history survives deletion. Never store transcript paths, raw hook payloads, terminal output or tokens (agent session ids: see T7). Tests: U: scan/order and snapshot privacy; I: migration on populated schema, transition snapshots and queue deletion retention. E2E: n/a (store only).
 
 ### T2 — History API and privacy boundaries
 Add a bounded, newest-first authenticated API for the history records. Keep existing Origin protections on state-changing requests; return only the history DTO. Tests: U: route validation and serialization; I: authenticated reads, unauthenticated rejection and deleted queue history. E2E: add API-level history coverage through Caddy.
@@ -32,3 +33,6 @@ Follow v2 Rules and V1 M7 T15 after deploy. Skip and record if any toolbox or te
 
 ### T6 — Queue progress in the panel title
 Show a compact colored segment for each item beside the Queue heading, with an accessible active/error summary and queued count. Done items are green, the active item is yellow, queued/skipped items are muted, and needs-attention items are red. Tests: U: n/a (small computed presentation state covered through the UI scenario); I: n/a (no backend behavior); E2E: extend the desktop Queue panel scenario to check queued, active and needs-attention states. E2E runs remain on demand.
+
+### T7 — Agent session id on history
+Owner request (2026-09-29): attach the coding agent's session id to history so past items can be checked later. Append-only migration 0018 adds `queue_item_history.agent_session_id`, redefines the history trigger to copy the latest bound run's `agent_session_id` (falling back to the last recorded one, so a delete snapshot keeps it) and backfills existing rows. The API returns `agentSessionId`; the History view shows it as selectable text. Snapshots taken before the hook binds (e.g. `running`) have none. Tests: U: store snapshot keeps the id across queue deletion; Vitest renders it; I: migration + trigger against PostgreSQL (store integration). E2E: extend the T2/T3 history scenario to check the API field and the History view.
