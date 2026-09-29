@@ -60,7 +60,7 @@ async function kill() {
         :class="props.compact ? 'inset-x-0 bottom-0 max-h-[90dvh] w-full overflow-y-auto rounded-t-2xl pb-[max(1.25rem,env(safe-area-inset-bottom))]' : 'top-1/2 left-1/2 w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded'"
       >
         <template v-if="step === 1">
-          <AlertDialogTitle class="font-bold">Kill all sessions of {{ props.project.name }}?</AlertDialogTitle>
+          <AlertDialogTitle class="font-bold">Kill all in {{ props.project.name }}?</AlertDialogTitle>
           <AlertDialogDescription class="mt-2 text-fg">
             This kills its {{ count(props.sessions.length) }}, including hidden ones, and ends every program running in them. The project stays.
           </AlertDialogDescription>

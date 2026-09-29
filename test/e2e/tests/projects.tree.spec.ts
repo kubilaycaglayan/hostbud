@@ -227,13 +227,13 @@ for (const profile of ['desktop', 'phone'] as const) {
       const openMenu = async () => {
         if (profile === 'phone') await longPress(page, ui.treeItem(projectName).locator(':scope > div').first())
         else await ui.treeItem(projectName).getByRole('button', { name: `More actions for ${projectName}` }).click()
-        await page.getByRole('menuitem', { name: 'Kill all sessions of this project…', exact: true }).click()
+        await page.getByRole('menuitem', { name: 'Kill all…', exact: true }).click()
       }
       const alive = async () => (await (await request.get(`/api/machines/${MACHINE}/sessions`)).json()).sessions.map((s: { name: string }) => s.name) as string[]
 
       // Cancel on the second step kills nothing.
       await openMenu()
-      await page.getByRole('alertdialog', { name: `Kill all sessions of ${projectName}?` }).getByRole('button', { name: 'Continue…' }).click()
+      await page.getByRole('alertdialog', { name: `Kill all in ${projectName}?` }).getByRole('button', { name: 'Continue…' }).click()
       const really = page.getByRole('alertdialog', { name: 'Really kill 2 sessions?' })
       await expect(really).toContainText(first)
       await really.getByRole('button', { name: 'Cancel' }).click()
@@ -241,7 +241,7 @@ for (const profile of ['desktop', 'phone'] as const) {
       expect(await alive()).toEqual(expect.arrayContaining([first, second, outside]))
 
       await openMenu()
-      await page.getByRole('alertdialog', { name: `Kill all sessions of ${projectName}?` }).getByRole('button', { name: 'Continue…' }).click()
+      await page.getByRole('alertdialog', { name: `Kill all in ${projectName}?` }).getByRole('button', { name: 'Continue…' }).click()
       await page.getByRole('alertdialog', { name: 'Really kill 2 sessions?' }).getByRole('button', { name: 'Kill 2 sessions' }).click()
       await expect(group.getByRole('button', { name: first, exact: true })).toHaveCount(0)
       await expect(group.getByRole('button', { name: second, exact: true })).toHaveCount(0)

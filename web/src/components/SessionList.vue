@@ -214,20 +214,37 @@ const sortableSessions = computed({
       @click="selectRowClick($event, s.name)"
     >
       <!-- Agent logos and status are display-only prefixes; the session's actual name stays unchanged. -->
-      <AgentMark
-        v-for="agent in visibleAgents(s)"
-        :key="agent"
-        :agent="agent"
-      />
+      <!-- Two fixed slots (logo, status) stay reserved even when empty, so names line up. -->
       <span
-        v-if="props.treeView && s.status"
-        role="img"
-        data-session-status
-        :data-status="s.status"
-        :aria-label="statusLabel(s.status)"
-        :title="statusLabel(s.status)"
-        class="shrink-0 text-xs leading-none"
-      >{{ statusEmoji(s.status) }}</span>
+        v-if="props.treeView"
+        data-session-prefix
+        class="flex shrink-0 items-center gap-x-1"
+      >
+        <span
+          data-agent-slot
+          class="flex min-w-3.5 shrink-0 items-center gap-x-0.5"
+        >
+          <AgentMark
+            v-for="agent in visibleAgents(s)"
+            :key="agent"
+            :agent="agent"
+          />
+        </span>
+        <span
+          data-status-slot
+          class="inline-flex w-4 shrink-0 items-center justify-center"
+        >
+          <span
+            v-if="s.status"
+            role="img"
+            data-session-status
+            :data-status="s.status"
+            :aria-label="statusLabel(s.status)"
+            :title="statusLabel(s.status)"
+            class="text-xs leading-none"
+          >{{ statusEmoji(s.status) }}</span>
+        </span>
+      </span>
       <InlineRename
         v-if="props.treeView && props.editingName === s.name"
         :name="s.name"

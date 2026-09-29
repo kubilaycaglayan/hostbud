@@ -56,14 +56,18 @@ test('(T2) Compact tree', async ({ page, ui, target, isMobile }) => {
     expect(c.width).toBeLessThanOrEqual(28)
   }
 
-  // Session rows: the name leads and stands out; no inert chevron.
+  // Session rows: reserved logo/status slots, then the name, which stands out; no inert chevron.
   const singleRow = ui.treeItem(single)
   await expect(singleRow.getByRole('button', { name: `Expand ${single}` })).toHaveCount(0)
   await expect(singleRow).not.toHaveAttribute('aria-expanded', /.*/)
   const name = singleRow.getByRole('button', { name: single, exact: true })
   const nameBox = await box(name)
-  const rowBox = await box(singleRow)
-  expect(nameBox.x - rowBox.x).toBeLessThanOrEqual(8)
+  // The logo and status slots stay reserved even without an agent or status.
+  const prefixBox = await box(singleRow.locator('[data-session-prefix]'))
+  expect(prefixBox.width).toBeGreaterThanOrEqual(30)
+  expect(nameBox.x).toBeGreaterThanOrEqual(prefixBox.x + prefixBox.width)
+  const multiName = await box(ui.treeItem(multi).getByRole('button', { name: multi, exact: true }))
+  expect(Math.abs(multiName.x - nameBox.x)).toBeLessThanOrEqual(1)
   expect(Number(await name.evaluate((el) => getComputedStyle(el).fontWeight))).toBeGreaterThanOrEqual(500)
   const others = await singleRow.getByRole('button').evaluateAll((els, label) => els.filter((el) => el.getAttribute('aria-label') !== label).map((el) => el.getBoundingClientRect().x), single)
   for (const x of others) expect(x).toBeGreaterThan(nameBox.x)
@@ -74,7 +78,7 @@ test('(T2) Compact tree', async ({ page, ui, target, isMobile }) => {
       expect(b.height).toBeGreaterThanOrEqual(44)
     }
   } else {
-    expect(rowBox.height).toBeLessThanOrEqual(34)
+    expect((await box(singleRow)).height).toBeLessThanOrEqual(34)
   }
   await page.screenshot({ path: test.info().outputPath(`tree-${isMobile ? 'phone' : 'desktop'}.png`) })
 

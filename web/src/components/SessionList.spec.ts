@@ -72,7 +72,20 @@ describe('SessionList', () => {
     expect(marks.map((mark) => mark.attributes('title'))).toEqual(['Codex running', 'Claude Code running'])
     expect(row.attributes('aria-label')).toBe('agent-work, Codex running, Claude Code running')
     expect(row.get('[data-session-row]').attributes('aria-label')).toBe('agent-work')
-    expect(row.element.children[0]?.getAttribute('data-agent')).toBe('codex')
+    expect(row.get('[data-agent-slot]').element.children[0]?.getAttribute('data-agent')).toBe('codex')
+  })
+
+  it('reserves the logo and status slots before the name even when a session has neither', () => {
+    setActivePinia(createPinia())
+    const w = mount(SessionList, { props: { sessions: [s('bare')], treeView: true } })
+    const row = w.get('li')
+    const prefix = row.get('[data-session-prefix]')
+    expect(row.element.children[0]).toBe(prefix.element)
+    expect(prefix.get('[data-agent-slot]').classes()).toContain('min-w-3.5')
+    expect(prefix.get('[data-status-slot]').classes()).toContain('w-4')
+    expect(prefix.find('[data-agent-mark]').exists()).toBe(false)
+    expect(prefix.find('[data-session-status]').exists()).toBe(false)
+    expect(prefix.element.nextElementSibling?.hasAttribute('data-session-row')).toBe(true)
   })
 
   it('shows the pane title as a muted second line in the tree, and nothing without one', () => {
@@ -112,8 +125,8 @@ describe('SessionList', () => {
       expect(row.get('[data-session-status]').attributes('aria-label')).toBe(label)
       expect(row.attributes('aria-label')).toBe(`status-session, ${label}, Codex running`)
       expect(row.get('[data-session-row]').attributes('aria-label')).toBe('status-session')
-      expect(row.element.children[0]?.getAttribute('data-agent')).toBe('codex')
-      expect(row.element.children[1]?.hasAttribute('data-session-status')).toBe(true)
+      expect(row.get('[data-agent-slot]').element.children[0]?.getAttribute('data-agent')).toBe('codex')
+      expect(row.get('[data-status-slot]').element.children[0]?.hasAttribute('data-session-status')).toBe(true)
       w.unmount()
     }
   })

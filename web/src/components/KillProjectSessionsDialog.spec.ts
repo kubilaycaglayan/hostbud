@@ -20,7 +20,7 @@ describe('KillProjectSessionsDialog', () => {
     const calls = stubFetch(() => ({ status: 204 }))
     const wrapper = mount(KillProjectSessionsDialog, { attachTo: document.body, props: { machine: 'host', project, sessions: ['a', 'b'] } })
     await flushPromises()
-    expect($('[role="alertdialog"]')?.textContent).toContain('Kill all sessions of App?')
+    expect($('[role="alertdialog"]')?.textContent).toContain('Kill all in App?')
     expect($('[role="alertdialog"]')?.textContent).toContain('its 2 sessions, including hidden ones')
     button('Continue…').click()
     await flushPromises()

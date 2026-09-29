@@ -541,9 +541,10 @@ describe('SessionTree', () => {
     expect(group.classes()).toEqual(expect.arrayContaining(['ml-2', 'border-l', 'pl-1.5']))
     // The project path heads its expanded group.
     expect(group.element.firstElementChild?.getAttribute('title')).toBe('/work/a')
-    // Session rows lead with the name; their chevron (3 windows) follows it.
+    // Session rows lead with the reserved logo/status slots, then the name; their chevron (3 windows) follows it.
     const row = wrapper.get('[data-tree-key="session:one"]')
-    expect(row.element.firstElementChild?.getAttribute('aria-label')).toBe('one')
+    expect(row.element.firstElementChild?.hasAttribute('data-session-prefix')).toBe(true)
+    expect(row.element.children[1]?.getAttribute('aria-label')).toBe('one')
     expect(row.find('[data-session-dot]').exists()).toBe(false)
     const buttons = row.findAll('button').map((b) => b.attributes('aria-label'))
     expect(buttons.indexOf('one')).toBeLessThan(buttons.indexOf('Expand one'))
