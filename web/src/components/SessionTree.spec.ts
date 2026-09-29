@@ -97,6 +97,8 @@ describe('SessionTree', () => {
     expect(wrapper.get('[data-tree-key="project:b"] button[aria-label="Unpin b"]').classes()).toContain('touch-target')
     expect([...wrapper.findAll('[data-tree-kind="project"]')].map((row) => row.attributes('data-tree-key'))).toEqual(['project:b', 'project:a'])
     const lists = wrapper.findAllComponents(VueDraggable)
+    expect(lists.every((list) => list.props('forceFallback') === true)).toBe(true)
+    expect(lists.every((list) => list.props('delay') === 250)).toBe(true)
     const onMove = lists[0].props('onMove') as (event: { from: HTMLElement; to: HTMLElement }, originalEvent: Event) => boolean
     expect(onMove({ from: lists[0].element as HTMLElement, to: lists[0].element as HTMLElement }, new Event('move'))).toBe(true)
     expect(onMove({ from: lists[0].element as HTMLElement, to: lists[1].element as HTMLElement }, new Event('move'))).toBe(false)
