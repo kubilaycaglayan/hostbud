@@ -415,3 +415,15 @@ func TestShutdownClosesWithGoingAway(t *testing.T) {
 	}
 	eventually(t, "process killed", func() bool { _, _, killed := proc.snapshot(); return killed })
 }
+
+func TestNoPerUserCapByDefault(t *testing.T) {
+	h := &Handler{MaxTotal: 200}
+	for i := 0; i < 200; i++ {
+		if !h.reserve("u1") {
+			t.Fatalf("reservation %d refused without a per-account cap", i+1)
+		}
+	}
+	if h.reserve("u1") || !h.AtCapacity("u2") || h.Limit("u1") != 200 {
+		t.Fatal("server-wide cap not enforced")
+	}
+}

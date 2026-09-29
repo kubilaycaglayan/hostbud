@@ -1,7 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
-import { MAX_PANES, panesOf } from '@/lib/layout'
+import { panesOf } from '@/lib/layout'
 import { stubFetch } from '@/test-utils'
 import { SAVE_DEBOUNCE_MS, SAVE_RETRY_MS, useLayoutStore } from './layout'
 import { useToastsStore } from './toasts'
@@ -175,12 +175,11 @@ describe('tabs', () => {
     expect(layout.toggleLastTab()).toBe(false)
   })
 
-  it('the limit shows a notice and opens nothing', async () => {
+  it('opens any number of terminals without a notice', async () => {
     const layout = await loaded()
-    for (let i = 0; i < MAX_PANES; i++) expect(layout.open('host', `s${i}`)).toBe(true)
-    expect(layout.open('host', 'extra')).toBe(false)
-    expect(open()).not.toContain('extra')
-    expect(useToastsStore().toasts.map((t) => t.title)).toEqual(['Too many terminals'])
+    for (let i = 0; i < 100; i++) expect(layout.open('host', `s${i}`)).toBe(true)
+    expect(open()).toHaveLength(100)
+    expect(useToastsStore().toasts).toEqual([])
   })
 
   it('killed from this UI: closes quietly', async () => {

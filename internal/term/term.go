@@ -43,7 +43,8 @@ type Handler struct {
 	SSH   SSH
 	Log   *slog.Logger
 	Start Starter // default StartPTY
-	// MaxPerUser and MaxTotal configure attach caps (enforcement is added in M7 T4).
+	// MaxPerUser and MaxTotal cap concurrent attaches per account and
+	// server-wide. MaxPerUser <= 0 means no per-account cap.
 	MaxPerUser, MaxTotal int
 	AccountID            func(*http.Request) string
 	// Shutdown, when closed, ends every open terminal with "going away"
@@ -123,7 +124,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusTooManyRequests)
 		_ = json.NewEncoder(w).Encode(map[string]string{
-			"error": "Too many open terminals (" + strconv.Itoa(h.PerUserLimit()) + ")",
+			"error": "Too many open terminals (" + strconv.Itoa(h.Limit(account)) + ")",
 			"hint":  "Close some tabs or panes; each open terminal keeps an ssh process on the host.",
 		})
 		return
@@ -173,14 +174,7 @@ func (h *Handler) reserve(account string) bool {
 	if h.users == nil {
 		h.users = make(map[string]int)
 	}
-	perUser, total := h.MaxPerUser, h.MaxTotal
-	if perUser <= 0 {
-		perUser = 32
-	}
-	if total <= 0 {
-		total = 128
-	}
-	if h.users[account] >= perUser || int(h.active.Load()) >= total {
+	if h.full(account) {
 		return false
 	}
 	h.users[account]++
@@ -199,23 +193,37 @@ func (h *Handler) release(account string) {
 	h.active.Add(-1)
 }
 
-// PerUserLimit returns the effective per-account attach cap.
-func (h *Handler) PerUserLimit() int {
-	if h.MaxPerUser <= 0 {
-		return 50
+func (h *Handler) total() int {
+	if h.MaxTotal <= 0 {
+		return 128
 	}
-	return h.MaxPerUser
+	return h.MaxTotal
+}
+
+// full reports whether account can't take another slot. Callers hold limitMu.
+func (h *Handler) full(account string) bool {
+	if h.MaxPerUser > 0 && h.users[account] >= h.MaxPerUser {
+		return true
+	}
+	return int(h.active.Load()) >= h.total()
+}
+
+// Limit returns the cap account runs into: its own when set and reached,
+// otherwise the server-wide one.
+func (h *Handler) Limit(account string) int {
+	h.limitMu.Lock()
+	defer h.limitMu.Unlock()
+	if h.MaxPerUser > 0 && h.users[account] >= h.MaxPerUser {
+		return h.MaxPerUser
+	}
+	return h.total()
 }
 
 // AtCapacity reports whether an account or the server has no attach slots.
 func (h *Handler) AtCapacity(account string) bool {
 	h.limitMu.Lock()
 	defer h.limitMu.Unlock()
-	perUser, total := h.PerUserLimit(), h.MaxTotal
-	if total <= 0 {
-		total = 128
-	}
-	return h.users[account] >= perUser || int(h.active.Load()) >= total
+	return h.full(account)
 }
 
 // bridge pumps bytes both ways until the process exits or the socket

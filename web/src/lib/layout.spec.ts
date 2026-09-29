@@ -13,7 +13,6 @@ import {
   emptyLayout,
   focusedPane,
   panesOf,
-  MAX_PANES,
   missingPanes,
   openSession,
   panelOrder,
@@ -57,15 +56,11 @@ describe('open', () => {
     expect(result).toBe('opened')
   })
 
-  it(`refuses a terminal beyond ${MAX_PANES}`, () => {
-    const names = Array.from({ length: MAX_PANES }, (_, i) => `s${i}`)
-    const l = withTabs(...names)
-    expect(allPanes(l)).toHaveLength(MAX_PANES)
+  it('has no cap on open terminals', () => {
+    const l = withTabs(...Array.from({ length: 100 }, (_, i) => `s${i}`))
     const { layout, result } = openSession(l, 'host', 'one-more')
-    expect(result).toBe('full')
-    expect(layout).toBe(l)
-    // Re-picking an open one still works at the limit.
-    expect(openSession(l, 'host', 's3').result).toBe('focused')
+    expect(result).toBe('opened')
+    expect(allPanes(layout)).toHaveLength(101)
   })
 })
 
@@ -174,14 +169,14 @@ describe('validate', () => {
     expect(validateLayout(v)).toBeNull()
   })
 
-  it('repairs a missing focus or active tab, and trims beyond the limit', () => {
-    const tabs = Array.from({ length: MAX_PANES + 2 }, (_, i) => ({
+  it('repairs a missing focus or active tab, and keeps every tab', () => {
+    const tabs = Array.from({ length: 100 }, (_, i) => ({
       id: `t${i}`,
       root: { type: 'pane', id: `p${i}`, machine: 'host', session: `s${i}` },
       focusedPane: i === 0 ? 'nope' : `p${i}`,
     }))
     const l = validateLayout({ version: 1, tabs, activeTab: 'gone' })!
-    expect(l.tabs).toHaveLength(MAX_PANES)
+    expect(l.tabs).toHaveLength(100)
     expect(l.tabs[0].focusedPane).toBe('p0')
     expect(l.activeTab).toBe('t0')
     expect(validateLayout({ version: 1, tabs: [], activeTab: 'x' })).toEqual(emptyLayout())
@@ -222,15 +217,6 @@ describe('splits', () => {
     expect(r.result).toBe('tab-full')
     expect(r.layout).toBe(l)
     expect(splitPane(l, 'nope', 'row', 'host', 'e').result).toBe('missing')
-  })
-
-  it(`counts split panes toward the ${MAX_PANES}-terminal limit`, () => {
-    let l = withTabs(...Array.from({ length: MAX_PANES - 1 }, (_, i) => `s${i}`))
-    const first = allPanes(l)[0].id
-    l = splitPane(l, first, 'row', 'host', 'x').layout
-    expect(allPanes(l)).toHaveLength(MAX_PANES)
-    expect(splitPane(l, first, 'row', 'host', 'y').result).toBe('full')
-    expect(openSession(l, 'host', 'y').result).toBe('full')
   })
 
   it('closing a pane gives its space back; a split left with one child collapses', () => {

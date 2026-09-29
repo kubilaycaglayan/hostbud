@@ -36,9 +36,6 @@ export interface Layout {
   activeTab: string | null
 }
 
-/** Open terminals in total, over every tab (each holds a WebSocket and an
- * ssh process). */
-export const MAX_PANES = 16
 /** Panes per tab. */
 export const MAX_TAB_PANES = 4
 /** The smallest pane, in percent of its split. */
@@ -118,11 +115,11 @@ export function tabShowing(l: Layout, machine: string, session: string): Tab | u
   return l.tabs.find((t) => panesOf(t.root).some((p) => shows(p, machine, session)))
 }
 
-export type OpenResult = 'focused' | 'opened' | 'full'
+export type OpenResult = 'focused' | 'opened'
 
 /**
  * Shows a session: focuses the tab (and pane) that already shows it, or
- * opens it in a new tab at the end. 'full' when that would exceed MAX_PANES.
+ * opens it in a new tab at the end.
  */
 export function openSession(l: Layout, machine: string, session: string): { layout: Layout; result: OpenResult } {
   const existing = tabShowing(l, machine, session)
@@ -131,7 +128,6 @@ export function openSession(l: Layout, machine: string, session: string): { layo
     const tabs = l.tabs.map((t) => (t === existing ? { ...t, focusedPane: pane.id } : t))
     return { layout: { ...l, tabs, activeTab: existing.id }, result: 'focused' }
   }
-  if (allPanes(l).length >= MAX_PANES) return { layout: l, result: 'full' }
   const pane: Pane = { type: 'pane', id: newId(), machine, session }
   const tab: Tab = { id: newId(), root: pane, focusedPane: pane.id }
   return { layout: { ...l, tabs: [...l.tabs, tab], activeTab: tab.id }, result: 'opened' }
@@ -217,7 +213,7 @@ export function cycleFocus(l: Layout, tabId: string): Layout {
   return focusPane(l, tabId, panes[(i + 1) % panes.length].id)
 }
 
-export type SplitResult = 'split' | 'tab-full' | 'full' | 'missing'
+export type SplitResult = 'split' | 'tab-full' | 'missing'
 
 /**
  * Opens a session in a new pane next to `paneId` (right for `row`, below
@@ -235,7 +231,6 @@ export function splitPane(
   const tab = l.tabs.find((t) => panesOf(t.root).some((p) => p.id === paneId))
   if (!tab) return { layout: l, result: 'missing' }
   if (panesOf(tab.root).length >= MAX_TAB_PANES) return { layout: l, result: 'tab-full' }
-  if (allPanes(l).length >= MAX_PANES) return { layout: l, result: 'full' }
   const pane: Pane = { type: 'pane', id: newId(), machine, session }
 
   const insert = (node: LayoutNode): LayoutNode => {
@@ -298,21 +293,17 @@ function validNode(v: unknown, depth = 0): LayoutNode | null {
 
 /**
  * Checks a stored layout (the server doesn't interpret it). Bad shape or an
- * unknown version → null; tabs beyond MAX_PANES terminals are dropped; a
- * missing focus or active tab is repaired.
+ * unknown version → null; a missing focus or active tab is repaired.
  */
 export function validateLayout(v: unknown): Layout | null {
   if (!isObj(v) || v.version !== 1 || !Array.isArray(v.tabs)) return null
   const tabs: Tab[] = []
-  let count = 0
   for (const raw of v.tabs) {
     if (!isObj(raw) || !isStr(raw.id)) return null
     const root = validNode(raw.root)
     if (!root) return null
     const panes = panesOf(root)
     if (panes.length > MAX_TAB_PANES) return null
-    if (count + panes.length > MAX_PANES) break
-    count += panes.length
     const focus = panes.some((p) => p.id === raw.focusedPane) ? (raw.focusedPane as string) : panes[0].id
     tabs.push({ id: raw.id, root, focusedPane: focus })
   }

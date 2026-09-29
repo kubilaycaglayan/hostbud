@@ -33,7 +33,7 @@ func TestLoadDefaults(t *testing.T) {
 		LLMQuietAfter:       20 * time.Minute,
 		LLMMaxPerRunHour:    2,
 		LLMScrub:            true,
-		MaxTerminalsPerUser: 50,
+		MaxTerminalsPerUser: 0,
 		MaxTerminals:        128,
 		LogLevel:            slog.LevelInfo,
 		LocalPort:           9055,
@@ -70,7 +70,7 @@ func TestLoadHardeningBounds(t *testing.T) {
 	}{
 		{name: "valid minimum and maximum", vars: map[string]string{
 			"HOST_SSH_USER": "dev", "HOSTBUD_EXEC_TIMEOUT": "2s", "HOSTBUD_SFTP_TIMEOUT": "2m",
-			"HOSTBUD_MAX_TERMINALS_PER_USER": "256", "HOSTBUD_MAX_TERMINALS": "1024",
+			"HOSTBUD_MAX_TERMINALS_PER_USER": "1024", "HOSTBUD_MAX_TERMINALS": "1024",
 		}},
 		{name: "exec below range", vars: map[string]string{"HOSTBUD_EXEC_TIMEOUT": "1999ms"}, wantErr: "HOSTBUD_EXEC_TIMEOUT"},
 		{name: "exec above range", vars: map[string]string{"HOSTBUD_EXEC_TIMEOUT": "121s"}, wantErr: "HOSTBUD_EXEC_TIMEOUT"},
@@ -81,8 +81,8 @@ func TestLoadHardeningBounds(t *testing.T) {
 		{name: "upload below range", vars: map[string]string{"HOSTBUD_UPLOAD_TIMEOUT": "29s"}, wantErr: "HOSTBUD_UPLOAD_TIMEOUT"},
 		{name: "upload above range", vars: map[string]string{"HOSTBUD_UPLOAD_TIMEOUT": "11m"}, wantErr: "HOSTBUD_UPLOAD_TIMEOUT"},
 		{name: "upload malformed", vars: map[string]string{"HOSTBUD_UPLOAD_TIMEOUT": "soon"}, wantErr: "HOSTBUD_UPLOAD_TIMEOUT"},
-		{name: "per user below range", vars: map[string]string{"HOSTBUD_MAX_TERMINALS_PER_USER": "0"}, wantErr: "HOSTBUD_MAX_TERMINALS_PER_USER"},
-		{name: "per user above range", vars: map[string]string{"HOSTBUD_MAX_TERMINALS_PER_USER": "257"}, wantErr: "HOSTBUD_MAX_TERMINALS_PER_USER"},
+		{name: "per user below range", vars: map[string]string{"HOSTBUD_MAX_TERMINALS_PER_USER": "-1"}, wantErr: "HOSTBUD_MAX_TERMINALS_PER_USER"},
+		{name: "per user above range", vars: map[string]string{"HOSTBUD_MAX_TERMINALS_PER_USER": "1025"}, wantErr: "HOSTBUD_MAX_TERMINALS_PER_USER"},
 		{name: "per user malformed", vars: map[string]string{"HOSTBUD_MAX_TERMINALS_PER_USER": "many"}, wantErr: "HOSTBUD_MAX_TERMINALS_PER_USER"},
 		{name: "global below range", vars: map[string]string{"HOSTBUD_MAX_TERMINALS": "0"}, wantErr: "HOSTBUD_MAX_TERMINALS"},
 		{name: "global above range", vars: map[string]string{"HOSTBUD_MAX_TERMINALS": "1025"}, wantErr: "HOSTBUD_MAX_TERMINALS"},
@@ -104,7 +104,7 @@ func TestLoadHardeningBounds(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if cfg.ExecTimeout != 2*time.Second || cfg.SFTPTimeout != 2*time.Minute || cfg.MaxTerminalsPerUser != 256 || cfg.MaxTerminals != 1024 {
+			if cfg.ExecTimeout != 2*time.Second || cfg.SFTPTimeout != 2*time.Minute || cfg.MaxTerminalsPerUser != 1024 || cfg.MaxTerminals != 1024 {
 				t.Fatalf("unexpected limits: %+v", cfg)
 			}
 		})

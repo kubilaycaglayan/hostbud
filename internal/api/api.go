@@ -324,7 +324,7 @@ type server struct {
 
 type terminalCapacity interface {
 	AtCapacity(string) bool
-	PerUserLimit() int
+	Limit(string) int
 }
 
 func (s *server) terminalSlots(w http.ResponseWriter, r *http.Request) {
@@ -334,7 +334,7 @@ func (s *server) terminalSlots(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]bool{"available": true})
 		return
 	}
-	writeError(w, http.StatusTooManyRequests, fmt.Sprintf("Too many open terminals (%d)", capacity.PerUserLimit()), "Close some tabs or panes; each open terminal keeps an ssh process on the host.")
+	writeError(w, http.StatusTooManyRequests, fmt.Sprintf("Too many open terminals (%d)", capacity.Limit(account)), "Close some tabs or panes; each open terminal keeps an ssh process on the host.")
 }
 
 func (s *server) runtimeLimits(w http.ResponseWriter, _ *http.Request) {

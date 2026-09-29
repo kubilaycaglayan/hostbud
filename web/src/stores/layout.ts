@@ -131,16 +131,9 @@ export const useLayoutStore = defineStore('layout', () => {
     { flush: 'sync' },
   )
 
-  /** Shows a session (existing tab, or a new one). False when at the limit. */
+  /** Shows a session (existing tab, or a new one). */
   function open(machine: string, session: string): boolean {
-    const { layout: next, result } = L.openSession(layout.value, machine, session)
-    if (result === 'full') {
-      toasts.push({
-        title: 'Too many terminals',
-        message: `At most ${L.MAX_PANES} terminals can be open at once. Close a tab first.`,
-      })
-      return false
-    }
+    const { layout: next } = L.openSession(layout.value, machine, session)
     layout.value = next
     rememberActive()
     return true
@@ -152,13 +145,6 @@ export const useLayoutStore = defineStore('layout', () => {
     const { layout: next, result } = L.splitPane(layout.value, paneId, dir, machine, session)
     if (result === 'tab-full') {
       toasts.push({ title: 'Too many panes', message: `A tab holds at most ${L.MAX_TAB_PANES} panes. Open it in a new tab instead.` })
-      return false
-    }
-    if (result === 'full') {
-      toasts.push({
-        title: 'Too many terminals',
-        message: `At most ${L.MAX_PANES} terminals can be open at once. Close a tab first.`,
-      })
       return false
     }
     if (result === 'missing') return false
