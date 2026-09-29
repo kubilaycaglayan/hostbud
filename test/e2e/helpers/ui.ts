@@ -1,4 +1,4 @@
-import { expect, type Page } from '@playwright/test'
+import { expect, type Locator, type Page } from '@playwright/test'
 
 // The app's e2e hooks (web/src/lib/e2eHooks.ts). Without `session`, the
 // focused pane of the active tab answers.
@@ -21,7 +21,27 @@ declare global {
 
 // Page helpers. They drive the UI only through roles, labels and visible text.
 export class UI {
-  constructor(readonly page: Page) {}
+  // UI-state saves (PUT /api/ui-state/<key>) seen since this helper was made.
+  private saves = new Map<string, { pending: number; done: number; waited: number }>()
+
+  constructor(readonly page: Page) {
+    const track = (url: string, method: string) => {
+      const key = method === 'PUT' ? /\/api\/ui-state\/([^/?]+)$/.exec(new URL(url).pathname)?.[1] : undefined
+      if (!key) return undefined
+      if (!this.saves.has(key)) this.saves.set(key, { pending: 0, done: 0, waited: 0 })
+      return this.saves.get(key)!
+    }
+    page.on('request', (r) => {
+      const s = track(r.url(), r.method())
+      if (s) s.pending++
+    })
+    const settle = (r: import('@playwright/test').Request) => {
+      const s = track(r.url(), r.method())
+      if (s) { s.pending--; s.done++ }
+    }
+    page.on('requestfinished', settle)
+    page.on('requestfailed', settle)
+  }
 
   tree() {
     return this.page.getByRole('navigation', { name: 'Project and session tree' })
@@ -42,11 +62,21 @@ export class UI {
     await item.getByRole('button', { name: (expanded ? 'Collapse ' : 'Expand ') + name }).click()
   }
 
+  /**
+   * Waits until a save of `key` finished since the last call and none is in
+   * flight or still due (the app debounces saves by 500 ms). A save that already
+   * went out before this call counts, so a slow preceding step can't make
+   * this wait for a request that never comes.
+   */
   async waitForSave(key: 'tree' | 'theme'): Promise<void> {
-    await this.page.waitForResponse((response) =>
-      response.request().method() === 'PUT' &&
-      new URL(response.url()).pathname === '/api/ui-state/' + key,
-    )
+    const since = Date.now()
+    await expect.poll(() => {
+      const s = this.saves.get(key)
+      // Past the debounce, a change made just before this call has gone out.
+      return !!s && s.done > s.waited && s.pending === 0 && Date.now() - since > 600
+    }, { message: `a saved ${key} state`, intervals: [100] }).toBe(true)
+    const s = this.saves.get(key)!
+    s.waited = s.done
   }
 
   async openAccountMenu(): Promise<void> {
@@ -268,4 +298,44 @@ export class UI {
     expect(login.ok(), await login.text()).toBe(true)
     await this.open()
   }
+}
+
+/**
+ * Drags a Sortable handle onto `position` inside `target`. The lists use
+ * Sortable's fallback (pointer) dragging, which needs a series of moves:
+ * Playwright's dragTo sends too few. Touch WebKit gets a touch hold past
+ * the lists' 250 ms touch delay, then touch moves (Playwright's touchscreen
+ * only taps).
+ */
+export async function dragSortable(handle: Locator, target: Locator, position = { x: 20, y: 1 }): Promise<void> {
+  const page = handle.page()
+  const start = await handle.boundingBox()
+  const finish = await target.boundingBox()
+  if (!start || !finish) throw new Error('drag handle or target is not visible')
+  const from = { x: start.x + start.width / 2, y: start.y + start.height / 2 }
+  const to = { x: finish.x + position.x, y: finish.y + position.y }
+  const steps = 12
+  // Sortable drags by pointer events except on Safari, where it listens to
+  // touch events.
+  const safariTouch = page.context().browser()?.browserType().name() === 'webkit' && await page.evaluate(() => navigator.maxTouchPoints > 0)
+  if (!safariTouch) {
+    await page.mouse.move(from.x, from.y)
+    await page.mouse.down()
+    for (let i = 1; i <= steps; i++) {
+      await page.mouse.move(from.x + ((to.x - from.x) * i) / steps, from.y + ((to.y - from.y) * i) / steps)
+      await page.waitForTimeout(60) // Sortable samples the pointer every 50 ms
+    }
+    await page.mouse.up()
+    return
+  }
+  const points = (x: number, y: number) => [{ identifier: 1, clientX: x, clientY: y, pageX: x, pageY: y }]
+  await handle.dispatchEvent('touchstart', { bubbles: true, cancelable: true, touches: points(from.x, from.y), targetTouches: points(from.x, from.y), changedTouches: points(from.x, from.y) })
+  await page.waitForTimeout(400)
+  for (let i = 1; i <= steps; i++) {
+    const x = from.x + ((to.x - from.x) * i) / steps
+    const y = from.y + ((to.y - from.y) * i) / steps
+    await handle.dispatchEvent('touchmove', { bubbles: true, cancelable: true, touches: points(x, y), targetTouches: points(x, y), changedTouches: points(x, y) })
+    await page.waitForTimeout(60)
+  }
+  await handle.dispatchEvent('touchend', { bubbles: true, cancelable: true, touches: [], targetTouches: [], changedTouches: points(to.x, to.y) })
 }

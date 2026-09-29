@@ -1,3 +1,4 @@
+import { dragSortable } from '../helpers/ui.ts'
 import type { Locator } from '@playwright/test'
 import { expect, test } from '../helpers/fixtures.ts'
 import { newAccount } from '../helpers/auth.ts'
@@ -93,7 +94,7 @@ test('(T2) Compact tree', async ({ page, ui, target, isMobile }) => {
 
   // Reorder projects with the handle.
   await ui.waitForSave('tree')
-  await ui.treeItem(projects[1]).getByRole('button', { name: `Drag to reorder project ${projects[1]}` }).dragTo(project, { targetPosition: { x: 20, y: 1 } })
+  await dragSortable(ui.treeItem(projects[1]).getByRole('button', { name: `Drag to reorder project ${projects[1]}` }), project, { x: 20, y: 1 })
   await expect.poll(async () => ((await getUIState(api, 'tree')) as { projects: string[] }).projects.filter((id) => ids.includes(id))).toEqual([ids[1], ids[0]])
 
   // Keyboard (desktop): a single-window session doesn't expand; Enter opens it.

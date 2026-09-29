@@ -1,7 +1,8 @@
+import { dragSortable } from '../helpers/ui.ts'
 import { expect, test } from '../helpers/fixtures.ts'
 import { newAccount } from '../helpers/auth.ts'
 import { owner } from '../helpers/db.ts'
-import { forbidInLogs, getUIState, MACHINE, mutate, ORIGIN, putUIState } from '../helpers/api.ts'
+import { forbidInLogs, getUIState, listSessions, MACHINE, mutate, ORIGIN, POLL_INTERVAL_MS, putUIState } from '../helpers/api.ts'
 import { ctl } from '../helpers/ctl.ts'
 import { shq, uniqueName } from '../helpers/target.ts'
 
@@ -177,12 +178,16 @@ test.describe('custom tree on iPhone 13 Pro', () => {
       await target.run(`mkdir -p ${shq(entry.path)}`)
       projectIDs.push((await addProject(api, entry.path, entry.name)).id)
     }
+    await page.goto('about:blank') // flush the app's pending tree save before seeding
     await putUIState(api, 'tree', { version: 2, projects: projectIDs, sessions: {}, pinned: [], hidden: { projects: [], sessions: [] }, collapsed: [], expanded: [], showHidden: false })
-    await page.reload()
+    await page.goto('/')
     await ui.showList()
     for (const index of [0, 1]) {
       if (index === 0) {
-        const header = ui.treeItem(entries[index].name).locator(':scope > .tree-row')
+        // A handle, not a locator: the menu the hold opens hides the tree
+        // from role queries before pointerup.
+        const header = await ui.treeItem(entries[index].name).locator(':scope > .tree-row').elementHandle()
+        if (!header) throw new Error('project header not found')
         await header.dispatchEvent('pointerdown', { pointerType: 'touch', clientX: 12, clientY: 12 })
         await page.waitForTimeout(550)
         await header.dispatchEvent('pointerup', { pointerType: 'touch', clientX: 12, clientY: 12 })
@@ -203,7 +208,7 @@ test.describe('custom tree on iPhone 13 Pro', () => {
       .toEqual([entries[2].name, entries[0].name])
     await ui.waitForSave('tree')
     const before = (await getUIState(api, 'tree') as { projects: string[] }).projects
-    await ui.treeItem(entries[1].name).getByRole('button', { name: `Drag to reorder project ${entries[1].name}` }).dragTo(ui.treeItem(entries[2].name), { targetPosition: { x: 20, y: 1 } })
+    await dragSortable(ui.treeItem(entries[1].name).getByRole('button', { name: `Drag to reorder project ${entries[1].name}` }), ui.treeItem(entries[2].name), { x: 20, y: 1 })
     expect((await getUIState(api, 'tree') as { projects: string[] }).projects).toEqual(before)
   })
 
@@ -223,20 +228,31 @@ test.describe('custom tree on iPhone 13 Pro', () => {
     await target.run(`mkdir -p ${shq(projectPath)} ${shq(secondProjectPath)} ${shq(outsidePath)}`)
     const projectID = (await addProject(api, projectPath, projectName)).id
     const secondProjectID = (await addProject(api, secondProjectPath, secondProjectName)).id
-    await putUIState(api, 'tree', { version: 2, projects: [projectID, secondProjectID], sessions: {}, pinned: [], hidden: { projects: [], sessions: [] }, collapsed: [], expanded: [], showHidden: false })
     await createSession(target, first, projectPath)
     await createSession(target, second, projectPath)
     await createSession(target, third, projectPath)
     await createSession(target, outsider, outsidePath)
     await target.run(`tmux new-window -t ${shq('=' + first)} -n extra && tmux split-window -t ${shq('=' + first + ':1')} -h`)
-    await page.reload()
+    // Seed a known session order once the inventory has every session, away
+    // from the app (its pending tree save is flushed on unload).
+    await expect.poll(async () => (await listSessions(api)).map((session) => session.name), { timeout: 3 * POLL_INTERVAL_MS })
+      .toEqual(expect.arrayContaining([first, second, third, outsider]))
+    await page.goto('about:blank')
+    await putUIState(api, 'tree', { version: 2, projects: [projectID, secondProjectID], sessions: { [projectID]: [first, second, third] }, pinned: [], hidden: { projects: [], sessions: [] }, collapsed: [], expanded: [], showHidden: false })
+    await page.goto('/')
     await ui.showList()
+    const projectRows = async () => (await page.getByRole('group', { name: `Sessions in ${projectName}` }).locator('[data-session-row]').allTextContents()).map((text) => text.trim())
+    await expect.poll(projectRows).toEqual([first, second, third])
 
     await ui.treeItem(projectName).focus()
     await page.keyboard.press('Alt+ArrowDown')
+    await expect.poll(async () => (await page.getByRole('group', { name: 'Projects', exact: true }).locator('[data-tree-kind="project"]').evaluateAll((nodes) => nodes.map((node) => node.getAttribute('aria-label'))))
+      .filter((name) => name === projectName || name === secondProjectName)).toEqual([secondProjectName, projectName])
     await ui.treeItem(first).focus()
     await page.keyboard.press('Alt+ArrowDown')
-    await ui.treeItem(third).getByRole('button', { name: `Drag to reorder session ${third}` }).dragTo(ui.treeItem(second), { targetPosition: { x: 20, y: 1 } })
+    await expect.poll(projectRows).toEqual([second, first, third])
+    await dragSortable(ui.treeItem(third).getByRole('button', { name: `Drag to reorder session ${third}` }), ui.treeItem(second), { x: 20, y: 1 })
+    await expect.poll(projectRows).toEqual([third, second, first])
     await ui.treeItem(projectName).getByRole('button', { name: `More actions for ${projectName}` }).click()
     await page.getByRole('menuitem', { name: 'Rename', exact: true }).click()
     const renamedProject = uniqueName('phone-custom-renamed-project')
@@ -257,7 +273,8 @@ test.describe('custom tree on iPhone 13 Pro', () => {
     await page.getByRole('button', { name: 'Show hidden (1)' }).click()
     await ui.treeItem(third).getByRole('button', { name: `More actions for ${third}` }).click()
     await page.getByRole('menuitem', { name: 'Hide', exact: true }).click()
-    await ui.treeItem(third).getByRole('button', { name: `More actions for ${third}` }).click()
+    // Shown dimmed while Show hidden is on.
+    await ui.treeItem(`${third}, hidden`).getByRole('button', { name: `More actions for ${third}` }).click()
     await page.getByRole('menuitem', { name: 'Unhide', exact: true }).click()
     await ui.treeItem(secondProjectName).getByRole('button', { name: `More actions for ${secondProjectName}` }).click()
     await page.getByRole('menuitem', { name: 'Pin', exact: true }).click()

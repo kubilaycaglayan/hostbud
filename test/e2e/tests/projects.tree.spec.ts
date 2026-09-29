@@ -1,3 +1,4 @@
+import { dragSortable } from '../helpers/ui.ts'
 import { expect, test } from '../helpers/fixtures.ts'
 import { newAccount } from '../helpers/auth.ts'
 import { owner } from '../helpers/db.ts'
@@ -21,24 +22,6 @@ async function createAccount(ui: import('../helpers/ui.ts').UI) {
   forbidInLogs(account.email, account.password)
   await owner.allow(account.email)
   await ui.createAccount(account)
-}
-
-async function dragTouch(page: import('@playwright/test').Page, handle: import('@playwright/test').Locator, target: import('@playwright/test').Locator) {
-  const start = await handle.boundingBox()
-  const finish = await target.boundingBox()
-  if (!start || !finish) throw new Error('touch drag row is not visible')
-  const from = { x: start.x + start.width / 2, y: start.y + start.height / 2 }
-  const to = { x: finish.x + Math.min(20, finish.width / 2), y: finish.y + 2 }
-  const points = (x: number, y: number) => [{ identifier: 1, clientX: x, clientY: y, pageX: x, pageY: y }]
-  await handle.dispatchEvent('touchstart', { bubbles: true, cancelable: true, touches: points(from.x, from.y), targetTouches: points(from.x, from.y), changedTouches: points(from.x, from.y) })
-  await page.waitForTimeout(300)
-  for (let i = 1; i <= 12; i++) {
-    const x = from.x + (to.x - from.x) * i / 12
-    const y = from.y + (to.y - from.y) * i / 12
-    await handle.dispatchEvent('touchmove', { bubbles: true, cancelable: true, touches: points(x, y), targetTouches: points(x, y), changedTouches: points(x, y) })
-    await page.waitForTimeout(60)
-  }
-  await handle.dispatchEvent('touchend', { bubbles: true, cancelable: true, touches: [], targetTouches: [], changedTouches: points(to.x, to.y) })
 }
 
 async function openProjectSession(page: import('@playwright/test').Page, name: string) {
@@ -264,8 +247,7 @@ for (const profile of ['desktop', 'phone'] as const) {
       await expect(ui.treeItem(two)).toBeVisible()
       // Drop on the top edge of the target row, as tree.custom.spec.ts does.
       const projectHandle = ui.treeItem(secondName).getByRole('button', { name: `Drag to reorder project ${secondName}` })
-      if (profile === 'phone') await dragTouch(page, projectHandle, ui.treeItem(firstName))
-      else await projectHandle.dragTo(ui.treeItem(firstName), { targetPosition: { x: 20, y: 1 } })
+      await dragSortable(projectHandle, ui.treeItem(firstName))
       // Let the tree settle after the project move before the next drag.
       await expect.poll(async () => (await page.getByRole('group', { name: 'Projects' }).locator(':scope > [role="treeitem"]').evaluateAll((items) => items.map((item) => item.getAttribute('aria-label')))).filter((name) => name === firstName || name === secondName)).toEqual([secondName, firstName])
       // Retried: a live session update re-rendering the list can drop a drag.
@@ -273,8 +255,7 @@ for (const profile of ['desktop', 'phone'] as const) {
       await expect(async () => {
         if ((await sessionOrder())[0] !== two) {
           const sessionHandle = ui.treeItem(two).getByRole('button', { name: `Drag to reorder session ${two}` })
-          if (profile === 'phone') await dragTouch(page, sessionHandle, ui.treeItem(one))
-          else await sessionHandle.dragTo(ui.treeItem(one), { targetPosition: { x: 20, y: 1 } })
+          await dragSortable(sessionHandle, ui.treeItem(one))
         }
         expect(await sessionOrder()).toEqual([two, one])
       }).toPass({ timeout: 10_000 })

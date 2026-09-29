@@ -1,3 +1,4 @@
+import { dragSortable } from '../helpers/ui.ts'
 import type { Page } from '@playwright/test'
 import { expect, test } from '../helpers/fixtures.ts'
 import { getQueue, newProject, type Queue } from '../helpers/queues.ts'
@@ -216,7 +217,7 @@ test.describe('Queue panel (desktop)', () => {
     await addItem(page, 'e2e panel f')
     await expect(panel(page).getByTestId('queue-progress')).toHaveAttribute('aria-label', '3 queued; 3 left')
     // Reorder by drag, then by keyboard: a, f, b → a, b, f → a, f, b.
-    await row(page, 'e2e panel f').getByRole('button', { name: /^Drag to reorder item/ }).dragTo(row(page, 'e2e panel b'), { targetPosition: { x: 20, y: 1 } })
+    await dragSortable(row(page, 'e2e panel f').getByRole('button', { name: /^Drag to reorder item/ }), row(page, 'e2e panel b'), { x: 20, y: 1 })
     await expect.poll(() => order(page)).toEqual(['e2e panel a', 'e2e panel f', 'e2e panel b'])
     await row(page, 'e2e panel f').focus()
     await page.keyboard.press('Alt+ArrowDown')

@@ -4,7 +4,7 @@ import { owner } from '../helpers/db.ts'
 import { forbidInLogs, getUIState, listSessions, MACHINE, mutate, ORIGIN, POLL_INTERVAL_MS, putUIState } from '../helpers/api.ts'
 import { ctl } from '../helpers/ctl.ts'
 import { shq, uniqueName } from '../helpers/target.ts'
-import { UI } from '../helpers/ui.ts'
+import { UI, dragSortable } from '../helpers/ui.ts'
 
 async function account(ui: import('../helpers/ui.ts').UI) {
   const fresh = newAccount('e2e-tree-custom')
@@ -37,8 +37,11 @@ test('(T2) Tree state upgrades from M4', async ({ page, ui, target, request }) =
   // sessions. Otherwise an early one-session snapshot can prune the other key.
   await expect.poll(async () => (await listSessions(request)).map((session) => session.name), { timeout: 3 * POLL_INTERVAL_MS })
     .toEqual(expect.arrayContaining([first, second]))
+  // Leave the app first: its pending tree save is flushed on unload and
+  // would overwrite the seeded legacy state.
+  await page.goto('about:blank')
   await putUIState(page.request, 'tree', { version: 1, projects: [project.id], sessions: { [project.id]: [second, first] } })
-  await page.reload()
+  await page.goto('/')
   const rows = page.getByRole('group', { name: `Sessions in ${projectName}` }).locator('[data-session-row]')
   await expect.poll(async () => (await rows.allTextContents()).map((text) => text.trim())).toEqual([second, first])
   await ui.treeItem(second).focus()
@@ -174,6 +177,7 @@ for (const mode of ['collapse', 'hierarchy'] as const) {
     await ctl.restartApp()
     await expect.poll(async () => (await request.get('/api/health')).status(), { timeout: 20_000 }).toBe(200)
     await page.reload()
+    await ui.showList()
     await expect(ui.treeItem(projectName)).toHaveAttribute('aria-expanded', 'false')
     await expect(ui.treeItem('Other sessions')).toHaveAttribute('aria-expanded', 'false')
   })
@@ -192,8 +196,9 @@ test('Session rows show pane titles without activity ages or attachment dots', a
   await expect(ui.treeItem(plain).locator('[data-session-subtitle]')).toHaveCount(0)
   await expect(page.locator('[data-session-age], [data-session-dot]')).toHaveCount(0)
   await ui.openTerminal(titled)
-  await expect(ui.treeItem(titled)).toHaveClass(/(^|\s)bg-tree-header(?:\s|$)/)
-  await expect(ui.treeItem(plain)).not.toHaveClass(/(^|\s)bg-tree-header(?:\s|$)/)
+  await ui.showList() // the compact tree drawer closes on open
+  await expect(ui.treeItem(titled)).toHaveClass(/(^|\s)bg-selected(?:\s|$)/)
+  await expect(ui.treeItem(plain)).not.toHaveClass(/(^|\s)bg-selected(?:\s|$)/)
 })
 
 test('(T2) Empty Other sessions group stays hidden', async ({ page, ui, target, request }) => {
@@ -297,9 +302,10 @@ test('(T4) Inline rename a session', async ({ page, ui, target }) => {
   input = page.getByRole('textbox', { name: `Rename ${oldName}` })
   await input.fill(nextName)
   await input.press('Enter')
+  // The rename returns focus to the terminal (before reopening a compact tree).
+  await expect(page.locator('[data-focused="true"] .xterm-helper-textarea')).toBeFocused()
   await ui.showList()
   await expect(ui.treeItem(nextName)).toBeVisible()
-  await expect(page.locator('[data-focused="true"] .xterm-helper-textarea')).toBeFocused()
   await expect(ui.treeItem(nextName)).toHaveAttribute('aria-expanded', 'true')
   await expect(ui.treeItem(nextName).locator('[data-tree-key^="window:"]')).toHaveCount(2)
   await expect.poll(async () => (await ui.sessionNames()).indexOf(nextName)).toBe(oldIndex)
@@ -348,11 +354,13 @@ test('(T5) Hide and unhide', async ({ page, ui, target, request }) => {
   await page.getByRole('menuitem', { name: 'Hide', exact: true }).click()
   await ui.waitForSave('tree')
   await page.reload()
+  await ui.showList()
   await expect(page.getByRole('button', { name: 'Show hidden (2)' })).toHaveAttribute('aria-pressed', 'true')
   await expect(page.getByRole('treeitem', { name: `${hiddenSession}, hidden`, exact: true })).toBeVisible()
   await ctl.restartApp()
   await expect.poll(async () => (await request.get('/api/health')).status(), { timeout: 20_000 }).toBe(200)
   await page.reload()
+  await ui.showList()
   await expect(page.getByRole('button', { name: 'Show hidden (2)' })).toHaveAttribute('aria-pressed', 'true')
 
   await page.getByRole('treeitem', { name: `${hiddenSession}, hidden`, exact: true }).getByRole('button', { name: `More actions for ${hiddenSession}` }).click()
@@ -377,8 +385,9 @@ test('(T6) Pin projects and keep section order', async ({ page, ui, target }) =>
     await target.run(`mkdir -p ${shq(entry.path)}`)
     projectIDs.push((await addProject(api, entry.path, entry.name)).id)
   }
+  await page.goto('about:blank') // flush the app's pending tree save before seeding
   await putUIState(api, 'tree', { version: 2, projects: projectIDs, sessions: {}, pinned: [], hidden: { projects: [], sessions: [] }, collapsed: [], expanded: [], showHidden: false })
-  await page.reload()
+  await page.goto('/')
 
   for (const index of [0, 1]) {
     await ui.treeItem(entries[index].name).getByRole('button', { name: `More actions for ${entries[index].name}` }).click()
@@ -398,11 +407,11 @@ test('(T6) Pin projects and keep section order', async ({ page, ui, target }) =>
     .toEqual([entries[2].name, entries[0].name])
   await ui.waitForSave('tree')
   const unpinnedHandle = ui.treeItem(entries[2].name).getByRole('button', { name: `Drag to reorder project ${entries[2].name}` })
-  await unpinnedHandle.dragTo(ui.treeItem(entries[0].name), { targetPosition: { x: 20, y: 1 } })
+  await dragSortable(unpinnedHandle, ui.treeItem(entries[0].name), { x: 20, y: 1 })
   await ui.waitForSave('tree')
   const afterWithinSection = (await getUIState(api, 'tree') as { projects: string[] }).projects
   expect(afterWithinSection.filter((id) => projectIDs.includes(id))).toEqual([projectIDs[1], projectIDs[0], projectIDs[2]])
-  await ui.treeItem(entries[1].name).getByRole('button', { name: `Drag to reorder project ${entries[1].name}` }).dragTo(ui.treeItem(entries[2].name), { targetPosition: { x: 20, y: 1 } })
+  await dragSortable(ui.treeItem(entries[1].name).getByRole('button', { name: `Drag to reorder project ${entries[1].name}` }), ui.treeItem(entries[2].name), { x: 20, y: 1 })
   expect((await getUIState(api, 'tree') as { projects: string[] }).projects).toEqual(afterWithinSection)
 })
 
@@ -421,20 +430,31 @@ test('(T6) Every tree customization survives reload and restart', async ({ page,
   await target.run(`mkdir -p ${shq(projectPath)} ${shq(secondProjectPath)} ${shq(otherPath)}`)
   const projectID = (await addProject(api, projectPath, projectName)).id
   const secondProjectID = (await addProject(api, secondProjectPath, secondProjectName)).id
-  await putUIState(api, 'tree', { version: 2, projects: [projectID, secondProjectID], sessions: {}, pinned: [], hidden: { projects: [], sessions: [] }, collapsed: [], expanded: [], showHidden: false })
   await createSession(target, first, projectPath)
   await createSession(target, second, projectPath)
   await createSession(target, third, projectPath)
   await createSession(target, outsider, otherPath)
   await target.run(`tmux new-window -t ${shq('=' + first)} -n extra && tmux split-window -t ${shq('=' + first + ':1')} -h`)
-  await page.reload()
-  await expect(ui.treeItem(first)).toBeVisible()
+  // Seed a known session order once the inventory has every session (an
+  // earlier snapshot would prune the missing ones), away from the app.
+  await expect.poll(async () => (await listSessions(api)).map((session) => session.name), { timeout: 3 * POLL_INTERVAL_MS })
+    .toEqual(expect.arrayContaining([first, second, third, outsider]))
+  await page.goto('about:blank')
+  await putUIState(api, 'tree', { version: 2, projects: [projectID, secondProjectID], sessions: { [projectID]: [first, second, third] }, pinned: [], hidden: { projects: [], sessions: [] }, collapsed: [], expanded: [], showHidden: false })
+  await page.goto('/')
+  await ui.showList()
+  const projectRows = async () => (await page.getByRole('group', { name: `Sessions in ${projectName}` }).locator('[data-session-row]').allTextContents()).map((text) => text.trim())
+  await expect.poll(projectRows).toEqual([first, second, third])
 
   await ui.treeItem(projectName).focus()
   await page.keyboard.press('Alt+ArrowDown')
+  await expect.poll(async () => (await page.getByRole('group', { name: 'Projects', exact: true }).locator('[data-tree-kind="project"]').evaluateAll((nodes) => nodes.map((node) => node.getAttribute('aria-label'))))
+    .filter((name) => name === projectName || name === secondProjectName)).toEqual([secondProjectName, projectName])
   await ui.treeItem(first).focus()
   await page.keyboard.press('Alt+ArrowDown')
-  await ui.treeItem(third).getByRole('button', { name: `Drag to reorder session ${third}` }).dragTo(ui.treeItem(second), { targetPosition: { x: 20, y: 1 } })
+  await expect.poll(projectRows).toEqual([second, first, third])
+  await dragSortable(ui.treeItem(third).getByRole('button', { name: `Drag to reorder session ${third}` }), ui.treeItem(second), { x: 20, y: 1 })
+  await expect.poll(projectRows).toEqual([third, second, first])
   await ui.treeItem(projectName).getByRole('button', { name: `More actions for ${projectName}` }).click()
   await page.getByRole('menu').getByRole('menuitem', { name: 'Rename', exact: true }).click()
   await expect(ui.treeItem(projectName).getByRole('button', { name: `Rename ${projectName}` })).toHaveCount(0)
@@ -456,7 +476,8 @@ test('(T6) Every tree customization survives reload and restart', async ({ page,
   await page.getByRole('button', { name: 'Show hidden (1)' }).click()
   await ui.treeItem(third).getByRole('button', { name: `More actions for ${third}` }).click()
   await page.getByRole('menuitem', { name: 'Hide', exact: true }).click()
-  await ui.treeItem(third).getByRole('button', { name: `More actions for ${third}` }).click()
+  // Shown dimmed while Show hidden is on.
+  await ui.treeItem(`${third}, hidden`).getByRole('button', { name: `More actions for ${third}` }).click()
   await page.getByRole('menuitem', { name: 'Unhide', exact: true }).click()
   await ui.treeItem(secondProjectName).getByRole('button', { name: `More actions for ${secondProjectName}` }).click()
   await page.getByRole('menuitem', { name: 'Pin', exact: true }).click()
@@ -468,6 +489,7 @@ test('(T6) Every tree customization survives reload and restart', async ({ page,
 
   await ui.waitForSave('tree')
   await page.reload()
+  await ui.showList()
   const persistedTree = await getUIState(api, 'tree') as { sessions: Record<string, string[]> }
   const persistedGroup = Object.keys(persistedTree.sessions).find((key) => persistedTree.sessions[key]?.includes(renamedSession))
   expect(persistedGroup).toBeTruthy()
@@ -484,6 +506,7 @@ test('(T6) Every tree customization survives reload and restart', async ({ page,
   await ctl.restartApp()
   await expect.poll(async () => (await request.get('/api/health')).status(), { timeout: 20_000 }).toBe(200)
   await page.reload()
+  await ui.showList()
   await expect(ui.treeItem(renamedProject)).toBeVisible()
   await expect(ui.treeItem(renamedSession)).toHaveAttribute('aria-expanded', 'true')
   await expect(ui.treeItem('Other sessions')).toHaveAttribute('aria-expanded', 'false')
@@ -514,19 +537,14 @@ test('(T6) Customizations are per account', async ({ page, browser, ui, target }
   await page.getByRole('menuitem', { name: 'Hide', exact: true }).click()
   await ui.waitForSave('tree')
 
-  const context = await browser.newContext()
+  const context = await browser.newContext({ baseURL: new URL(page.url()).origin })
   try {
     const secondPage = await context.newPage()
-    await secondPage.goto(page.url())
     const fresh = newAccount('e2e-tree-custom-account-b')
     forbidInLogs(fresh.email, fresh.password)
     await owner.allow(fresh.email)
     const secondUI = new UI(secondPage)
-    const form = secondUI.authForm()
-    await form.tab('Create account').click()
-    await form.email.fill(fresh.email)
-    await form.password.fill(fresh.password)
-    await form.submit('Create account').click()
+    await secondUI.createAccount(fresh)
     await expect(secondUI.tree()).toBeVisible()
     await expect(secondUI.treeView().getByRole('group', { name: 'Pinned projects', exact: true })).toHaveCount(0)
     await expect(secondPage.getByRole('button', { name: /^Show hidden/ })).toHaveCount(0)
