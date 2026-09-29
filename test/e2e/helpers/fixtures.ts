@@ -3,7 +3,7 @@ import { Target } from './target.ts'
 import { UI } from './ui.ts'
 import { appRestarts } from './ctl.ts'
 import { llmDb, multiDb, notifications, queues } from './db.ts'
-import { LLM_URL, MULTI_URL } from './api.ts'
+import { LLM_URL, MULTI_URL, useOrigin } from './api.ts'
 
 interface Fixtures {
   target: Target
@@ -76,8 +76,8 @@ export const test = base.extend<Fixtures>({
   // the page fixture's per-scenario reset. Playwright's built-in `request`
   // fixture is independent of `page`, so API specs otherwise accumulated
   // queues, projects, and UI state across scenarios.
-  request: async ({ page }, use) => {
-    await use(page.request)
+  request: async ({ page, baseURL }, use) => {
+    await use(useOrigin(page.request, new URL(baseURL!).origin))
   },
 
   // Playwright requires a destructuring pattern even with no dependencies.
