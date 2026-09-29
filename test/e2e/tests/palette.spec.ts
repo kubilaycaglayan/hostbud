@@ -155,13 +155,14 @@ test('(T9) Palette jumps to a session and Escape restores terminal focus', async
   await dialog.getByRole('combobox', { name: 'Command palette' }).fill(names[1].slice(0, 12))
   await page.keyboard.press('Enter')
   await ui.waitForTerminal(names[1])
-  await expect(page.locator('[data-focused="true"] .xterm-helper-textarea')).toBeFocused()
+  const secondInput = ui.pane(names[1]).getByRole('textbox', { name: 'Terminal input' })
+  await expect(secondInput).toBeFocused()
 
   await page.keyboard.press('Control+Shift+K')
   await dialog.getByRole('combobox', { name: 'Command palette' }).fill(names[0].slice(0, 12))
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()
-  await expect(page.locator('[data-focused="true"] .xterm-helper-textarea')).toBeFocused()
+  await expect(secondInput).toBeFocused()
 })
 
 test('(T9) Palette runs theme, tree, session and confirmation actions', async ({ page, ui, target, request }) => {
@@ -227,6 +228,8 @@ test('(T9) Palette Rename expands a collapsed project and starts inline editing'
   const palette = page.getByRole('dialog', { name: 'Command palette' })
   await palette.getByRole('combobox', { name: 'Command palette' }).fill(`Rename ${session}`)
   await page.keyboard.press('Enter')
+  await expect(palette).toBeHidden()
+  await ui.showList()
   const editor = page.getByRole('textbox', { name: `Rename ${session}` })
   await expect(editor).toBeFocused()
   await expect(ui.treeItem(project)).toHaveAttribute('aria-expanded', 'true')
