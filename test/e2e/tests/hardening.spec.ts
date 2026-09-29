@@ -101,18 +101,29 @@ for (const project of ['desktop-chromium', 'iphone-13-pro']) {
       return machines[0]?.status
     }, { timeout: 20_000 }).toBe('ok')
     await expect(hostBanner).toHaveCount(0)
-    await dialog.getByRole('button', { name: 'Create' }).click()
-    await expect(page.getByRole('region', { name: `Terminal: ${name}` })).toBeVisible({ timeout: 10_000 })
+    // A timed-out SSH request may still finish on the host after the browser
+    // receives the timeout. Reuse that session if it appeared instead of
+    // retrying into a duplicate suffixed name.
+    if ((await target.sessions()).includes(name)) {
+      await dialog.getByRole('button', { name: 'Cancel' }).click()
+      await ui.showList()
+      await ui.openTerminal(name)
+    } else {
+      await dialog.getByRole('button', { name: 'Create' }).click()
+      await expect(page.getByRole('region', { name: `Terminal: ${name}` })).toBeVisible({ timeout: 10_000 })
+    }
+    const activeSession = await ui.activeTabName()
 
     await ctl.stallTmux()
     try {
       await page.reload()
-      await expect(page.getByText(/Reconnecting…/)).toBeVisible({ timeout: 15_000 })
+      await expect(page.getByRole('region', { name: `Terminal: ${activeSession}` })).toBeVisible({ timeout: 15_000 })
+      await expect(page.getByText(/Connecting…|Reconnecting…/)).toBeVisible({ timeout: 15_000 })
     } finally {
       await ctl.unstallTmux()
     }
-    await expect.poll(() => target.display(name, '#{session_attached}'), { timeout: 15_000 }).toBe('1')
-    await expect(page.getByText(/Reconnecting…/)).toHaveCount(0)
+    await expect.poll(() => target.display(activeSession, '#{session_attached}'), { timeout: 15_000 }).toBe('1')
+    await expect(page.getByText(/Connecting…|Reconnecting…/)).toHaveCount(0)
   })
 
   test(`(T3) stalled file browser offers Retry on ${project}`, async ({ ui }, info) => {
