@@ -145,6 +145,10 @@ export interface Queue {
   afterRunStatus?: string
   /** Any existing session (tracked or not) the first item waits for to be idle. */
   afterSession?: string
+  /** When the link was set on an existing queue (absent: at creation). */
+  afterLinkedAt?: string
+  /** The session link was released: an item started after the session went idle. */
+  afterReleased?: boolean
   /** Loop settings; absent while they are the default (off, 5 h). */
   loop?: QueueLoop
 }

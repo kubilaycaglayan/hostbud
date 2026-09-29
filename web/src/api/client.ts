@@ -255,6 +255,8 @@ export const queuesApi = {
     request<ParallelQueues>('PUT', `/api/machines/${q(machine)}/parallel-queues`, { parallelQueues }),
   create: (projectId: string, name: string, afterRunId = '', afterSession = '') => request<Queue>('POST', '/api/queues', { projectId, name, afterRunId, afterSession }),
   rename: (id: string, name: string) => request<Queue>('PATCH', `/api/queues/${q(id)}`, { name }),
+  /** "Start after" on an existing queue; both empty clears the link. */
+  setLink: (id: string, afterRunId = '', afterSession = '') => request<Queue>('PUT', `/api/queues/${q(id)}/link`, { afterRunId, afterSession }),
   setLoop: (id: string, enabled: boolean, maxRuntime: string) => request<Queue>('PUT', `/api/queues/${q(id)}/loop`, { enabled, maxRuntime }),
   remove: (id: string) => request<void>('DELETE', `/api/queues/${q(id)}`),
   addItem: (id: string, item: { agent: string; flags: string; instruction: string; executionMode?: 'agent' | 'session'; targetSession?: string; command?: string; verifyCommand?: string; requiresApproval?: boolean }) =>

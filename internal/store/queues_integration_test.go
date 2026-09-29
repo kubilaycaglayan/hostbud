@@ -208,6 +208,33 @@ func TestIntegrationQueueAfterExistingSession(t *testing.T) {
 	if err != nil || plain.AfterSession != nil {
 		t.Fatalf("plain queue = %+v, %v", plain, err)
 	}
+	// "Start after" on the existing queue: the link counts from now and is
+	// released once an item starts after it; it can be cleared again.
+	linked, err := repo.SetQueueLink(ctx, plain.ID, QueueLink{Session: "manual-work"})
+	if err != nil || linked.AfterSession == nil || *linked.AfterSession != "manual-work" || linked.AfterLinkedAt == nil || linked.AfterReleased {
+		t.Fatalf("linked existing queue = %+v, %v", linked, err)
+	}
+	if err := repo.ReleaseQueueLink(ctx, plain.ID); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := repo.Queue(ctx, plain.ID); err != nil || !got.AfterReleased {
+		t.Fatalf("released = %+v, %v", got, err)
+	}
+	for _, link := range []QueueLink{{Session: "bad name;"}, {Session: "x", RunID: "run_x"}} {
+		if _, err := repo.SetQueueLink(ctx, plain.ID, link); err == nil {
+			t.Fatalf("link %+v accepted on an existing queue", link)
+		}
+	}
+	if _, err := repo.SetQueueLink(ctx, plain.ID, QueueLink{RunID: "run_missing"}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("missing run link: %v", err)
+	}
+	cleared, err := repo.SetQueueLink(ctx, plain.ID, QueueLink{})
+	if err != nil || cleared.AfterSession != nil || cleared.AfterRunID != nil || cleared.AfterReleased {
+		t.Fatalf("cleared link = %+v, %v", cleared, err)
+	}
+	if _, err := repo.SetQueueLink(ctx, "queue_missing", QueueLink{}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("missing queue: %v", err)
+	}
 }
 
 func TestIntegrationQueueScheduleAndExecutionModePersist(t *testing.T) {

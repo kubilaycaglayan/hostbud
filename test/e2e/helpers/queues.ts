@@ -72,6 +72,8 @@ export interface Queue {
   afterRunId?: string
   afterRunStatus?: string
   afterSession?: string
+  afterLinkedAt?: string
+  afterReleased?: boolean
   /** Loop settings; absent while they are the default (off, 5 h). */
   loop?: QueueLoop
 }

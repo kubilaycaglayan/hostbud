@@ -121,6 +121,12 @@ type Queue struct {
 	// AfterSession gates this queue until an existing tmux session, tracked
 	// or not, is idle or gone.
 	AfterSession *string `json:"afterSession,omitempty"`
+	// AfterLinkedAt is when the current link was set on an existing queue
+	// (nil: at creation). AfterReleased records that the queue started an
+	// item since its linked session went idle; a session link gates only
+	// the next item started after linking.
+	AfterLinkedAt *time.Time `json:"afterLinkedAt,omitempty"`
+	AfterReleased bool       `json:"afterReleased,omitempty"`
 	// Loop settings: a looping queue requeues all its items when the last
 	// one ends and runs them again, unless LoopMaxRuntime has passed since
 	// LoopStartedAt (checked only between passes). LoopPassStartedAt is when
@@ -131,6 +137,14 @@ type Queue struct {
 	LoopStartedAt         *time.Time `json:"-"`
 	LoopPassStartedAt     *time.Time `json:"-"`
 	LoopCount             int        `json:"-"`
+}
+
+// LinkedAt is when the queue's current link was set.
+func (q Queue) LinkedAt() time.Time {
+	if q.AfterLinkedAt != nil {
+		return *q.AfterLinkedAt
+	}
+	return q.CreatedAt
 }
 
 // LoopMaxRuntime is the loop runtime limit as a duration.
@@ -151,7 +165,7 @@ const MinLoopPassInterval = time.Minute
 
 // QueueLink is what a new queue waits for before its first item: an active
 // tracked run's goal (RunID) or any existing session going idle (Session).
-// Both empty: no dependency.
+// Both empty: no dependency. SetQueueLink sets or clears it later.
 type QueueLink struct {
 	RunID   string
 	Session string
@@ -297,7 +311,7 @@ type RunUpdate struct {
 
 const (
 	queueCols = `id, machine_id, project_id, name, status, created_at, updated_at, waiting_since, after_run_id, started_at, ended_at, scheduled_at, after_session,
-		loop_enabled, loop_max_runtime_seconds, loop_started_at, loop_pass_started_at, loop_count`
+		loop_enabled, loop_max_runtime_seconds, loop_started_at, loop_pass_started_at, loop_count, after_linked_at, after_released`
 	itemCols = `id, queue_id, machine_id, position, agent, flags, instruction, status, created_at, updated_at,
 		verify_command, requires_approval, started_at, ended_at, execution_mode, target_session, command`
 	runCols = `id, item_id, machine_id, session_name, agent_session_id, transcript_path, transcript_offset,
@@ -310,10 +324,14 @@ type scanner interface{ Scan(...any) error }
 
 func scanQueue(row scanner) (Queue, error) {
 	var q Queue
-	var waiting, started, ended, scheduled, loopStarted, passStarted sql.NullTime
+	var waiting, started, ended, scheduled, loopStarted, passStarted, linked sql.NullTime
 	var afterRun, afterSession sql.NullString
 	err := row.Scan(&q.ID, &q.MachineID, &q.ProjectID, &q.Name, &q.Status, &q.CreatedAt, &q.UpdatedAt, &waiting, &afterRun, &started, &ended, &scheduled, &afterSession,
-		&q.LoopEnabled, &q.LoopMaxRuntimeSeconds, &loopStarted, &passStarted, &q.LoopCount)
+		&q.LoopEnabled, &q.LoopMaxRuntimeSeconds, &loopStarted, &passStarted, &q.LoopCount, &linked, &q.AfterReleased)
+	if linked.Valid {
+		t := linked.Time.UTC()
+		q.AfterLinkedAt = &t
+	}
 	if loopStarted.Valid {
 		t := loopStarted.Time.UTC()
 		q.LoopStartedAt = &t
@@ -548,30 +566,13 @@ func (s *Store) CreateQueueLinked(ctx context.Context, projectID, name string, l
 	if err != nil {
 		return Queue{}, err
 	}
-	if link.RunID != "" && link.Session != "" {
-		return Queue{}, errors.New("link the queue to a goal or a session, not both")
-	}
-	var afterSession any
-	if link.Session != "" {
-		if !queueSessionNameRE.MatchString(link.Session) {
-			return Queue{}, errors.New("choose a valid existing session")
-		}
-		afterSession = link.Session
-	}
 	p, err := s.Project(ctx, projectID)
 	if err != nil {
 		return Queue{}, err
 	}
-	var afterRunID any
-	if link.RunID != "" {
-		run, runErr := s.Run(ctx, link.RunID)
-		if runErr != nil {
-			return Queue{}, runErr
-		}
-		if run.MachineID != p.MachineID || (run.Status != RunStarting && run.Status != RunRunning && run.Status != RunStale) {
-			return Queue{}, ErrConflict
-		}
-		afterRunID = run.ID
+	afterRunID, afterSession, err := s.queueLink(ctx, p.MachineID, link)
+	if err != nil {
+		return Queue{}, err
 	}
 	id, err := newQueueRowID("queue")
 	if err != nil {
@@ -583,6 +584,57 @@ func (s *Store) CreateQueueLinked(ctx context.Context, projectID, name string, l
 		VALUES ($1, $2, $3, $4, 'idle', $5, $5, $6, $7) RETURNING `+queueCols,
 		id, p.MachineID, p.ID, name, now, afterRunID, afterSession))
 	return q, duplicateName(err)
+}
+
+// queueLink validates a queue link: at most one of an active tracked run on
+// the machine (its goal) or a valid session name. It returns the column values.
+func (s *Store) queueLink(ctx context.Context, machineID string, link QueueLink) (afterRunID, afterSession any, err error) {
+	if link.RunID != "" && link.Session != "" {
+		return nil, nil, errors.New("link the queue to a goal or a session, not both")
+	}
+	if link.Session != "" {
+		if !queueSessionNameRE.MatchString(link.Session) {
+			return nil, nil, errors.New("choose a valid existing session")
+		}
+		afterSession = link.Session
+	}
+	if link.RunID != "" {
+		run, runErr := s.Run(ctx, link.RunID)
+		if runErr != nil {
+			return nil, nil, runErr
+		}
+		if run.MachineID != machineID || (run.Status != RunStarting && run.Status != RunRunning && run.Status != RunStale) {
+			return nil, nil, ErrConflict
+		}
+		afterRunID = run.ID
+	}
+	return afterRunID, afterSession, nil
+}
+
+// SetQueueLink sets what an existing queue waits for before its next item
+// (both fields empty clears it). The link counts from now: a session link
+// gates the next item started, even if the queue already ran items.
+func (s *Store) SetQueueLink(ctx context.Context, id string, link QueueLink) (Queue, error) {
+	q, err := s.Queue(ctx, id)
+	if err != nil {
+		return Queue{}, err
+	}
+	afterRunID, afterSession, err := s.queueLink(ctx, q.MachineID, link)
+	if err != nil {
+		return Queue{}, err
+	}
+	now := s.now()
+	q, err = scanQueue(s.db.QueryRowContext(ctx, `
+		UPDATE queues SET after_run_id = $2, after_session = $3, after_linked_at = $4, after_released = false, updated_at = $4
+		WHERE id = $1 RETURNING `+queueCols, id, afterRunID, afterSession, now))
+	return q, notFound(err)
+}
+
+// ReleaseQueueLink records that a session-linked queue started an item
+// after its linked session went idle.
+func (s *Store) ReleaseQueueLink(ctx context.Context, id string) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE queues SET after_released = true WHERE id = $1 AND after_session IS NOT NULL`, id)
+	return err
 }
 
 // duplicateName maps the per-project name index to ErrDuplicate.

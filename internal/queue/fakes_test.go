@@ -431,6 +431,50 @@ func (m *memStore) nameTaken(projectID, exceptID, name string) bool {
 	return false
 }
 
+func (m *memStore) SetQueueLink(_ context.Context, id string, link store.QueueLink) (store.Queue, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	q, ok := m.q().queues[id]
+	if !ok {
+		return q, store.ErrNotFound
+	}
+	if link.RunID != "" && link.Session != "" {
+		return q, errors.New("link the queue to a goal or a session, not both")
+	}
+	if link.RunID != "" {
+		r, ok := m.runs[link.RunID]
+		if !ok {
+			return q, store.ErrNotFound
+		}
+		if r.Status != store.RunStarting && r.Status != store.RunRunning && r.Status != store.RunStale {
+			return q, store.ErrConflict
+		}
+	}
+	q.AfterRunID, q.AfterSession, q.AfterReleased = nil, nil, false
+	if link.RunID != "" {
+		q.AfterRunID = &link.RunID
+	}
+	if link.Session != "" {
+		q.AfterSession = &link.Session
+	}
+	if m.now != nil {
+		at := m.now()
+		q.AfterLinkedAt = &at
+	}
+	m.q().queues[id] = q
+	return q, nil
+}
+
+func (m *memStore) ReleaseQueueLink(_ context.Context, id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if q, ok := m.q().queues[id]; ok && q.AfterSession != nil {
+		q.AfterReleased = true
+		m.q().queues[id] = q
+	}
+	return nil
+}
+
 func (m *memStore) RenameQueue(_ context.Context, id, name string) (store.Queue, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

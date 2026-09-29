@@ -427,7 +427,7 @@ func (d *Dispatcher) loopAgain(ctx context.Context, q store.Queue) bool {
 // until its linked goal achieves. Stale is active because it can achieve late.
 func (d *Dispatcher) predecessorReady(ctx context.Context, q store.Queue) bool {
 	if q.AfterSession != nil {
-		return d.sessionIdle(*q.AfterSession, q.CreatedAt) || d.queueBegun(ctx, q.ID)
+		return q.AfterReleased || d.sessionIdle(*q.AfterSession, q.LinkedAt())
 	}
 	if q.AfterRunID == nil {
 		return true
@@ -441,21 +441,6 @@ func (d *Dispatcher) predecessorReady(ctx context.Context, q store.Queue) bool {
 	}
 	if errors.Is(err, store.ErrNotFound) || err == nil {
 		_, _ = d.service.Pause(ctx, q.ID)
-	}
-	return false
-}
-
-// queueBegun reports whether any item left queued: a session link gates
-// only the first item, so later work in that session never stalls the queue.
-func (d *Dispatcher) queueBegun(ctx context.Context, queueID string) bool {
-	items, err := d.store.QueueItems(ctx, queueID)
-	if err != nil {
-		return false
-	}
-	for _, it := range items {
-		if it.Status != store.ItemQueued {
-			return true
-		}
 	}
 	return false
 }
@@ -492,6 +477,7 @@ func (d *Dispatcher) startItem(ctx context.Context, q store.Queue, item store.Qu
 		return true
 	}
 	if item.ExecutionMode == "session" {
+		d.releaseLink(ctx, q)
 		err := d.starter.SendCommand(ctx, item.MachineID, item.TargetSession, item.Command)
 		if err != nil {
 			_, _ = d.store.TransitionQueueItem(ctx, item.ID, []string{store.ItemRunning}, store.ItemNeedsAttention)
@@ -520,6 +506,7 @@ func (d *Dispatcher) startItem(ctx context.Context, q store.Queue, item store.Qu
 		_, _ = d.store.TransitionQueueItem(ctx, item.ID, []string{store.ItemRunning}, store.ItemQueued)
 		return false
 	}
+	d.releaseLink(ctx, q)
 	if d.slots() {
 		_, _ = d.store.SetQueueWaiting(ctx, q.ID, nil) // out of line: it holds a slot now
 	}
@@ -537,6 +524,17 @@ func (d *Dispatcher) startItem(ctx context.Context, q store.Queue, item store.Qu
 	d.armStale(run)
 	d.service.Publish(ctx, "run_started", q.ID)
 	return true
+}
+
+// releaseLink records that a session-linked queue started its next item: the
+// link gates only that item, so later work in the session never stalls it.
+func (d *Dispatcher) releaseLink(ctx context.Context, q store.Queue) {
+	if q.AfterSession == nil || q.AfterReleased {
+		return
+	}
+	if err := d.store.ReleaseQueueLink(ctx, q.ID); err != nil {
+		d.log.Error("queue: release session link", "err", err)
+	}
 }
 
 // ---------------------------------------------------------------- slots (V2-M2)
@@ -1116,7 +1114,7 @@ func (d *Dispatcher) releaseSessionDependents(ctx context.Context) {
 		return
 	}
 	for _, q := range queues {
-		if q.AfterSession == nil || q.Status != store.QueueRunning || !d.sessionIdle(*q.AfterSession, q.CreatedAt) || d.queueBegun(ctx, q.ID) {
+		if q.AfterSession == nil || q.AfterReleased || q.Status != store.QueueRunning || !d.sessionIdle(*q.AfterSession, q.LinkedAt()) {
 			continue
 		}
 		if d.slots() {

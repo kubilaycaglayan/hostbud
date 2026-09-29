@@ -165,6 +165,40 @@ test.describe('Queue panel (desktop)', { tag: '@desktop' }, () => {
     await expect(dialog.getByTestId('queue-dependency')).toContainText('Started after session attach-ui-manual was idle')
   })
 
+  test('Set Start after on an existing queue from the panel', async ({ page, ui, request, target }) => {
+    const project = await newProject(request, target, 'e2e-link-existing-ui')
+    await target.run([
+      'mkdir -p /home/dev/.hostbud-test-bin',
+      'ln -sf /bin/sleep /home/dev/.hostbud-test-bin/cly',
+      `tmux new-session -d -s link-ui-manual -c ${shq(project.path)} /home/dev/.hostbud-test-bin/cly 120`,
+      `tmux new-session -d -s link-ui-sink -c ${shq(project.path)}`,
+    ].join(' && '))
+    const pane = (await target.tmux('list-panes', '-t', '=link-ui-manual:', '-F', '#{pane_id}')).trim().split('\n')[0]
+    await target.tmux('set-option', '-p', '-t', pane, '@hostbud_agent_status', 'working')
+    await ui.open()
+    await page.getByRole('banner').getByRole('button', { name: 'Queue', exact: true }).click()
+    const dialog = panel(page)
+    await dialog.getByLabel('Project').selectOption(project.id)
+    await dialog.getByRole('button', { name: 'Create queue' }).click()
+    await expect(dialog.getByTestId('queue-dependency')).toHaveCount(0)
+    const link = dialog.getByRole('form', { name: 'Start after' })
+    await link.getByLabel('Start next item after').selectOption('session:link-ui-manual')
+    await expect(link).toContainText('The next item to start waits')
+    await link.getByRole('button', { name: 'Save Start after' }).click()
+    await expect(dialog.getByTestId('queue-dependency')).toContainText('Waits for session link-ui-manual to be idle before its next item')
+    const form = dialog.getByRole('form', { name: 'Add item' })
+    await form.getByLabel('Execution').selectOption('session')
+    await form.getByRole('combobox', { name: /^Existing session/ }).selectOption('link-ui-sink')
+    await form.getByRole('textbox', { name: /^Command/ }).fill("echo 'linked queue ran'")
+    await form.getByRole('button', { name: 'Add item' }).click()
+    await dialog.getByRole('button', { name: 'Start' }).click()
+    await expect(dialog.getByTestId('item-status')).toHaveText('Queued')
+    await target.tmux('set-option', '-p', '-t', pane, '@hostbud_agent_status', 'blocked')
+    await expect(dialog.getByTestId('item-status')).toHaveText('Done', { timeout: 15_000 })
+    await expect.poll(async () => target.capture('link-ui-sink')).toContain('linked queue ran')
+    await expect(dialog.getByTestId('queue-dependency')).toContainText('Started after session link-ui-manual was idle')
+  })
+
   test('(V2-M10 T1) Plain Claude prompt waits for manual completion, with its elapsed time and tokens', async ({ page, ui, request, target }) => {
     const project = await newProject(request, target, 'e2e-plain-prompt')
     await stubs.setBehavior('implement the small change', 'achieve:1')

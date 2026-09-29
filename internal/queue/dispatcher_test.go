@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
@@ -533,6 +534,89 @@ func TestQueueDependencyWaitsForExistingSession(t *testing.T) {
 	e.d.enqueue(func(ctx context.Context) { ready <- e.d.predecessorReady(ctx, q) })
 	if !<-ready {
 		t.Fatal("a begun queue is still gated by its linked session")
+	}
+}
+
+// "Start after" on an existing queue: linking a running queue to a session
+// holds its next item until that session is idle, even though earlier items
+// already ran; clearing the link lets a held queue go on at once.
+func TestSetLinkOnExistingQueueGatesNextItem(t *testing.T) {
+	e := newDispEnv(t, "m1", "m2", "m3")
+	e.svc.SetParallelQueues(true)
+	snapshot := func(sessions ...tmux.Session) {
+		e.d.enqueue(func(ctx context.Context) { e.d.sessionsChanged(ctx, inventory.SessionsChanged{Sessions: sessions}) })
+		e.d.Sync()
+	}
+	achieve := func(n int, sid string) {
+		r := e.run(n)
+		e.hook(r, EventSessionStart, sid)
+		e.claude.set(sid, agents.Achieved)
+		e.hook(r, EventTurnEnd, sid)
+	}
+	e.startQueue()
+	snapshot(tmux.Session{Name: "manual-work", Status: tmux.AgentWorking, Agents: []string{"claude"}})
+	view, err := e.svc.SetLink(e.ctx(), e.queue.ID, store.QueueLink{Session: "manual-work"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.AfterSession == nil || *view.AfterSession != "manual-work" || view.AfterReleased {
+		t.Fatalf("link = %v released %t", view.AfterSession, view.AfterReleased)
+	}
+	achieve(1, "s1")
+	if got := e.itemStatuses(); !slices.Equal(got, []string{store.ItemDone, store.ItemQueued, store.ItemQueued}) {
+		t.Fatalf("next item started while the linked session works: %v", got)
+	}
+	snapshot(tmux.Session{Name: "manual-work", Status: tmux.AgentBlocked, Agents: []string{"claude"}})
+	if got := e.itemStatuses(); !slices.Equal(got, []string{store.ItemDone, store.ItemRunning, store.ItemQueued}) {
+		t.Fatalf("after the session went idle: %v", got)
+	}
+	if q := mustQueue(t, e, e.queue.ID); !q.AfterReleased {
+		t.Fatal("the link was not released by the started item")
+	}
+	// Later work in the session doesn't hold the item after.
+	snapshot(tmux.Session{Name: "manual-work", Status: tmux.AgentWorking, Agents: []string{"claude"}})
+	achieve(2, "s2")
+	if got := e.itemStatuses(); !slices.Equal(got, []string{store.ItemDone, store.ItemDone, store.ItemRunning}) {
+		t.Fatalf("a released link still gates: %v", got)
+	}
+}
+
+func TestSetLinkClearsAndValidates(t *testing.T) {
+	e := newDispEnv(t, "m1", "m2")
+	e.svc.SetParallelQueues(true)
+	e.startQueue()
+	if _, err := e.svc.SetLink(e.ctx(), e.queue.ID, store.QueueLink{Session: "busy"}); err != nil {
+		t.Fatal(err)
+	}
+	e.d.enqueue(func(ctx context.Context) {
+		e.d.sessionsChanged(ctx, inventory.SessionsChanged{Sessions: []tmux.Session{{Name: "busy", Status: tmux.AgentWorking, Agents: []string{"claude"}}}})
+	})
+	e.d.Sync()
+	r := e.run(1)
+	e.hook(r, EventSessionStart, "s1")
+	e.claude.set("s1", agents.Achieved)
+	e.hook(r, EventTurnEnd, "s1")
+	if got := e.itemStatuses(); !slices.Equal(got, []string{store.ItemDone, store.ItemQueued}) {
+		t.Fatalf("held item: %v", got)
+	}
+	view, err := e.svc.SetLink(e.ctx(), e.queue.ID, store.QueueLink{})
+	if err != nil || view.AfterSession != nil || view.AfterRunID != nil {
+		t.Fatalf("cleared link = %+v, %v", view.Queue, err)
+	}
+	e.d.Sync()
+	if got := e.itemStatuses(); !slices.Equal(got, []string{store.ItemDone, store.ItemRunning}) {
+		t.Fatalf("after clearing the link: %v", got)
+	}
+	// An ended goal, both links at once and a missing queue are refused.
+	var qe *Error
+	if _, err := e.svc.SetLink(e.ctx(), e.queue.ID, store.QueueLink{RunID: r.ID}); !errors.As(err, &qe) || qe.Status != http.StatusConflict {
+		t.Fatalf("link to an ended goal: %v", err)
+	}
+	if _, err := e.svc.SetLink(e.ctx(), e.queue.ID, store.QueueLink{RunID: "x", Session: "y"}); !errors.As(err, &qe) || qe.Status != http.StatusBadRequest {
+		t.Fatalf("both links: %v", err)
+	}
+	if _, err := e.svc.SetLink(e.ctx(), "queue_missing", store.QueueLink{}); err == nil {
+		t.Fatal("missing queue linked")
 	}
 }
 

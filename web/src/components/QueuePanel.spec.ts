@@ -443,6 +443,31 @@ describe('QueuePanel', () => {
     expect($$('[data-testid="queue-dependency"]')[0].textContent).toContain('Waits for session manual-work to be idle')
   })
 
+  it('sets and clears Start after on an existing queue', async () => {
+    const sessions = useSessionsStore()
+    sessions.byMachine = { host: [{ id: '$1', name: 'manual-work', path: '/home/dev/app', agents: ['claude'], status: 'working', attached: 0, windows: 1, created: '', activity: '' }] }
+    const calls = stubFetch((_method, path, body) => ({ status: 200, body: { ...queue([queued], 'running'), ...((body as { afterSession?: string })?.afterSession ? { afterSession: 'manual-work' } : {}) } }))
+    await mountPanel(queue([queued], 'running'), false, true)
+    const form = $$('form[aria-label="Start after"]')[0]
+    const selector = form.querySelector('select') as HTMLSelectElement
+    expect(selector.value).toBe('')
+    expect(form.querySelector('button[aria-label="Save Start after"]')).toBeNull()
+    selector.value = 'session:manual-work'
+    selector.dispatchEvent(new Event('change'))
+    await flushPromises()
+    expect(form.textContent).toContain('The next item to start waits')
+    ;(form.querySelector('button[aria-label="Save Start after"]') as HTMLButtonElement).click()
+    await flushPromises()
+    expect(calls.at(-1)).toEqual({ method: 'PUT', path: '/api/queues/q1/link', body: { afterRunId: '', afterSession: 'manual-work' } })
+    expect($$('[data-testid="queue-dependency"]')[0].textContent).toContain('Waits for session manual-work to be idle before its next item')
+    selector.value = ''
+    selector.dispatchEvent(new Event('change'))
+    await flushPromises()
+    ;(form.querySelector('button[aria-label="Save Start after"]') as HTMLButtonElement).click()
+    await flushPromises()
+    expect(calls.at(-1)).toEqual({ method: 'PUT', path: '/api/queues/q1/link', body: { afterRunId: '', afterSession: '' } })
+  })
+
   it('with the switch off, shows what exists and explains the switch', async () => {
     await mountPanel([queue([queued], 'idle'), second({ status: 'idle' })], false, false)
     expect($$('nav[aria-label="Queues"] button')).toHaveLength(2)

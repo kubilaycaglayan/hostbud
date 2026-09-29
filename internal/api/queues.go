@@ -18,6 +18,7 @@ type QueueService interface {
 	List(ctx context.Context) ([]queue.View, error)
 	Get(ctx context.Context, id string) (queue.View, error)
 	CreateLinked(ctx context.Context, projectID, name string, link store.QueueLink) (queue.View, error)
+	SetLink(ctx context.Context, id string, link store.QueueLink) (queue.View, error)
 	Rename(ctx context.Context, id, name string) (queue.View, error)
 	SetLoop(ctx context.Context, id string, enabled bool, maxRuntime time.Duration) (queue.View, error)
 	Delete(ctx context.Context, id string) error
@@ -47,6 +48,7 @@ func mountQueueRoutes(s *server, addFunc func(string, http.HandlerFunc)) {
 	addFunc("PATCH /api/queues/{id}", s.renameQueue)
 	addFunc("DELETE /api/queues/{id}", s.deleteQueue)
 	addFunc("PUT /api/queues/{id}/loop", s.putQueueLoop)
+	addFunc("PUT /api/queues/{id}/link", s.putQueueLink)
 	addFunc("POST /api/queues/{id}/items", s.addQueueItem)
 	addFunc("PUT /api/queues/{id}/order", s.reorderQueue)
 	addFunc("PATCH /api/queue-items/{id}", s.updateQueueItem)
@@ -280,6 +282,26 @@ func (s *server) putQueueLoop(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	v, err := s.cfg.Queues.SetLoop(r.Context(), r.PathValue("id"), req.Enabled, limit)
+	if err != nil {
+		s.queueError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, v)
+}
+
+// queueLinkRequest sets what an existing queue waits for before its next
+// item ("Start after"); both empty clears the link.
+type queueLinkRequest struct {
+	AfterRunID   string `json:"afterRunId"`
+	AfterSession string `json:"afterSession"`
+}
+
+func (s *server) putQueueLink(w http.ResponseWriter, r *http.Request) {
+	var req queueLinkRequest
+	if !decode(w, r, &req) {
+		return
+	}
+	v, err := s.cfg.Queues.SetLink(r.Context(), r.PathValue("id"), store.QueueLink{RunID: req.AfterRunID, Session: req.AfterSession})
 	if err != nil {
 		s.queueError(w, err)
 		return

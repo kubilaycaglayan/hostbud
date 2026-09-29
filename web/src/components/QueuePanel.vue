@@ -214,6 +214,20 @@ function createQueue() {
   })
 }
 
+// "Start after" on an existing queue: the same choices as at creation.
+const currentLink = computed(() => queue.value?.afterSession ? `session:${queue.value.afterSession}` : queue.value?.afterRunId ? `run:${queue.value.afterRunId}` : '')
+const linkChoice = ref('')
+watch(currentLink, (link) => { linkChoice.value = link }, { immediate: true })
+const currentLinkListed = computed(() => !currentLink.value
+  || activeGoalRuns.value.some((run) => `run:${run.id}` === currentLink.value)
+  || linkableSessions.value.some((s) => `session:${s.name}` === currentLink.value))
+function saveLink() {
+  const q = queue.value
+  if (!q) return
+  const [kind, target] = linkChoice.value.split(/:(.*)/s)
+  void act("Couldn't change Start after", () => queuesApi.setLink(q.id, kind === 'run' ? target : '', kind === 'session' ? target : ''))
+}
+
 const renaming = ref(false)
 const renameText = ref('')
 function startRename() {
@@ -647,13 +661,13 @@ const badge: Record<QueueItem['status'], string> = {
 
           <template v-if="queue && !addingQueue">
             <p v-if="queue.afterSession" class="mt-2 text-sm text-muted" data-testid="queue-dependency">
-              <template v-if="queue.items.some((it) => it.status !== 'queued')">Started after session <span class="font-mono">{{ queue.afterSession }}</span> was idle.</template>
-              <template v-else>Waits for session <span class="font-mono">{{ queue.afterSession }}</span> to be idle before its first item.</template>
+              <template v-if="queue.afterReleased">Started after session <span class="font-mono">{{ queue.afterSession }}</span> was idle.</template>
+              <template v-else>Waits for session <span class="font-mono">{{ queue.afterSession }}</span> to be idle before its next item.</template>
             </p>
             <p v-if="queue.afterRunId" class="mt-2 text-sm text-muted" data-testid="queue-dependency">
               <template v-if="queue.afterRunStatus === 'achieved'">Started after its linked goal was achieved.</template>
               <template v-else-if="['starting', 'running', 'stale'].includes(queue.afterRunStatus || '')">Waiting for the linked session's goal to be achieved.</template>
-              <template v-else>The linked goal is unavailable or ended without achievement. This queue is paused; create a new queue linked to an active goal.</template>
+              <template v-else>The linked goal is unavailable or ended without achievement. This queue is paused; pick another Start after below, or none, and Resume.</template>
             </p>
             <div class="mt-2 flex flex-wrap items-center gap-2">
               <form v-if="renaming" class="flex min-w-0 flex-wrap items-end gap-2" aria-label="Rename queue" @submit.prevent="saveRename">
@@ -685,6 +699,24 @@ const badge: Record<QueueItem['status'], string> = {
             <p v-if="runBlockedBy && (controls?.start || controls?.resume)" data-testid="queue-run-blocked" class="mt-1 text-sm text-muted">
               Can't run yet: queue {{ runBlockedBy.name }} is running and Run queues in parallel is off.
             </p>
+            <form v-if="currentLink || activeGoalRuns.length || linkableSessions.length" aria-label="Start after" data-testid="queue-link" class="mt-2 flex flex-wrap items-end gap-2 text-sm" @submit.prevent="saveLink">
+              <label class="block min-w-0 flex-1">Start next item after
+                <select v-model="linkChoice" autocomplete="off" class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 text-base">
+                  <option value="">Nothing, go on normally</option>
+                  <option v-if="!currentLinkListed" :value="currentLink">{{ queue.afterSession ?? 'Linked goal' }} (current)</option>
+                  <optgroup v-if="activeGoalRuns.length" label="Active goal is achieved">
+                    <option v-for="run in activeGoalRuns" :key="run.id" :value="`run:${run.id}`">{{ run.session }} · {{ run.goal }} ({{ run.queue }})</option>
+                  </optgroup>
+                  <optgroup v-if="linkableSessions.length" label="Existing session is idle">
+                    <option v-for="s in linkableSessions" :key="s.name" :value="`session:${s.name}`">{{ s.name }} · {{ s.path }}</option>
+                  </optgroup>
+                </select>
+              </label>
+              <button v-if="linkChoice !== currentLink" type="submit" :disabled="busy" aria-label="Save Start after" title="Save Start after" class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border"><Save :size="18" aria-hidden="true" /></button>
+              <p v-if="linkChoice.startsWith('session:') && linkChoice !== currentLink" class="basis-full text-muted">
+                The next item to start waits until that session's agent finishes its turn or exits, or the session closes; items already running go on.
+              </p>
+            </form>
             <form aria-label="Loop queue" data-testid="queue-loop" class="mt-2 flex flex-wrap items-end gap-2 text-sm" @submit.prevent="saveLoop(!!loop?.enabled)">
               <label class="flex min-h-11 items-center gap-2">
                 <input type="checkbox" autocomplete="off" :checked="!!loop?.enabled" :disabled="busy" aria-label="Loop the queue" class="h-5 w-5" @change="toggleLoop">

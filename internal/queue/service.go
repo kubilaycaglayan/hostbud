@@ -53,6 +53,8 @@ type Store interface {
 	Queue(ctx context.Context, id string) (store.Queue, error)
 	CreateQueueLinked(ctx context.Context, projectID, name string, link store.QueueLink) (store.Queue, error)
 	RenameQueue(ctx context.Context, id, name string) (store.Queue, error)
+	SetQueueLink(ctx context.Context, id string, link store.QueueLink) (store.Queue, error)
+	ReleaseQueueLink(ctx context.Context, id string) error
 	DeleteQueue(ctx context.Context, id string) error
 	TransitionQueue(ctx context.Context, id string, from []string, to string) (store.Queue, error)
 	SetQueueSchedule(ctx context.Context, id string, due *time.Time, allowed ...string) (store.Queue, error)
@@ -702,6 +704,31 @@ func (s *Service) Rename(ctx context.Context, id, name string) (View, error) {
 		return View{}, invalid(err.Error(), "")
 	}
 	return s.changed(ctx, "renamed", id)
+}
+
+// SetLink sets or clears what an existing queue waits for before its next
+// item ("Start after"): an active tracked goal or any existing session going
+// idle. It may change in any state; a queue paused because its linked goal
+// ended can be linked again and resumed.
+func (s *Service) SetLink(ctx context.Context, id string, link store.QueueLink) (View, error) {
+	if _, err := s.queue(ctx, id); err != nil {
+		return View{}, err
+	}
+	_, err := s.store.SetQueueLink(ctx, id, link)
+	switch {
+	case errors.Is(err, store.ErrConflict):
+		return View{}, conflict("that goal is no longer active", "Pick an active goal or an existing session.")
+	case errors.Is(err, store.ErrNotFound) && link.RunID != "":
+		return View{}, invalid("that goal's run was not found", hintReload)
+	case err != nil && !store.IsUnavailable(err) && !errors.Is(err, store.ErrNotFound):
+		return View{}, invalid(err.Error(), "")
+	case err != nil:
+		return View{}, err
+	}
+	if s.dispatch != nil {
+		s.dispatch.Kick(id)
+	}
+	return s.changed(ctx, "link_changed", id)
 }
 
 // SetLoop turns looping on or off and sets the runtime limit. It applies at

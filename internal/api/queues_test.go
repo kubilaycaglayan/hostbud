@@ -51,6 +51,10 @@ func (f *fakeQueues) CreateLinked(_ context.Context, projectID, name string, lin
 	f.rec(msg)
 	return queue.View{Queue: store.Queue{ID: "queue_a", ProjectID: projectID, Name: name}}, f.err
 }
+func (f *fakeQueues) SetLink(_ context.Context, id string, link store.QueueLink) (queue.View, error) {
+	f.rec("link " + id + " run=" + link.RunID + " session=" + link.Session)
+	return queue.View{Queue: store.Queue{ID: id}}, f.err
+}
 func (f *fakeQueues) Rename(_ context.Context, id, name string) (queue.View, error) {
 	f.rec("rename " + id + " " + name)
 	return queue.View{}, f.err
@@ -187,6 +191,9 @@ func TestQueueRoutesCallTheService(t *testing.T) {
 		{"PUT", "/api/queues/queue_a/loop", `{"enabled":true,"maxRuntime":"5h30m"}`, 200, "loop queue_a true 5h30m0s"},
 		{"PUT", "/api/queues/queue_a/loop", `{"enabled":true}`, 200, "loop queue_a true 5h0m0s"},
 		{"PUT", "/api/queues/queue_a/loop", `{"enabled":false}`, 200, "loop queue_a false 5h0m0s"},
+		{"PUT", "/api/queues/queue_a/link", `{"afterSession":"manual-work"}`, 200, "link queue_a run= session=manual-work"},
+		{"PUT", "/api/queues/queue_a/link", `{"afterRunId":"run_a"}`, 200, "link queue_a run=run_a session="},
+		{"PUT", "/api/queues/queue_a/link", `{}`, 200, "link queue_a run= session="},
 		{"POST", "/api/queues/queue_a/start", "", 200, "start queue_a"},
 		{"POST", "/api/queues/queue_a/start", `{"delay":"4h14m"}`, 200, "start queue_a"},
 		{"POST", "/api/queues/queue_a/pause", "", 200, "pause queue_a"},
