@@ -176,6 +176,7 @@ test('(T3) Long-press row menu', async ({ page, target, ui }) => {
   const session = uniqueName('e2e-longpress')
   await target.tmux('new-session', '-d', '-s', session, '-c', '/home/dev')
   await ui.open()
+  await ui.showList()
   const row = page.getByRole('button', { name: session, exact: true })
   await row.dispatchEvent('pointerdown', { pointerType: 'touch', pointerId: 1, clientX: 80, clientY: 180, bubbles: true })
   await page.waitForTimeout(550)

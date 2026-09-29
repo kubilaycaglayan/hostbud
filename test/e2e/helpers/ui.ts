@@ -36,6 +36,7 @@ export class UI {
   }
 
   async toggle(name: string): Promise<void> {
+    await this.showList()
     const item = this.treeItem(name)
     const expanded = await item.getAttribute('aria-expanded') === 'true'
     await item.getByRole('button', { name: (expanded ? 'Collapse ' : 'Expand ') + name }).click()

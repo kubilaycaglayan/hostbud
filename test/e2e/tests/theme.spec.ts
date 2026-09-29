@@ -86,6 +86,7 @@ test('(T15) Selected session and active tab stand out across themes', async ({ p
   await target.tmux('new-session', '-d', '-s', second, '-c', '/home/dev')
   await page.reload()
   await ui.openTerminal(first)
+  await ui.showList()
   const row = ui.treeItem(second)
   const box = await row.boundingBox()
   expect(box).not.toBeNull()
