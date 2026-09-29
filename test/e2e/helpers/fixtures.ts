@@ -72,6 +72,14 @@ const RESTART_NOISE =
 export const test = base.extend<Fixtures>({
   allowedBrowserErrors: [undefined, { option: true }],
 
+  // Share the page context's API client so request-only scenarios still run
+  // the page fixture's per-scenario reset. Playwright's built-in `request`
+  // fixture is independent of `page`, so API specs otherwise accumulated
+  // queues, projects, and UI state across scenarios.
+  request: async ({ page }, use) => {
+    await use(page.request)
+  },
+
   // Playwright requires a destructuring pattern even with no dependencies.
   // eslint-disable-next-line no-empty-pattern
   target: async ({}, use) => {
