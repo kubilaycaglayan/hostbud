@@ -523,7 +523,7 @@ func TestQueueLinkedSessionMissingFromOlderSnapshotWaits(t *testing.T) {
 
 func TestExistingSessionIdle(t *testing.T) {
 	d := &Dispatcher{}
-	if d.sessionIdle("x") {
+	if d.sessionIdle("x", time.Time{}) {
 		t.Fatal("idle before any snapshot")
 	}
 	d.sessions = map[string]tmux.Session{
@@ -533,10 +533,14 @@ func TestExistingSessionIdle(t *testing.T) {
 		"ended":   {Name: "ended", Status: tmux.AgentEnded},
 		"agent":   {Name: "agent", Agents: []string{"claude"}},
 	}
+	d.sessionsAt = time.Date(2026, 9, 27, 12, 0, 0, 0, time.UTC)
 	for name, want := range map[string]bool{"shell": true, "working": false, "blocked": true, "ended": true, "agent": false, "gone": true} {
-		if got := d.sessionIdle(name); got != want {
+		if got := d.sessionIdle(name, d.sessionsAt.Add(-time.Second)); got != want {
 			t.Errorf("sessionIdle(%s) = %v, want %v", name, got, want)
 		}
+	}
+	if d.sessionIdle("gone", d.sessionsAt) {
+		t.Error("a session missing from a snapshot not newer than the link counts as gone")
 	}
 }
 

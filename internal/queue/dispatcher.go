@@ -92,8 +92,10 @@ type Dispatcher struct {
 	waiting   map[string]bool    // queues last published as waiting for a slot
 	scheduled map[string]Timer   // durable delayed queue starts, re-armed on restart
 	// sessions is the latest inventory snapshot by name (nil until the first
-	// one): queues linked to an existing session start from it.
-	sessions map[string]tmux.Session
+	// one): queues linked to an existing session start from it. sessionsAt
+	// is when it arrived.
+	sessions   map[string]tmux.Session
+	sessionsAt time.Time
 
 	dispatching, again bool // dispatch is running / was asked for again meanwhile
 
@@ -376,7 +378,7 @@ func (d *Dispatcher) advance(ctx context.Context, queueID, source string) {
 // until its linked goal achieves. Stale is active because it can achieve late.
 func (d *Dispatcher) predecessorReady(ctx context.Context, q store.Queue) bool {
 	if q.AfterSession != nil {
-		return d.sessionIdle(*q.AfterSession) || d.queueBegun(ctx, q.ID)
+		return d.sessionIdle(*q.AfterSession, q.CreatedAt) || d.queueBegun(ctx, q.ID)
 	}
 	if q.AfterRunID == nil {
 		return true
@@ -414,13 +416,15 @@ func (d *Dispatcher) queueBegun(ctx context.Context, queueID string) bool {
 // or it shows neither an agent process nor an active hook status. An agent
 // process without hook status can't be read, so it counts as busy until it
 // exits. Before the first inventory snapshot nothing is known: not idle.
-func (d *Dispatcher) sessionIdle(name string) bool {
+// A session missing from a snapshot older than the link (linkedAt) may just
+// not be listed yet, so only a newer snapshot shows it gone.
+func (d *Dispatcher) sessionIdle(name string, linkedAt time.Time) bool {
 	if d.sessions == nil {
 		return false
 	}
 	s, ok := d.sessions[name]
 	if !ok {
-		return true
+		return d.sessionsAt.After(linkedAt)
 	}
 	switch s.Status {
 	case tmux.AgentWorking:
@@ -843,6 +847,7 @@ func (d *Dispatcher) ended(ctx context.Context, rc runCtx, source, detail string
 func (d *Dispatcher) sessionsChanged(ctx context.Context, payload inventory.SessionsChanged) {
 	names := map[string]bool{}
 	d.sessions = make(map[string]tmux.Session, len(payload.Sessions))
+	d.sessionsAt = d.clock.Now()
 	for _, s := range payload.Sessions {
 		names[s.Name] = true
 		d.sessions[s.Name] = s
@@ -1031,7 +1036,7 @@ func (d *Dispatcher) releaseSessionDependents(ctx context.Context) {
 		return
 	}
 	for _, q := range queues {
-		if q.AfterSession == nil || q.Status != store.QueueRunning || !d.sessionIdle(*q.AfterSession) || d.queueBegun(ctx, q.ID) {
+		if q.AfterSession == nil || q.Status != store.QueueRunning || !d.sessionIdle(*q.AfterSession, q.CreatedAt) || d.queueBegun(ctx, q.ID) {
 			continue
 		}
 		if d.slots() {
