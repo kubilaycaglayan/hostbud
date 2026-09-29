@@ -99,6 +99,12 @@ const historyGroups = computed(() => {
   }
   return [...groups.values()]
 })
+const expandedHistory = ref(new Set<string>())
+function toggleHistoryGroup(id: string) {
+  const next = new Set(expandedHistory.value)
+  if (!next.delete(id)) next.add(id)
+  expandedHistory.value = next
+}
 const historyOffset = ref(0)
 const historyHasMore = ref(false)
 const historyLoading = ref(false)
@@ -121,6 +127,7 @@ async function loadHistory(reset = false) {
 }
 function showHistory() {
   historyOpen.value = true
+  expandedHistory.value = new Set()
   void loadHistory(true)
 }
 function actionLabel(action: QueueItemHistory['action']) {
@@ -428,8 +435,20 @@ const badge: Record<QueueItem['status'], string> = {
             <p v-if="!history.length && !historyLoading && !historyError" class="mt-4 text-muted">No queue history yet.</p>
             <ol class="mt-3 space-y-4">
               <li v-for="group in historyGroups" :key="group.id" class="min-w-0">
-                <h3 class="font-bold">{{ group.name }} <span class="font-normal text-muted">· {{ group.project }}</span></h3>
-                <ol class="mt-2 space-y-2">
+                <h3>
+                  <button
+                    type="button"
+                    class="touch-target flex min-h-11 w-full min-w-0 items-center gap-2 rounded border border-border px-3 text-left"
+                    :aria-expanded="expandedHistory.has(group.id)"
+                    :aria-controls="`queue-history-${group.id}`"
+                    @click="toggleHistoryGroup(group.id)"
+                  >
+                    <span aria-hidden="true" class="text-muted">{{ expandedHistory.has(group.id) ? '▾' : '▸' }}</span>
+                    <span class="min-w-0 flex-1 break-words font-bold">{{ group.name }} <span class="font-normal text-muted">· {{ group.project }}</span></span>
+                    <span class="shrink-0 text-xs text-muted">{{ group.entries.length }} {{ group.entries.length === 1 ? 'entry' : 'entries' }}</span>
+                  </button>
+                </h3>
+                <ol v-if="expandedHistory.has(group.id)" :id="`queue-history-${group.id}`" class="mt-2 space-y-2">
                   <li v-for="entry in group.entries" :key="entry.id" class="min-w-0 rounded border border-border p-3" :data-history-id="entry.id">
                     <div class="flex flex-wrap items-center justify-between gap-2">
                       <p class="font-semibold">Item {{ entry.position }} — {{ actionLabel(entry.action) }}: {{ entry.status.replace('_', ' ') }}</p>

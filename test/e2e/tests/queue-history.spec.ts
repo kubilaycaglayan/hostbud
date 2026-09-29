@@ -3,7 +3,7 @@ import { mutate } from '../helpers/api.ts'
 import { queues as dbQueues } from '../helpers/db.ts'
 import { addItem, createQueue, newProject } from '../helpers/queues.ts'
 
-test('(V2-M9 T2/T3) queue history survives deletion and is visible in the History view', async ({ request, target, page, ui }) => {
+test('(V2-M9 T2/T3) queue history survives deletion and is listed by queue name in the History view and expands to its items', async ({ request, target, page, ui }) => {
   const marker = `e2e history ${Date.now()}`
   const project = await newProject(request, target, 'e2e-history')
   const queue = await createQueue(request, project.id, `History ${Date.now()}`)
@@ -24,6 +24,11 @@ test('(V2-M9 T2/T3) queue history survives deletion and is visible in the Histor
   const panel = page.getByRole('dialog', { name: 'Queue' })
   await panel.getByRole('button', { name: 'History' }).click()
   const view = panel.getByTestId('queue-history')
+  const queueToggle = view.getByRole('button', { name: new RegExp(queue.name) })
+  await expect(queueToggle).toHaveAttribute('aria-expanded', 'false')
+  await expect(view.getByText(`/goal ${marker}`)).toHaveCount(0)
+  await queueToggle.click()
+  await expect(queueToggle).toHaveAttribute('aria-expanded', 'true')
   await expect(view.getByText(`/goal ${marker}`)).toBeVisible()
   await expect(view.getByText(/needs attention/).first()).toBeVisible()
   await expect(view.getByText(detail)).toBeVisible()
