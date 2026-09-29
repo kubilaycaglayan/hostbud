@@ -2,7 +2,7 @@ import { expect, test } from '../helpers/fixtures.ts'
 import { forbidInLogs, mutate } from '../helpers/api.ts'
 import { ctl } from '../helpers/ctl.ts'
 import { queues } from '../helpers/db.ts'
-import { addItem, control, createQueue, gateAction, getQueue, itemOf, newProject, override, type QueueItem } from '../helpers/queues.ts'
+import { addItem, control, createQueue, gateAction, getQueue, itemOf, waitItem, newProject, override, type QueueItem } from '../helpers/queues.ts'
 import { Stubs, type StubBehavior } from '../helpers/stubs.ts'
 import { shq, type Target } from '../helpers/target.ts'
 
@@ -16,11 +16,6 @@ test.beforeEach(async ({ target }) => {
   await target.resetTmux()
   await stubs.reset()
 })
-
-async function waitItem(request: Parameters<typeof itemOf>[0], queueId: string, itemId: string, status: QueueItem['status'], timeout = 30_000) {
-  await expect.poll(async () => (await itemOf(request, queueId, itemId)).status, { timeout }).toBe(status)
-  return await itemOf(request, queueId, itemId)
-}
 
 type APIRequest = Parameters<typeof itemOf>[0]
 type Gated = { condition: string; behavior?: StubBehavior; verifyCommand?: string; requiresApproval?: boolean }

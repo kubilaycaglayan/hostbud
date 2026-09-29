@@ -177,7 +177,7 @@ export const multiDb = {
        WHERE id = $1 AND status IN ('starting', 'running')`,
       [runId],
     ),
-  /** Sets the host's run cap (machine_capacity); null means no cap. */
+  /** Sets the host's run cap (machine_capacity); null means the default cap. */
   setCapacity: (maxConcurrentRuns: number | null) =>
     multiSql(
       `INSERT INTO machine_capacity (machine_id, max_concurrent_runs, updated_at) VALUES ('host', $1, now())

@@ -32,10 +32,11 @@ test('(V2-M1 T8) Queue API: build, reorder, edit, delete, start and pause', asyn
   for (const condition of conditions) items.push(await addItem(request, queue.id, { instruction: `/goal ${condition}`, flags: `--model 'opus 4'` }))
   expect(items.map((i) => i.position)).toEqual([1, 2, 3])
 
-  // Validation: the instruction needs /goal, the agent must be known, and
-  // flags must split.
+  // Validation: the instruction is one non-empty line, the agent must be
+  // known, and flags must split.
   for (const bad of [
-    { agent: 'claude', flags: '', instruction: 'work on M2' },
+    { agent: 'claude', flags: '', instruction: 'work on M2\nnext' },
+    { agent: 'claude', flags: '', instruction: '  ' },
     { agent: 'gemini', flags: '', instruction: '/goal x' },
     { agent: 'claude', flags: `--model 'x`, instruction: '/goal x' },
   ]) {

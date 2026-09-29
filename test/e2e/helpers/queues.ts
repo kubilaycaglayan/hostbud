@@ -131,3 +131,17 @@ export async function itemOf(request: APIRequestContext, queueId: string, itemId
   if (!item) throw new Error(`item ${itemId} not in queue ${queueId}`)
   return item
 }
+
+/**
+ * Polls until an item has the status. An agent item turns running before
+ * its run's session is created, so for 'running' this also waits for the
+ * session name.
+ */
+export async function waitItem(request: APIRequestContext, queueId: string, itemId: string, status: QueueItem['status'], timeout = 30_000): Promise<QueueItem> {
+  await expect.poll(async () => {
+    const item = await itemOf(request, queueId, itemId)
+    if (status === 'running' && item.executionMode !== 'session' && !item.run?.sessionName) return `${item.status} (no session yet)`
+    return item.status
+  }, { timeout }).toBe(status)
+  return await itemOf(request, queueId, itemId)
+}

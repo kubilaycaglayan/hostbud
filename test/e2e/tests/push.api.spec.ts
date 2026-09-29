@@ -68,7 +68,7 @@ test.describe('Web Push (API)', () => {
     await putNotificationSettings(request, { enabled: true })
     const marker = `lockmark${Date.now()}`
     forbidInLogs(marker)
-    const { project, queue } = await runItem(request, target, `${marker} instruction`, 'fail', { flags: `--append-system-prompt ${marker}-flag`, prefix: `e2e-push-${marker}` })
+    const { project, queue } = await runItem(request, target, `${marker} instruction`, 'fail', { flags: `--append-system-prompt ${marker}-flag`, prefix: 'e2e-push-lock' })
     const run = queue.items[0].run!
     await waitFor(d, 1)
     const [payload] = await received(d)
@@ -147,14 +147,20 @@ test.describe('Web Push (API)', () => {
     const left = (await notifications.subscriptions()).map((s) => s.endpoint)
     expect(left).not.toContain(missing.endpoint)
     expect(left).toContain(ok.endpoint)
-    expect((await pushfake.posts(gone.path)).length).toBe(1)
-    expect((await pushfake.posts(missing.path)).length).toBe(1)
+    // Deliveries run a few at a time, so the run's second event may already
+    // be in flight to a device when its first 404/410 lands: at most one
+    // post per event, never a retry.
+    for (const d of [gone, missing]) expect((await pushfake.posts(d.path)).length).toBeLessThanOrEqual(2)
 
     // The next event doesn't reach them.
-    await runItem(request, target, 'e2e push expired again', 'achieve:1')
+    const { queue: again } = await runItem(request, target, 'e2e push expired again', 'achieve:1')
     await waitFor(ok, 4)
-    expect((await pushfake.posts(gone.path)).length).toBe(1)
-    expect((await pushfake.posts(missing.path)).length).toBe(1)
+    for (const d of [gone, missing]) {
+      const keys = (await received(d)).map((p) => p.key)
+      expect(keys.length).toBeLessThanOrEqual(2)
+      expect(keys.join(' ')).not.toContain(again.id)
+      expect(keys.join(' ')).not.toContain(again.items[0].run!.id)
+    }
   })
 
   test('(V2-M3 T3) No duplicates', async ({ request, target }) => {

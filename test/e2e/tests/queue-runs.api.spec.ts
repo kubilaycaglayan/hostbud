@@ -1,6 +1,6 @@
 import { expect, test } from '../helpers/fixtures.ts'
 import { ctl } from '../helpers/ctl.ts'
-import { addItem, control, createQueue, getQueue, itemOf, newProject, override, type Queue, type QueueItem } from '../helpers/queues.ts'
+import { addItem, control, createQueue, getQueue, itemOf, waitItem, newProject, override, type Queue, type QueueItem } from '../helpers/queues.ts'
 import { Stubs, type StubBehavior } from '../helpers/stubs.ts'
 import { shq, type Target } from '../helpers/target.ts'
 
@@ -34,15 +34,10 @@ function statuses(q: Queue) {
   return q.items.map((i) => i.status)
 }
 
-async function waitItem(request: Parameters<typeof getQueue>[0], queueId: string, itemId: string, status: QueueItem['status'], timeout = 30_000) {
-  await expect.poll(async () => (await itemOf(request, queueId, itemId)).status, { timeout }).toBe(status)
-  return await itemOf(request, queueId, itemId)
-}
-
 /** The Claude transcript of a stub run holds its top-level achieved record. */
 async function achievedRecordWritten(target: Target, cwd: string, session: string): Promise<boolean> {
   const dir = `/home/dev/.claude/projects/${cwd.replace(/[^A-Za-z0-9]/g, '-')}`
-  const r = await target.exec(`grep -c '"type":"attachment","attachment":{"type":"goal_status","met":true' ${shq(`${dir}/${session}.jsonl`)}`)
+  const r = await target.exec(`grep -cE '^[{]"type":"attachment","attachment":[{]"type":"goal_status",[^}]*"met":true' ${shq(`${dir}/${session}.jsonl`)}`)
   return r.code === 0 && Number(r.stdout.trim()) >= 1
 }
 
