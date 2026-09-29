@@ -73,8 +73,7 @@ test('network cut: the terminal re-attaches on its own, same session, one client
 
 // App restart re-attach (T3); M1 T17 *Terminal after restart* did this by
 // clicking Reconnect.
-test('app restart: the terminal re-attaches by itself and input works', async ({ ui, target, isMobile }) => {
-  test.skip(isMobile, 'desktop scenario')
+test('app restart: the terminal re-attaches by itself and input works', { tag: '@desktop' }, async ({ ui, target }) => {
   test.setTimeout(120_000)
   const name = await openShell(ui, target, 'e2e-rst')
 
@@ -85,8 +84,7 @@ test('app restart: the terminal re-attaches by itself and input works', async ({
 })
 
 // Detach doesn't loop (T3)
-test('detach: the banner shows and nothing re-attaches until Reconnect', async ({ ui, target, isMobile }) => {
-  test.skip(isMobile, 'desktop scenario')
+test('detach: the banner shows and nothing re-attaches until Reconnect', { tag: '@desktop' }, async ({ ui, target }) => {
   const name = await openShell(ui, target, 'e2e-det')
 
   await target.tmux('detach-client', '-s', `=${name}`)
@@ -101,8 +99,7 @@ test('detach: the banner shows and nothing re-attaches until Reconnect', async (
 })
 
 // Slow browser recovery through the real proxy (M7 T4).
-test('(T4) stalled browser recovers and the event list resyncs', async ({ ui, target, isMobile }) => {
-  test.skip(isMobile, 'desktop scenario')
+test('(T4) stalled browser recovers and the event list resyncs', { tag: '@desktop' }, async ({ ui, target }) => {
   test.setTimeout(90_000)
   const name = await openShell(ui, target, 'e2e-caddy-stall')
   const oldClient = await target.display(name, '#{client_pid}')

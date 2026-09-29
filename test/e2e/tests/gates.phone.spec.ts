@@ -21,8 +21,7 @@ test.describe('Completion gates on iPhone 13 Pro', () => {
   const panel = (page: Page) => page.getByRole('dialog', { name: 'Queue' })
   const row = (page: Page, condition: string) => panel(page).getByRole('listitem', { name: new RegExp(`: /goal ${condition}$`) })
 
-  test('(V2-M4 T5) Gates panel', async ({ page, ui, request, target }) => {
-    test.skip(test.info().project.name.endsWith('-domain'), 'uses the loopback access path for setup')
+  test('(V2-M4 T5) Gates panel', { tag: '@loopback' }, async ({ page, ui, request, target }) => {
     const project = await newProject(request, target, 'e2e-phone-gates')
     await stubs.setBehavior('e2e phone gates first', 'achieve:1', 0.5)
     await stubs.setBehavior('e2e phone gates second', 'achieve:1', 0.5)

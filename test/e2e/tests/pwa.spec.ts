@@ -7,8 +7,7 @@ test.use({
 })
 test.afterEach(async () => { await ctl.appStart() })
 
-test('(T7) Manifest and icons load through Caddy with no external requests', async ({ page }, info) => {
-  test.skip(info.project.name !== 'desktop-chromium')
+test('(T7) Manifest and icons load through Caddy with no external requests', async ({ page }) => {
   const requests: string[] = []
   page.on('request', (request) => requests.push(request.url()))
   await page.goto('/')

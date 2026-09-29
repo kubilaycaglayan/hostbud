@@ -56,9 +56,8 @@ test('full-screen apps: vim writes a file, htop renders and quits', async ({ ui,
 
 // htop mouse (T18: automates the "mouse clicks work if tmux mouse is on"
 // check). mouse is set on this throwaway session only.
-test('htop takes mouse clicks when tmux mouse is on', async ({ ui, target, isMobile }) => {
+test('htop takes mouse clicks when tmux mouse is on', { tag: '@desktop' }, async ({ ui, target }) => {
   // Taps on a phone aren't mouse clicks, and htop's key bar needs ~80 columns.
-  test.skip(isMobile, 'desktop mouse only')
   const name = uniqueName('e2e-mouse')
   await target.tmux('new-session', '-d', '-s', name, 'htop')
   await target.tmux('set-option', '-t', `=${name}:`, 'mouse', 'on')

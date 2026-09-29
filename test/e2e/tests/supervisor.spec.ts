@@ -7,8 +7,8 @@ import { Stubs } from '../helpers/stubs.ts'
 test.use({ baseURL: LLM_URL, storageState: LLM_STORAGE_STATE })
 const stubs = new Stubs()
 
-test.describe('V2-M5 supervisor panel (desktop)', () => {
-  test.skip(({ isMobile }) => isMobile, 'the phone variant is supervisor.phone.spec.ts')
+test.describe('V2-M5 supervisor panel (desktop)', { tag: '@desktop' }, () => {
+  // The phone variant is supervisor.phone.spec.ts.
   test.describe.configure({ timeout: 90_000 })
   test.beforeEach(async ({ target, request }) => {
     await target.resetTmux()

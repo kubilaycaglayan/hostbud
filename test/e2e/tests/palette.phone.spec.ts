@@ -34,8 +34,7 @@ test.describe('command palette on iPhone 13 Pro', () => {
     await expect(page.getByRole('region', { name: `Terminal: ${names[1]}` })).toBeVisible()
   })
 
-  test('(T9) Palette Rename reveals a session in a collapsed project', async ({ page, ui, target, request }) => {
-    test.skip(test.info().project.name.endsWith('-domain'), 'T9 phone palette scenarios use the loopback access path')
+  test('(T9) Palette Rename reveals a session in a collapsed project', { tag: '@loopback' }, async ({ page, ui, target, request }) => {
     await createAccount(ui)
     const path = `/home/dev/${uniqueName('phone-palette-path')}`
     const project = uniqueName('phone-palette-project')

@@ -36,9 +36,9 @@ async function addGatedItem(page: Page, condition: string, gates: { verify?: str
   await expect(row(page, condition)).toBeVisible()
 }
 
-test.describe('Completion gates (desktop)', () => {
+test.describe('Completion gates (desktop)', { tag: '@desktop' }, () => {
   test.describe.configure({ timeout: 120_000 })
-  test.skip(({ isMobile }) => isMobile, 'the phone variant is gates.phone.spec.ts')
+  // The phone variant is gates.phone.spec.ts.
 
   test('(V2-M4 T5) Gates panel', async ({ page, ui, request, target }) => {
     const project = await newProject(request, target, 'e2e-gates-panel')

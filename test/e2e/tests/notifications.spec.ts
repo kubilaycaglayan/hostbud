@@ -13,9 +13,9 @@ import { Stubs } from '../helpers/stubs.ts'
 
 const stubs = new Stubs()
 
-test.describe('In-app notifications (desktop)', () => {
+test.describe('In-app notifications (desktop)', { tag: '@desktop' }, () => {
   test.describe.configure({ timeout: 90_000 })
-  test.skip(({ isMobile }) => isMobile, 'Chromium grants the notification permission; the phone profile checks the denied state (T4)')
+  // Chromium grants the notification permission; the phone profile checks the denied state (T4).
 
   test.beforeEach(async ({ target, context }) => {
     await target.resetTmux()
@@ -84,9 +84,9 @@ test.describe('In-app notifications (desktop)', () => {
 
 // V2-M3 T4: Settings → Notifications on desktop Chromium. The phone
 // variant is notifications.phone.spec.ts.
-test.describe('Notification settings (desktop)', () => {
+test.describe('Notification settings (desktop)', { tag: '@desktop' }, () => {
   test.describe.configure({ timeout: 60_000 })
-  test.skip(({ isMobile }) => isMobile, 'the phone variant is notifications.phone.spec.ts')
+  // The phone variant is notifications.phone.spec.ts.
 
   test('(V2-M3 T4) Notification settings', async ({ page, ui, request }) => {
     await ui.open()

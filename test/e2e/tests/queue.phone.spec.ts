@@ -19,8 +19,7 @@ test.describe('Queue panel on iPhone 13 Pro', () => {
     await stubs.reset()
   })
 
-  test('(V2-M8 T3) Schedule a command for an existing session on phone', async ({ page, ui, request, target }) => {
-    test.skip(test.info().project.name.endsWith('-domain'), 'uses the loopback access path for setup')
+  test('(V2-M8 T3) Schedule a command for an existing session on phone', { tag: '@loopback' }, async ({ page, ui, request, target }) => {
     const project = await newProject(request, target, 'e2e-phone-scheduled')
     await target.run(`tmux new-session -d -s phone-schedule-target -c ${shq(project.path)}`)
     await ui.open()
@@ -40,8 +39,7 @@ test.describe('Queue panel on iPhone 13 Pro', () => {
     await noHorizontalScroll(page)
   })
 
-  test('Loop a queue on phone; Pause cancels the pending pass', async ({ page, ui, request, target }) => {
-    test.skip(test.info().project.name.endsWith('-domain'), 'uses the loopback access path for setup')
+  test('Loop a queue on phone; Pause cancels the pending pass', { tag: '@loopback' }, async ({ page, ui, request, target }) => {
     const project = await newProject(request, target, 'e2e-phone-loop')
     await target.run(`tmux new-session -d -s phone-loop-target -c ${shq(project.path)}`)
     await ui.open()
@@ -70,8 +68,7 @@ test.describe('Queue panel on iPhone 13 Pro', () => {
   const panel = (page: Page) => page.getByRole('dialog', { name: 'Queue' })
   const row = (page: Page, condition: string) => panel(page).getByRole('listitem', { name: new RegExp(`: /goal ${condition}$`) })
 
-  test('(V2-M1 T16) Permission flags are quick to select and default by agent', async ({ page, ui, request, target }) => {
-    test.skip(test.info().project.name.endsWith('-domain'), 'uses the loopback access path for setup')
+  test('(V2-M1 T16) Permission flags are quick to select and default by agent', { tag: '@loopback' }, async ({ page, ui, request, target }) => {
     const project = await newProject(request, target, 'e2e-phone-queue-permission-flags')
     await ui.open()
     await openPanelAndCreate(page, project.id)
@@ -113,8 +110,7 @@ test.describe('Queue panel on iPhone 13 Pro', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   }
 
-  test('(V2-M1 T15) Compact queue forms and touch-sized actions on phone', async ({ page, ui, request, target }) => {
-    test.skip(test.info().project.name.endsWith('-domain'), 'uses the loopback access path for setup')
+  test('(V2-M1 T15) Compact queue forms and touch-sized actions on phone', { tag: '@loopback' }, async ({ page, ui, request, target }) => {
     const project = await newProject(request, target, 'e2e-phone-queue-compact')
     await ui.open()
     await openPanelAndCreate(page, project.id)
@@ -143,8 +139,7 @@ test.describe('Queue panel on iPhone 13 Pro', () => {
     await noHorizontalScroll(page)
   })
 
-  test('(V2-M1 T11) Queue panel (phone): live hand-off to finished', async ({ page, ui, request, target }) => {
-    test.skip(test.info().project.name.endsWith('-domain'), 'uses the loopback access path for setup')
+  test('(V2-M1 T11) Queue panel (phone): live hand-off to finished', { tag: '@loopback' }, async ({ page, ui, request, target }) => {
     const project = await newProject(request, target, 'e2e-phone-queue')
     await stubs.setBehavior('e2e phone one', 'achieve:1')
     await stubs.setBehavior('e2e phone two', 'achieve:1')
@@ -176,8 +171,7 @@ test.describe('Queue panel on iPhone 13 Pro', () => {
     await expect.poll(() => ui.termText(session), { timeout: 15_000 }).toContain('Goal achieved')
   })
 
-  test('(V2-M1 T11) Queue panel (phone): Retry, Skip and Mark done sheets', async ({ page, ui, request, target }) => {
-    test.skip(test.info().project.name.endsWith('-domain'), 'uses the loopback access path for setup')
+  test('(V2-M1 T11) Queue panel (phone): Retry, Skip and Mark done sheets', { tag: '@loopback' }, async ({ page, ui, request, target }) => {
     const project = await newProject(request, target, 'e2e-phone-attention')
     await stubs.setBehavior('e2e phone fail', 'fail')
     await stubs.setBehavior('e2e phone exit', 'exit')

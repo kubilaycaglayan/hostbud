@@ -27,8 +27,7 @@ test.describe('custom tree on iPhone 13 Pro', () => {
     await target.run(`mkdir -p ${shq(path)} && tmux new-session -d -s ${shq(name)} -c ${shq(path)}`)
   }
 
-  test('(T15) Whole session row selects on touch', async ({ page, ui, target }) => {
-    test.skip(test.info().project.name.endsWith('-domain'), 'T15 phone scenario uses the loopback access path')
+  test('(T15) Whole session row selects on touch', { tag: '@loopback' }, async ({ page, ui, target }) => {
     await freshAccount(ui)
     const first = uniqueName('tree-touch-select')
     const second = uniqueName('tree-touch-select')
@@ -46,8 +45,7 @@ test.describe('custom tree on iPhone 13 Pro', () => {
     await expect(page.getByRole('img', { name: 'attached session' })).toHaveCount(0)
   })
 
-  test('(T2) Collapse state persists', async ({ page, ui, target, request }) => {
-    test.skip(test.info().project.name.endsWith('-domain'), 'T2 phone scenarios use the loopback access path')
+  test('(T2) Collapse state persists', { tag: '@loopback' }, async ({ page, ui, target, request }) => {
     await freshAccount(ui)
     const path = `/home/dev/${uniqueName('tree-phone')}`
     const project = uniqueName('tree-project')
@@ -73,8 +71,7 @@ test.describe('custom tree on iPhone 13 Pro', () => {
     await expect(ui.treeItem('Other sessions')).toHaveAttribute('aria-expanded', 'false')
   })
 
-  test('(T2) Tree shows hierarchy', async ({ page, ui, target, request }) => {
-    test.skip(test.info().project.name.endsWith('-domain'), 'T2 phone scenarios use the loopback access path')
+  test('(T2) Tree shows hierarchy', { tag: '@loopback' }, async ({ page, ui, target, request }) => {
     await freshAccount(ui)
     const path = `/home/dev/${uniqueName('tree-phone-path')}`
     const project = uniqueName('tree-project')
@@ -99,8 +96,7 @@ test.describe('custom tree on iPhone 13 Pro', () => {
     expect(positions[0]?.x).toBeLessThan(positions[1]?.x ?? 0)
   })
 
-  test('(T4) Inline rename a project', async ({ page, ui, target, request }) => {
-    test.skip(test.info().project.name.endsWith('-domain'), 'T4 phone scenarios use the loopback access path')
+  test('(T4) Inline rename a project', { tag: '@loopback' }, async ({ page, ui, target, request }) => {
     await freshAccount(ui)
     const path = `/home/dev/${uniqueName('tree-phone-rename-project')}`
     const oldName = uniqueName('phone-project')
@@ -120,8 +116,7 @@ test.describe('custom tree on iPhone 13 Pro', () => {
     await expect(ui.treeItem(session)).toBeVisible()
   })
 
-  test('(T4) Inline rename a session from the phone menu', async ({ page, ui, target }) => {
-    test.skip(test.info().project.name.endsWith('-domain'), 'T4 phone scenarios use the loopback access path')
+  test('(T4) Inline rename a session from the phone menu', { tag: '@loopback' }, async ({ page, ui, target }) => {
     await freshAccount(ui)
     const oldName = uniqueName('phone-session')
     const nextName = uniqueName('phone-renamed')
@@ -137,8 +132,7 @@ test.describe('custom tree on iPhone 13 Pro', () => {
     await expect(ui.treeItem(nextName)).toBeVisible()
   })
 
-  test('(T5) Hide and unhide in the phone drawer', async ({ page, ui, target, request }) => {
-    test.skip(test.info().project.name.endsWith('-domain'), 'T5 phone scenarios use the loopback access path')
+  test('(T5) Hide and unhide in the phone drawer', { tag: '@loopback' }, async ({ page, ui, target, request }) => {
     await freshAccount(ui)
     const projectPath = `/home/dev/${uniqueName('phone-hidden-project')}`
     const project = uniqueName('phone-hidden-project')
@@ -165,8 +159,7 @@ test.describe('custom tree on iPhone 13 Pro', () => {
     await expect(ui.treeItem(project)).toBeVisible()
   })
 
-  test('(T6) Pin projects in the phone tree', async ({ page, ui, target }) => {
-    test.skip(test.info().project.name.endsWith('-domain'), 'T6 phone scenarios use the loopback access path')
+  test('(T6) Pin projects in the phone tree', { tag: '@loopback' }, async ({ page, ui, target }) => {
     await freshAccount(ui)
     const api = page.context().request
     const entries = ['phone-pin-first', 'phone-pin-second', 'phone-pin-third'].map((label) => ({
@@ -212,8 +205,7 @@ test.describe('custom tree on iPhone 13 Pro', () => {
     expect((await getUIState(api, 'tree') as { projects: string[] }).projects).toEqual(before)
   })
 
-  test('(T6) Every tree customization survives reload and restart on the phone', async ({ page, ui, target, request }) => {
-    test.skip(test.info().project.name.endsWith('-domain'), 'T6 phone scenarios use the loopback access path')
+  test('(T6) Every tree customization survives reload and restart on the phone', { tag: '@loopback' }, async ({ page, ui, target, request }) => {
     await freshAccount(ui)
     const api = page.context().request
     const projectPath = `/home/dev/${uniqueName('phone-custom-project')}`

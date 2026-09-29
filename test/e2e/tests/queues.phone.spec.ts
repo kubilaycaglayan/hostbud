@@ -49,9 +49,9 @@ test.describe('Queues panel on iPhone 13 Pro (parallel queues)', () => {
     await page.getByRole('banner').getByRole('button', { name: 'Queue', exact: true }).tap()
   }
 
-  test('(V2-M2 T5, T9) Queues panel (phone) and confirmed cap settings', async ({ page, ui, multi, target }, info) => {
+  test('(V2-M2 T5, T9) Queues panel (phone) and confirmed cap settings', { tag: '@loopback' }, async ({ page, ui, multi, target }) => {
     page.on('dialog', dialog => dialog.accept())
-    test.skip(info.project.name === 'iphone-13-pro-domain', 'the multi app has no domain site; iphone-13-pro covers the phone')
+    // The multi app has no domain site; iphone-13-pro covers the phone.
     const project = await newProject(multi, target, 'e2e-phone-multi')
     await stubs.setBehavior('e2e phone alpha', 'achieve:8', 1)
     await stubs.setBehavior('e2e phone beta', 'achieve:2', 0.5)

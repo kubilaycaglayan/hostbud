@@ -62,11 +62,8 @@ async function sampleScrollRows(page: Page, ms: number, during: () => Promise<vo
   return page.evaluate(() => (window as unknown as { __scrollRows: number[] }).__scrollRows)
 }
 
-test.beforeEach(({ isMobile }) => {
-  test.skip(isMobile, 'mouse-wheel scenarios are desktop only')
-})
-
-test('(T6) Readable terminal scrolling', async ({ page, ui, target }) => {
+// Mouse-wheel scenarios are desktop only.
+test('(T6) Readable terminal scrolling', { tag: '@desktop' }, async ({ page, ui, target }) => {
   test.setTimeout(90_000)
   const name = await openShell(ui, target, 'e2e-wheel')
   await ui.type(OUTPUT, true)

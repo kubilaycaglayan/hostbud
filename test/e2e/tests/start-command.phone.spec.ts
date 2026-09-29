@@ -12,8 +12,7 @@ test.describe('start command on iPhone 13 Pro', () => {
     await target.resetTmux()
   })
 
-  test('(V2-M1 T0) Session with start command (phone)', async ({ page, ui, target, request }) => {
-    test.skip(test.info().project.name.endsWith('-domain'), 'uses the loopback access path for the project API')
+  test('(V2-M1 T0) Session with start command (phone)', { tag: '@loopback' }, async ({ page, ui, target, request }) => {
     const path = `/home/dev/${uniqueName('e2e-start-phone')}`
     const projectName = uniqueName('start-phone-project')
     const name = uniqueName('e2e-start-phone')

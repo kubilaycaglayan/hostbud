@@ -15,6 +15,10 @@ from that milestone's triage index.
 
 - Milestone, pass number, date, full command and commit under test.
 - Exact Playwright passed, failed, skipped, flaky and total counts.
+- Skipped should be 0: profiles are targeted in `playwright.config.ts`
+  (file names and `@desktop`/`@phone`/`@loopback` tags), and runtime
+  `test.skip()` is a lint error. List every skipped scenario with its reason
+  (for example a `test.fixme`); treat an unexplained skip as a failure to fix.
 - Elapsed wall time (and Playwright-reported duration if different).
 - One row for **every failed scenario**, including its full test title,
   profile, concise error summary, classification, and confirmed or suspected

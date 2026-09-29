@@ -9,8 +9,7 @@ import { uniqueName } from '../helpers/target.ts'
 const PORTRAIT = devices['iPhone 13 Pro'].viewport
 const LANDSCAPE = devices['iPhone 13 Pro landscape'].viewport
 
-test.beforeEach(async ({ target, isMobile }) => {
-  test.skip(!isMobile, 'phone projects only')
+test.beforeEach(async ({ target }) => {
   await target.resetTmux()
 })
 

@@ -42,9 +42,9 @@ async function setCap(page: Page, value: string) {
   await page.getByRole('banner').getByRole('button', { name: 'Queue', exact: true }).click()
 }
 
-test.describe('Queues panel (desktop, parallel queues)', () => {
+test.describe('Queues panel (desktop, parallel queues)', { tag: '@desktop' }, () => {
   test.describe.configure({ timeout: 150_000 })
-  test.skip(({ isMobile }) => isMobile, 'the phone variant is queues.phone.spec.ts')
+  // The phone variant is queues.phone.spec.ts.
 
   test('(V2-M2 T5, T9) Queues panel and confirmed cap settings', async ({ page, ui, multi, target }) => {
     page.on('dialog', dialog => dialog.accept())

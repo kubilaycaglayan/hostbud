@@ -22,13 +22,12 @@ async function printed(target: Target, name: string, line: string) {
 }
 
 // Search scrollback (T5)
-test('search scrollback: a marker scrolled off screen is found and shown; Escape returns to the shell', async ({
+test('search scrollback: a marker scrolled off screen is found and shown; Escape returns to the shell', { tag: '@desktop' }, async ({
   ui,
   target,
   page,
-  isMobile,
 }) => {
-  test.skip(isMobile, 'keyboard shortcut: desktop scenario')
+  // Keyboard shortcut: desktop scenario.
   const name = await openShell(ui, target, 'e2e-find')
   const m = uniqueName('m')
   const needle = `needle-2-${m}`
@@ -52,12 +51,10 @@ test('search scrollback: a marker scrolled off screen is found and shown; Escape
 })
 
 // Search options (T5)
-test('search options: match case and regex change the counts; an invalid regex says so', async ({
+test('search options: match case and regex change the counts; an invalid regex says so', { tag: '@desktop' }, async ({
   ui,
   target,
-  isMobile,
 }) => {
-  test.skip(isMobile, 'desktop scenario')
   const name = await openShell(ui, target, 'e2e-opts')
   // Quotes split the words on the command line, so only the output has them.
   await ui.type(`echo "F"oo "f"oo "F"OO`, true)
@@ -84,8 +81,7 @@ test('search options: match case and regex change the counts; an invalid regex s
 })
 
 // Search on the phone (T5)
-test('search on the phone: the 🔍 button opens search and finds a marker', async ({ ui, target, isMobile }) => {
-  test.skip(!isMobile, 'phone scenario')
+test('search on the phone: the 🔍 button opens search and finds a marker', { tag: '@phone' }, async ({ ui, target }) => {
   const name = await openShell(ui, target, 'e2e-pfind')
   const m = uniqueName('m')
   await ui.type(`echo mark-$((2*3))-${m}`, true)

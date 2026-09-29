@@ -37,9 +37,9 @@ async function order(page: Page): Promise<string[]> {
   return panel(page).getByRole('listitem').evaluateAll((items) => items.map((i) => (i.getAttribute('aria-label') ?? '').replace(/^Item \d+: \/goal /, '')))
 }
 
-test.describe('Queue panel (desktop)', () => {
+test.describe('Queue panel (desktop)', { tag: '@desktop' }, () => {
   test.describe.configure({ timeout: 120_000 })
-  test.skip(({ isMobile }) => isMobile, 'the phone variant is queue.phone.spec.ts')
+  // The phone variant is queue.phone.spec.ts.
 
   test('(V2-M8 T3) Schedule a command for an existing session', async ({ page, ui, request, target }) => {
     const project = await newProject(request, target, 'e2e-scheduled-ui')

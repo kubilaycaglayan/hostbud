@@ -1,8 +1,7 @@
 import { expect, test } from '../helpers/fixtures.ts'
 import { uniqueName } from '../helpers/target.ts'
 
-test.beforeEach(async ({ target, isMobile }) => {
-  test.skip(!isMobile, 'phone projects only')
+test.beforeEach(async ({ target }) => {
   await target.resetTmux()
 })
 

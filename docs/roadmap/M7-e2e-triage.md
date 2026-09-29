@@ -31,7 +31,7 @@ of Pass 1; Pass 2 must be documented per scenario before another full run.
 | A typed session name collided between inventory and tmux create; the service returned 409 instead of retrying with the next suffix. | Product/session bug | Fixed by `9f840e3`; regression test first in `8cfc256`. Focused action/API scenarios pass. |
 | Rename E2E expected a dialog with a “New name” field, while the current tree UI uses inline editing. | Stale scenario | Updated in `9f840e3`; focused action spec passed all 5 desktop tests. |
 | The broad run recorded 185 browser-console/failed-request errors, 107 tests timing out at 30 seconds, 5 at 90 seconds, and 3 null `.some` TypeErrors. | Multiple; investigate from Pass 2 artifacts | Awaiting the complete Pass 2 report to associate each with a scenario and root cause. |
-| 49 scenarios were runtime-skipped because they target other profiles (desktop/phone or loopback/domain). | Test-suite policy violation | Still open. Preserve coverage while ensuring no scenarios are reported skipped, per T13. |
+| 49 scenarios were runtime-skipped because they target other profiles (desktop/phone or loopback/domain). | Test-suite policy violation | Fixed on 2026-09-29 (v1 M8): Profile targeting moved from runtime `test.skip()` to `playwright.config.ts` (`@desktop`/`@phone`/`@loopback` tags with `grepInvert`, plus the existing file-name rules), and eslint now rejects `test.skip()` in specs. `playwright test --list` drops from 551 to 472 scheduled tests (exactly the 79 skips) with all 329 unique scenarios still scheduled on their intended profiles. The duplicated per-project loops in `hardening.spec.ts` were folded into single scenarios. Type-checked (`make e2e-lint`), not run. |
 
 ## Pass 2 — post-fix full run
 

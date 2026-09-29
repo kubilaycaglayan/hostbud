@@ -50,8 +50,7 @@ async function savedTabs(page: Page): Promise<string[]> {
   return l.tabs.map((t) => (t.id === l.activeTab ? '*' : '') + t.root.session)
 }
 
-test.describe('desktop', () => {
-  test.skip(({ isMobile }) => isMobile, 'desktop scenarios')
+test.describe('desktop', { tag: '@desktop' }, () => {
 
   // Tabs (T7)
   test('tabs: three sessions in three tabs; input lands in each; re-picking focuses its tab', async ({ ui, target }) => {
@@ -114,8 +113,7 @@ test.describe('desktop', () => {
 
 // Tabs survive reload (T7). Restarting the app drops every terminal's
 // connection for a moment: the browser logs failed reconnects.
-test.describe('reload', () => {
-  test.skip(({ isMobile }) => isMobile, 'desktop scenario')
+test.describe('reload', { tag: '@desktop' }, () => {
   test.use({
     allowedBrowserErrors:
       /WebSocket connection to 'ws:\/\/localhost:9055\/ws\/(events|term\?[^']*)' failed|^HTTP 502: (GET|PUT) http:\/\/localhost:9055\/api\/|status of 502/,
@@ -155,8 +153,7 @@ test.describe('reload', () => {
 })
 
 // Tabs on the phone (T7)
-test('phone: two tabs from the compact tab bar, typed into each', async ({ ui, target, isMobile }) => {
-  test.skip(!isMobile, 'phone scenario')
+test('phone: two tabs from the compact tab bar, typed into each', { tag: '@phone' }, async ({ ui, target }) => {
   const [a, b] = await newSessions(target, 'e2e-pa', 'e2e-pb')
   await ui.open()
   for (const n of [a, b]) {

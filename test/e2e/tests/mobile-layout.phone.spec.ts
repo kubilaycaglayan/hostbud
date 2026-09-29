@@ -15,8 +15,7 @@ async function createAccount(ui: import('../helpers/ui.ts').UI) {
   await ui.createAccount(account)
 }
 
-test.beforeEach(async ({ target, isMobile }) => {
-  test.skip(!isMobile, 'phone projects only')
+test.beforeEach(async ({ target }) => {
   await target.resetTmux()
 })
 

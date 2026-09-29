@@ -56,11 +56,8 @@ async function renderedContrast(page: Page): Promise<number> {
   }, png.toString('base64'))
 }
 
-test.beforeEach(({ isMobile }) => {
-  test.skip(isMobile, 'desktop scenario (the phone theme scenarios cover System switching)')
-})
-
-test('(T7) Long-lived terminal contrast', async ({ page, ui, target }, testInfo) => {
+// Desktop only: the phone theme scenarios cover System switching.
+test('(T7) Long-lived terminal contrast', { tag: '@desktop' }, async ({ page, ui, target }, testInfo) => {
   test.setTimeout(90_000)
   const fresh = newAccount('e2e-theme-contrast')
   forbidInLogs(fresh.email, fresh.password)

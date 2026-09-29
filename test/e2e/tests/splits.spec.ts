@@ -55,8 +55,7 @@ async function savedRoot(page: Page): Promise<unknown> {
   return l.tabs[0] ? tree(l.tabs[0].root) : null
 }
 
-test.describe('desktop', () => {
-  test.skip(({ isMobile }) => isMobile, 'desktop scenarios')
+test.describe('desktop', { tag: '@desktop' }, () => {
 
   test('(T11) Terminal menu asks for split position before listing sessions', async ({ ui, target }) => {
     const [a, b, other] = await newSessions(target, 'menu-split-a', 'menu-split-b', 'menu-split-c')
@@ -134,8 +133,7 @@ test.describe('desktop', () => {
 
 // Splits survive reload (T8). The restart drops every connection for a
 // moment: the browser logs failed reconnects.
-test.describe('reload', () => {
-  test.skip(({ isMobile }) => isMobile, 'desktop scenario')
+test.describe('reload', { tag: '@desktop' }, () => {
   test.use({
     allowedBrowserErrors:
       /WebSocket connection to 'ws:\/\/localhost:9055\/ws\/(events|term\?[^']*)' failed|^HTTP 502: (GET|PUT) http:\/\/localhost:9055\/api\/|status of 502/,
@@ -188,8 +186,7 @@ test.describe('reload', () => {
 })
 
 // Split on the phone (T8)
-test('phone: a split tab shows one pane; the pane switcher changes which', async ({ ui, target, isMobile }) => {
-  test.skip(!isMobile, 'phone scenario')
+test('phone: a split tab shows one pane; the pane switcher changes which', { tag: '@phone' }, async ({ ui, target }) => {
   const [a, b] = await newSessions(target, 'e2e-qa', 'e2e-qb')
   await ui.open()
   await ui.page.getByRole('button', { name: a, exact: true }).tap()

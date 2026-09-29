@@ -11,8 +11,8 @@ async function createAccount(ui: import('../helpers/ui.ts').UI) {
   await ui.createAccount(account)
 }
 
-test('(T2) Wide layout unchanged', async ({ page, target, isMobile, ui }) => {
-  test.skip(isMobile, 'wide layout runs on desktop Chromium')
+test('(T2) Wide layout unchanged', { tag: '@desktop' }, async ({ page, target, ui }) => {
+  // Wide layout runs on desktop Chromium.
   const name = uniqueName('e2e-wide-layout')
   await target.resetTmux()
   await target.tmux('new-session', '-d', '-s', name, '-c', '/home/dev')
@@ -26,8 +26,8 @@ test('(T2) Wide layout unchanged', async ({ page, target, isMobile, ui }) => {
   await expect(page.getByRole('button', { name: 'Scroll history' })).toHaveCount(0)
 })
 
-test('(T13) Left bar toggle and toolbar', async ({ page, target, ui, isMobile }) => {
-  test.skip(isMobile, 'desktop layout only')
+test('(T13) Left bar toggle and toolbar', { tag: '@desktop' }, async ({ page, target, ui }) => {
+  // Desktop layout only.
   await createAccount(ui)
   const name = uniqueName('e2e-t13-toolbar')
   await target.resetTmux()

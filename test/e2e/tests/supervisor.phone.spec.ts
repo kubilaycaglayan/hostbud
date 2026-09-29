@@ -7,8 +7,7 @@ import { Stubs } from '../helpers/stubs.ts'
 test.use({ baseURL: LLM_URL, storageState: LLM_STORAGE_STATE, viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
 const stubs = new Stubs()
 
-test('V2-M5 T5 Flag badge (phone)', async ({ page, ui, request, target }) => {
-  test.skip(test.info().project.name.endsWith('-domain'), 'uses the loopback access path for setup')
+test('V2-M5 T5 Flag badge (phone)', { tag: '@loopback' }, async ({ page, ui, request, target }) => {
   test.setTimeout(90_000)
   await target.resetTmux()
   await stubs.reset()

@@ -5,13 +5,12 @@ import { openShell, promptLine } from '../helpers/shell.ts'
 // feature, so desktop only. Results are checked in the real shell on the
 // target (capture-pane).
 
-test.beforeEach(async ({ target, isMobile }) => {
-  test.skip(isMobile, 'hardware keyboard shortcuts')
+test.beforeEach(async ({ target }) => {
   await target.resetTmux()
 })
 
 // Delete word and line (T1)
-test('delete word and line: Option+Backspace and Cmd+Backspace', async ({ ui, target }) => {
+test('delete word and line: Option+Backspace and Cmd+Backspace', { tag: '@desktop' }, async ({ ui, target }) => {
   const name = await openShell(ui, target, 'e2e-del')
   const keys = ui.page.keyboard
 
@@ -29,7 +28,7 @@ test('delete word and line: Option+Backspace and Cmd+Backspace', async ({ ui, ta
 })
 
 // Move by word and line (T1)
-test('move by word and line: Option+←/→ and Cmd+←/→', async ({ ui, target }) => {
+test('move by word and line: Option+←/→ and Cmd+←/→', { tag: '@desktop' }, async ({ ui, target }) => {
   const name = await openShell(ui, target, 'e2e-move')
   const keys = ui.page.keyboard
 

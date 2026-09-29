@@ -31,11 +31,8 @@ async function inputCharPoint(page: Page, label: string, index: number) {
   }, index)
 }
 
-test.beforeEach(({ isMobile }) => {
-  test.skip(isMobile, 'Option/Alt-click is a desktop pointer gesture')
-})
-
-test('(T5) Option-click caret placement', async ({ page, ui, target }) => {
+// Option/Alt-click is a desktop pointer gesture.
+test('(T5) Option-click caret placement', { tag: '@desktop' }, async ({ page, ui, target }) => {
   test.setTimeout(90_000)
   const name = await openShell(ui, target, 'e2e-caret')
 

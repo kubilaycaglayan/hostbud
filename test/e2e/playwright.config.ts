@@ -4,6 +4,14 @@ import { DOMAIN_URL } from './helpers/api.ts'
 
 // Runs inside hostbud-e2e-runner, which shares hostbud-e2e-caddy's network
 // namespace: http://localhost:9055 is the real Caddy loopback site.
+//
+// Profile targeting lives here, never in runtime test.skip() calls (which
+// Playwright schedules and reports as skipped): *.phone.spec.ts / *.api.spec.ts
+// file names, plus these tags on scenarios in shared specs:
+//   @desktop  - desktop-chromium only (mouse, hover, hardware keys, clipboard);
+//   @phone    - phone projects only;
+//   @loopback - phone scenarios the domain project leaves to iphone-13-pro
+//               (setup uses the loopback site or the multi app).
 export default defineConfig({
   testDir: './tests',
   outputDir: './results/artifacts',
@@ -31,12 +39,14 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
       // Phone-only scenarios and the domain UI run in the phone projects.
       testIgnore: [/phone\.spec\.ts$/, /domain\.spec\.ts$/],
+      grepInvert: /@phone\b/,
     },
     {
       name: 'iphone-13-pro',
       use: { ...devices['iPhone 13 Pro'] },
       // API-level scenarios (*.api.spec.ts) run in the desktop project only.
       testIgnore: [/\.api\.spec\.ts$/, /domain\.spec\.ts$/, /pwa\.spec\.ts$/, /tailscale\.spec\.ts$/],
+      grepInvert: /@desktop\b/,
     },
     {
       // The domain path: HTTPS on the test domain (Caddy's internal CA, hence
@@ -49,6 +59,7 @@ export default defineConfig({
         storageState: DOMAIN_STORAGE_STATE,
       },
       testMatch: [/phone\.spec\.ts$/, /domain\.spec\.ts$/],
+      grepInvert: /@desktop\b|@loopback\b/,
     },
   ],
 })

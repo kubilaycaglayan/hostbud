@@ -6,7 +6,6 @@ import { uniqueName, type Target } from '../helpers/target.ts'
 // Chromium, so these run in desktop-chromium. Results are checked in the
 // real shell on the target (capture-pane) and in the browser clipboard.
 
-test.skip(({ isMobile }) => isMobile, 'clipboard permissions: desktop Chromium only')
 test.use({ permissions: ['clipboard-read', 'clipboard-write'] })
 
 test.beforeEach(async ({ target }) => {
@@ -21,7 +20,7 @@ async function countLines(target: Target, name: string, line: string): Promise<n
 const menu = (ui: import('../helpers/ui.ts').UI) => ui.page.getByRole('menu', { name: 'Terminal menu' })
 
 // Copy selection (T2)
-test('copy selection: Ctrl+Shift+C and the context menu', async ({ ui, target, page }) => {
+test('copy selection: Ctrl+Shift+C and the context menu', { tag: '@desktop' }, async ({ ui, target, page }) => {
   const name = await openShell(ui, target, 'e2e-copy')
   const m = uniqueName('copy')
   await ui.type(`echo ${m}`, true)
@@ -44,7 +43,7 @@ test('copy selection: Ctrl+Shift+C and the context menu', async ({ ui, target, p
 })
 
 // Ctrl+C still interrupts (T2)
-test('Ctrl+C still interrupts with a selection, and leaves the clipboard alone', async ({ ui, target, page }) => {
+test('Ctrl+C still interrupts with a selection, and leaves the clipboard alone', { tag: '@desktop' }, async ({ ui, target, page }) => {
   const name = await openShell(ui, target, 'e2e-intr')
   const m = uniqueName('keep')
   await ui.type(`echo ${m}`, true)
@@ -63,7 +62,7 @@ test('Ctrl+C still interrupts with a selection, and leaves the clipboard alone',
 })
 
 // Bracketed paste (T2)
-test('bracketed paste: a two-line paste waits for Enter (keys and menu)', async ({ ui, target, page }) => {
+test('bracketed paste: a two-line paste waits for Enter (keys and menu)', { tag: '@desktop' }, async ({ ui, target, page }) => {
   const name = await openShell(ui, target, 'e2e-paste')
 
   async function check(m: string, paste: () => Promise<void>) {
@@ -92,7 +91,7 @@ test('bracketed paste: a two-line paste waits for Enter (keys and menu)', async 
 })
 
 // Forced selection (T2)
-test('forced selection: Shift+drag selects when tmux captures the mouse', async ({ ui, target, page }) => {
+test('forced selection: Shift+drag selects when tmux captures the mouse', { tag: '@desktop' }, async ({ ui, target, page }) => {
   const name = await openShell(ui, target, 'e2e-force')
   await target.tmux('set', '-t', name, 'mouse', 'on')
   const m = uniqueName('force')
@@ -112,7 +111,7 @@ test('forced selection: Shift+drag selects when tmux captures the mouse', async 
 })
 
 // OSC 52 yank (T2)
-test('OSC 52: a tmux copy-mode yank lands in the browser clipboard', async ({ ui, target, page }) => {
+test('OSC 52: a tmux copy-mode yank lands in the browser clipboard', { tag: '@desktop' }, async ({ ui, target, page }) => {
   const name = await openShell(ui, target, 'e2e-yank')
   const m = uniqueName('yank')
   await ui.type(`echo ${m}`, true)
@@ -129,7 +128,7 @@ test('OSC 52: a tmux copy-mode yank lands in the browser clipboard', async ({ ui
 })
 
 // OSC 52 read refused (T2)
-test('OSC 52: a clipboard query gets no reply', async ({ ui, target, page }) => {
+test('OSC 52: a clipboard query gets no reply', { tag: '@desktop' }, async ({ ui, target, page }) => {
   // Every byte the browser sends to the terminal.
   const sent: string[] = []
   page.on('websocket', (ws) => ws.on('framesent', (f) => sent.push(f.payload.toString())))

@@ -103,8 +103,7 @@ function autocompleteOffenders(page: Page) {
   )
 }
 
-test('(T3) No browser autocomplete outside login password', async ({ browser, baseURL, page, ui, target, isMobile }) => {
-  test.skip(isMobile, 'desktop scenario')
+test('(T3) No browser autocomplete outside login password', { tag: '@desktop' }, async ({ browser, baseURL, page, ui, target }) => {
   test.setTimeout(90_000)
 
   // The login screen, signed out: the password keeps its attributes.

@@ -50,14 +50,13 @@ test('click a printed URL: it opens in a new page, the terminal stays', async ({
 })
 
 // OSC 8 link (T4)
-test('OSC 8 hyperlink: hover shows the target, click opens it; javascript: opens nothing', async ({
+test('OSC 8 hyperlink: hover shows the target, click opens it; javascript: opens nothing', { tag: '@desktop' }, async ({
   ui,
   target,
   page,
   context,
-  isMobile,
 }) => {
-  test.skip(isMobile, 'hover: desktop scenario')
+  // Hover: desktop scenario.
   // tmux passes OSC 8 on only to terminals with the hyperlinks feature
   // (not in its defaults): set before the browser attaches.
   const name = await openShell(ui, target, 'e2e-osc8', () =>
