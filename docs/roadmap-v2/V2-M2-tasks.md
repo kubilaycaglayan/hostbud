@@ -56,7 +56,7 @@ The v2 ROADMAP *Rules*, AGENTS.md and the V2-M1 milestone rules (fast checks per
 
 Scope: R T1, v2 §6. Additions:
 - **One migration**, the next free number. It only adds; nothing is dropped, renamed or rewritten:
-  - `machine_capacity(machine_id PK, max_concurrent_runs INT NULL CHECK (max_concurrent_runs BETWEEN 1 AND 32))`, NULL = no cap; no row = no cap;
+  - `machine_capacity(machine_id PK, max_concurrent_runs INT NULL CHECK (max_concurrent_runs BETWEEN 1 AND 32))`; stored NULL/no row is interpreted by V2-M2 T9 as the default cap of 2 while parallel queues are enabled;
   - `queues.waiting_since TIMESTAMPTZ NULL` (slot order, T4);
   - a unique index on `queues(project_id, lower(name))` (V2-M1 allowed one queue, so no existing rows can conflict).
 - **Store:** get/set capacity; count active runs (`starting`, `running`, `stale`) per machine; list waiting queues ordered by `waiting_since, id`.
