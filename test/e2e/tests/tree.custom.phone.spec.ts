@@ -243,6 +243,7 @@ test.describe('custom tree on iPhone 13 Pro', () => {
     let editor = page.getByRole('textbox', { name: `Rename ${projectName}` })
     await editor.fill(renamedProject)
     await editor.press('Enter')
+    await ui.showList()
     await ui.treeItem(first).getByRole('button', { name: `More actions for ${first}` }).click()
     await page.getByRole('menuitem', { name: 'Rename', exact: true }).click()
     const renamedSession = uniqueName('phone-custom-renamed-session')
@@ -250,6 +251,7 @@ test.describe('custom tree on iPhone 13 Pro', () => {
     await editor.fill(renamedSession)
     await editor.press('Enter')
 
+    await ui.showList()
     await ui.treeItem(second).getByRole('button', { name: `More actions for ${second}` }).click()
     await page.getByRole('menuitem', { name: 'Hide', exact: true }).click()
     await page.getByRole('button', { name: 'Show hidden (1)' }).click()
