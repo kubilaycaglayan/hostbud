@@ -6,6 +6,7 @@ import { ctl } from '../helpers/ctl.ts'
 import { uniqueName } from '../helpers/target.ts'
 
 async function account(ui: import('../helpers/ui.ts').UI, label = 'e2e-theme') {
+  await ui.page.evaluate(() => localStorage.removeItem('hostbud.theme'))
   const fresh = newAccount(label)
   forbidInLogs(fresh.email, fresh.password)
   await owner.allow(fresh.email)
