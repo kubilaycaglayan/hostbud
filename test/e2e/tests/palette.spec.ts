@@ -74,6 +74,7 @@ test('(T8) Toggle to the last tab, dropping closed tabs from its history', async
   for (const name of names) await ui.openTerminal(name)
   await ui.tab(names[0]).click()
   await ui.tab(names[2]).click()
+  await expect(page.locator('[data-focused="true"] .xterm-helper-textarea')).toBeFocused()
   await page.keyboard.press('Control+Shift+D')
   await expect.poll(() => ui.activeTabName()).toBe(names[0])
   await expect(page.locator('[data-focused="true"] .xterm-helper-textarea')).toBeFocused()

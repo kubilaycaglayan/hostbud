@@ -460,6 +460,12 @@ function focusActiveTerminal() {
   document.querySelector<HTMLElement>('[data-focused="true"] .xterm-helper-textarea')?.focus()
 }
 
+// Switching tabs by shortcut, tab bar, palette or session opening all moves
+// input to the newly active pane after Vue reveals its terminal view.
+watch(() => layout.activeTab?.id, (id, previous) => {
+  if (id && previous && auth.status === 'authenticated') void nextTick(focusActiveTerminal)
+})
+
 function onDrawerCloseAutoFocus(event: Event) {
   if (!focusTerminalOnNextDrawerClose) return
   focusTerminalOnNextDrawerClose = false
@@ -473,15 +479,9 @@ function onShortcutKeydown(event: KeyboardEvent) {
   const global = matchingShortcut(event, platform, 'global')
   if (global) {
     if (global.id === 'help') openShortcuts()
-    else if (global.id === 'next-tab') {
-      if (layout.cycleTab(1)) void nextTick(focusActiveTerminal)
-    }
-    else if (global.id === 'previous-tab') {
-      if (layout.cycleTab(-1)) void nextTick(focusActiveTerminal)
-    }
-    else if (global.id === 'last-tab') {
-      if (layout.toggleLastTab()) void nextTick(focusActiveTerminal)
-    }
+    else if (global.id === 'next-tab') layout.cycleTab(1)
+    else if (global.id === 'previous-tab') layout.cycleTab(-1)
+    else if (global.id === 'last-tab') layout.toggleLastTab()
     else if (global.id === 'focus-tree-terminal') void toggleTreeTerminalFocus()
     else if (global.id === 'palette') openPalette()
     else return
