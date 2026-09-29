@@ -270,6 +270,15 @@ func TestIntegrationCopyModeActions(t *testing.T) {
 	if err != nil || state.InMode {
 		t.Fatalf("exit again: %+v %v", state, err)
 	}
+	// Bottom returns to the live screen and leaves copy mode, like scrolling
+	// back down to it (copy-mode -e).
+	if state, err = svc.CopyMode(ctx, sshx.HostMachineID, "scroll-it", "enter", 0); err != nil || !state.InMode {
+		t.Fatalf("enter again: %+v %v", state, err)
+	}
+	state, err = svc.CopyMode(ctx, sshx.HostMachineID, "scroll-it", "bottom", 0)
+	if err != nil || state.InMode {
+		t.Fatalf("bottom: %+v %v", state, err)
+	}
 	if display(t, c, "scroll-it", "#{pane_in_mode}") != "0" {
 		t.Fatal("pane remained in copy mode")
 	}
