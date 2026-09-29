@@ -27,8 +27,11 @@ export function handleFetch(
     if (route === 'shell') {
       try {
         const response = await fetcher(request)
-        if (response.ok) await cache.put(cacheUrl, response.clone())
-        return response
+        if (response.ok) {
+          await cache.put(cacheUrl, response.clone())
+          return response
+        }
+        return cached ?? response
       } catch (error) {
         if (cached) return cached
         throw error

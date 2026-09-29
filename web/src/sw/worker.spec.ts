@@ -80,6 +80,16 @@ describe('service worker cache lifecycle', () => {
     expect(fetcher).toHaveBeenCalledOnce()
   })
 
+  it('falls back to the cached app shell when Caddy returns a gateway error', async () => {
+    const shell = new Response('cached shell')
+    const { cacheStorage } = fakeCaches({ 'hostbud-shell-v1': { '/': shell } })
+    const fetcher = vi.fn(async () => new Response('bad gateway', { status: 502 }))
+    const response = await handleFetch(fakeRequest('/session/a', 'GET', 'navigate'), 'https://hostbud.example.test', cacheStorage, 'hostbud-shell-v1', [], fetcher)
+    expect(response).toBe(shell)
+    expect(await response?.text()).toBe('cached shell')
+    expect(fetcher).toHaveBeenCalledOnce()
+  })
+
   it.each(['/api/auth/me', '/api/machines/host/sessions', '/ws/events', '/ws/term?session=x'])('leaves %s to the network with no runtime cache write', async (url) => {
     const { cacheStorage, records, putCalls } = fakeCaches({ 'hostbud-shell-v1': {} })
     const fetcher = vi.fn(async () => new Response('network'))
