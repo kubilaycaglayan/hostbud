@@ -40,6 +40,7 @@ secrets, real host values, private paths, raw application logs or credentials.
 # <Milestone> E2E pass <NN>
 
 - Date:
+- Time(UTC+3):
 - Command:
 - Commit:
 - Result: <passed> passed, <failed> failed, <skipped> skipped, <flaky> flaky (<total> total)
