@@ -117,8 +117,10 @@ for (const project of ['desktop-chromium', 'iphone-13-pro']) {
     await ctl.stallTmux()
     try {
       await page.reload()
-      await expect(page.getByRole('region', { name: `Terminal: ${activeSession}` })).toBeVisible({ timeout: 15_000 })
-      await expect(page.getByText(/Connecting…|Reconnecting…/)).toBeVisible({ timeout: 15_000 })
+      const terminal = page.getByRole('region', { name: `Terminal: ${activeSession}` })
+      await expect.poll(async () => (await hostBanner.isVisible()) || (await terminal.isVisible()), { timeout: 15_000 }).toBe(true)
+      if (await hostBanner.isVisible()) await expect(hostBanner).toContainText('timed out')
+      else await expect(page.getByText(/Connecting…|Reconnecting…/)).toBeVisible()
     } finally {
       await ctl.unstallTmux()
     }
