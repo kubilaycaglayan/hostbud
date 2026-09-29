@@ -62,10 +62,15 @@ for (const project of ['desktop-chromium', 'iphone-13-pro']) {
     await ui.headerAction('New session')
     const dialog = page.getByRole('dialog', { name: 'New session' })
     await dialog.getByLabel('Name').fill('kept-session-name')
-    await page.route('**/api/machines/host/sessions', route =>
-      route.fulfill({ status: 504, contentType: 'application/json', body: JSON.stringify({ error: "The host didn't answer within 10s", hint: 'hostbud will retry' }) }),
+    await page.route(/\/api\/machines\/host\/sessions(?:\?.*)?$/, route => {
+      if (route.request().method() !== 'POST') return route.continue()
+      return route.fulfill({ status: 504, contentType: 'application/json', body: JSON.stringify({ error: "The host didn't answer within 10s", hint: 'hostbud will retry' }) })
+    })
+    const rejectedCreate = page.waitForResponse(response =>
+      response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/machines/host/sessions',
     )
     await dialog.getByRole('button', { name: 'Create' }).click()
+    expect((await rejectedCreate).status()).toBe(504)
     await expect(dialog).toBeVisible()
     await expect(dialog.getByLabel('Name')).toHaveValue('kept-session-name')
     await expect(dialog).toContainText("The host didn't answer within 10s")
