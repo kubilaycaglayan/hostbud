@@ -329,7 +329,7 @@ for (const profile of ['desktop', 'phone'] as const) {
       }
     })
 
-    test('(T5) Account controls in app header', async ({ page, target, ui }) => {
+    test('(T5) Account controls in app header', async ({ page, target, ui, isMobile }) => {
       await createAccount(ui) // it signs out; keep the shared session valid
       const name = uniqueName('e2e-account-header')
       const path = `/home/dev/${name}`
@@ -341,8 +341,8 @@ for (const profile of ['desktop', 'phone'] as const) {
       await expect(header.getByRole('button', { name: 'Sign out' })).toBeVisible()
       await page.getByRole('button', { name, exact: true }).click()
       await expect(page.getByRole('region', { name: `Terminal: ${name}` })).toBeVisible()
-      if (profile === 'desktop') await page.getByRole('button', { name: 'Hide sidebar' }).click()
-      if (profile === 'desktop') await expect(ui.tree()).toBeHidden()
+      if (profile === 'desktop' && !isMobile) await page.getByRole('button', { name: 'Hide sidebar' }).click()
+      if (profile === 'desktop' && !isMobile) await expect(ui.tree()).toBeHidden()
       await ui.expectAccountEmail(/@/)
       await ui.signOut()
       await expect(page.getByRole('tab', { name: 'Sign in' })).toBeVisible()
