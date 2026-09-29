@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { QueueItem } from '@/api/types'
-import { capacityError, capacityValue, flagsError, instructionError, itemActions, moveQueued, queueControls, statusLabel, verifyCommandError, verifyLine } from './queue'
+import { capacityError, capacityValue, flagsError, instructionError, itemActions, moveQueued, queueControls, queueRunning, statusLabel, verifyCommandError, verifyLine } from './queue'
 
 const item = (id: string, status: QueueItem['status'], run?: Partial<QueueItem['run']>): QueueItem => ({
   id, queueId: 'q', position: 1, agent: 'claude', flags: '', instruction: '/goal x', status,
@@ -33,6 +33,10 @@ describe('button availability per status', () => {
   })
 
   it('offers Start, Pause and Resume by queue state', () => {
+    expect(queueRunning({ status: 'running', items: [] })).toBe(true)
+    expect(queueRunning({ status: 'paused', items: [item('a', 'verifying')] })).toBe(true)
+    expect(queueRunning({ status: 'paused', items: [item('a', 'done'), item('b', 'queued')] })).toBe(false)
+    expect(queueRunning({ status: 'idle', items: [] })).toBe(false)
     expect(queueControls('idle', true)).toEqual({ start: true, pause: false, resume: false })
     expect(queueControls('idle', false)).toEqual({ start: false, pause: false, resume: false })
     expect(queueControls('finished', true)).toEqual({ start: true, pause: false, resume: false })

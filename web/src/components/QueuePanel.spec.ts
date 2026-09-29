@@ -273,6 +273,14 @@ describe('QueuePanel', () => {
     id: 'q2', name: 'Docs', ...over,
   })
 
+  it('gives the running queue\'s tab a green border', async () => {
+    await mountPanel([queue([attention, queued]), second()], false, true)
+    expect(button('Show queue Docs')!.dataset.running).toBe('true')
+    expect(button('Show queue Docs')!.className).toContain('border-ok')
+    expect(button('Show queue Milestones')!.dataset.running).toBeUndefined()
+    expect(button('Show queue Milestones')!.className).not.toContain('border-ok')
+  })
+
   it('switches between queues: buttons on desktop, a select on the phone', async () => {
     await mountPanel([queue([attention, queued]), second()], false, true)
     expect($$('nav[aria-label="Queues"] button').map((b) => b.getAttribute('aria-label'))).toEqual(['Show queue Milestones', 'Show queue Docs'])

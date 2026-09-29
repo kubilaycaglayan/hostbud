@@ -1,4 +1,4 @@
-import type { QueueItem, QueueItemStatus, QueueStatus, RunStatus, VerifySummary } from '@/api/types'
+import type { Queue, QueueItem, QueueItemStatus, QueueStatus, RunStatus, VerifySummary } from '@/api/types'
 
 // Pure rules for the Queue panel (V2-M1, V2-M2) (mirrors internal/queue and
 // internal/agents: the server enforces the same ones).
@@ -94,6 +94,12 @@ export function verifyLine(v: VerifySummary): string {
   if (v.exitCode !== undefined) parts.push(`exit ${v.exitCode}`)
   if (v.durationMs !== undefined) parts.push(v.durationMs < 1000 ? `${v.durationMs} ms` : `${(v.durationMs / 1000).toFixed(1)} s`)
   return parts.join(' · ')
+}
+
+/** Whether the queue is running: its status says so, or an item still runs
+ * or verifies (a paused queue finishing its current item). */
+export function queueRunning(q: Pick<Queue, 'status' | 'items'>): boolean {
+  return q.status === 'running' || q.items.some((it) => it.status === 'running' || it.status === 'verifying')
 }
 
 export function queueControls(status: QueueStatus, hasQueued: boolean): { start: boolean; pause: boolean; resume: boolean } {

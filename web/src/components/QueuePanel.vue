@@ -9,7 +9,7 @@ import { ArrowDown, ArrowUp, GripVertical, Pencil, Plus, Trash2, TriangleAlert }
 import { queuesApi } from '@/api/client'
 import type { QueueItem, QueueItemHistory } from '@/api/types'
 import FormError from './FormError.vue'
-import { AGENTS, type Agent, flagsError, INSTRUCTION_PREFIX, instructionError, itemActions, moveQueued, queueControls, statusLabel, verifyCommandError, verifyLine } from '@/lib/queue'
+import { AGENTS, type Agent, flagsError, INSTRUCTION_PREFIX, instructionError, itemActions, moveQueued, queueControls, queueRunning, statusLabel, verifyCommandError, verifyLine } from '@/lib/queue'
 import { useQueuesStore } from '@/stores/queues'
 import { useProjectsStore } from '@/stores/projects'
 import { useSessionsStore } from '@/stores/sessions'
@@ -62,8 +62,7 @@ const controls = computed(() => queue.value ? queueControls(queue.value.status, 
 const runBlockedBy = computed(() => {
   if (store.parallelQueues || !queue.value) return null
   const id = queue.value.id
-  return store.queues.find((q) => q.id !== id
-    && (q.status === 'running' || q.items.some((it) => it.status === 'running' || it.status === 'verifying'))) ?? null
+  return store.queues.find((q) => q.id !== id && queueRunning(q)) ?? null
 })
 const runBlockedTitle = computed(() => runBlockedBy.value
   ? `Queue ${runBlockedBy.value.name} is running. Pause it and wait for its run to end, or turn on Run queues in parallel.`
@@ -472,8 +471,9 @@ const badge: Record<QueueItem['status'], string> = {
                 :aria-current="q.id === queue?.id ? 'true' : undefined"
                 :aria-label="`Show queue ${q.name}`"
                 :title="`${q.name} · ${q.projectName} (${q.status})`"
+                :data-running="queueRunning(q) ? 'true' : undefined"
                 class="touch-target inline-flex min-h-8 max-w-56 items-center gap-1 rounded border px-2 text-sm"
-                :class="q.id === queue?.id ? 'border-accent text-accent' : 'border-border'"
+                :class="[q.id === queue?.id ? 'text-accent' : '', queueRunning(q) ? 'border-ok ring-1 ring-ok' : q.id === queue?.id ? 'border-accent' : 'border-border']"
                 @click="select(q.id)"
               >
                 <TriangleAlert v-if="q.warnings?.length" :size="14" aria-hidden="true" class="shrink-0 text-danger" />

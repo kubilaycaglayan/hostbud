@@ -33,7 +33,7 @@ Each box is one roadmap criterion. Its coverage line names the task that writes 
   - Same project or two projects with the same cleaned path; shown on both queues; never blocks.
   - U: T2, T5 · I: n/a (pure logic over stored paths) · E: T2 *Same-directory warning*, T5 *Queues panel*.
 - [x] **7 Queues and the cap are manageable from desktop and phone.**
-  - Switcher, create, rename, delete (confirmed); the cap in Settings; "waiting for a free slot" shown; updates come from `queue.changed` only.
+  - Switcher, create, rename, delete (confirmed); the cap in Settings; "waiting for a free slot" shown; updates come from `queue.changed` only. A running queue's tab has a green border (2026-09-29, owner; `queueRunning`, the panel spec, *Queues panel*).
   - The capacity route is authenticated, Origin-checked and in `routes.json`; out-of-range values → 400.
   - U: T5 · I: T5 (route table, Origin) · E: T5 *Queues panel* (desktop and phone), *Capacity API*.
 - [x] **8 The docs are aligned** as listed in R T6 and T6.
