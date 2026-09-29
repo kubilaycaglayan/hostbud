@@ -10,7 +10,7 @@ import type { QueueItem, QueueItemHistory } from '@/api/types'
 import ConfirmDialog from './ConfirmDialog.vue'
 import DurationPicker from './DurationPicker.vue'
 import FormError from './FormError.vue'
-import { AGENTS, type Agent, completedSessions, DEFAULT_LOOP_RUNTIME_SECONDS, flagsError, loopRuntimeError, loopRuntimeText, INSTRUCTION_PREFIX, instructionError, itemActions, moveQueued, queueControls, queueRunning, statusLabel, verifyCommandError, verifyLine } from '@/lib/queue'
+import { AGENTS, type Agent, completedSessions, DEFAULT_LOOP_RUNTIME_SECONDS, flagsError, loopRuntimeError, loopRuntimeText, INSTRUCTION_PREFIX, instructionError, itemActions, moveQueued, progressCount, queueControls, queueRunning, statusLabel, verifyCommandError, verifyLine } from '@/lib/queue'
 import { useQueuesStore } from '@/stores/queues'
 import { useProjectsStore } from '@/stores/projects'
 import { useSessionsStore } from '@/stores/sessions'
@@ -85,7 +85,7 @@ const progressDescription = computed(() => {
     : activeIndex >= 0 ? `item ${activeIndex + 1} active`
       : remainingCount.value ? `${remainingCount.value} queued`
         : items.value.length ? 'complete' : 'empty'
-  return `${state}; ${remainingCount.value} left`
+  return `${state}; ${progressCount(items.value)}`
 })
 
 const error = ref<{ title: string; message: string; hint?: string } | null>(null)
@@ -474,7 +474,7 @@ const badge: Record<QueueItem['status'], string> = {
                 <span class="flex items-center gap-0.5" aria-hidden="true">
                   <span v-for="segment in progressSegments" :key="segment.id" class="h-1.5 w-2 rounded-sm" :class="segment.color" />
                 </span>
-                <span class="text-[11px] font-normal text-muted">{{ remainingCount }} left</span>
+                <span class="text-[11px] font-normal text-muted">{{ progressCount(items) }}</span>
               </span>
             </DialogTitle>
             <DialogDescription class="text-sm text-muted">

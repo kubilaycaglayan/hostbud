@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { QueueItem } from '@/api/types'
-import { capacityError, capacityValue, completedSessions, flagsError, instructionError, loopRuntimeError, loopRuntimeText, itemActions, moveQueued, queueControls, queueRunning, statusLabel, verifyCommandError, verifyLine } from './queue'
+import { capacityError, capacityValue, completedSessions, flagsError, instructionError, loopRuntimeError, loopRuntimeText, itemActions, moveQueued, progressCount, queueControls, queueRunning, statusLabel, verifyCommandError, verifyLine } from './queue'
 
 const item = (id: string, status: QueueItem['status'], run?: Partial<QueueItem['run']>): QueueItem => ({
   id, queueId: 'q', position: 1, agent: 'claude', flags: '', instruction: '/goal x', status,
@@ -137,5 +137,14 @@ describe('loop runtime limit', () => {
   it('accepts 1s to 30 days and rejects anything else', () => {
     for (const ok of ['5h', '1h30m', '90m', '1s', '720h', ' 2h ']) expect(loopRuntimeError(ok), ok).toBeNull()
     for (const bad of ['', '5', 'forever', '0s', '721h', '-1h', '5d']) expect(loopRuntimeError(bad), bad).not.toBeNull()
+  })
+})
+
+describe('queue progress count', () => {
+  it('shows the active item next to what is left, and the last one alone', () => {
+    expect(progressCount([item('a', 'queued'), item('b', 'queued')])).toBe('2 left')
+    expect(progressCount([item('a', 'done'), item('b', 'running'), item('c', 'queued')])).toBe('1 in progress | 1 left')
+    expect(progressCount([item('a', 'done'), item('b', 'awaiting_approval')])).toBe('Last in progress')
+    expect(progressCount([item('a', 'done'), item('b', 'needs_attention')])).toBe('0 left')
   })
 })

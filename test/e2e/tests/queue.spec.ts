@@ -322,7 +322,7 @@ test.describe('Queue panel (desktop)', { tag: '@desktop' }, () => {
     page.on('request', (r) => { if (r.url().includes('/api/queues')) requests.push(`${r.method()} ${new URL(r.url()).pathname}`) })
     await panel(page).getByRole('button', { name: 'Start' }).click()
     await expect(row(page, 'e2e panel a').getByTestId('item-status')).toHaveText(/^Running/, { timeout: 15_000 })
-    await expect(panel(page).getByTestId('queue-progress')).toHaveAttribute('aria-label', 'item 1 active; 2 left')
+    await expect(panel(page).getByTestId('queue-progress')).toHaveAttribute('aria-label', 'item 1 active; 1 in progress | 2 left')
     // Behind the modal panel, the header is hidden from role queries.
     await expect(page.locator('header').getByRole('button', { name: 'Queue', exact: true, includeHidden: true }).locator('[data-icon-box]')).toHaveClass(/border-accent/)
     await expect(panel(page).getByTestId('queue-status')).toHaveClass(/font-bold/)
