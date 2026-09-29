@@ -101,6 +101,7 @@ test('(T5) Linked session rename and cleanup', async ({ page, target, request, u
   const editor = page.getByRole('textbox', { name: `Rename ${sessionName}` })
   await editor.fill(`${sessionName}-renamed`)
   await editor.press('Enter')
+  await ui.showList()
   await expect(page.getByRole('group', { name: `Sessions in ${projectName}` }).getByRole('button', { name: `${sessionName}-renamed`, exact: true })).toBeVisible()
   await expect.poll(async () => {
     const data = await (await request.get(`/api/machines/${MACHINE}/sessions`)).json()
@@ -304,6 +305,7 @@ for (const profile of ['desktop', 'phone'] as const) {
       const editor = page.getByRole('textbox', { name: `Rename ${name}` })
       await editor.fill(`${name}-renamed`)
       await editor.press('Enter')
+      await ui.showList()
       await expect(page.locator(`[data-session-row][aria-label="${name}-renamed"]`)).toBeVisible()
       await ui.sessionAction(`${name}-renamed`, 'Kill…')
       await expect(page.getByRole('alertdialog', { name: `Kill session ${name}-renamed?` })).toBeVisible()

@@ -98,6 +98,7 @@ test('rename: the new name is in tmux ls and in the list', async ({ page, ui, ta
   await editor.fill(renamed)
   await editor.press('Enter')
 
+  await ui.showList()
   await expect(ui.session(renamed)).toBeVisible(soon)
   await expect(ui.session(name)).toHaveCount(0)
   expect(await target.sessions()).toEqual([renamed])
