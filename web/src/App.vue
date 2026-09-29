@@ -236,6 +236,8 @@ function openSettings() {
 function openQueueSession(name: string) {
   queueOpen.value = false
   openSession(name)
+  // The sidebar marks the session: expand its project if it was collapsed.
+  void activeTreePanel?.showSession(name)
   void nextTick(focusActiveTerminal)
 }
 

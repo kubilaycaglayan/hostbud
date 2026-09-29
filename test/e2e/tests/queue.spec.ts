@@ -218,6 +218,9 @@ test.describe('Queue panel (desktop)', () => {
     await stubs.setBehavior('e2e panel b', 'pending')
     await stubs.setBehavior('e2e panel f', 'fail')
     await ui.open()
+    // Collapse the project: Open session later expands it again.
+    await ui.treeItem(project.name).getByRole('button', { name: `Collapse ${project.name}` }).click()
+    await expect(ui.treeItem(project.name)).toHaveAttribute('aria-expanded', 'false')
 
     // Open the panel from the header (the command palette has it too).
     await page.getByRole('banner').getByRole('button', { name: 'Queue', exact: true }).click()
@@ -306,6 +309,10 @@ test.describe('Queue panel (desktop)', () => {
     await expect(panel(page)).toBeHidden()
     await ui.waitForTerminal(session)
     await expect.poll(() => ui.termText(session), { timeout: 15_000 }).toContain('still working')
+    // The sidebar shows it: the project expanded, the session marked.
+    await expect(ui.treeItem(project.name)).toHaveAttribute('aria-expanded', 'true')
+    await expect(ui.treeItem(session)).toBeVisible()
+    await expect(ui.treeItem(session)).toHaveAttribute('aria-selected', 'true')
   })
 
   test('(V2-M1 T10) Queue panel: Mark done confirms, and the palette opens the panel', async ({ page, ui, request, target }) => {

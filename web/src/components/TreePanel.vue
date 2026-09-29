@@ -18,6 +18,7 @@ const tree = ref<InstanceType<typeof SessionTree>>()
 defineExpose({
   revealProject: (id: string, rename = false) => tree.value?.revealProject(id, rename),
   revealSession: (name: string, rename = false) => tree.value?.revealSession(name, rename),
+  showSession: (name: string) => tree.value?.showSession(name),
 })
 </script>
 

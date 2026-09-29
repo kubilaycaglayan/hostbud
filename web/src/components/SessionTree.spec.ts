@@ -616,6 +616,26 @@ describe('SessionTree', () => {
     wrapper.unmount()
   })
 
+  it('shows an opened session: expands its collapsed project without taking focus', async () => {
+    const wrapper = mount(SessionTree, { attachTo: document.body, props: { selected: 'one' } })
+    const tree = useTreeStore()
+    tree.setCollapsed('a', true)
+    tree.hideSession('host', 'one')
+    await flushPromises()
+    expect(wrapper.find('[data-tree-key="session:one"]').exists()).toBe(false)
+    const before = document.activeElement
+    await (wrapper.vm as unknown as { showSession: (name: string) => Promise<void> }).showSession('one')
+    await flushPromises()
+    expect(tree.order.collapsed).not.toContain('a')
+    expect(wrapper.get('[data-tree-key="session:one"]').attributes('aria-selected')).toBe('true')
+    expect(document.activeElement).toBe(before)
+    // An unknown session changes nothing.
+    tree.setCollapsed('a', true)
+    await (wrapper.vm as unknown as { showSession: (name: string) => Promise<void> }).showSession('missing')
+    expect(tree.order.collapsed).toContain('a')
+    wrapper.unmount()
+  })
+
   it('moves focus to a visible parent when the focused session disappears', async () => {
     const wrapper = mount(SessionTree, { attachTo: document.body })
     const sessionRow = wrapper.get('[data-tree-key="session:one"]')

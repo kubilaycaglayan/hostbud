@@ -152,7 +152,21 @@ async function revealSession(name: string, rename = false) {
   if (rename) startRename('session:' + name)
 }
 
-defineExpose({ revealProject, revealSession })
+/** Shows a session that just opened elsewhere (a queue item's Open
+ * session): its project expands and its selected row scrolls into view, but
+ * focus stays on the terminal. */
+async function showSession(name: string) {
+  const group = tree.groups.groups.find((candidate) => candidate.sessions.some((session) => session.name === name))
+  const inOther = tree.groups.other.some((session) => session.name === name)
+  if (!group && !inOther) return
+  if (tree.order.hidden.sessions.includes(`host/${name}`) || (group && tree.order.hidden.projects.includes(group.project.id))) tree.setShowHidden(true)
+  tree.setCollapsed(group?.project.id ?? '__other__', false)
+  await nextTick()
+  const row = [...(root.value?.querySelectorAll<HTMLElement>('[data-tree-key]') ?? [])].find((item) => item.dataset.treeKey === `session:${name}`)
+  row?.scrollIntoView?.({ block: 'nearest' })
+}
+
+defineExpose({ revealProject, revealSession, showSession })
 
 function startProjectLongPress(event: PointerEvent, id: string) {
   if (event.pointerType !== 'touch') return
