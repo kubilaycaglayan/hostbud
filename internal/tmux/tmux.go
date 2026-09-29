@@ -567,7 +567,9 @@ func CopyModeArgs(name string, action CopyAction, lines int) ([]string, error) {
 			args = append([]string{"tmux", "copy-mode", "-e", "-t", t, ";"}, args[1:]...)
 		}
 	case CopyPageUp, CopyPageDown, CopyTop, CopyBottom, CopyExit:
-		key := map[CopyAction]string{CopyPageUp: "page-up", CopyPageDown: "page-down", CopyTop: "history-top", CopyBottom: "history-bottom", CopyExit: "cancel"}[action]
+		// Bottom leaves copy mode: the live screen is the bottom, and -e (which
+		// only reacts to scrolling) would leave the pane in copy mode there.
+		key := map[CopyAction]string{CopyPageUp: "page-up", CopyPageDown: "page-down", CopyTop: "history-top", CopyBottom: "cancel", CopyExit: "cancel"}[action]
 		args = []string{"tmux", "send-keys", "-X", "-t", t, key}
 	default:
 		return nil, fmt.Errorf("unknown copy-mode action %q", action)

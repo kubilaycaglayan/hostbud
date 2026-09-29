@@ -58,7 +58,7 @@ The backend for the Scroll button (ARCHITECTURE §5.2 *Copy/scroll mode*, §9 `P
   - `enter` → `copy-mode -e -u -t '=<name>:'`: enter copy mode and scroll up one page. `-e` makes scrolling back to the bottom leave copy mode by itself, as a phone user expects.
   - `scroll-up` / `scroll-down` → `send-keys -X -N <lines> -t … scroll-up|scroll-down`, with `lines` between 1 and 500 (default 1; anything else is rejected, not clamped).
   - `page-up` / `page-down` → `send-keys -X -t … page-up|page-down`.
-  - `top` / `bottom` → `send-keys -X -t … history-top|history-bottom`.
+  - `top` → `send-keys -X -t … history-top`; `bottom` → `send-keys -X -t … cancel` (the live screen is the bottom; `-e` only exits on scrolling, so `history-bottom` would stay in copy mode).
   - `exit` → `send-keys -X -t … cancel`.
   - After every action, the same exec reads `display -p -t … '#{pane_in_mode}\t#{scroll_position}\t#{history_size}'` (tmux `;` separator passed as its own shell-quoted argument), so the response reports the state tmux actually ended in.
 - **Not in copy mode:** `send-keys -X` fails with "not in a mode" when the pane already left copy mode (the user typed `q`, or scrolled back to the bottom). A scroll or `exit` then succeeds with `inMode: false` instead of returning an error, so the UI can't get stuck.

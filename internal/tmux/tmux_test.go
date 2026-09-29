@@ -232,7 +232,7 @@ func TestCopyModeArgs(t *testing.T) {
 		{CopyPageUp, 0, []string{"tmux", "send-keys", "-X", "-t", "=work:", "page-up"}},
 		{CopyPageDown, 0, []string{"tmux", "send-keys", "-X", "-t", "=work:", "page-down"}},
 		{CopyTop, 0, []string{"tmux", "send-keys", "-X", "-t", "=work:", "history-top"}},
-		{CopyBottom, 0, []string{"tmux", "send-keys", "-X", "-t", "=work:", "history-bottom"}},
+		{CopyBottom, 0, []string{"tmux", "send-keys", "-X", "-t", "=work:", "cancel"}},
 		{CopyExit, 0, []string{"tmux", "send-keys", "-X", "-t", "=work:", "cancel"}},
 		{CopyWheelUp, 4, []string{"tmux", "copy-mode", "-e", "-t", "=work:", ";", "send-keys", "-X", "-N", "4", "-t", "=work:", "scroll-up"}},
 		{CopyWheelDown, 4, []string{"tmux", "send-keys", "-X", "-N", "4", "-t", "=work:", "scroll-down"}},
