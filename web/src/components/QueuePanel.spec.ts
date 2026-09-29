@@ -1,4 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
+import { VueDraggable } from 'vue-draggable-plus'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import QueuePanel from './QueuePanel.vue'
@@ -36,6 +37,14 @@ async function mountPanel(q: Queue | Queue[] | null, compact = false, parallel =
 }
 
 describe('QueuePanel', () => {
+  it('uses fallback dragging for queue items', async () => {
+    const wrapper = await mountPanel(queue([queued]))
+    const list = wrapper.findComponent(VueDraggable)
+    expect(list.props('forceFallback')).toBe(true)
+    expect(list.props('fallbackOnBody')).toBe(true)
+    expect(list.props('fallbackTolerance')).toBe(4)
+  })
+
   it('shows each item with its status, reason and session, and only the allowed buttons', async () => {
     await mountPanel(queue([attention, queued]))
     const text = document.body.textContent ?? ''

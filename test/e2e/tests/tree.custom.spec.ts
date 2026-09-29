@@ -121,6 +121,7 @@ test('(T2) Keyboard tree navigation', async ({ page, ui, target }) => {
   await page.keyboard.press('Alt+ArrowDown')
   await ui.waitForSave('tree')
   await page.reload()
+  await ui.showList()
   const orderedRows = page.getByRole('group', { name: 'Other sessions' }).locator('[data-session-row]')
   await expect.poll(async () => (await orderedRows.allTextContents()).map((text) => text.trim())).toEqual([second, first])
 })
