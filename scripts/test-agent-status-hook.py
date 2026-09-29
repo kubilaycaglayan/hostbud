@@ -24,8 +24,8 @@ class StatusMappingTests(unittest.TestCase):
             "PreToolUse": "working",
             "PostToolUse": "working",
             "PermissionRequest": "blocked",
-            "Stop": "blocked",
-            "Interrupt": "blocked",
+            "Stop": "ended",
+            "Interrupt": "ended",
         }
         for event, status in cases.items():
             with self.subTest(event=event):
@@ -43,15 +43,15 @@ class StatusMappingTests(unittest.TestCase):
             "PostToolUse": "working",
             "PostToolBatch": "working",
             "PermissionRequest": "blocked",
-            "Stop": "blocked",
-            "StopFailure": "blocked",
+            "Stop": "ended",
+            "StopFailure": "ended",
         }
         for event, status in cases.items():
             with self.subTest(event=event):
                 self.assertEqual(HOOK.status_for("claude", {"hook_event_name": event}), status)
-        for kind in ("permission_prompt", "idle_prompt", "agent_needs_input"):
+        for kind, status in (("permission_prompt", "blocked"), ("agent_needs_input", "blocked"), ("idle_prompt", "ended")):
             with self.subTest(notification=kind):
-                self.assertEqual(HOOK.status_for("claude", {"hook_event_name": "Notification", "notification_type": kind}), "blocked")
+                self.assertEqual(HOOK.status_for("claude", {"hook_event_name": "Notification", "notification_type": kind}), status)
         self.assertIsNone(HOOK.status_for("claude", {"hook_event_name": "Notification", "notification_type": "auth_success"}))
 
     @patch.object(HOOK.subprocess, "run")
@@ -97,9 +97,9 @@ class DaemonPaneLookupTests(unittest.TestCase):
         ])
         self.assertEqual(HOOK.provider_clients("codex", proc), [("10", 34827, os.path.realpath("/home/dev/repo"))])
 
-    def find(self, clients, panes, event, status="working"):
+    def find(self, clients, panes, event):
         with patch.object(HOOK, "provider_clients", return_value=clients), patch.object(HOOK, "pane_ttys", return_value=panes):
-            return HOOK.find_pane("codex", event, status, self.claims)
+            return HOOK.find_pane("codex", event, self.claims)
 
     def test_single_client_in_cwd_is_used_without_a_session_id(self):
         clients = [("10", 1, "/home/dev/repo"), ("20", 2, "/home/dev/other")]
@@ -132,7 +132,11 @@ class DaemonPaneLookupTests(unittest.TestCase):
         # %1's client exits and a new one starts there: the old claim no longer holds.
         restarted = [("11", 1, repo), ("20", 2, repo)]
         self.assertEqual(self.find(restarted, panes, {"cwd": repo, "session_id": "c"}), "%1")
-        self.assertEqual(self.find(restarted, panes, {"cwd": repo, "session_id": "b"}, "ended"), "%2")
+        # A finished turn keeps the claim; only the session's end releases it.
+        self.assertEqual(self.find(restarted, panes, {"cwd": repo, "session_id": "b", "hook_event_name": "Stop"}), "%2")
+        with open(self.claims) as f:
+            self.assertEqual(json.load(f), {"b": "%2/20", "c": "%1/11"})
+        self.assertEqual(self.find(restarted, panes, {"cwd": repo, "session_id": "b", "hook_event_name": "SessionEnd"}), "%2")
         with open(self.claims) as f:
             self.assertEqual(json.load(f), {"c": "%1/11"})
 
@@ -147,8 +151,8 @@ class DaemonPaneLookupTests(unittest.TestCase):
     def test_report_without_tmux_pane_uses_lookup(self, run):
         with patch.object(HOOK, "find_pane", return_value="%7") as find:
             HOOK.report("codex", {"hook_event_name": "Stop", "cwd": "/home/dev/repo"})
-        find.assert_called_once_with("codex", {"hook_event_name": "Stop", "cwd": "/home/dev/repo"}, "blocked")
-        self.assertEqual(run.call_args.args[0][-3:], ["%7", "@hostbud_agent_status", "blocked"])
+        find.assert_called_once_with("codex", {"hook_event_name": "Stop", "cwd": "/home/dev/repo"})
+        self.assertEqual(run.call_args.args[0][-3:], ["%7", "@hostbud_agent_status", "ended"])
         run.reset_mock()
         with patch.object(HOOK, "find_pane", side_effect=RuntimeError("boom")):
             HOOK.report("codex", {"hook_event_name": "Stop"})
@@ -160,7 +164,7 @@ class DaemonPaneLookupTests(unittest.TestCase):
         with patch.object(HOOK, "find_pane") as find:
             HOOK.report("claude", {"hook_event_name": "Stop"})
         find.assert_not_called()
-        self.assertEqual(run.call_args.args[0][-3:], ["%3", "@hostbud_agent_status", "blocked"])
+        self.assertEqual(run.call_args.args[0][-3:], ["%3", "@hostbud_agent_status", "ended"])
 
 
 if __name__ == "__main__":

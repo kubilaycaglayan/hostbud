@@ -28,7 +28,9 @@ def status_for(provider: str, event: dict) -> Optional[str]:
             return "ended"
         if name in {"UserPromptSubmit", "PreToolUse", "PostToolUse"}:
             return "working"
-        if name in {"PermissionRequest", "Stop", "Interrupt"}:
+        if name in {"Stop", "Interrupt"}:
+            return "ended"
+        if name == "PermissionRequest":
             return "blocked"
         return None
 
@@ -39,14 +41,15 @@ def status_for(provider: str, event: dict) -> Optional[str]:
             return "ended"
         if name in {"UserPromptSubmit", "UserPromptExpansion", "PreToolUse", "PostToolUse", "PostToolBatch"}:
             return "working"
-        if name in {"PermissionRequest", "Stop", "StopFailure"}:
+        if name in {"Stop", "StopFailure"}:
+            return "ended"
+        if name == "PermissionRequest":
             return "blocked"
-        if name == "Notification" and event.get("notification_type") in {
-            "permission_prompt",
-            "idle_prompt",
-            "agent_needs_input",
-        }:
+        kind = event.get("notification_type") if name == "Notification" else None
+        if kind in {"permission_prompt", "agent_needs_input"}:
             return "blocked"
+        if kind == "idle_prompt":
+            return "ended"
     return None
 
 
@@ -141,7 +144,7 @@ def claim_pane(session: str, cwd_clients: list, live: set, ended: bool, path: st
     return client.partition("/")[0]
 
 
-def find_pane(provider: str, event: dict, status: str, path: Optional[str] = None) -> str:
+def find_pane(provider: str, event: dict, path: Optional[str] = None) -> str:
     """Locate the pane for hooks run outside it, such as by Codex's app-server daemon."""
     cwd = event.get("cwd")
     if not isinstance(cwd, str) or not cwd.startswith("/"):
@@ -158,7 +161,7 @@ def find_pane(provider: str, event: dict, status: str, path: Optional[str] = Non
     if not cwd_clients or not isinstance(session, str) or not SESSION_RE.fullmatch(session):
         return only
     try:
-        return claim_pane(session, cwd_clients, live, status == "ended", path or claims_path())
+        return claim_pane(session, cwd_clients, live, event.get("hook_event_name") == "SessionEnd", path or claims_path())
     except (OSError, ValueError):
         return only
 
@@ -172,7 +175,7 @@ def report(provider: str, event: dict, pane: Optional[str] = None) -> None:
         return
     if not pane and not os.environ.get("TMUX_PANE"):
         try:
-            pane = find_pane(provider, event, status)
+            pane = find_pane(provider, event)
         except Exception:  # noqa: BLE001 - a hook must never disturb the client
             return
     pane = pane or os.environ.get("TMUX_PANE", "")
