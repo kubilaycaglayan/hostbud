@@ -32,7 +32,7 @@ export const shortcuts: ShortcutEntry[] = [
   { id: 'focus-tree-terminal', label: 'Focus tree ↔ terminal', group: 'General', bindings: [global('⌘⇧E', { key: 'e', meta: true, shift: true, platform: 'mac' }), global('Ctrl+Shift+E', { key: 'e', ctrl: true, shift: true })] },
   { id: 'next-tab', label: 'Next tab', group: 'Tabs', bindings: [global('Ctrl+Shift+]', { code: 'BracketRight', ctrl: true, shift: true })] },
   { id: 'previous-tab', label: 'Previous tab', group: 'Tabs', bindings: [global('Ctrl+Shift+[', { code: 'BracketLeft', ctrl: true, shift: true })] },
-  { id: 'last-tab', label: 'Switch to last tab', group: 'Tabs', bindings: [global('Ctrl+Shift+D', { key: 'd', ctrl: true, shift: true })] },
+  { id: 'last-tab', label: 'Switch to last tab', group: 'Tabs', bindings: [global('Ctrl+Shift+D', { key: 'd', ctrl: true, shift: true }), global('Ctrl+⌘+D', { key: 'd', ctrl: true, meta: true, platform: 'mac' })] },
   { id: 'tree-up', label: 'Move focus up', group: 'Tree', bindings: [tree('↑', { key: 'ArrowUp' })] },
   { id: 'tree-down', label: 'Move focus down', group: 'Tree', bindings: [tree('↓', { key: 'ArrowDown' })] },
   { id: 'tree-expand', label: 'Expand row or move to child', group: 'Tree', bindings: [tree('→', { key: 'ArrowRight' })] },

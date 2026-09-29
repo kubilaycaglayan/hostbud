@@ -76,12 +76,26 @@ test('(T8) Toggle to the last tab, dropping closed tabs from its history', async
   await ui.tab(names[2]).click()
   await page.keyboard.press('Control+Shift+D')
   await expect.poll(() => ui.activeTabName()).toBe(names[0])
+  await expect(page.locator('[data-focused="true"] .xterm-helper-textarea')).toBeFocused()
   await ui.type('echo shortcut-mru-a', true)
   await expect.poll(() => captured(target, names[0])).toContain('shortcut-mru-a')
   await page.keyboard.press('Control+Shift+D')
   await expect.poll(() => ui.activeTabName()).toBe(names[2])
+  await expect(page.locator('[data-focused="true"] .xterm-helper-textarea')).toBeFocused()
   await ui.type('echo shortcut-mru-c', true)
   await expect.poll(() => captured(target, names[2])).toContain('shortcut-mru-c')
+  // The extra Ctrl+Command+D binding is Mac-only; emulate that platform here
+  // so the same browser scenario covers the user's reported chord.
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'platform', { configurable: true, get: () => 'MacIntel' })
+    Object.defineProperty(navigator, 'userAgentData', { configurable: true, value: { platform: 'MacIntel' } })
+  })
+  await page.keyboard.press('Control+Meta+D')
+  await expect.poll(() => ui.activeTabName()).toBe(names[0])
+  await expect(page.locator('[data-focused="true"] .xterm-helper-textarea')).toBeFocused()
+  await page.keyboard.press('Control+Meta+D')
+  await expect.poll(() => ui.activeTabName()).toBe(names[2])
+  await expect(page.locator('[data-focused="true"] .xterm-helper-textarea')).toBeFocused()
   await ui.tab(names[0]).click()
   // History a, c, b. Closing the active a selects its neighbour b; the chord
   // then skips the closed a and goes to c, the most recent open tab.

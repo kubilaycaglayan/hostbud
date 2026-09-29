@@ -48,6 +48,9 @@ describe('shortcut registry', () => {
     expect(matchingShortcut(key('k', { metaKey: true }), 'other')).toBeUndefined()
     expect(matchingShortcut(key('k', { ctrlKey: true, shiftKey: true }), 'other')?.id).toBe('palette')
     expect(matchingShortcut(key('d', { metaKey: true, shiftKey: true }), 'mac')).toBeUndefined()
+    expect(matchingShortcut(key('d', { ctrlKey: true, metaKey: true }), 'mac')?.id).toBe('last-tab')
+    expect(matchingShortcut(key('d', { ctrlKey: true, metaKey: true }), 'other')).toBeUndefined()
+    expect(shortcutLabels(shortcuts.find((candidate) => candidate.id === 'last-tab')!, 'mac')).toEqual(['Ctrl+Shift+D', 'Ctrl+⌘+D'])
   })
 
   it('intercepts global chords but leaves outside-terminal Ctrl+K and Alt+B to the terminal', () => {
