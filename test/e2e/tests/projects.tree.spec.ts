@@ -207,6 +207,51 @@ for (const profile of ['desktop', 'phone'] as const) {
       expect(await recent.json()).toEqual({ commands: [] })
     })
 
+    test('Kill all sessions of a project after two confirmations', async ({ page, ui, target, request }) => {
+      await createAccount(ui)
+      const folder = `/home/dev/${uniqueName('e2e-kill-all')}`
+      const projectName = uniqueName('kill-all-project')
+      const first = uniqueName('kill-all-a')
+      const second = uniqueName('kill-all-b')
+      const outside = uniqueName('kill-all-outside')
+      await target.run(`mkdir -p ${shq(folder)}`)
+      await addProject(request, folder, projectName)
+      await createTargetSession(target, first, folder)
+      await createTargetSession(target, second, folder)
+      await createTargetSession(target, outside, '/home/dev')
+      await page.goto('/')
+      await ui.showList()
+      const group = page.getByRole('group', { name: `Sessions in ${projectName}` })
+      await expect(group.getByRole('button', { name: first, exact: true })).toBeVisible()
+      await expect(group.getByRole('button', { name: second, exact: true })).toBeVisible()
+      const openMenu = async () => {
+        if (profile === 'phone') await longPress(page, ui.treeItem(projectName).locator(':scope > div').first())
+        else await ui.treeItem(projectName).getByRole('button', { name: `More actions for ${projectName}` }).click()
+        await page.getByRole('menuitem', { name: 'Kill all sessions of this project…', exact: true }).click()
+      }
+      const alive = async () => (await (await request.get(`/api/machines/${MACHINE}/sessions`)).json()).sessions.map((s: { name: string }) => s.name) as string[]
+
+      // Cancel on the second step kills nothing.
+      await openMenu()
+      await page.getByRole('alertdialog', { name: `Kill all sessions of ${projectName}?` }).getByRole('button', { name: 'Continue…' }).click()
+      const really = page.getByRole('alertdialog', { name: 'Really kill 2 sessions?' })
+      await expect(really).toContainText(first)
+      await really.getByRole('button', { name: 'Cancel' }).click()
+      await expect(really).toHaveCount(0)
+      expect(await alive()).toEqual(expect.arrayContaining([first, second, outside]))
+
+      await openMenu()
+      await page.getByRole('alertdialog', { name: `Kill all sessions of ${projectName}?` }).getByRole('button', { name: 'Continue…' }).click()
+      await page.getByRole('alertdialog', { name: 'Really kill 2 sessions?' }).getByRole('button', { name: 'Kill 2 sessions' }).click()
+      await expect(group.getByRole('button', { name: first, exact: true })).toHaveCount(0)
+      await expect(group.getByRole('button', { name: second, exact: true })).toHaveCount(0)
+      await expect(ui.treeItem(projectName)).toBeVisible()
+      await expect.poll(alive, { timeout: 15_000 }).not.toContain(first)
+      const left = await alive()
+      expect(left).not.toContain(second)
+      expect(left).toContain(outside)
+    })
+
     test('(T5) Other sessions and Save as project', async ({ page, target, request }) => {
       const path = `/home/dev/${uniqueName('e2e-unmatched')}`
       const name = uniqueName('e2e-loose')

@@ -11,6 +11,7 @@ const emit = defineEmits<{
   split: [name: string, dir: SplitDir]
   kill: [name: string]
   removeProject: [id: string]
+  killProjectSessions: [id: string]
   sessionInProject: [project: Project]
   create: []
 }>()
@@ -36,6 +37,7 @@ defineExpose({
         @split="(name, dir) => emit('split', name, dir)"
         @kill="emit('kill', $event)"
         @remove-project="emit('removeProject', $event)"
+        @kill-project-sessions="emit('killProjectSessions', $event)"
         @session-in-project="emit('sessionInProject', $event)"
         @create="emit('create')"
       />

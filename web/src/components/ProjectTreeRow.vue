@@ -31,6 +31,7 @@ const emit = defineEmits<{
   cancelRename: [key: string]
   hideProject: [id: string]
   removeProject: [id: string]
+  killProjectSessions: [id: string]
   togglePin: [id: string]
   select: [name: string]
   selectWindow: [name: string, window: string, pane?: string]
@@ -107,6 +108,7 @@ function onMenuCloseAutoFocus(event: Event) {
             <DropdownMenuItem class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 outline-none data-highlighted:bg-bg" @select="startProjectRename">Rename</DropdownMenuItem>
             <DropdownMenuItem class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 outline-none data-highlighted:bg-bg" @select="emit('hideProject', props.group.project.id)">{{ props.hidden ? 'Unhide' : 'Hide' }}</DropdownMenuItem>
             <DropdownMenuItem class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 outline-none data-highlighted:bg-bg" @select="emit('togglePin', props.group.project.id)">{{ props.pinned ? 'Unpin' : 'Pin' }}</DropdownMenuItem>
+            <DropdownMenuItem class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 text-danger outline-none data-highlighted:bg-bg data-disabled:cursor-default data-disabled:opacity-50" :disabled="!props.group.sessions.length" @select="emit('killProjectSessions', props.group.project.id)">Kill all sessions of this project…</DropdownMenuItem>
             <DropdownMenuItem class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 text-danger outline-none data-highlighted:bg-bg" @select="emit('removeProject', props.group.project.id)">Remove project…</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenuPortal>

@@ -10,6 +10,7 @@ import TreePanel from '@/components/TreePanel.vue'
 import ShortcutsDialog from '@/components/ShortcutsDialog.vue'
 import CommandPalette from '@/components/CommandPalette.vue'
 import RemoveProjectDialog from '@/components/RemoveProjectDialog.vue'
+import KillProjectSessionsDialog from '@/components/KillProjectSessionsDialog.vue'
 import KillSessionDialog from '@/components/KillSessionDialog.vue'
 import QueuePanel from '@/components/QueuePanel.vue'
 import SettingsDialog from '@/components/SettingsDialog.vue'
@@ -72,6 +73,8 @@ const accountOpen = ref(false)
 const swipeStart = ref<{ x: number; y: number } | null>(null)
 const target = ref('') // the session the kill confirmation is about
 const removingProject = ref<Project | null>(null)
+const killingProject = ref<Project | null>(null) // the project whose sessions the kill-all confirmation is about
+const killingProjectSessions = ref<string[]>([])
 const shortcutsOpen = ref(false)
 const paletteOpen = ref(false)
 const paletteSplitDir = ref<SplitDir | null>(null)
@@ -143,6 +146,13 @@ function askKill(name: string) {
 function askRemoveProject(id: string) {
   const project = projects.items.find((item) => item.id === id)
   if (project) removingProject.value = project
+}
+function askKillProjectSessions(id: string) {
+  const group = tree.groups.groups.find((item) => item.project.id === id)
+  if (!group?.sessions.length) return
+  // Snapshot the names: the list shrinks as the kills land.
+  killingProjectSessions.value = group.sessions.map((session) => session.name)
+  killingProject.value = group.project
 }
 function onProjectRemoved(id: string) {
   removingProject.value = null
@@ -647,10 +657,10 @@ onUnmounted(() => {
         aria-label="Sessions"
         class="flex w-64 shrink-0 flex-col border-r border-border bg-surface p-2"
       >
-        <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @remove-project="askRemoveProject" @session-in-project="newProjectSession" @create="newSession" />
+        <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @remove-project="askRemoveProject" @kill-project-sessions="askKillProjectSessions" @session-in-project="newProjectSession" @create="newSession" />
       </aside>
       <main v-if="compact && !hasTabs" id="sessions-sidebar" class="min-h-0 min-w-0 flex-1 overflow-y-auto bg-surface p-2">
-        <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @remove-project="askRemoveProject" @session-in-project="newProjectSession" @create="newSession" />
+        <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @remove-project="askRemoveProject" @kill-project-sessions="askKillProjectSessions" @session-in-project="newProjectSession" @create="newSession" />
       </main>
       <main
         v-else
@@ -716,7 +726,7 @@ onUnmounted(() => {
             </DialogClose>
           </div>
           <DialogDescription class="sr-only">Choose a project or session.</DialogDescription>
-          <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @remove-project="askRemoveProject" @session-in-project="newProjectSession" @create="newSession" />
+          <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @remove-project="askRemoveProject" @kill-project-sessions="askKillProjectSessions" @session-in-project="newProjectSession" @create="newSession" />
         </DialogContent>
       </DialogPortal>
     </DialogRoot>
@@ -752,6 +762,7 @@ onUnmounted(() => {
     />
     <SettingsDialog v-model:open="settingsOpen" :compact="compact" :machine="MACHINE" />
     <ShortcutsDialog :open="shortcutsOpen" @update:open="closeShortcuts" />
+    <KillProjectSessionsDialog :machine="MACHINE" :project="killingProject" :sessions="killingProjectSessions" :compact="compact" @killed="onKilled" @done="killingProject = null" @cancel="killingProject = null" />
     <RemoveProjectDialog :project="removingProject" :session-count="removePreview.count" :destinations="removePreview.destinations" :display-path="removingProjectPath" @cancel="removingProject = null" @removed="onProjectRemoved" />
     <CommandPalette
       :open="paletteOpen"
