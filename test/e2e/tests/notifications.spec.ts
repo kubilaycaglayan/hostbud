@@ -40,9 +40,9 @@ test.describe('In-app notifications (desktop)', () => {
     const liveSnapshot = new Promise<void>((resolve) => {
       page.on('websocket', socket => {
         if (new URL(socket.url()).pathname !== '/ws/events') return
-        socket.on('framereceived', data => {
+        socket.on('framereceived', frame => {
           try {
-            if ((JSON.parse(String(data)) as { type?: string }).type === 'snapshot') resolve()
+            if ((JSON.parse(String(frame.payload)) as { type?: string }).type === 'snapshot') resolve()
           } catch { /* ignore non-JSON websocket frames */ }
         })
       })
@@ -124,7 +124,7 @@ test.describe('Notification settings (desktop)', () => {
     await dialog.getByTestId('notifications-toggle').click()
     await expect(dialog.getByTestId('notifications-toggle')).toBeChecked()
     await expect(dialog.getByTestId('notification-device')).toHaveText('This device: notifications while hostbud is open.')
-    expect((await getNotificationSettings(request)).enabled).toBe(true)
+    await expect.poll(async () => (await getNotificationSettings(request)).enabled).toBe(true)
 
     // The owner takes the permission back in the browser, then comes back.
     await context.clearPermissions()

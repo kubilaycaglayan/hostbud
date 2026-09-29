@@ -21,13 +21,25 @@ export function installNotificationSpy(w: Window): void {
   const Real = (w as unknown as { Notification?: typeof Notification }).Notification
   const shown: ShownNotification[] = []
   const instances: { onclick: ((this: unknown, ev: Event) => unknown) | null }[] = []
+  // Headless Chromium keeps Notification.permission at "denied" after the
+  // test grants the permission, while the Permissions API (and
+  // requestPermission) report the grant: a grant there wins. Otherwise the
+  // browser's own value stands (headless denies what nobody granted).
+  let granted: NotificationPermission | undefined
+  const fromState = (state: PermissionState): NotificationPermission | undefined => (state === 'granted' ? 'granted' : undefined)
+  void w.navigator?.permissions?.query({ name: 'notifications' }).then((status) => {
+    granted = fromState(status.state)
+    status.onchange = () => { granted = fromState(status.state) }
+  }).catch(() => {})
   class SpyNotification {
     static get permission(): NotificationPermission {
-      return Real?.permission ?? 'default'
+      return granted ?? Real?.permission ?? 'default'
     }
-    static requestPermission(cb?: NotificationPermissionCallback): Promise<NotificationPermission> {
+    static async requestPermission(cb?: NotificationPermissionCallback): Promise<NotificationPermission> {
       w.__notificationPermissionRequests = (w.__notificationPermissionRequests ?? 0) + 1
-      return Real ? Real.requestPermission(cb) : Promise.resolve('denied')
+      const answer = Real ? await Real.requestPermission(cb) : 'denied'
+      granted = answer === 'granted' ? answer : undefined
+      return answer
     }
     onclick: ((this: unknown, ev: Event) => unknown) | null = null
     readonly title: string

@@ -55,25 +55,30 @@ test('(T10) a changed host key blocks terminal attach until the pinned key is re
 })
 
 for (const project of ['desktop-chromium', 'iphone-13-pro']) {
-  test(`(T2) session create timeout keeps the form open on ${project}`, async ({ page, ui }, info) => {
-    test.skip(info.project.name !== project)
-    await ui.open()
-    await ui.showList()
-    await ui.headerAction('New session')
-    const dialog = page.getByRole('dialog', { name: 'New session' })
-    await dialog.getByLabel('Name').fill('kept-session-name')
-    await page.route(/\/api\/machines\/host\/sessions(?:\?.*)?$/, route => {
-      if (route.request().method() !== 'POST') return route.continue()
-      return route.fulfill({ status: 504, contentType: 'application/json', body: JSON.stringify({ error: "The host didn't answer within 10s", hint: 'hostbud will retry' }) })
+  // WebKit sends API requests through the app's service worker, which
+  // page.route can't intercept: the stubbed create would reach the host.
+  test.describe(`session create timeout on ${project}`, () => {
+    test.use({ serviceWorkers: 'block' })
+    test(`(T2) session create timeout keeps the form open on ${project}`, async ({ page, ui }, info) => {
+      test.skip(info.project.name !== project)
+      await ui.open()
+      await ui.showList()
+      await ui.headerAction('New session')
+      const dialog = page.getByRole('dialog', { name: 'New session' })
+      await dialog.getByLabel('Name').fill('kept-session-name')
+      await page.route(/\/api\/machines\/host\/sessions(?:\?.*)?$/, route => {
+        if (route.request().method() !== 'POST') return route.continue()
+        return route.fulfill({ status: 504, contentType: 'application/json', body: JSON.stringify({ error: "The host didn't answer within 10s", hint: 'hostbud will retry' }) })
+      })
+      const rejectedCreate = page.waitForResponse(response =>
+        response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/machines/host/sessions',
+      )
+      await dialog.getByRole('button', { name: 'Create' }).click()
+      expect((await rejectedCreate).status()).toBe(504)
+      await expect(dialog).toBeVisible()
+      await expect(dialog.getByLabel('Name')).toHaveValue('kept-session-name')
+      await expect(dialog).toContainText("The host didn't answer within 10s")
     })
-    const rejectedCreate = page.waitForResponse(response =>
-      response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/machines/host/sessions',
-    )
-    await dialog.getByRole('button', { name: 'Create' }).click()
-    expect((await rejectedCreate).status()).toBe(504)
-    await expect(dialog).toBeVisible()
-    await expect(dialog.getByLabel('Name')).toHaveValue('kept-session-name')
-    await expect(dialog).toContainText("The host didn't answer within 10s")
   })
 
   test(`(T2) a real tmux stall shows timeout and recovers on ${project}`, async ({ page, ui, target }, info) => {
@@ -117,10 +122,11 @@ for (const project of ['desktop-chromium', 'iphone-13-pro']) {
     await ctl.stallTmux()
     try {
       await page.reload()
-      const terminal = page.getByRole('region', { name: `Terminal: ${activeSession}` })
-      await expect.poll(async () => (await hostBanner.isVisible()) || (await terminal.isVisible()), { timeout: 15_000 }).toBe(true)
+      // The terminal renders from the saved layout at once; the stall shows
+      // as the host banner (after the exec timeout) or a connecting status.
+      const connecting = page.getByText(/Connecting…|Reconnecting…/)
+      await expect.poll(async () => (await hostBanner.isVisible()) || (await connecting.first().isVisible()), { timeout: 15_000 }).toBe(true)
       if (await hostBanner.isVisible()) await expect(hostBanner).toContainText('timed out')
-      else await expect(page.getByText(/Connecting…|Reconnecting…/)).toBeVisible()
     } finally {
       await ctl.unstallTmux()
     }

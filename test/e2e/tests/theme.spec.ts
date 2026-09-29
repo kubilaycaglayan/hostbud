@@ -111,7 +111,7 @@ test('(T15) Selected session and active tab stand out across themes', async ({ p
   await expect(page.getByRole('img', { name: 'attached session' })).toHaveCount(0)
   await ui.treeItem(first).getByRole('button', { name: `More actions for ${first}` }).click()
   await page.keyboard.press('Escape')
-  await expect(page.getByRole('tab', { name: second, exact: true })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByRole('tab', { name: second, exact: true, includeHidden: true }).first()).toHaveAttribute('aria-selected', 'true')
 
   for (const [choice, theme] of [
     ['Dark', 'dark'],
@@ -126,7 +126,7 @@ test('(T15) Selected session and active tab stand out across themes', async ({ p
     const [selected, other, tab] = await Promise.all([
       row.evaluate((el) => getComputedStyle(el).backgroundColor),
       ui.treeItem(first).evaluate((el) => getComputedStyle(el).backgroundColor),
-      page.getByRole('tab', { name: second, exact: true, includeHidden: true }).evaluate((el) => getComputedStyle(el.parentElement!).backgroundColor),
+      page.getByRole('tab', { name: second, exact: true, includeHidden: true }).first().evaluate((el) => getComputedStyle(el.parentElement!).backgroundColor),
     ])
     expect(selected).not.toBe(other)
     expect(tab).toBe(selected)
