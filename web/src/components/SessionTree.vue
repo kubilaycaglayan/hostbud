@@ -195,10 +195,11 @@ function hideProject(id: string) {
   else focusAfterHide(index)
 }
 
-function toggleProjectPin(id: string) {
+async function toggleProjectPin(id: string) {
   // Pinning moves the row to another v-for section. Clear the controlled menu
   // before that move so its portal cannot remain open on the remounted row.
   projectMenuId.value = ''
+  await nextTick()
   if (tree.order.pinned.includes(id)) tree.unpinProject(id)
   else tree.pinProject(id)
 }
