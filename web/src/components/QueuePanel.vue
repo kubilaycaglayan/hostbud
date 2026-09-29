@@ -684,7 +684,7 @@ const badge: Record<QueueItem['status'], string> = {
                 <Pencil :size="15" aria-hidden="true" />
               </button>
               <span data-testid="queue-status" class="rounded border border-border px-2 text-sm" :class="queue.status === 'running' ? 'border-accent font-bold text-accent' : ''">{{ queue.status }}</span>
-              <div class="ml-auto flex flex-wrap gap-2">
+              <div class="ml-auto flex flex-wrap items-end gap-2">
                 <div v-if="controls?.start" class="text-sm">
                   <span aria-hidden="true">Start after</span>
                   <DurationPicker v-model="startDelay" label="Start delay" />

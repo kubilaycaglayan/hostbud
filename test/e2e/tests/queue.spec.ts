@@ -78,6 +78,9 @@ test.describe('Queue panel (desktop)', { tag: '@desktop' }, () => {
     const delay = dialog.getByRole('group', { name: 'Start delay' })
     await expect(delay.getByRole('textbox')).toHaveCount(0)
     await pickDuration(delay, 'Minutes', 1)
+    // The Start button keeps its size next to the taller picker, not stretched to its height.
+    const startBox = await dialog.getByRole('button', { name: 'Start' }).boundingBox()
+    expect(startBox?.height).toBeLessThan(56)
     await dialog.getByRole('button', { name: 'Start' }).click()
     await expect(dialog.getByTestId('queue-scheduled')).toContainText('Scheduled for')
     await expect(dialog.getByTestId('item-status')).toHaveText('Queued')
