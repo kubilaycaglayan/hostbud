@@ -215,6 +215,14 @@ func ParsePaneMetadata(out string) (map[string]PaneMetadata, error) {
 		if status != AgentWorking && status != AgentBlocked && status != AgentEnded {
 			status = ""
 		}
+		// Hook state belongs to a Codex conversation, not to the lifetime of
+		// its terminal process. Codex can keep the TUI process alive after an
+		// ended conversation (for example, while starting or resuming another
+		// one), leaving an old 🎯 option behind. A currently recognized Codex
+		// process is stronger evidence than that stale terminal-local marker.
+		if status == AgentEnded && paneAgents["codex"] {
+			status = ""
+		}
 		if status != "" && len(paneAgents) == 0 && status != AgentEnded && isShellCommand(f[3]) {
 			status = AgentEnded
 		}

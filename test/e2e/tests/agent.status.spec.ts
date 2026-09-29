@@ -20,7 +20,8 @@ test('(T13) Agent logos appear before provider hook status on collapsed session 
       'mkdir -p /home/dev/.hostbud-test-bin',
       'ln -sf /bin/sleep /home/dev/.hostbud-test-bin/coy',
       'ln -sf /bin/sleep /home/dev/.hostbud-test-bin/cly',
-      `tmux new-session -d -s ${shq(session)} -c /home/dev /home/dev/.hostbud-test-bin/coy 60`,
+      `tmux new-session -d -s ${shq(session)} -c /home/dev`,
+      `tmux send-keys -t ${shq('=' + session + ':')} 'PATH=/home/dev/.hostbud-test-bin:$PATH coy 60' Enter`,
     ].join(' && '))
 
     const row = page.locator(`[data-tree-key="session:${session}"]`)
@@ -37,6 +38,11 @@ test('(T13) Agent logos appear before provider hook status on collapsed session 
     })).resolves.toBe(true)
     await expect(row).toHaveAttribute('aria-label', `${session}, Working, Codex running`)
     await expect(row.locator('button[aria-label^="Expand "]')).toHaveCount(0)
+
+    await target.tmux('set-option', '-p', '-t', firstPane, '@hostbud_agent_status', 'ended')
+    await expect(row.locator('[data-session-status]')).toHaveCount(0)
+    await target.tmux('set-option', '-p', '-t', firstPane, '@hostbud_agent_status', 'working')
+    await expect(row.locator('[data-session-status]')).toHaveAttribute('data-status', 'working')
 
     // A stale cache-first navigation shell used to discard the status marker
     // on an ordinary refresh after a hard reload showed the new build.
@@ -63,7 +69,10 @@ test('(T13) Agent logos appear before provider hook status on collapsed session 
     await target.tmux('set-option', '-p', '-t', secondPane, '@hostbud_agent_status', 'ended')
     await expect.poll(async () => await row.locator('[data-session-status]').getAttribute('data-status')).toBe('working')
 
+    await target.tmux('set-option', '-p', '-u', '-t', secondPane, '@hostbud_agent_status')
     await target.tmux('set-option', '-p', '-t', firstPane, '@hostbud_agent_status', 'ended')
+    await expect(row.locator('[data-session-status]')).toHaveCount(0)
+    await target.tmux('send-keys', '-t', firstPane, 'C-c')
     await expect.poll(async () => await row.locator('[data-session-status]').getAttribute('data-status')).toBe('ended')
     await expect(row.locator('[data-session-status]')).toHaveText('🎯')
     await expect(row.locator('button[aria-label^="Expand "]')).toHaveCount(0)

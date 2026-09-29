@@ -320,23 +320,24 @@ func TestParsePaneMetadataAgentAliases(t *testing.T) {
 	if got, want := ListPaneCommands(), []string{"sh", "-c", paneMetadataScript}; !slices.Equal(got, want) {
 		t.Fatalf("ListPaneCommands() = %q, want %q", got, want)
 	}
-	got, err := ParsePaneMetadata("P\tacc-a\t%1\tcodex\tworking\t\nP\tacc-a\t%2\tbash\t\t\nP\tacc-a\t%3\tclaude\tblocked\t\nP\tacc-b\t%4\tvim\t\t\nP\tacc-c\t%5\tCLAUDE-CODE\tended\t\nP\tacc-d\t%6\tcodex-linux-x64\t\t\nP\tacc-e\t%7\t/usr/local/bin/codex\t\t\nP\tacc-f\t%8\tcoy\t\t\nP\tacc-g\t%9\tcly\t\t\nP\tlegacy.session\t%10\tcodex\t\t\nP\tforced-exit\t%11\tbash\tworking\t\nP\tforced-exit\t%12\tbash\tblocked\t\nP\tchild-command\t%13\tvim\tworking\t\nP\tnode-launcher\t%14\tnode\tworking\tcodex,\nP\tboth-processes\t%15\tnode\t\tcodex,claude\n")
+	got, err := ParsePaneMetadata("P\tacc-a\t%1\tcodex\tworking\t\nP\tacc-a\t%2\tbash\t\t\nP\tacc-a\t%3\tclaude\tblocked\t\nP\tacc-b\t%4\tvim\t\t\nP\tacc-c\t%5\tCLAUDE-CODE\tended\t\nP\tacc-d\t%6\tcodex-linux-x64\t\t\nP\tacc-e\t%7\t/usr/local/bin/codex\t\t\nP\tacc-f\t%8\tcoy\t\t\nP\tacc-g\t%9\tcly\t\t\nP\tlegacy.session\t%10\tcodex\t\t\nP\tforced-exit\t%11\tbash\tworking\t\nP\tforced-exit\t%12\tbash\tblocked\t\nP\tchild-command\t%13\tvim\tworking\t\nP\tnode-launcher\t%14\tnode\tworking\tcodex,\nP\tended-live-agent\t%16\tnode\tended\tcodex,\nP\tboth-processes\t%15\tnode\t\tcodex,claude\n")
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := map[string]PaneMetadata{
-		"acc-a":          {Agents: []string{"codex", "claude"}, Status: AgentBlocked},
-		"acc-b":          {},
-		"acc-c":          {Agents: []string{"claude"}, Status: AgentEnded},
-		"acc-d":          {Agents: []string{"codex"}},
-		"acc-e":          {Agents: []string{"codex"}},
-		"acc-f":          {Agents: []string{"codex"}},
-		"acc-g":          {Agents: []string{"claude"}},
-		"legacy.session": {Agents: []string{"codex"}},
-		"forced-exit":    {Status: AgentEnded},
-		"child-command":  {Status: AgentWorking},
-		"node-launcher":  {Agents: []string{"codex"}, Status: AgentWorking},
-		"both-processes": {Agents: []string{"codex", "claude"}},
+		"acc-a":            {Agents: []string{"codex", "claude"}, Status: AgentBlocked},
+		"acc-b":            {},
+		"acc-c":            {Agents: []string{"claude"}, Status: AgentEnded},
+		"acc-d":            {Agents: []string{"codex"}},
+		"acc-e":            {Agents: []string{"codex"}},
+		"acc-f":            {Agents: []string{"codex"}},
+		"acc-g":            {Agents: []string{"claude"}},
+		"legacy.session":   {Agents: []string{"codex"}},
+		"forced-exit":      {Status: AgentEnded},
+		"child-command":    {Status: AgentWorking},
+		"node-launcher":    {Agents: []string{"codex"}, Status: AgentWorking},
+		"ended-live-agent": {Agents: []string{"codex"}},
+		"both-processes":   {Agents: []string{"codex", "claude"}},
 	}
 	if len(got) != len(want) {
 		t.Fatalf("agents = %#v, want %#v", got, want)
