@@ -42,7 +42,7 @@ Each box is one roadmap criterion. Its coverage line names the task that writes 
   - The effective limit is 2 only when parallel queues are on; an empty setting restores 2. An explicit 1–32 value overrides it, and parallel-off mode ignores the cap.
   - U: T9 (store cap enforcement, dispatcher/clear behavior, confirmation cancellation and acceptance) · I: T9 (persisted store default; authenticated, Origin-checked settings route, existing integration checks) · E: T9 *Queues panel* (desktop and phone; confirm cap update and reset to default).
 
-Status (2026-09-28): criteria 1–8 are ticked with their U/I tests passing (CP1–CP4; CP2 three times in a row) and their E items counted as written. Commits: T1 `982375a`, T2 `af7fcae`, T3 `99ef4a7`, T4 `59c402b`, T5 `e193a79`, T6 `0ef8c68`. Criterion 9 is being added as V2-M2 T9.
+Status (2026-09-29): criteria 1–9 are ticked with U/I tests passing and E items written/type-checked. T9 commit: `1a7caf3`. Full E2E run remains open on demand; owner checks remain backlog items.
 
 ## E2E scenarios
 

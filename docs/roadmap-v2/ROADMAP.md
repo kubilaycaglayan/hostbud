@@ -310,12 +310,12 @@ Each line: criterion — coverage.
 
 Scope: v2 §10 *V2-M2*, v2 §3.3 and §3.9. Breakdown: [V2-M2-tasks.md](V2-M2-tasks.md) · [V2-M2-acceptance.md](V2-M2-acceptance.md).
 
-**Goal.** Several queues can run at once. Each queue stays strictly sequential. An optional per-machine cap limits how many runs are active at the same time.
+**Goal.** Several queues can run at once. Each queue stays strictly sequential. A configurable per-machine cap limits active runs; it defaults to 2 while parallel queues are enabled and is ignored while they are off.
 
 **Switch:** multiple queues are enabled per installation (`HOSTBUD_PARALLEL_QUEUES`, default `false`). With the switch off, the V2-M1 one-queue limit stays and V2-M1 behavior is unchanged.
 
 ### Tasks
-- **T1 Schema:** append-only migration adding `machine_capacity(machine_id PK, max_concurrent_runs NULL)` (NULL = no cap), as noted in v2 §6, plus `queues.waiting_since` for slot order.
+- **T1 Schema:** append-only migration adding `machine_capacity(machine_id PK, max_concurrent_runs NULL)` plus `queues.waiting_since` for slot order. Stored NULL/unset uses the runtime default of 2 when parallel queues are enabled; T9 records this follow-up behavior.
 - **T2 Several queues:** lift the one-queue limit when enabled. A project may have more than one queue. The panel warns when two running queues share a project directory, because agents may edit the same files.
 - **T3 Session naming:** `<project>-q<position>` collides across queues of one project. Switch to `<project>-<queue>-q<position>` for queues after the first (the first keeps the V2-M1 name), still collision-suffixed.
 - **T4 Dispatcher with slots:** one active run per queue as before, plus a machine-wide count of active runs (`starting`, `running`, `stale`; stale still occupies the slot because the session is alive).
