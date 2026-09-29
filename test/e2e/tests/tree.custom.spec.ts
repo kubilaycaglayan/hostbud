@@ -379,6 +379,7 @@ test('(T6) Pin projects and keep section order', async ({ page, ui, target }) =>
   for (const index of [0, 1]) {
     await ui.treeItem(entries[index].name).getByRole('button', { name: `More actions for ${entries[index].name}` }).click()
     await page.getByRole('menuitem', { name: 'Pin', exact: true }).click()
+    await expect(page.getByRole('menu')).toHaveCount(0)
   }
   const pinned = page.getByRole('group', { name: 'Pinned projects', exact: true })
   await expect.poll(async () => (await pinned.locator('[data-tree-kind="project"]').evaluateAll((nodes) => nodes.map((node) => node.getAttribute('aria-label')))))
