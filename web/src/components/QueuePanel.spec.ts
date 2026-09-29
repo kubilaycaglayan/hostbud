@@ -366,10 +366,15 @@ describe('QueuePanel', () => {
     // The switcher isn't a list: the items are (e2e selects rows by listitem).
     expect($$('nav[aria-label="Queues"] li')).toHaveLength(0)
     expect(button('Show queue Milestones')!.getAttribute('aria-current')).toBe('true')
+    // The selected tab is filled with the accent color so it stands out; the others aren't.
+    expect(button('Show queue Milestones')!.className).toContain('bg-accent')
+    expect(button('Show queue Docs')!.className).not.toContain('bg-accent')
     expect(document.body.textContent).toContain('/goal m1')
     button('Show queue Docs')!.click()
     await flushPromises()
     expect(button('Show queue Docs')!.getAttribute('aria-current')).toBe('true')
+    expect(button('Show queue Docs')!.className).toContain('queue-tab-selected')
+    expect(button('Show queue Milestones')!.className).not.toContain('queue-tab-selected')
     expect(document.body.textContent).toContain('/goal docs')
     expect(document.body.textContent).not.toContain('/goal m1')
     document.body.innerHTML = ''

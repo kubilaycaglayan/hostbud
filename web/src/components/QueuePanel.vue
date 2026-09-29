@@ -589,12 +589,12 @@ const badge: Record<QueueItem['status'], string> = {
                 :title="`${q.name} · ${q.projectName} (${q.status})`"
                 :data-running="queueRunning(q) ? 'true' : undefined"
                 class="touch-target inline-flex min-h-8 max-w-56 items-center gap-1 rounded border px-2 text-sm"
-                :class="[q.id === queue?.id ? 'text-accent' : '', queueRunning(q) ? 'queue-tab-running' : q.id === queue?.id ? 'border-accent' : 'border-border']"
+                :class="[q.id === queue?.id ? 'queue-tab-selected bg-accent font-bold text-bg' : 'hover:bg-bg', queueRunning(q) ? 'queue-tab-running' : q.id === queue?.id ? 'border-accent' : 'border-border']"
                 @click="select(q.id)"
               >
-                <TriangleAlert v-if="q.warnings?.length" :size="14" aria-hidden="true" class="shrink-0 text-danger" />
+                <TriangleAlert v-if="q.warnings?.length" :size="14" aria-hidden="true" class="shrink-0" :class="q.id === queue?.id ? 'text-bg' : 'text-danger'" />
                 <span class="truncate">{{ q.name }}</span>
-                <span class="truncate text-muted">· {{ q.projectName }} · {{ q.status }}</span>
+                <span class="truncate" :class="q.id === queue?.id ? 'font-normal opacity-80' : 'text-muted'">· {{ q.projectName }} · {{ q.status }}</span>
               </button>
             </nav>
             <button

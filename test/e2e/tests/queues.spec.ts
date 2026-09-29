@@ -65,6 +65,9 @@ test.describe('Queues panel (desktop, parallel queues)', { tag: '@desktop' }, ()
     await panel(page).getByLabel('Queue name').fill('Beta')
     await panel(page).getByRole('button', { name: 'Create queue' }).click()
     await expect(panel(page).getByRole('button', { name: 'Show queue Beta' })).toHaveAttribute('aria-current', 'true')
+    // The selected tab is filled with the accent color; the other isn't.
+    await expect(panel(page).getByRole('button', { name: 'Show queue Beta' })).toHaveClass(/queue-tab-selected/)
+    await expect(panel(page).getByRole('button', { name: 'Show queue Alpha' })).not.toHaveClass(/queue-tab-selected/)
     await addItem(page, 'e2e multi beta')
     await expect(panel(page).getByRole('navigation', { name: 'Queues' }).getByRole('button')).toHaveCount(2)
 
