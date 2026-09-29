@@ -4,6 +4,7 @@ import { ChevronRight, Folder, MoreHorizontal, Pin, Plus } from 'lucide-vue-next
 import type { Project } from '@/api/types'
 import type { SplitDir } from '@/lib/layout'
 import type { ProjectGroup } from '@/lib/tree'
+import { computed } from 'vue'
 import SessionList from './SessionList.vue'
 import InlineRename from './InlineRename.vue'
 
@@ -41,6 +42,9 @@ const emit = defineEmits<{
   sessionInProject: [project: Project]
   reorderSessions: [group: string, names: string[]]
 }>()
+
+/** A project with a working (🟢) session shows its name in green. */
+const hasWorkingSession = computed(() => props.group.sessions.some((s) => s.status === 'working'))
 
 function renameSessionCommit(from: string, to: string) {
   return props.renameSession(from, to)
@@ -96,7 +100,7 @@ function onMenuCloseAutoFocus(event: Event) {
       </button>
       <Folder :size="16" class="shrink-0 text-muted" aria-hidden="true" />
       <InlineRename v-if="props.editingKey === 'project:' + props.group.project.id" :name="props.group.project.name" :error="props.editError" :commit="(value) => props.renameProject(props.group.project.id, value)" @cancel="emit('cancelRename', 'project:' + props.group.project.id)" />
-      <span v-else class="min-w-0 flex-1 truncate font-semibold" @dblclick.stop="renameOnFinePointer">{{ props.group.project.name }}</span>
+      <span v-else class="min-w-0 flex-1 truncate font-semibold" :class="{ 'text-ok': hasWorkingSession }" :data-working="hasWorkingSession || undefined" @dblclick.stop="renameOnFinePointer">{{ props.group.project.name }}</span>
       <span v-if="props.collapsed" data-project-count :title="props.group.sessions.length + (props.group.sessions.length === 1 ? ' session' : ' sessions')" class="shrink-0 rounded bg-tree-header px-1.5 text-xs leading-5 text-muted tabular-nums">{{ props.group.sessions.length }}</span>
       <button v-if="props.pinned" type="button" class="row-action touch-target inline-flex min-h-7 min-w-6 items-center justify-center rounded text-muted" :aria-label="'Unpin ' + props.group.project.name" title="Pinned" tabindex="-1" @click.stop="emit('togglePin', props.group.project.id)">
         <Pin :size="16" aria-hidden="true" />

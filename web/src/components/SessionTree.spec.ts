@@ -54,6 +54,20 @@ describe('SessionTree', () => {
     wrapper.unmount()
   })
 
+  it('colors a project name green while one of its sessions is working, live from events', async () => {
+    const wrapper = mount(SessionTree)
+    const name = () => wrapper.get('[data-tree-key="project:a"] span.font-semibold')
+    expect(name().classes()).not.toContain('text-ok')
+    useSessionsStore().apply({ type: 'snapshot', machines: [], sessions: { host: [{ ...session('one', '/work/a'), status: 'working' }, session('two', '/work/a'), session('loose', '/outside')] } })
+    await nextTick()
+    expect(name().classes()).toContain('text-ok')
+    expect(wrapper.get('[data-tree-key="project:b"] span.font-semibold').classes()).not.toContain('text-ok')
+    useSessionsStore().apply({ type: 'snapshot', machines: [], sessions: { host: [{ ...session('one', '/work/a'), status: 'ended' }, session('two', '/work/a'), session('loose', '/outside')] } })
+    await nextTick()
+    expect(name().classes()).not.toContain('text-ok')
+    wrapper.unmount()
+  })
+
   it('moves groups and session rows in the explicit order', async () => {
     const wrapper = mount(SessionTree, { attachTo: document.body })
     expect(wrapper.find('button[aria-label="Move project b up"]').exists()).toBe(false)
