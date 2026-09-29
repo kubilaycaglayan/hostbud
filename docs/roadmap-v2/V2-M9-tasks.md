@@ -11,6 +11,7 @@ Goal: preserve status transitions and useful queue item metadata as historical d
 | T3 History view and refresh behavior | Done |
 | T4 Docs, acceptance, verification and deploy | Done: `make lint test`, `make gitleaks`, deploy and health check passed |
 | T5 Safe Docker cleanup | Done: skipped because hostbud toolbox containers were active; production services and volumes left untouched |
+| T6 Queue progress in the panel title | Done: web lint and E2E type-check passed; browser run remains on demand |
 
 ## Tasks
 
@@ -28,3 +29,6 @@ Update v2 architecture and README; complete acceptance checklist; run `make lint
 
 ### T5 — Safe Docker cleanup
 Follow v2 Rules and V1 M7 T15 after deploy. Skip and record if any toolbox or test container is in use. Tests/E2E: n/a (operations only).
+
+### T6 — Queue progress in the panel title
+Show a compact colored segment for each item beside the Queue heading, with an accessible active/error summary and queued count. Done items are green, the active item uses the accent color, queued/skipped items are muted, and needs-attention items are red. Tests: U: n/a (small computed presentation state covered through the UI scenario); I: n/a (no backend behavior); E2E: extend the desktop Queue panel scenario to check queued, active and needs-attention states. E2E runs remain on demand.

@@ -8,15 +8,18 @@
 - [x] **4 History view presents useful results.** Desktop and phone show queue/item context, commands, status timeline, timestamps and errors as text. — U: T3 · I: n/a (UI rendering) · E: T3.
 - [x] **5 Migration is append-only and existing queue behavior is preserved.** — U: T1 · I: T1 · E: n/a (schema).
 - [x] **6 Docs match behavior and operations.** — U: T4 · I: n/a (documentation) · E: n/a (documentation).
+- [x] **7 Queue heading summarizes item progress.** The compact indicator distinguishes completed, active, queued and needs-attention items, and reports how many are queued. — U: n/a (presentation behavior covered by browser scenario) · I: n/a (no backend behavior) · E: T6.
 
 ## E2E scenarios
 
 - [x] (T2/T3) Queue history survives queue deletion and shows status, command, timestamps and error detail without session content — written and type-checked; browser run pending on demand.
+- [x] (T6) Queue panel title indicator shows queued count, active item and red needs-attention state — written and type-checked; browser run pending on demand.
 - [ ] (on demand) Full suite green on every e2e app and both profiles — open until requested, not a blocker.
 
 ## Manual checks (owner; backlog, not blockers)
 
 - [ ] Review History view presentation in the deployed app (open).
+- [ ] Review the compact queue progress indicator in the deployed app (open).
 - [ ] E2E scenarios have not been run; on-demand full run remains open.
 
 ## Definition of done

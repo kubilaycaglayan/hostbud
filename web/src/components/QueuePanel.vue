@@ -56,6 +56,24 @@ const items = ref<QueueItem[]>([])
 watch(() => queue.value?.items, (next) => { items.value = [...(next ?? [])] }, { immediate: true })
 const hasQueued = computed(() => items.value.some((i) => i.status === 'queued'))
 const controls = computed(() => queue.value ? queueControls(queue.value.status, hasQueued.value) : null)
+const progressSegments = computed(() => items.value.map((item) => ({
+  id: item.id,
+  label: statusLabel(item),
+  color: item.status === 'done' ? 'bg-ok'
+    : item.status === 'needs_attention' ? 'bg-danger'
+      : ['running', 'verifying', 'awaiting_approval'].includes(item.status) ? 'bg-accent'
+        : 'bg-border',
+})))
+const remainingCount = computed(() => items.value.filter((item) => item.status === 'queued').length)
+const progressDescription = computed(() => {
+  const activeIndex = items.value.findIndex((item) => ['running', 'verifying', 'awaiting_approval'].includes(item.status))
+  const errorIndex = items.value.findIndex((item) => item.status === 'needs_attention')
+  const state = errorIndex >= 0 ? `item ${errorIndex + 1} needs attention`
+    : activeIndex >= 0 ? `item ${activeIndex + 1} active`
+      : remainingCount.value ? `${remainingCount.value} queued`
+        : items.value.length ? 'complete' : 'empty'
+  return `${state}; ${remainingCount.value} left`
+})
 
 const error = ref<{ title: string; message: string; hint?: string } | null>(null)
 const busy = ref(false)
@@ -360,8 +378,14 @@ const badge: Record<QueueItem['status'], string> = {
       >
         <div class="flex items-start justify-between gap-2 border-b border-border px-3 py-2">
           <div class="min-w-0">
-            <DialogTitle class="text-base font-bold">
-              Queue
+            <DialogTitle aria-label="Queue" class="flex items-center gap-2 text-base font-bold">
+              <span>Queue</span>
+              <span v-if="items.length" class="inline-flex items-center gap-1.5" :aria-label="progressDescription" :title="progressDescription" data-testid="queue-progress">
+                <span class="flex items-center gap-0.5" aria-hidden="true">
+                  <span v-for="segment in progressSegments" :key="segment.id" class="h-1.5 w-2 rounded-sm" :class="segment.color" />
+                </span>
+                <span class="text-[11px] font-normal text-muted">{{ remainingCount }} left</span>
+              </span>
             </DialogTitle>
             <DialogDescription class="text-sm text-muted">
               Items run one after another in their own session. The next starts only when the agent's /goal is achieved.

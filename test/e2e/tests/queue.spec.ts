@@ -119,7 +119,7 @@ test.describe('Queue panel (desktop)', () => {
     await expect(dialog.getByRole('listitem', { name: /: \/goal compact edit saved$/ })).toBeVisible()
   })
 
-  test('(V2-M1 T10) Queue panel', async ({ page, ui, request, target }) => {
+  test('(V2-M9 T6) Queue panel progress indicator', async ({ page, ui, request, target }) => {
     const project = await newProject(request, target, 'e2e-panel')
     await stubs.setBehavior('e2e panel a', 'achieve:2')
     await stubs.setBehavior('e2e panel b', 'pending')
@@ -155,6 +155,7 @@ test.describe('Queue panel (desktop)', () => {
     await addItem(page, 'e2e panel a')
     await addItem(page, 'e2e panel b')
     await addItem(page, 'e2e panel f')
+    await expect(panel(page).getByTestId('queue-progress')).toHaveAttribute('aria-label', '3 queued; 3 left')
     // Reorder by drag, then by keyboard: a, f, b → a, b, f → a, f, b.
     await row(page, 'e2e panel f').getByRole('button', { name: /^Drag to reorder item/ }).dragTo(row(page, 'e2e panel b'), { targetPosition: { x: 20, y: 1 } })
     await expect.poll(() => order(page)).toEqual(['e2e panel a', 'e2e panel f', 'e2e panel b'])
@@ -181,6 +182,7 @@ test.describe('Queue panel (desktop)', () => {
     page.on('request', (r) => { if (r.url().includes('/api/queues')) requests.push(`${r.method()} ${new URL(r.url()).pathname}`) })
     await panel(page).getByRole('button', { name: 'Start' }).click()
     await expect(row(page, 'e2e panel a').getByTestId('item-status')).toHaveText(/^Running/, { timeout: 15_000 })
+    await expect(panel(page).getByTestId('queue-progress')).toHaveAttribute('aria-label', 'item 1 active; 2 left')
     await expect(page.getByRole('banner').getByRole('button', { name: 'Queue', exact: true }).locator('[data-icon-box]')).toHaveClass(/border-accent/)
     await expect(panel(page).getByTestId('queue-status')).toHaveClass(/font-bold/)
     await expect(row(page, 'e2e panel a').getByRole('button', { name: /^(Edit|Delete|Move)/ })).toHaveCount(0)
@@ -189,6 +191,7 @@ test.describe('Queue panel (desktop)', () => {
     await expect(row(page, 'e2e panel f').getByTestId('item-status')).toHaveText(/^Needs attention/, { timeout: 30_000 })
     await expect(row(page, 'e2e panel f')).toContainText("can't be achieved")
     await expect(panel(page).getByTestId('queue-status')).toHaveText('paused')
+    await expect(panel(page).getByTestId('queue-progress')).toHaveAttribute('aria-label', 'item 3 needs attention; 1 left')
     expect(requests.filter((r) => r.startsWith('GET '))).toEqual([]) // no polling
     // Retry (fails again), then Skip after confirming.
     await row(page, 'e2e panel f').getByRole('button', { name: /^Retry item/ }).click()
