@@ -201,6 +201,35 @@ describe('tree order store', () => {
     expect(tree.order.expanded).toEqual([])
   })
 
+  it('keeps expanded and hidden keys when the host turns ok before its first session list (app restart)', async () => {
+    stubFetch((method, path) => path === '/api/ui-state/tree' && method === 'GET'
+      ? { status: 200, body: { ...emptyTreeState(), hidden: { projects: [], sessions: ['host/kept-hidden'] }, expanded: ['host/kept'] } }
+      : { status: 204 })
+    const tree = useTreeStore()
+    await tree.load()
+    const machines = useMachinesStore()
+    const sessions = useSessionsStore()
+    const host = { id: 'host', label: 'Host', os: '', home: '', tmuxVersion: '', tmuxMissing: false }
+    // After a restart the server snapshots the host before its first poll: status
+    // unknown with an empty list. The poll then publishes status ok before the list.
+    const snapshot = { type: 'snapshot' as const, machines: [{ ...host, status: 'unknown' as const }], sessions: { host: [] } }
+    machines.apply(snapshot)
+    sessions.apply(snapshot)
+    tree.sync()
+    const ok = { type: 'machine.status' as const, machine: 'host', payload: { ...host, status: 'ok' as const } }
+    machines.apply(ok)
+    sessions.apply(ok)
+    tree.sync()
+    expect(tree.order.expanded).toEqual(['host/kept'])
+    expect(tree.order.hidden.sessions).toEqual(['host/kept-hidden'])
+    const listed = { type: 'sessions.changed' as const, machine: 'host', payload: { sessions: [session('kept', '/k'), session('kept-hidden', '/k')] } }
+    machines.apply(listed)
+    sessions.apply(listed)
+    tree.sync()
+    expect(tree.order.expanded).toEqual(['host/kept'])
+    expect(tree.order.hidden.sessions).toEqual(['host/kept-hidden'])
+  })
+
   it('flushes a debounced change immediately and skips an oversized value', async () => {
     const calls = stubFetch((method, path) => path === '/api/ui-state/tree' && method === 'GET'
       ? { status: 200, body: emptyTreeState() }

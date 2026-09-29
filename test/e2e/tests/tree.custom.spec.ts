@@ -20,6 +20,17 @@ async function addProject(request: Parameters<typeof mutate>[0], path: string, n
   return JSON.parse(body) as { id: string }
 }
 
+// The terminal's tmux client attaches asynchronously after the pane opens;
+// wait for it so "attached clients unchanged" compares a real pid.
+async function attachedClientPid(target: { run(command: string): Promise<string> }, session: string) {
+  let pid = ''
+  await expect.poll(async () => {
+    pid = (await target.run(`tmux list-clients -t ${shq('=' + session)} -F '#{client_pid}'`)).trim()
+    return pid
+  }, { timeout: 10_000 }).not.toBe('')
+  return pid
+}
+
 async function createSession(target: { run(command: string): Promise<unknown> }, name: string, path: string) {
   await target.run(`mkdir -p ${shq(path)} && tmux new-session -d -s ${shq(name)} -c ${shq(path)}`)
 }
@@ -280,7 +291,7 @@ test('(T4) Inline rename a session', async ({ page, ui, target }) => {
   await expect(ui.treeItem(oldName)).toHaveAttribute('aria-expanded', 'true')
   await ui.openTerminal(oldName)
   await ui.showList()
-  const pid = (await target.run(`tmux list-clients -t ${shq('=' + oldName)} -F '#{client_pid}'`)).trim()
+  const pid = await attachedClientPid(target, oldName)
   await ui.sessionAction(oldName, 'Rename')
   let input = page.getByRole('textbox', { name: `Rename ${oldName}` })
   await expect(input).toBeFocused()
@@ -322,7 +333,7 @@ test('(T5) Hide and unhide', async ({ page, ui, target, request }) => {
   await createSession(target, hiddenSession, `/home/dev/${uniqueName('outside-hidden-project')}`)
   await page.reload()
   await ui.openTerminal(hiddenSession)
-  const clientPid = (await target.run(`tmux list-clients -t ${shq('=' + hiddenSession)} -F '#{client_pid}'`)).trim()
+  const clientPid = await attachedClientPid(target, hiddenSession)
   await ui.showList()
   await ui.treeItem(hiddenSession).getByRole('button', { name: `More actions for ${hiddenSession}` }).click()
   await page.getByRole('menuitem', { name: 'Hide', exact: true }).click()

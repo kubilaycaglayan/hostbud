@@ -7,8 +7,13 @@ export type SessionsByMachine = Record<string, Session[]>
 /** Pure reducer: sessions per machine after an event. */
 export function applySessions(state: SessionsByMachine, e: ServerEvent): SessionsByMachine {
   switch (e.type) {
-    case 'snapshot':
-      return { ...e.sessions }
+    case 'snapshot': {
+      // A machine not yet probed (right after an app restart) has an empty,
+      // not authoritative, list. Leave it out until its first sessions.changed,
+      // so a machine.status ok arriving first can't prune saved tree state.
+      const unprobed = new Set(e.machines.filter((m) => m.status === 'unknown').map((m) => m.id))
+      return Object.fromEntries(Object.entries(e.sessions).filter(([id]) => !unprobed.has(id)))
+    }
     case 'sessions.changed':
       return { ...state, [e.machine]: e.payload.sessions }
     default:
@@ -21,7 +26,7 @@ export const useSessionsStore = defineStore('sessions', () => {
   const pendingRenames = new Map<string, string>()
   function apply(e: ServerEvent) {
     byMachine.value = applySessions(byMachine.value, e)
-    const machines = e.type === 'snapshot' ? Object.keys(e.sessions) : e.type === 'sessions.changed' ? [e.machine] : []
+    const machines = e.type === 'snapshot' ? Object.keys(byMachine.value) : e.type === 'sessions.changed' ? [e.machine] : []
     for (const machine of machines) {
       byMachine.value[machine] = (byMachine.value[machine] ?? []).map((session) => {
         const to = pendingRenames.get(`${machine}/${session.name}`)
