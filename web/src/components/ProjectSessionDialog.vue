@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { projectsApi } from '@/api/client'
+import { normalizeSessionName } from '@/lib/names'
 import type { Project } from '@/api/types'
 import { describeError, useToastsStore } from '@/stores/toasts'
 
@@ -37,7 +38,7 @@ async function createSession() {
   busy.value = true
   error.value = ''
   try {
-    const requestedName = sessionName.value.trim()
+    const requestedName = normalizeSessionName(sessionName.value)
     const startCommand = command.value.trim() ? command.value : undefined
     const result = await projectsApi.createSession(project.value.id, { name: requestedName || undefined, startCommand })
     project.value = null

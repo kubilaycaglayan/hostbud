@@ -100,6 +100,9 @@ func TestProjectAPICreateListRenameAndValidation(t *testing.T) {
 	if rec := e.do(t, http.MethodPost, "/api/projects/project-a/sessions", `{"name":"my-session","startCommand":"make run"}`, nil); rec.Code != http.StatusCreated || f.sessionSpec.Name != "my-session" || f.sessionSpec.StartCommand != "make run" {
 		t.Fatalf("project session = %d %s, spec=%+v", rec.Code, rec.Body, f.sessionSpec)
 	}
+	if rec := e.do(t, http.MethodPost, "/api/projects/project-a/sessions", `{"name":" new session "}`, nil); rec.Code != http.StatusCreated || f.sessionSpec.Name != "new-session" {
+		t.Fatalf("spaced project session name = %d %s, spec=%+v", rec.Code, rec.Body, f.sessionSpec)
+	}
 	if rec := e.do(t, http.MethodPost, "/api/projects/project-a/sessions", `{"name":"bad/name"}`, nil); rec.Code != http.StatusBadRequest {
 		t.Fatalf("invalid project session name = %d %s", rec.Code, rec.Body)
 	}

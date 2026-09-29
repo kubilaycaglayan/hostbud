@@ -25,6 +25,16 @@ func TestValidateName(t *testing.T) {
 	}
 }
 
+func TestNormalizeName(t *testing.T) {
+	for in, want := range map[string]string{
+		"new session": "new-session", "  a \t b\n": "a-b", "a   b  c": "a-b-c", "plain": "plain", "   ": "", "a.b": "a.b",
+	} {
+		if got := NormalizeName(in); got != want {
+			t.Errorf("NormalizeName(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 func make64(c byte) []byte {
 	b := make([]byte, 64)
 	for i := range b {

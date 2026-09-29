@@ -57,6 +57,7 @@ func (s *server) createProjectSession(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
+	req.Name = tmux.NormalizeName(req.Name)
 	if req.Name != "" {
 		if err := tmux.ValidateName(req.Name); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid session name", err.Error())

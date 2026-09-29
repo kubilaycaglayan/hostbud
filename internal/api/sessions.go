@@ -128,6 +128,7 @@ func (s *server) createSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Reject a bad explicit name before anything reaches the host.
+	req.Name = tmux.NormalizeName(req.Name)
 	if req.Name != "" {
 		if err := tmux.ValidateName(req.Name); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid session name", err.Error())
@@ -158,6 +159,7 @@ func (s *server) renameSession(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
+	req.Name = tmux.NormalizeName(req.Name)
 	for _, n := range []string{r.PathValue("name"), req.Name} {
 		if err := tmux.ValidateName(n); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid session name", err.Error())

@@ -143,7 +143,7 @@ Never trust on first use.
 
 ### 4.4 Command execution rules
 - Every remote command goes through one function that builds `ssh -F cfg <alias> -- <cmd>`; `<cmd>` is assembled only from **shell-quoted** arguments (single-quote escaping helper). Never interpolate user input unquoted.
-- Validate tmux session names: `^[A-Za-z0-9_-]{1,64}$` (tmux forbids `.` and `:`; we are stricter).
+- Validate tmux session names: `^[A-Za-z0-9_-]{1,64}$` (tmux forbids `.` and `:`; we are stricter). Whitespace in a typed name (create, rename, project session) becomes `-` without asking ("new session" → "new-session"), in the UI and at the API before validation.
 - Per-command timeouts (default 10s); context cancellation kills the process.
 - Machine capability probe on startup (and on activation, later): `uname -s; command -v tmux; tmux -V` → store `os`, `tmux_version`, `tmux_missing`. If tmux is missing, mark the machine and show the install command (`apt install tmux` / `brew install tmux`); never auto-install.
 

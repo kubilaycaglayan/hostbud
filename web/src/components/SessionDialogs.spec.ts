@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import CreateSessionDialog from './CreateSessionDialog.vue'
 import KillSessionDialog from './KillSessionDialog.vue'
 import ToastRegion from './ToastRegion.vue'
-import { projectNameError, sessionNameError } from '@/lib/names'
+import { normalizeSessionName, projectNameError, sessionNameError } from '@/lib/names'
 import { useToastsStore } from '@/stores/toasts'
 import { stubFetch } from '@/test-utils'
 
@@ -41,6 +41,13 @@ describe('session name rule', () => {
     for (const bad of ['a.b', 'a:b', 'a b', 'ä', 'x'.repeat(65)]) expect(sessionNameError(bad)).not.toBe('')
     expect(sessionNameError('')).toBe('')
     expect(sessionNameError('', true)).toBe('Enter a name.')
+  })
+
+  it('turns whitespace into hyphens like the backend', () => {
+    expect(normalizeSessionName('new session')).toBe('new-session')
+    expect(normalizeSessionName('  a \t b\n')).toBe('a-b')
+    expect(normalizeSessionName('a   b  c')).toBe('a-b-c')
+    expect(normalizeSessionName('   ')).toBe('')
   })
 })
 
@@ -115,11 +122,24 @@ describe('CreateSessionDialog', () => {
     expect(useToastsStore().toasts).toEqual([])
   })
 
+  it('turns spaces in the name into hyphens without asking', async () => {
+    const calls = stubFetch(() => ({ status: 201, body: { name: 'new-session' } }))
+    const w = mountOpen(CreateSessionDialog, { machine: 'host' })
+    await flushPromises()
+    await type('name', '  new   session ')
+    expect(input('name').getAttribute('aria-invalid')).not.toBe('true')
+    await click('Create')
+    await flushPromises()
+    expect((calls[0]?.body as { name?: string }).name).toBe('new-session')
+    expect(useToastsStore().toasts).toEqual([])
+    expect(w.emitted('created')?.[0]).toEqual(['new-session'])
+  })
+
   it('rejects invalid names inline without calling the API', async () => {
     const calls = stubFetch(() => ({ status: 201, body: { name: 'x' } }))
     mountOpen(CreateSessionDialog, { machine: 'host' })
     await flushPromises()
-    for (const bad of ['a.b', 'a:b', 'a b']) {
+    for (const bad of ['a.b', 'a:b', 'a b.c']) {
       await type('name', bad)
       await click('Create')
       expect($('#create-name-error')?.textContent).toContain("Use only letters, digits, '-' and '_'.")

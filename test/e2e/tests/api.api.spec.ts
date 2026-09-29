@@ -108,7 +108,7 @@ test('(V2-M1 T0) Session with start command: API variant', async ({ target, requ
 
 // API validation (T12)
 test('API validation: invalid names return 400 {error, hint}', async ({ target, request }) => {
-  for (const bad of ['a.b', 'a:b', 'a b']) {
+  for (const bad of ['a.b', 'a:b', 'a b.c']) {
     const res = await mutate(request, 'POST', sessionsPath, { name: bad })
     expect(res.status()).toBe(400)
     const body = await res.json()
@@ -116,6 +116,14 @@ test('API validation: invalid names return 400 {error, hint}', async ({ target, 
     expect(body.hint).toBeTruthy()
   }
   expect(await target.sessions()).toEqual([])
+})
+
+test('API: spaces in a session name become hyphens', async ({ target, request }) => {
+  const base = uniqueName('e2e-api-space')
+  const res = await mutate(request, 'POST', sessionsPath, { name: ` ${base} new  session ` })
+  expect(res.status(), await res.text()).toBe(201)
+  expect((await res.json()).name).toBe(`${base}-new-session`)
+  expect(await target.sessions()).toEqual([`${base}-new-session`])
 })
 
 // Events (T12)

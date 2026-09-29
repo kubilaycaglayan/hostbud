@@ -240,6 +240,25 @@ describe('SessionTree', () => {
     wrapper.unmount()
   })
 
+  it('turns spaces in an inline rename into hyphens without asking', async () => {
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (String(url) === '/api/machines/host/sessions/one' && init?.method === 'PATCH') {
+        return { ok: true, status: 200, headers: new Headers(), text: async () => JSON.stringify({ name: 'new-session' }) }
+      }
+      return { ok: false, status: 404, headers: new Headers(), text: async () => '' }
+    })
+    const wrapper = mount(SessionTree, { attachTo: document.body })
+    await wrapper.get('[data-tree-key="session:one"]').trigger('keydown', { key: 'F2' })
+    const input = wrapper.get('input[aria-label="Rename one"]')
+    await input.setValue(' new  session ')
+    await input.trigger('keydown.enter')
+    await flushPromises()
+    const patch = fetchMock.mock.calls.find(([url, init]) => String(url) === '/api/machines/host/sessions/one' && (init as RequestInit | undefined)?.method === 'PATCH')
+    expect(JSON.parse(String((patch?.[1] as RequestInit).body))).toEqual({ name: 'new-session' })
+    expect(wrapper.text()).not.toContain("Use only letters, digits, '-' and '_'.")
+    wrapper.unmount()
+  })
+
   it('refuses a rename to an existing session name without duplicating rows', async () => {
     const wrapper = mount(SessionTree, { attachTo: document.body })
     const row = wrapper.get('[data-tree-key="session:one"]')

@@ -10,7 +10,7 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useTreeStore } from '@/stores/tree'
 import { useWindowsStore } from '@/stores/windows'
 import { describeError } from '@/stores/toasts'
-import { projectNameError, sessionNameError } from '@/lib/names'
+import { normalizeSessionName, projectNameError, sessionNameError } from '@/lib/names'
 import { useLayoutStore } from '@/stores/layout'
 import type { SplitDir } from '@/lib/layout'
 import type { ProjectGroup } from '@/lib/tree'
@@ -249,7 +249,7 @@ function cancelRename(key: string) {
 }
 
 async function renameSession(from: string, raw: string) {
-  const to = raw.trim()
+  const to = normalizeSessionName(raw)
   const invalid = sessionNameError(to, true)
   if (invalid) { editError.value = invalid; throw new Error(invalid) }
   if (to === from) { cancelRename('session:' + from); return }

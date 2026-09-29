@@ -33,6 +33,13 @@ func ValidateName(name string) error {
 	return nil
 }
 
+// NormalizeName turns whitespace in a user-typed session name into '-'
+// ("new session" → "new-session"): runs collapse and the ends are trimmed.
+// The result still has to pass ValidateName.
+func NormalizeName(name string) string {
+	return strings.Join(strings.Fields(name), "-")
+}
+
 // target is an exact-match session target (no prefix or pattern matching).
 func target(name string) string { return "=" + name }
 

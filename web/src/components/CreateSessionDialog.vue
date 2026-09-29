@@ -2,7 +2,7 @@
 import { DialogClose, DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
 import { computed, ref, watch } from 'vue'
 import { sessionsApi } from '@/api/client'
-import { sessionNameError } from '@/lib/names'
+import { normalizeSessionName, sessionNameError } from '@/lib/names'
 import FormError from './FormError.vue'
 import { describeError, useToastsStore } from '@/stores/toasts'
 
@@ -18,7 +18,7 @@ const busy = ref(false)
 const touched = ref(false)
 const failure = ref<{ message: string; hint?: string } | null>(null)
 
-const nameError = computed(() => sessionNameError(name.value.trim()))
+const nameError = computed(() => sessionNameError(normalizeSessionName(name.value)))
 
 watch(
   open,
@@ -40,7 +40,7 @@ async function submit() {
   busy.value = true
   failure.value = null
   try {
-    const requestedName = name.value.trim()
+    const requestedName = normalizeSessionName(name.value)
     const res = await sessionsApi.create(props.machine, {
       name: requestedName || undefined,
       path: path.value.trim() || '~',

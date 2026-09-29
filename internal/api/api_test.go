@@ -624,6 +624,22 @@ func TestMutations(t *testing.T) {
 	}
 }
 
+func TestSessionNameSpacesBecomeHyphens(t *testing.T) {
+	e := newEnv(t)
+	rec := e.do(t, http.MethodPost, "/api/machines/host/sessions", `{"name":"  new   session ","path":"~"}`, nil)
+	if rec.Code != http.StatusCreated || decodeBody[map[string]string](t, rec)["name"] != "new-session" {
+		t.Fatalf("create: %d %s", rec.Code, rec.Body)
+	}
+	rec = e.do(t, http.MethodPatch, "/api/machines/host/sessions/new-session", `{"name":"my work"}`, nil)
+	if rec.Code != http.StatusOK || decodeBody[map[string]string](t, rec)["name"] != "my-work" {
+		t.Fatalf("rename: %d %s", rec.Code, rec.Body)
+	}
+	want := []string{"create host new-session ~ ", "rename host new-session my-work"}
+	if strings.Join(e.svc.calls, "|") != strings.Join(want, "|") {
+		t.Fatalf("calls %q", e.svc.calls)
+	}
+}
+
 func TestCopyModeAPIValidationAndAccess(t *testing.T) {
 	e := newEnv(t)
 	res := e.do(t, http.MethodPost, "/api/machines/host/sessions/a/copy-mode", `{"action":"page-up"}`, nil)
@@ -735,7 +751,7 @@ func TestValidation400(t *testing.T) {
 	cases := []struct{ method, path, body string }{
 		{http.MethodPost, "/api/machines/host/sessions", `{"name":"a.b"}`},
 		{http.MethodPost, "/api/machines/host/sessions", `{"name":"a:b"}`},
-		{http.MethodPost, "/api/machines/host/sessions", `{"name":"a b"}`},
+		{http.MethodPost, "/api/machines/host/sessions", `{"name":"a b.c"}`},
 		{http.MethodPost, "/api/machines/host/sessions", `{"nope":1}`},
 		{http.MethodPost, "/api/machines/host/sessions", `not json`},
 		{http.MethodPatch, "/api/machines/host/sessions/a", `{"name":"x.y"}`},

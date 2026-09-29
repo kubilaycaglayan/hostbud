@@ -58,7 +58,7 @@ test.describe('refusals', () => {
     await ui.open()
     await ui.headerAction('New session')
     const dialog = page.getByRole('dialog', { name: 'New session' })
-    for (const bad of ['a.b', 'a:b', 'a b']) {
+    for (const bad of ['a.b', 'a:b', 'a b.c']) {
       await dialog.getByLabel('Name').fill(bad)
       await dialog.getByRole('button', { name: 'Create' }).click()
       await expect(dialog.getByText("Use only letters, digits, '-' and '_'.")).toBeVisible()
@@ -101,6 +101,26 @@ test('rename: the new name is in tmux ls and in the list', async ({ page, ui, ta
   await ui.showList()
   await expect(ui.session(renamed)).toBeVisible(soon)
   await expect(ui.session(name)).toHaveCount(0)
+  expect(await target.sessions()).toEqual([renamed])
+})
+
+test('spaces in a typed name become hyphens without asking (create and rename)', async ({ page, ui, target }) => {
+  const base = uniqueName('e2e-space')
+  await ui.open()
+  await ui.createSession({ name: `${base} new  session` })
+  const created = `${base}-new-session`
+  await expect(page.getByRole('region', { name: `Terminal: ${created}` })).toBeVisible(soon)
+  await expect(page.locator('section[aria-label="Notifications"] [role="status"]')).toHaveCount(0)
+  expect(await target.sessions()).toEqual([created])
+
+  await ui.showList()
+  await ui.sessionAction(created, 'Rename')
+  const editor = page.getByRole('textbox', { name: `Rename ${created}` })
+  await editor.fill(`${base} renamed one`)
+  await editor.press('Enter')
+  const renamed = `${base}-renamed-one`
+  await ui.showList()
+  await expect(ui.session(renamed)).toBeVisible(soon)
   expect(await target.sessions()).toEqual([renamed])
 })
 

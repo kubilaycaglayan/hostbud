@@ -1,6 +1,12 @@
 // Same rule as the backend (internal/tmux.ValidateName).
 export const SESSION_NAME_RE = /^[A-Za-z0-9_-]{1,64}$/
 
+/** Whitespace in a typed session name becomes '-' ("new session" → "new-session"),
+ *  like the backend (internal/tmux.NormalizeName). */
+export function normalizeSessionName(name: string): string {
+  return name.trim().split(/\s+/).filter(Boolean).join('-')
+}
+
 /** An inline validation message, or '' when the name is fine. */
 export function sessionNameError(name: string, required = false): string {
   if (name === '') return required ? 'Enter a name.' : ''
