@@ -10,6 +10,7 @@ const item = 'touch-target flex min-h-11 cursor-pointer items-center rounded px-
 const open = ref(false)
 const splitStep = ref<'start' | 'position' | 'session'>('start')
 const splitDirection = ref<'row' | 'column'>('row')
+let restoreFocusOnClose = true
 
 watch(open, (isOpen) => {
   if (!isOpen) splitStep.value = 'start'
@@ -25,19 +26,32 @@ function chooseSession(session: string | null) {
   open.value = false
   emit('split', splitDirection.value, session)
 }
+
+function chooseAction(name: 'search' | 'copy' | 'keyboard' | 'dictation' | 'snapshot' | 'photos' | 'close') {
+  // Show keyboard deliberately moves focus into xterm. Prevent the menu's
+  // close autofocus from taking it straight back to the trigger.
+  if (name === 'keyboard') restoreFocusOnClose = false
+  emit('action', name)
+}
+
+function onCloseAutoFocus(event: Event) {
+  if (restoreFocusOnClose) return
+  restoreFocusOnClose = true
+  event.preventDefault()
+}
 </script>
 
 <template>
   <DropdownMenuRoot v-model:open="open">
     <DropdownMenuTrigger type="button" aria-label="Terminal actions" title="Terminal actions" class="touch-target rounded border border-border px-2">⋮</DropdownMenuTrigger>
     <DropdownMenuPortal>
-      <DropdownMenuContent align="end" :side-offset="4" aria-label="Terminal actions" class="z-50 max-h-[min(80dvh,36rem)] min-w-48 overflow-y-auto rounded border border-border bg-surface p-1 text-fg shadow-lg">
-        <DropdownMenuItem :class="item" @select="emit('action', 'search')">Search</DropdownMenuItem>
-        <DropdownMenuItem :disabled="!props.hasSelection" :class="item" @select="emit('action', 'copy')">Copy selected text</DropdownMenuItem>
-        <DropdownMenuItem :class="item" @select="emit('action', 'keyboard')">Show keyboard</DropdownMenuItem>
-        <DropdownMenuItem :class="item" @select="emit('action', 'dictation')">Dictation</DropdownMenuItem>
-        <DropdownMenuItem :class="item" @select="emit('action', 'snapshot')">View terminal text</DropdownMenuItem>
-        <DropdownMenuItem :class="item" @select="emit('action', 'photos')">Send photos to this repo</DropdownMenuItem>
+      <DropdownMenuContent align="end" :side-offset="4" aria-label="Terminal actions" class="z-50 max-h-[min(80dvh,36rem)] min-w-48 overflow-y-auto rounded border border-border bg-surface p-1 text-fg shadow-lg" @close-auto-focus="onCloseAutoFocus">
+        <DropdownMenuItem :class="item" @select="chooseAction('search')">Search</DropdownMenuItem>
+        <DropdownMenuItem :disabled="!props.hasSelection" :class="item" @select="chooseAction('copy')">Copy selected text</DropdownMenuItem>
+        <DropdownMenuItem :class="item" @select="chooseAction('keyboard')">Show keyboard</DropdownMenuItem>
+        <DropdownMenuItem :class="item" @select="chooseAction('dictation')">Dictation</DropdownMenuItem>
+        <DropdownMenuItem :class="item" @select="chooseAction('snapshot')">View terminal text</DropdownMenuItem>
+        <DropdownMenuItem :class="item" @select="chooseAction('photos')">Send photos to this repo</DropdownMenuItem>
         <template v-if="props.canSplit">
           <DropdownMenuItem v-if="splitStep === 'start'" :class="item" @select.prevent="splitStep = 'position'">Split pane…</DropdownMenuItem>
           <template v-else-if="splitStep === 'position'">
@@ -51,7 +65,7 @@ function chooseSession(session: string | null) {
             <DropdownMenuItem :class="item" @select="chooseSession(null)">New session…</DropdownMenuItem>
           </template>
         </template>
-        <DropdownMenuItem :class="item" @select="emit('action', 'close')">Close pane</DropdownMenuItem>
+        <DropdownMenuItem :class="item" @select="chooseAction('close')">Close pane</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenuPortal>
   </DropdownMenuRoot>
