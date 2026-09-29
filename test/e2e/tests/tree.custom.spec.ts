@@ -1,7 +1,7 @@
 import { expect, test } from '../helpers/fixtures.ts'
 import { newAccount } from '../helpers/auth.ts'
 import { owner } from '../helpers/db.ts'
-import { forbidInLogs, getUIState, MACHINE, mutate, ORIGIN, putUIState } from '../helpers/api.ts'
+import { forbidInLogs, getUIState, listSessions, MACHINE, mutate, ORIGIN, POLL_INTERVAL_MS, putUIState } from '../helpers/api.ts'
 import { ctl } from '../helpers/ctl.ts'
 import { shq, uniqueName } from '../helpers/target.ts'
 import { UI } from '../helpers/ui.ts'
@@ -33,6 +33,10 @@ test('(T2) Tree state upgrades from M4', async ({ page, ui, target, request }) =
   const second = uniqueName('tree-second')
   await createSession(target, first, path)
   await createSession(target, second, path)
+  // Do not seed a manual order until the server's inventory has observed both
+  // sessions. Otherwise an early one-session snapshot can prune the other key.
+  await expect.poll(async () => (await listSessions(request)).map((session) => session.name), { timeout: 3 * POLL_INTERVAL_MS })
+    .toEqual(expect.arrayContaining([first, second]))
   await putUIState(page.request, 'tree', { version: 1, projects: [project.id], sessions: { [project.id]: [second, first] } })
   await page.reload()
   const rows = page.getByRole('group', { name: `Sessions in ${projectName}` }).locator('[data-session-row]')
