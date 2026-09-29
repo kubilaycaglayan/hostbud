@@ -4,8 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import CreateSessionDialog from './CreateSessionDialog.vue'
 import KillSessionDialog from './KillSessionDialog.vue'
 import ToastRegion from './ToastRegion.vue'
-import { normalizeSessionName, projectNameError, sessionNameError } from '@/lib/names'
+import { directorySessionName, normalizeSessionName, projectNameError, sessionNameError, uniqueSessionName } from '@/lib/names'
+import { useMachinesStore } from '@/stores/machines'
+import { useSessionsStore } from '@/stores/sessions'
 import { useToastsStore } from '@/stores/toasts'
+import type { Machine, Session } from '@/api/types'
 import { stubFetch } from '@/test-utils'
 
 beforeEach(() => setActivePinia(createPinia()))
@@ -51,6 +54,23 @@ describe('session name rule', () => {
   })
 })
 
+describe('default session name', () => {
+  it('derives the directory name like the backend', () => {
+    expect(directorySessionName('~', '/home/dev')).toBe('dev')
+    expect(directorySessionName('~/my.app/', '/home/dev')).toBe('my-app')
+    expect(directorySessionName('/srv/web')).toBe('web')
+    expect(directorySessionName('/')).toBe('root')
+    expect(directorySessionName('~')).toBe('session')
+    expect(directorySessionName('/srv/...')).toBe('session')
+  })
+
+  it('numbers a taken name like the backend', () => {
+    expect(uniqueSessionName('dev', ['web'])).toBe('dev')
+    expect(uniqueSessionName('dev', ['dev', 'dev-1'])).toBe('dev-2')
+    expect(uniqueSessionName('x'.repeat(64), ['x'.repeat(64)])).toBe(`${'x'.repeat(62)}-1`)
+  })
+})
+
 describe('project name rule', () => {
   it('trims names and measures the 255-byte limit in UTF-8', () => {
     expect(projectNameError('  project  ')).toBe('')
@@ -81,7 +101,7 @@ describe('CreateSessionDialog', () => {
     const w = mountOpen(CreateSessionDialog, { machine: 'host' })
     await flushPromises()
     expect(input('path').value).toBe('~')
-    expect(input('name').value).toBe('')
+    await type('name', '')
     await click('Create')
     expect(calls).toEqual([{ method: 'POST', path: '/api/machines/host/sessions', body: { path: '~' } }])
     expect(w.emitted('created')).toEqual([['dev']])
@@ -118,8 +138,37 @@ describe('CreateSessionDialog', () => {
     stubFetch(() => ({ status: 201, body: { name: 'dev-1' } }))
     mountOpen(CreateSessionDialog, { machine: 'host' })
     await flushPromises()
+    await type('name', '')
     await click('Create')
     expect(useToastsStore().toasts).toEqual([])
+  })
+
+  it('prefills an unused directory name, focused and selected, and Enter creates it', async () => {
+    useMachinesStore().machines = [{ id: 'host', home: '/home/dev' } as Machine]
+    useSessionsStore().byMachine = { host: [{ name: 'dev' }, { name: 'dev-1' }, { name: 'web' }] as Session[] }
+    const calls = stubFetch(() => ({ status: 201, body: { name: 'dev-2' } }))
+    const w = mountOpen(CreateSessionDialog, { machine: 'host' })
+    await flushPromises()
+    const name = input('name')
+    expect(name.value).toBe('dev-2')
+    expect(document.activeElement).toBe(name)
+    expect([name.selectionStart, name.selectionEnd]).toEqual([0, 'dev-2'.length])
+    name.form!.requestSubmit()
+    await flushPromises()
+    expect(calls[0].body).toEqual({ name: 'dev-2', path: '~' })
+    expect(w.emitted('created')).toEqual([['dev-2']])
+    expect(useToastsStore().toasts).toEqual([])
+  })
+
+  it('the prefilled name follows the directory until edited', async () => {
+    useSessionsStore().byMachine = { host: [{ name: 'web' }] as Session[] }
+    mountOpen(CreateSessionDialog, { machine: 'host' })
+    await flushPromises()
+    await type('path', '/srv/web')
+    expect(input('name').value).toBe('web-1')
+    await type('name', 'mine')
+    await type('path', '/srv/api')
+    expect(input('name').value).toBe('mine')
   })
 
   it('turns spaces in the name into hyphens without asking', async () => {

@@ -124,6 +124,38 @@ test('spaces in a typed name become hyphens without asking (create and rename)',
   expect(await target.sessions()).toEqual([renamed])
 })
 
+test('New session prefills an unused name, focused and selected: Enter creates it, typing replaces it', async ({ page, ui, target }) => {
+  // "~" is /home/dev on the target, so the default name is "dev"; it's taken.
+  await target.tmux('new-session', '-d', '-s', 'dev', '-c', '/home/dev')
+  await ui.open()
+  await expect(ui.session('dev')).toBeVisible(soon)
+  const selection = (el: HTMLInputElement) => [el.selectionStart, el.selectionEnd]
+
+  await ui.headerAction('New session')
+  let dialog = page.getByRole('dialog', { name: 'New session' })
+  let name = dialog.getByLabel('Name')
+  await expect(name).toBeFocused()
+  await expect(name).toHaveValue('dev-1')
+  expect(await name.evaluate(selection)).toEqual([0, 'dev-1'.length])
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('region', { name: 'Terminal: dev-1' })).toBeVisible(soon)
+  await expect(page.locator('section[aria-label="Notifications"] [role="status"]')).toHaveCount(0)
+
+  const typed = uniqueName('e2e-typed')
+  await ui.showList()
+  await expect(ui.session('dev-1')).toBeVisible(soon)
+  await ui.headerAction('New session')
+  dialog = page.getByRole('dialog', { name: 'New session' })
+  name = dialog.getByLabel('Name')
+  await expect(name).toBeFocused()
+  await expect(name).toHaveValue('dev-2')
+  await page.keyboard.type(typed)
+  await expect(name).toHaveValue(typed)
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('region', { name: `Terminal: ${typed}` })).toBeVisible(soon)
+  expect((await target.sessions()).sort()).toEqual(['dev', 'dev-1', typed].sort())
+})
+
 // Kill (T16)
 test('kill asks first: Cancel keeps the session, Confirm removes it', async ({ page, ui, target }) => {
   const name = uniqueName('e2e-kill')

@@ -22,3 +22,32 @@ export function projectNameError(name: string): string {
   if (new TextEncoder().encode(trimmed).byteLength > 255) return 'Use 255 bytes or fewer.'
   return ''
 }
+
+/** Any text as a session name base, like the backend (internal/session.SanitizeName). */
+export function sanitizeSessionName(text: string): string {
+  let name = text.replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '')
+  if (name.length > 60) name = name.slice(0, 60).replace(/-+$/, '')
+  return name || 'session'
+}
+
+/** The name the backend would derive for a directory: its last segment
+ *  ("~" and "~/…" resolved against home; "/" → "root"). */
+export function directorySessionName(dir: string, home = ''): string {
+  let p = dir.trim()
+  if (p === '' || p === '~') p = home
+  else if (p.startsWith('~/')) p = `${home.replace(/\/+$/, '')}/${p.slice(2)}`
+  const trimmed = p.replace(/\/+$/, '')
+  if (p.startsWith('/') && trimmed === '') return 'root'
+  return sanitizeSessionName(trimmed.slice(trimmed.lastIndexOf('/') + 1))
+}
+
+/** base, or base-1, base-2, … when taken (internal/session.uniqueName). */
+export function uniqueSessionName(base: string, taken: Iterable<string>): string {
+  const names = new Set(taken)
+  if (!names.has(base)) return base
+  for (let n = 1; ; n++) {
+    const suffix = `-${n}`
+    const name = base.slice(0, 64 - suffix.length) + suffix
+    if (!names.has(name)) return name
+  }
+}

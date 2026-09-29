@@ -79,6 +79,26 @@ test('(T5) Longest-prefix project mapping', async ({ page, target, request }) =>
   await expect(page.getByRole('group', { name: 'Other sessions' }).getByRole('button', { name: otherSession, exact: true })).toBeVisible()
 })
 
+test('New session here prefills an unused name, focused and selected, and Enter creates it', async ({ page, target, request }) => {
+  const dir = uniqueName('e2e-prefill')
+  const root = `/home/dev/${dir}`
+  const projectName = uniqueName('prefill-project')
+  await target.run(`mkdir -p ${shq(root)}`)
+  await createTargetSession(target, dir, root)
+  await addProject(request, root, projectName)
+  await page.goto('/')
+  await expect(page.getByRole('group', { name: `Sessions in ${projectName}` }).getByRole('button', { name: dir, exact: true })).toBeVisible()
+  await page.getByRole('button', { name: `New session in ${projectName}` }).click()
+  const create = page.getByRole('dialog', { name: 'New session here' })
+  const name = create.getByLabel('Name', { exact: true })
+  await expect(name).toBeFocused()
+  await expect(name).toHaveValue(`${dir}-1`)
+  expect(await name.evaluate((el: HTMLInputElement) => [el.selectionStart, el.selectionEnd])).toEqual([0, `${dir}-1`.length])
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('region', { name: `Terminal: ${dir}-1` })).toBeVisible()
+  await expect(page.locator('section[aria-label="Notifications"] [role="status"]')).toHaveCount(0)
+})
+
 test('(T5) Linked session rename and cleanup', async ({ page, target, request, ui }) => {
   const root = `/home/dev/${uniqueName('e2e-linked')}`
   const outside = `/home/dev/${uniqueName('e2e-reused')}`

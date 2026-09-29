@@ -2,7 +2,9 @@
 import { DialogClose, DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
 import { computed, ref, watch } from 'vue'
 import { sessionsApi } from '@/api/client'
-import { normalizeSessionName, sessionNameError } from '@/lib/names'
+import { directorySessionName, normalizeSessionName, sessionNameError, uniqueSessionName } from '@/lib/names'
+import { useMachinesStore } from '@/stores/machines'
+import { useSessionsStore } from '@/stores/sessions'
 import FormError from './FormError.vue'
 import { describeError, useToastsStore } from '@/stores/toasts'
 
@@ -10,8 +12,11 @@ const props = defineProps<{ machine: string; compact?: boolean }>()
 const open = defineModel<boolean>('open', { default: false })
 const emit = defineEmits<{ created: [name: string] }>()
 const toasts = useToastsStore()
+const machines = useMachinesStore()
+const sessions = useSessionsStore()
 
 const name = ref('')
+const nameInput = ref<HTMLInputElement | null>(null)
 const path = ref('~')
 const startCommand = ref('')
 const busy = ref(false)
@@ -20,13 +25,29 @@ const failure = ref<{ message: string; hint?: string } | null>(null)
 
 const nameError = computed(() => sessionNameError(normalizeSessionName(name.value)))
 
+// The prefilled name: the directory's name, unused right now. It follows the
+// directory until the name is edited.
+const defaultName = computed(() => uniqueSessionName(
+  directorySessionName(path.value, machines.byId(props.machine)?.home),
+  sessions.list(props.machine).map((s) => s.name),
+))
+watch(defaultName, (next, prev) => {
+  if (name.value === prev) name.value = next
+})
+
+function focusName(e: Event) {
+  e.preventDefault()
+  nameInput.value?.focus()
+  nameInput.value?.select()
+}
+
 watch(
   open,
   (o) => {
     if (o) {
       failure.value = null
-      name.value = ''
       path.value = '~'
+      name.value = defaultName.value
       startCommand.value = ''
       touched.value = false
     }
@@ -41,13 +62,14 @@ async function submit() {
   failure.value = null
   try {
     const requestedName = normalizeSessionName(name.value)
+    const typed = requestedName !== defaultName.value
     const res = await sessionsApi.create(props.machine, {
       name: requestedName || undefined,
       path: path.value.trim() || '~',
       startCommand: startCommand.value.trim() || undefined,
     })
     open.value = false
-    if (requestedName && res.name !== requestedName) {
+    if (requestedName && typed && res.name !== requestedName) {
       toasts.push({ title: 'Session name changed', message: `Named "${res.name}": "${requestedName}" was already taken.`, tone: 'info' })
     }
     emit('created', res.name)
@@ -66,6 +88,7 @@ async function submit() {
       <DialogContent
         class="fixed z-40 border border-border bg-surface p-5 text-fg"
         :class="props.compact ? 'inset-x-0 bottom-0 max-h-[90dvh] w-full overflow-y-auto rounded-t-2xl pb-[max(1.25rem,env(safe-area-inset-bottom))]' : 'top-1/2 left-1/2 w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded'"
+        @open-auto-focus="focusName"
       >
         <DialogTitle class="text-base font-bold">
           New session
@@ -79,19 +102,9 @@ async function submit() {
           @submit.prevent="submit"
         >
           <label class="flex flex-col gap-1">
-            <span>Directory</span>
-            <input
-              v-model="path"
-              name="path"
-              autocomplete="off"
-              autocapitalize="off"
-              spellcheck="false"
-              class="rounded border border-border bg-bg px-2 py-2 text-base"
-            >
-          </label>
-          <label class="flex flex-col gap-1">
             <span>Name <span class="text-muted">(optional)</span></span>
             <input
+              ref="nameInput"
               v-model="name"
               name="name"
               autocomplete="off"
@@ -107,6 +120,17 @@ async function submit() {
               id="create-name-error"
               class="text-danger"
             >{{ touched ? nameError : '' }}</span>
+          </label>
+          <label class="flex flex-col gap-1">
+            <span>Directory</span>
+            <input
+              v-model="path"
+              name="path"
+              autocomplete="off"
+              autocapitalize="off"
+              spellcheck="false"
+              class="rounded border border-border bg-bg px-2 py-2 text-base"
+            >
           </label>
           <label class="flex flex-col gap-1">
             <span>Start command <span class="text-muted">(optional)</span></span>

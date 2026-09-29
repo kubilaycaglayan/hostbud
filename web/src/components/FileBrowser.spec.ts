@@ -144,7 +144,7 @@ describe('FileBrowser', () => {
     expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith('/sessions') && init?.method === 'POST')).toBe(false)
     await wrapper.get('[aria-label="New session here"] form').trigger('submit')
     await flushPromises()
-    expect(fetchMock).toHaveBeenCalledWith('/api/projects/p1/sessions', expect.objectContaining({ method: 'POST', body: JSON.stringify({ name: undefined, startCommand: 'make test' }) }))
+    expect(fetchMock).toHaveBeenCalledWith('/api/projects/p1/sessions', expect.objectContaining({ method: 'POST', body: JSON.stringify({ name: 'new-folder', startCommand: 'make test' }) }))
     expect(wrapper.emitted('created')?.[0]).toEqual(['work'])
   })
 

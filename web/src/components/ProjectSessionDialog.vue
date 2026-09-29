@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { nextTick, ref, watch } from 'vue'
 import { projectsApi } from '@/api/client'
-import { normalizeSessionName } from '@/lib/names'
+import { directorySessionName, normalizeSessionName, uniqueSessionName } from '@/lib/names'
+import { useSessionsStore } from '@/stores/sessions'
 import type { Project } from '@/api/types'
 import { describeError, useToastsStore } from '@/stores/toasts'
 
@@ -10,8 +11,13 @@ import { describeError, useToastsStore } from '@/stores/toasts'
 const project = defineModel<Project | null>('project', { default: null })
 const emit = defineEmits<{ created: [name: string] }>()
 const toasts = useToastsStore()
+const sessions = useSessionsStore()
 
 const sessionName = ref('')
+// Prefilled with the directory's name, unused when the dialog opens; focused
+// and selected so typing replaces it and Enter creates the session.
+const defaultName = ref('')
+const nameInput = ref<HTMLInputElement | null>(null)
 const command = ref('')
 const recentCommands = ref<string[]>([])
 const recentCommandsError = ref('')
@@ -19,12 +25,17 @@ const busy = ref(false)
 const error = ref('')
 
 watch(project, async (p) => {
-  sessionName.value = ''
+  defaultName.value = p ? uniqueSessionName(directorySessionName(p.path), sessions.list(p.machineId).map((s) => s.name)) : ''
+  sessionName.value = defaultName.value
   command.value = ''
   recentCommands.value = []
   recentCommandsError.value = ''
   error.value = ''
   if (!p) return
+  void nextTick(() => {
+    nameInput.value?.focus()
+    nameInput.value?.select()
+  })
   try {
     const result = await projectsApi.recentCommands(p.id)
     if (project.value?.id === p.id) recentCommands.value = result.commands
@@ -39,10 +50,11 @@ async function createSession() {
   error.value = ''
   try {
     const requestedName = normalizeSessionName(sessionName.value)
+    const typed = requestedName !== defaultName.value
     const startCommand = command.value.trim() ? command.value : undefined
     const result = await projectsApi.createSession(project.value.id, { name: requestedName || undefined, startCommand })
     project.value = null
-    if (requestedName && result.name !== requestedName) {
+    if (requestedName && typed && result.name !== requestedName) {
       toasts.push({ title: 'Session name changed', message: `Named "${result.name}": "${requestedName}" was already taken.`, tone: 'info' })
     }
     emit('created', result.name)
@@ -67,6 +79,7 @@ async function createSession() {
         New session in {{ project.name }}
       </h2>
       <label class="mt-3 block">Name <input
+        ref="nameInput"
         v-model="sessionName"
         autocomplete="off"
         class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 text-base"
