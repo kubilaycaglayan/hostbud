@@ -1,4 +1,4 @@
-import type { APIRequestContext } from '@playwright/test'
+import type { APIRequestContext, Locator } from '@playwright/test'
 import { expect } from '@playwright/test'
 import { MACHINE, mutate } from './api.ts'
 import { shq, type Target, uniqueName } from './target.ts'
@@ -154,4 +154,18 @@ export async function waitItem(request: APIRequestContext, queueId: string, item
     return item.status
   }, { timeout }).toBe(status)
   return await itemOf(request, queueId, itemId)
+}
+
+/**
+ * Picks `value` in the `part` select of the duration picker `group` (Reka UI
+ * select: a combobox trigger whose options open in a bounded, scrollable popup).
+ */
+export async function pickDuration(group: Locator, part: 'Hours' | 'Minutes', value: number, tap = false) {
+  const trigger = group.getByRole('combobox', { name: part })
+  await (tap ? trigger.tap() : trigger.click())
+  const list = group.page().getByRole('listbox')
+  const option = list.getByRole('option', { name: part === 'Hours' ? String(value) : String(value).padStart(2, '0'), exact: true })
+  await option.scrollIntoViewIfNeeded()
+  await (tap ? option.tap() : option.click())
+  await expect(list).toHaveCount(0)
 }

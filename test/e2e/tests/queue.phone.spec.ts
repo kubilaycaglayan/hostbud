@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from '../helpers/fixtures.ts'
-import { newProject } from '../helpers/queues.ts'
+import { newProject, pickDuration } from '../helpers/queues.ts'
 import { shq } from '../helpers/target.ts'
 import { Stubs } from '../helpers/stubs.ts'
 
@@ -34,7 +34,7 @@ test.describe('Queue panel on iPhone 13 Pro', () => {
     // The picker's smallest delay is one minute.
     const delay = dialog.getByRole('group', { name: 'Start delay' })
     await expect(delay.getByRole('textbox')).toHaveCount(0)
-    await delay.getByRole('combobox', { name: 'Minutes' }).selectOption('1')
+    await pickDuration(delay, 'Minutes', 1, true)
     await dialog.getByRole('button', { name: 'Start' }).tap()
     await expect(dialog.getByTestId('queue-scheduled')).toContainText('Scheduled for')
     await expect.poll(async () => target.capture('phone-schedule-target'), { timeout: 90_000 }).toContain('scheduled phone command')
@@ -55,7 +55,7 @@ test.describe('Queue panel on iPhone 13 Pro', () => {
     await form.getByRole('textbox', { name: /^Command/ }).fill("echo 'phone loop command'")
     await form.getByRole('button', { name: 'Add item' }).tap()
     const loop = dialog.getByRole('form', { name: 'Loop queue' })
-    await loop.getByRole('group', { name: 'Loop runtime limit' }).getByRole('combobox', { name: 'Hours' }).selectOption('2')
+    await pickDuration(loop.getByRole('group', { name: 'Loop runtime limit' }), 'Hours', 2, true)
     await loop.getByLabel('Loop the queue').tap()
     await expect(loop.getByLabel('Loop the queue')).toBeChecked()
     await dialog.getByRole('button', { name: 'Start' }).tap()

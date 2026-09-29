@@ -1,8 +1,11 @@
-import { flushPromises, mount } from '@vue/test-utils'
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
+import { SelectRoot } from 'reka-ui'
+import { nextTick } from 'vue'
 import { VueDraggable } from 'vue-draggable-plus'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import QueuePanel from './QueuePanel.vue'
+import DurationPicker from './DurationPicker.vue'
 import type { Queue } from '@/api/types'
 import { useQueuesStore } from '@/stores/queues'
 import { useSessionsStore } from '@/stores/sessions'
@@ -24,15 +27,17 @@ afterEach(() => {
 })
 
 const $$ = (sel: string) => [...document.body.querySelectorAll<HTMLElement>(sel)]
+let panel: VueWrapper
+const pickerSelects = (label: string) => panel.findAllComponents(DurationPicker).find((d) => d.props('label') === label)!.findAllComponents(SelectRoot)
 /** Picks hours and minutes in the duration picker labelled `label`. */
-function pick(label: string, hours: number, minutes: number) {
-  const [h, m] = $$(`[role="group"][aria-label="${label}"] select`) as HTMLSelectElement[]
-  h.value = String(hours)
-  h.dispatchEvent(new Event('change'))
-  m.value = String(minutes)
-  m.dispatchEvent(new Event('change'))
+async function pick(label: string, hours: number, minutes: number) {
+  const [h, m] = pickerSelects(label)
+  h.vm.$emit('update:modelValue', hours)
+  await nextTick()
+  m.vm.$emit('update:modelValue', minutes)
+  await nextTick()
 }
-const picked = (label: string) => ($$(`[role="group"][aria-label="${label}"] select`) as HTMLSelectElement[]).map((s) => s.value)
+const picked = (label: string) => pickerSelects(label).map((s) => String((s.props() as { modelValue: unknown }).modelValue))
 const button = (label: string) => $$('button').find((b) => b.getAttribute('aria-label') === label || b.textContent?.trim() === label)
 
 async function mountPanel(q: Queue | Queue[] | null, compact = false, parallel = false) {
@@ -42,6 +47,7 @@ async function mountPanel(q: Queue | Queue[] | null, compact = false, parallel =
   store.parallelQueues = parallel
   useProjectsStore().items = [{ id: 'p1', machineId: 'host', path: '/home/dev/app', name: 'app', sortOrder: 0, pinned: false, createdAt: '', updatedAt: '' }]
   const w = mount(QueuePanel, { props: { open: true, compact }, attachTo: document.body })
+  panel = w
   await flushPromises()
   return w
 }
@@ -546,14 +552,14 @@ describe('QueuePanel', () => {
     expect(picked('Loop runtime limit')).toEqual(['5', '0'])
     // Only hours and minutes can be picked; zero is the one invalid choice.
     expect($$('[aria-label="Loop runtime limit"] input')).toHaveLength(0)
-    pick('Loop runtime limit', 0, 0)
+    await pick('Loop runtime limit', 0, 0)
     await flushPromises()
     box.click()
     await flushPromises()
     expect(calls).toEqual([])
     expect(box.checked).toBe(false)
     expect(document.body.textContent).toContain('Pick a limit of at least 1 minute.')
-    pick('Loop runtime limit', 2, 0)
+    await pick('Loop runtime limit', 2, 0)
     await flushPromises()
     box.click()
     await flushPromises()
@@ -572,7 +578,7 @@ describe('QueuePanel', () => {
     expect(button('Start')?.hasAttribute('disabled')).toBe(false)
     expect(button('Save limit')).toBeFalsy()
     expect(picked('Loop runtime limit')).toEqual(['5', '0'])
-    pick('Loop runtime limit', 1, 30)
+    await pick('Loop runtime limit', 1, 30)
     await flushPromises()
     button('Save limit')!.click()
     await flushPromises()
@@ -587,7 +593,7 @@ describe('QueuePanel', () => {
     expect($$('[aria-label="Start delay"] input')).toHaveLength(0)
     button('Start')!.click()
     await flushPromises()
-    pick('Start delay', 4, 14)
+    await pick('Start delay', 4, 14)
     await flushPromises()
     button('Start')!.click()
     await flushPromises()

@@ -2,7 +2,7 @@ import { dragSortable } from '../helpers/ui.ts'
 import type { Page } from '@playwright/test'
 import { expect, test } from '../helpers/fixtures.ts'
 import { mutate, ORIGIN } from '../helpers/api.ts'
-import { getQueue, listQueues, newProject, type Queue } from '../helpers/queues.ts'
+import { getQueue, listQueues, newProject, pickDuration, type Queue } from '../helpers/queues.ts'
 import { shq } from '../helpers/target.ts'
 import { Stubs } from '../helpers/stubs.ts'
 
@@ -77,7 +77,7 @@ test.describe('Queue panel (desktop)', { tag: '@desktop' }, () => {
     // The picker's smallest delay is one minute.
     const delay = dialog.getByRole('group', { name: 'Start delay' })
     await expect(delay.getByRole('textbox')).toHaveCount(0)
-    await delay.getByRole('combobox', { name: 'Minutes' }).selectOption('1')
+    await pickDuration(delay, 'Minutes', 1)
     await dialog.getByRole('button', { name: 'Start' }).click()
     await expect(dialog.getByTestId('queue-scheduled')).toContainText('Scheduled for')
     await expect(dialog.getByTestId('item-status')).toHaveText('Queued')
@@ -101,10 +101,18 @@ test.describe('Queue panel (desktop)', { tag: '@desktop' }, () => {
     await form.getByRole('button', { name: 'Add item' }).click()
     const loop = dialog.getByRole('form', { name: 'Loop queue' })
     const limit = loop.getByRole('group', { name: 'Loop runtime limit' })
-    await expect(limit.getByRole('combobox', { name: 'Hours' })).toHaveValue('5')
-    await expect(limit.getByRole('combobox', { name: 'Minutes' })).toHaveValue('0')
-    await limit.getByRole('combobox', { name: 'Hours' }).selectOption('0')
-    await limit.getByRole('combobox', { name: 'Minutes' }).selectOption('1')
+    await expect(limit.getByRole('combobox', { name: 'Hours' })).toHaveText('5')
+    await expect(limit.getByRole('combobox', { name: 'Minutes' })).toHaveText('00')
+    // The hours list stops at 48 and scrolls inside the viewport.
+    await limit.getByRole('combobox', { name: 'Hours' }).click()
+    const hours = page.getByRole('listbox')
+    await expect(hours.getByRole('option')).toHaveCount(49)
+    await expect(hours.getByRole('option').last()).toHaveText('48')
+    const box = (await hours.boundingBox())!
+    expect(box.y + box.height).toBeLessThanOrEqual(page.viewportSize()!.height)
+    await page.keyboard.press('Escape')
+    await pickDuration(limit, 'Hours', 0)
+    await pickDuration(limit, 'Minutes', 1)
     await loop.getByLabel('Loop the queue').check()
     await expect(loop.getByLabel('Loop the queue')).toBeChecked()
     // The picker has minute steps; the API still takes seconds, so the test
