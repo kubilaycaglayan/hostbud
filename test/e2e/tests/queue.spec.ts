@@ -134,7 +134,7 @@ test.describe('Queue panel (desktop)', () => {
     await addItem(page, 'e2e panel b')
     await addItem(page, 'e2e panel f')
     // Reorder by drag, then by keyboard: a, f, b → a, b, f → a, f, b.
-    await row(page, 'e2e panel f').getByRole('button', { name: /^Drag to reorder item/ }).dragTo(row(page, 'e2e panel b'), { targetPosition: { x: 20, y: 5 } })
+    await row(page, 'e2e panel f').getByRole('button', { name: /^Drag to reorder item/ }).dragTo(row(page, 'e2e panel b'), { targetPosition: { x: 20, y: 1 } })
     await expect.poll(() => order(page)).toEqual(['e2e panel a', 'e2e panel f', 'e2e panel b'])
     await row(page, 'e2e panel f').focus()
     await page.keyboard.press('Alt+ArrowDown')
