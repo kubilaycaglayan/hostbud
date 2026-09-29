@@ -1,7 +1,8 @@
 import { dragSortable } from '../helpers/ui.ts'
 import type { Page } from '@playwright/test'
 import { expect, test } from '../helpers/fixtures.ts'
-import { getQueue, newProject, type Queue } from '../helpers/queues.ts'
+import { mutate, ORIGIN } from '../helpers/api.ts'
+import { getQueue, listQueues, newProject, type Queue } from '../helpers/queues.ts'
 import { shq } from '../helpers/target.ts'
 import { Stubs } from '../helpers/stubs.ts'
 
@@ -54,11 +55,14 @@ test.describe('Queue panel (desktop)', { tag: '@desktop' }, () => {
     await form.getByRole('combobox', { name: /^Existing session/ }).selectOption('schedule-ui-target')
     await form.getByRole('textbox', { name: /^Command/ }).fill("echo 'scheduled ui command'")
     await form.getByRole('button', { name: 'Add item' }).click()
-    await dialog.getByLabel('Start delay').fill('2s')
+    // The picker's smallest delay is one minute.
+    const delay = dialog.getByRole('group', { name: 'Start delay' })
+    await expect(delay.getByRole('textbox')).toHaveCount(0)
+    await delay.getByRole('combobox', { name: 'Minutes' }).selectOption('1')
     await dialog.getByRole('button', { name: 'Start' }).click()
     await expect(dialog.getByTestId('queue-scheduled')).toContainText('Scheduled for')
     await expect(dialog.getByTestId('item-status')).toHaveText('Queued')
-    await expect.poll(async () => target.capture('schedule-ui-target'), { timeout: 10_000 }).toContain('scheduled ui command')
+    await expect.poll(async () => target.capture('schedule-ui-target'), { timeout: 90_000 }).toContain('scheduled ui command')
     await expect(dialog.getByTestId('item-status')).toHaveText('Done')
   })
 
@@ -77,10 +81,18 @@ test.describe('Queue panel (desktop)', { tag: '@desktop' }, () => {
     await form.getByRole('textbox', { name: /^Command/ }).fill("printf '%s\\n' loop-ui-marker")
     await form.getByRole('button', { name: 'Add item' }).click()
     const loop = dialog.getByRole('form', { name: 'Loop queue' })
-    await expect(loop.getByLabel('Loop runtime limit')).toHaveValue('5h')
-    await loop.getByLabel('Loop runtime limit').fill('30s')
+    const limit = loop.getByRole('group', { name: 'Loop runtime limit' })
+    await expect(limit.getByRole('combobox', { name: 'Hours' })).toHaveValue('5')
+    await expect(limit.getByRole('combobox', { name: 'Minutes' })).toHaveValue('0')
+    await limit.getByRole('combobox', { name: 'Hours' }).selectOption('0')
+    await limit.getByRole('combobox', { name: 'Minutes' }).selectOption('1')
     await loop.getByLabel('Loop the queue').check()
     await expect(loop.getByLabel('Loop the queue')).toBeChecked()
+    // The picker has minute steps; the API still takes seconds, so the test
+    // tightens the limit to 30 s there to keep pass 2 the last.
+    const looped = (await listQueues(request)).find((q) => q.projectId === project.id)!
+    const tightened = await mutate(request, 'PUT', `/api/queues/${looped.id}/loop`, { enabled: true, maxRuntime: '30s' }, ORIGIN)
+    expect(tightened.status(), await tightened.text()).toBe(200)
     await expect(loop.getByTestId('queue-loop-status')).toContainText('Pass 1')
     await dialog.getByRole('button', { name: 'Start' }).click()
     // Pass 1 dispatches at once; pass 2 waits for the one-minute spacing.

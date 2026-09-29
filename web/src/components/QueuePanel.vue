@@ -8,8 +8,9 @@ import { ArrowDown, ArrowUp, GripVertical, Pencil, Plus, Trash2, TriangleAlert }
 import { queuesApi } from '@/api/client'
 import type { QueueItem, QueueItemHistory } from '@/api/types'
 import ConfirmDialog from './ConfirmDialog.vue'
+import DurationPicker from './DurationPicker.vue'
 import FormError from './FormError.vue'
-import { AGENTS, type Agent, DEFAULT_LOOP_RUNTIME, flagsError, loopRuntimeError, loopRuntimeText, INSTRUCTION_PREFIX, instructionError, itemActions, moveQueued, queueControls, queueRunning, statusLabel, verifyCommandError, verifyLine } from '@/lib/queue'
+import { AGENTS, type Agent, DEFAULT_LOOP_RUNTIME_SECONDS, flagsError, loopRuntimeError, loopRuntimeText, INSTRUCTION_PREFIX, instructionError, itemActions, moveQueued, queueControls, queueRunning, statusLabel, verifyCommandError, verifyLine } from '@/lib/queue'
 import { useQueuesStore } from '@/stores/queues'
 import { useProjectsStore } from '@/stores/projects'
 import { useSessionsStore } from '@/stores/sessions'
@@ -219,12 +220,14 @@ function saveRename() {
 
 // ---- looping: run the items again until the runtime limit since Start ----
 const loop = computed(() => queue.value?.loop)
-const loopLimit = ref(DEFAULT_LOOP_RUNTIME)
+// The limit in seconds, picked as hours and minutes.
+const loopLimit = ref(DEFAULT_LOOP_RUNTIME_SECONDS)
 const loopError = ref<string | null>(null)
 watch(() => [queue.value?.id, loop.value?.maxRuntimeSeconds] as const, ([, seconds]) => {
-  loopLimit.value = seconds ? loopRuntimeText(seconds) : DEFAULT_LOOP_RUNTIME
+  loopLimit.value = seconds || DEFAULT_LOOP_RUNTIME_SECONDS
   loopError.value = null
 }, { immediate: true })
+watch(loopLimit, () => { loopError.value = null })
 // When the loop stops starting passes: the limit after the loop's start.
 const loopEndsAt = computed(() => loop.value?.enabled && loop.value.startedAt
   ? new Date(Date.parse(loop.value.startedAt) + loop.value.maxRuntimeSeconds * 1000).toISOString()
@@ -239,9 +242,9 @@ function toggleLoop(e: Event) {
 function saveLoop(enabled: boolean) {
   const q = queue.value
   if (!q) return
-  loopError.value = loopRuntimeError(loopLimit.value)
+  loopError.value = loopLimit.value < 60 ? 'Pick a limit of at least 1 minute.' : loopRuntimeError(loopRuntimeText(loopLimit.value))
   if (loopError.value) return
-  void act("Couldn't change looping", () => queuesApi.setLoop(q.id, enabled, loopLimit.value.trim()))
+  void act("Couldn't change looping", () => queuesApi.setLoop(q.id, enabled, loopRuntimeText(loopLimit.value)))
 }
 
 // ---- adding and editing items ----
@@ -348,9 +351,10 @@ function onDragEnd() {
 function control(action: 'start' | 'pause' | 'resume') {
   if (!queue.value) return
   const q = queue.value
-  void act(`Couldn't ${action} the queue`, () => action === 'start' ? queuesApi.start(q.id, startDelay.value.trim()) : queuesApi[action](q.id))
+  void act(`Couldn't ${action} the queue`, () => action === 'start' ? queuesApi.start(q.id, startDelay.value ? loopRuntimeText(startDelay.value) : '') : queuesApi[action](q.id))
 }
-const startDelay = ref('')
+// The start delay in seconds; 0 starts now.
+const startDelay = ref(0)
 
 // The pending confirmation. Its dialog's open state is separate: closing
 // the dialog (the action button closes it first) must not lose the action.
@@ -617,9 +621,10 @@ const badge: Record<QueueItem['status'], string> = {
               </button>
               <span data-testid="queue-status" class="rounded border border-border px-2 text-sm" :class="queue.status === 'running' ? 'border-accent font-bold text-accent' : ''">{{ queue.status }}</span>
               <div class="ml-auto flex flex-wrap gap-2">
-                <label v-if="controls?.start" class="block text-sm">Start after
-                  <input v-model="startDelay" autocomplete="off" placeholder="15m or 4h14m" aria-label="Start delay" class="mt-1 min-h-11 w-32 rounded border border-border bg-bg px-2 font-mono text-base">
-                </label>
+                <div v-if="controls?.start" class="text-sm">
+                  <span aria-hidden="true">Start after</span>
+                  <DurationPicker v-model="startDelay" label="Start delay" />
+                </div>
                 <button v-if="controls?.start || queue.status === 'idle' || queue.status === 'finished'" type="button" :disabled="busy || !controls?.start || !!runBlockedBy" :title="runBlockedTitle" class="touch-target min-h-11 rounded bg-accent px-3 font-bold text-bg" @click="control('start')">Start</button>
                 <button v-if="controls?.pause" type="button" :disabled="busy" class="touch-target min-h-11 rounded border border-border px-3" @click="control('pause')">Pause</button>
                 <button v-if="controls?.resume" type="button" :disabled="busy || !!runBlockedBy" :title="runBlockedTitle" class="touch-target min-h-11 rounded bg-accent px-3 font-bold text-bg" @click="control('resume')">Resume</button>
@@ -634,10 +639,11 @@ const badge: Record<QueueItem['status'], string> = {
                 <input type="checkbox" autocomplete="off" :checked="!!loop?.enabled" :disabled="busy" aria-label="Loop the queue" class="h-5 w-5" @change="toggleLoop">
                 Loop the queue
               </label>
-              <label class="block">Stop starting passes after
-                <input v-model="loopLimit" autocomplete="off" placeholder="5h" aria-label="Loop runtime limit" :aria-invalid="!!loopError" aria-describedby="queue-loop-help" class="mt-1 min-h-11 w-24 rounded border border-border bg-bg px-2 font-mono text-base">
-              </label>
-              <button v-if="loop?.enabled && loopLimit.trim() !== loopRuntimeText(loop.maxRuntimeSeconds)" type="submit" :disabled="busy" class="touch-target min-h-11 rounded border border-border px-3">Save limit</button>
+              <div>
+                <span aria-hidden="true">Stop starting passes after</span>
+                <DurationPicker v-model="loopLimit" label="Loop runtime limit" />
+              </div>
+              <button v-if="loop?.enabled && loopLimit !== loop.maxRuntimeSeconds" type="submit" :disabled="busy" class="touch-target min-h-11 rounded border border-border px-3">Save limit</button>
               <p id="queue-loop-help" class="basis-full text-muted">
                 <span v-if="loopError" role="alert" class="text-danger">{{ loopError }}</span>
                 <template v-else-if="loop?.enabled">

@@ -164,8 +164,8 @@ export function moveQueued(items: QueueItem[], id: string, delta: -1 | 1): strin
   return queued
 }
 
-/** DEFAULT_LOOP_RUNTIME is a queue's loop runtime limit until it's changed. */
-export const DEFAULT_LOOP_RUNTIME = '5h'
+/** DEFAULT_LOOP_RUNTIME_SECONDS is a queue's loop runtime limit until it's changed. */
+export const DEFAULT_LOOP_RUNTIME_SECONDS = 5 * 3600
 
 /** A runtime limit in seconds as a Go duration: 18000 → "5h", 5400 → "1h30m". */
 export function loopRuntimeText(seconds: number): string {

@@ -24,6 +24,15 @@ afterEach(() => {
 })
 
 const $$ = (sel: string) => [...document.body.querySelectorAll<HTMLElement>(sel)]
+/** Picks hours and minutes in the duration picker labelled `label`. */
+function pick(label: string, hours: number, minutes: number) {
+  const [h, m] = $$(`[role="group"][aria-label="${label}"] select`) as HTMLSelectElement[]
+  h.value = String(hours)
+  h.dispatchEvent(new Event('change'))
+  m.value = String(minutes)
+  m.dispatchEvent(new Event('change'))
+}
+const picked = (label: string) => ($$(`[role="group"][aria-label="${label}"] select`) as HTMLSelectElement[]).map((s) => s.value)
 const button = (label: string) => $$('button').find((b) => b.getAttribute('aria-label') === label || b.textContent?.trim() === label)
 
 async function mountPanel(q: Queue | Queue[] | null, compact = false, parallel = false) {
@@ -483,18 +492,19 @@ describe('QueuePanel', () => {
     const calls = stubFetch(() => ({ status: 200, body: looping }))
     await mountPanel(queue([queued]))
     const box = $$('input[aria-label="Loop the queue"]')[0] as HTMLInputElement
-    const limit = $$('input[aria-label="Loop runtime limit"]')[0] as HTMLInputElement
     expect(box.checked).toBe(false)
-    expect(limit.value).toBe('5h')
-    limit.value = 'forever'
-    limit.dispatchEvent(new Event('input'))
+    expect(picked('Loop runtime limit')).toEqual(['5', '0'])
+    // Only hours and minutes can be picked; zero is the one invalid choice.
+    expect($$('[aria-label="Loop runtime limit"] input')).toHaveLength(0)
+    pick('Loop runtime limit', 0, 0)
+    await flushPromises()
     box.click()
     await flushPromises()
     expect(calls).toEqual([])
     expect(box.checked).toBe(false)
-    expect(document.body.textContent).toContain('Enter a duration such as 5h')
-    limit.value = '2h'
-    limit.dispatchEvent(new Event('input'))
+    expect(document.body.textContent).toContain('Pick a limit of at least 1 minute.')
+    pick('Loop runtime limit', 2, 0)
+    await flushPromises()
     box.click()
     await flushPromises()
     expect(calls).toEqual([{ method: 'PUT', path: '/api/queues/q1/loop', body: { enabled: true, maxRuntime: '2h' } }])
@@ -511,14 +521,30 @@ describe('QueuePanel', () => {
     await mountPanel(finished)
     expect(button('Start')?.hasAttribute('disabled')).toBe(false)
     expect(button('Save limit')).toBeFalsy()
-    const limit = $$('input[aria-label="Loop runtime limit"]')[0] as HTMLInputElement
-    limit.value = '90m'
-    limit.dispatchEvent(new Event('input'))
+    expect(picked('Loop runtime limit')).toEqual(['5', '0'])
+    pick('Loop runtime limit', 1, 30)
     await flushPromises()
     button('Save limit')!.click()
     await flushPromises()
-    expect(calls).toEqual([{ method: 'PUT', path: '/api/queues/q1/loop', body: { enabled: true, maxRuntime: '90m' } }])
-    expect(limit.value).toBe('1h30m')
+    expect(calls).toEqual([{ method: 'PUT', path: '/api/queues/q1/loop', body: { enabled: true, maxRuntime: '1h30m' } }])
+    expect(picked('Loop runtime limit')).toEqual(['1', '30'])
+  })
+
+  it('schedules Start with the delay picked as hours and minutes', async () => {
+    const calls = stubFetch(() => ({ status: 200, body: queue([queued], 'idle') }))
+    await mountPanel(queue([queued], 'idle'))
+    expect(picked('Start delay')).toEqual(['0', '0'])
+    expect($$('[aria-label="Start delay"] input')).toHaveLength(0)
+    button('Start')!.click()
+    await flushPromises()
+    pick('Start delay', 4, 14)
+    await flushPromises()
+    button('Start')!.click()
+    await flushPromises()
+    expect(calls).toEqual([
+      { method: 'POST', path: '/api/queues/q1/start', body: undefined },
+      { method: 'POST', path: '/api/queues/q1/start', body: { delay: '4h14m' } },
+    ])
   })
 
   it('keeps Start disabled on a finished queue that does not loop', async () => {
