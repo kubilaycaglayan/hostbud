@@ -219,7 +219,7 @@ func TestQueueRoutesCallTheService(t *testing.T) {
 }
 
 func TestQueueRoutesMapErrorsAndRefuseForeignOrigins(t *testing.T) {
-	q := &fakeQueues{err: &queue.Error{Status: http.StatusConflict, Message: "V2-M1 supports one queue; several queues arrive with V2-M2", Hint: "Add more items."}}
+	q := &fakeQueues{err: &queue.Error{Status: http.StatusConflict, Message: "a queue named \"n\" already exists in this project", Hint: "Pick another name."}}
 	h := queueEnv(t, q)
 	unauthenticated := httptest.NewRequestWithContext(t.Context(), "GET", "/api/queue-history", nil)
 	unauthenticated.Header.Set("Origin", "https://attacker.example")
@@ -230,7 +230,7 @@ func TestQueueRoutesMapErrorsAndRefuseForeignOrigins(t *testing.T) {
 	}
 	rec := queueRequest(t, h, "POST", "/api/queues", `{"projectId":"p","name":"n"}`, nil)
 	body := decodeBody[errorBody](t, rec)
-	if rec.Code != http.StatusConflict || body.Error != "V2-M1 supports one queue; several queues arrive with V2-M2" || body.Hint != "Add more items." {
+	if rec.Code != http.StatusConflict || body.Error != `a queue named "n" already exists in this project` || body.Hint != "Pick another name." {
 		t.Fatalf("mapped error: %d %+v", rec.Code, body)
 	}
 	q.err = store.ErrNotFound

@@ -301,8 +301,13 @@ test.describe('Queue panel (desktop)', () => {
     await panel(page).getByRole('button', { name: 'Resume' }).click()
     await expect(row(page, 'e2e panel done y').getByTestId('item-status')).toHaveText(/^Done/, { timeout: 40_000 })
     await expect(panel(page).getByTestId('queue-status')).toHaveText('finished')
-    // A second queue is refused with the V2-M2 message (the panel has one queue).
-    const second = await request.fetch('/api/queues', { method: 'POST', data: { projectId: project.id, name: 'Two' }, headers: { Origin: 'http://localhost:9055' } })
-    expect((await second.json()).error).toContain('V2-M2')
+    // Parallel queues off: New queue still creates a second queue (to
+    // organize work); the panel explains that only one runs at a time.
+    await expect(panel(page).getByTestId('parallel-off')).toContainText('still create queues')
+    await panel(page).getByRole('button', { name: 'New queue' }).click()
+    await panel(page).getByLabel('Queue name').fill('Two')
+    await panel(page).getByRole('button', { name: 'Create queue' }).click()
+    await expect(panel(page).getByRole('button', { name: 'Show queue Two' })).toHaveAttribute('aria-current', 'true')
+    await expect(panel(page).getByTestId('queue-status')).toHaveText('idle')
   })
 })

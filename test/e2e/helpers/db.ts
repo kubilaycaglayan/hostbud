@@ -90,17 +90,6 @@ export const queues = {
     )
     return { queueId, itemId, runId, token }
   },
-  /** An idle queue written straight to the database, like one left over
-   * from HOSTBUD_PARALLEL_QUEUES=true (V2-M2; the switch-off API refuses a
-   * second queue). */
-  async seedQueue(projectId: string, name: string): Promise<string> {
-    const queueId = `queue_e2e${randomBytes(8).toString('hex')}`
-    await sql(
-      `INSERT INTO queues (id, machine_id, project_id, name) SELECT $1, machine_id, id, $3 FROM projects WHERE id = $2`,
-      [queueId, projectId, name],
-    )
-    return queueId
-  },
   /** Attaches a failed synthetic run and transitions its item for history coverage. */
   async setItemFailure(itemId: string, detail: string) {
     const runId = ulid()

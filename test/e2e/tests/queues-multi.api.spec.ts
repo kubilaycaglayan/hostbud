@@ -228,16 +228,17 @@ test.describe('run cap API', () => {
   })
 })
 
-// Criterion 3 on the switch-off app (hostbud-e2e-app): a queue left over
-// from switch-on stays usable, one at a time.
+// Criterion 3 on the switch-off app (hostbud-e2e-app): queues can still be
+// created (a leftover from switch-on, or a new one to organize work), but
+// they run one at a time.
 test.describe('parallel queues switched off', () => {
   test.describe.configure({ timeout: 90_000 })
 
   test('(V2-M2 T2) Switch off: a leftover queue waits for the active one', async ({ request, target }) => {
-    await queues.deleteAll() // the switch-off app allows one queue
+    await queues.deleteAll()
     const p = await newProject(request, target, 'e2e-off')
     const a = await queueOn(request, p.id, 'Alpha', [{ condition: 'e2e off a1', behavior: 'slow:4' }])
-    const leftoverId = await queues.seedQueue(p.id, 'Leftover')
+    const leftoverId = (await createQueue(request, p.id, 'Leftover')).id
     await stubs.setBehavior('e2e off l1', 'achieve:1', 0.5)
     await addItem(request, leftoverId, { instruction: '/goal e2e off l1' })
     expect((await listQueues(request)).map((q) => q.name).sort()).toEqual(['Alpha', 'Leftover'])
@@ -257,15 +258,16 @@ test.describe('parallel queues switched off', () => {
   })
 })
 
-// The owner's switch (Queue panel) on the switch-off app: turning it on
-// allows a second queue without a redeploy; turning it off stops nothing.
+// The owner's switch (Queue panel) on the switch-off app: queues can be
+// created either way; turning it on runs them in parallel without a
+// redeploy; turning it off stops nothing.
 test.describe('parallel queues switch', () => {
   test('(parallel toggle) Switch on and off without a redeploy', async ({ request, target }) => {
     await queues.deleteAll() // also clears the stored switch
     try {
       const p = await newProject(request, target, 'e2e-toggle')
       await createQueue(request, p.id, 'Alpha')
-      expect((await mutate(request, 'POST', '/api/queues', { projectId: p.id, name: 'Beta' })).status()).toBe(409)
+      await createQueue(request, p.id, 'Beta') // switch off: created, not run
 
       const path = '/api/machines/host/parallel-queues'
       expect((await mutate(request, 'PUT', path, { parallelQueues: true }, 'http://evil.example.com')).status()).toBe(403)
@@ -273,7 +275,7 @@ test.describe('parallel queues switch', () => {
       const on = await mutate(request, 'PUT', path, { parallelQueues: true })
       expect(await on.json()).toEqual({ parallelQueues: true })
       expect((await (await request.get('/api/queues')).json()).parallelQueues).toBe(true)
-      await createQueue(request, p.id, 'Beta')
+      await createQueue(request, p.id, 'Gamma')
       expect((await mutate(request, 'PUT', path, {})).status()).toBe(400)
       expect((await mutate(request, 'PUT', '/api/machines/server-a/parallel-queues', { parallelQueues: true })).status()).toBe(404)
 
@@ -281,7 +283,7 @@ test.describe('parallel queues switch', () => {
       expect(await off.json()).toEqual({ parallelQueues: false })
       const list = await (await request.get('/api/queues')).json()
       expect(list.parallelQueues).toBe(false)
-      expect(list.queues.map((q: { name: string }) => q.name).sort()).toEqual(['Alpha', 'Beta'])
+      expect(list.queues.map((q: { name: string }) => q.name).sort()).toEqual(['Alpha', 'Beta', 'Gamma'])
     } finally {
       // The app keeps the switch in memory too: switch it off through the API.
       await mutate(request, 'PUT', '/api/machines/host/parallel-queues', { parallelQueues: false })

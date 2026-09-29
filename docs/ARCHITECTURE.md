@@ -343,7 +343,7 @@ GET    /api/supervisor              authenticated V2-M5 status; enabled/provider
 # v2 agent queue (V2-M1, V2-M2, V2-M4; docs/roadmap-v2)
 GET    /api/queues                    {queues: [queue], parallelQueues} — each queue with its project, items (each with its latest run summary and, V2-M2, waitingForSlot) and warnings (shared_directory)
 GET    /api/queue-history?limit=100&offset=0  V2-M9: newest-first metadata snapshots; limit 1–200; survives queue/item deletion; excludes session content
-POST   /api/queues                    {projectId, name} — 201; with parallel queues off one queue (a second → 409 naming V2-M2), on: several, names unique per project (409)
+POST   /api/queues                    {projectId, name} — 201; several queues either way, names unique per project (409); with parallel queues off only one runs at a time (start/resume of another → 409)
 GET    /api/queues/:id
 PATCH  /api/queues/:id                {name}
 DELETE /api/queues/:id                204; refused (409) while a run is active or an item is verifying; run sessions stay open

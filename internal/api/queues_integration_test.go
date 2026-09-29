@@ -93,11 +93,6 @@ func TestIntegrationQueueRoutesUsePostgres(t *testing.T) {
 	want(201, status, body, "create queue")
 	var q queue.View
 	_ = json.Unmarshal(body, &q)
-	status, body = call("POST", "/api/queues", `{"projectId":"`+project.ID+`","name":"Second"}`, origin)
-	want(409, status, body, "second queue")
-	if !strings.Contains(string(body), "V2-M2") {
-		t.Fatalf("second queue message: %s", body)
-	}
 	var ids []string
 	for _, instr := range []string{"work on milestone 1", "/goal m2", "/goal m3"} {
 		status, body = call("POST", "/api/queues/"+q.ID+"/items", `{"agent":"claude","flags":"--model 'opus 4'","instruction":"`+instr+`"}`, origin)
@@ -180,6 +175,21 @@ func TestIntegrationQueueRoutesUsePostgres(t *testing.T) {
 	want(200, status, body, "start")
 	status, body = call("POST", "/api/queues/"+q.ID+"/start", "", origin)
 	want(409, status, body, "start twice")
+	// Parallel queues off: a second queue can be created to organize work,
+	// but it can't start while Milestones runs.
+	status, body = call("POST", "/api/queues", `{"projectId":"`+project.ID+`","name":"Second"}`, origin)
+	want(201, status, body, "second queue")
+	var second queue.View
+	_ = json.Unmarshal(body, &second)
+	status, body = call("POST", "/api/queues/"+second.ID+"/items", `{"agent":"claude","instruction":"/goal s1"}`, origin)
+	want(201, status, body, "second queue item")
+	status, body = call("POST", "/api/queues/"+second.ID+"/start", "", origin)
+	want(409, status, body, "start second queue")
+	if !strings.Contains(string(body), "pause queue Milestones") {
+		t.Fatalf("start second queue message: %s", body)
+	}
+	status, body = call("DELETE", "/api/queues/"+second.ID, "", origin)
+	want(204, status, body, "delete second queue")
 	status, body = call("POST", "/api/queues/"+q.ID+"/pause", "", origin)
 	want(200, status, body, "pause")
 	status, body = call("POST", "/api/queue-items/"+ids[0]+"/skip", "", origin)
@@ -193,7 +203,9 @@ func TestIntegrationQueueRoutesUsePostgres(t *testing.T) {
 			n++
 		}
 	}
-	if n != 10 {
-		t.Fatalf("queue.changed events: %d, want one per change (10)", n)
+	// 10 changes on Milestones, 3 on Second, each also heard by its peer
+	// in the same directory (3 more).
+	if n != 16 {
+		t.Fatalf("queue.changed events: %d, want one per change plus peers (16)", n)
 	}
 }

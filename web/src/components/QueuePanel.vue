@@ -56,6 +56,18 @@ const items = ref<QueueItem[]>([])
 watch(() => queue.value?.items, (next) => { items.value = [...(next ?? [])] }, { immediate: true })
 const hasQueued = computed(() => items.value.some((i) => i.status === 'queued'))
 const controls = computed(() => queue.value ? queueControls(queue.value.status, hasQueued.value) : null)
+// Parallel queues off: queues can still be created to organize work, but
+// only one runs at a time. The other active queue blocks Start/Resume (the
+// server's 409 stays authoritative).
+const runBlockedBy = computed(() => {
+  if (store.parallelQueues || !queue.value) return null
+  const id = queue.value.id
+  return store.queues.find((q) => q.id !== id
+    && (q.status === 'running' || q.items.some((it) => it.status === 'running' || it.status === 'verifying'))) ?? null
+})
+const runBlockedTitle = computed(() => runBlockedBy.value
+  ? `Queue ${runBlockedBy.value.name} is running. Pause it and wait for its run to end, or turn on Run queues in parallel.`
+  : undefined)
 const progressSegments = computed(() => items.value.map((item) => ({
   id: item.id,
   label: statusLabel(item),
@@ -165,7 +177,7 @@ const linkableSessions = computed(() => {
   return sessions.list(props.machine).filter((s) => !goalSessions.has(s.name))
 })
 watch(() => projects.items, (list) => { if (!newProjectId.value && list.length) newProjectId.value = list[0].id }, { immediate: true })
-// With queues present, "New queue" opens the form; it needs the switch.
+// With queues present, "New queue" opens the form (with or without the switch).
 const addingQueue = ref(false)
 const showCreate = computed(() => store.loaded && (!store.queues.length || addingQueue.value))
 function newQueue() {
@@ -471,9 +483,9 @@ const badge: Record<QueueItem['status'], string> = {
             </nav>
             <button
               type="button"
-              :disabled="busy || !store.parallelQueues || addingQueue"
+              :disabled="busy || addingQueue"
               class="touch-target inline-flex min-h-8 items-center gap-1 rounded border border-border px-2 text-sm"
-              :title="store.parallelQueues ? 'Create another queue' : 'Turn on Run queues in parallel to create another queue'"
+              title="Create another queue"
               @click="newQueue"
             >
               <Plus :size="14" aria-hidden="true" />New queue
@@ -492,7 +504,7 @@ const badge: Record<QueueItem['status'], string> = {
             Run queues in parallel
           </label>
           <p v-if="store.queues.length && !store.parallelQueues" data-testid="parallel-off" class="text-sm text-muted">
-            One queue at a time. Turn this on to create and run several queues at once (each stays sequential).
+            One queue runs at a time. You can still create queues to organize work; turn this on to run several at once (each stays sequential).
           </p>
 
           <form v-if="showCreate" class="mt-2 flex flex-col gap-3" aria-label="Create queue" @submit.prevent="createQueue">
@@ -560,12 +572,15 @@ const badge: Record<QueueItem['status'], string> = {
                 <label v-if="controls?.start" class="block text-sm">Start after
                   <input v-model="startDelay" autocomplete="off" placeholder="15m or 4h14m" aria-label="Start delay" class="mt-1 min-h-11 w-32 rounded border border-border bg-bg px-2 font-mono text-base">
                 </label>
-                <button v-if="controls?.start || queue.status === 'idle' || queue.status === 'finished'" type="button" :disabled="busy || !controls?.start" class="touch-target min-h-11 rounded bg-accent px-3 font-bold text-bg" @click="control('start')">Start</button>
+                <button v-if="controls?.start || queue.status === 'idle' || queue.status === 'finished'" type="button" :disabled="busy || !controls?.start || !!runBlockedBy" :title="runBlockedTitle" class="touch-target min-h-11 rounded bg-accent px-3 font-bold text-bg" @click="control('start')">Start</button>
                 <button v-if="controls?.pause" type="button" :disabled="busy" class="touch-target min-h-11 rounded border border-border px-3" @click="control('pause')">Pause</button>
-                <button v-if="controls?.resume" type="button" :disabled="busy" class="touch-target min-h-11 rounded bg-accent px-3 font-bold text-bg" @click="control('resume')">Resume</button>
+                <button v-if="controls?.resume" type="button" :disabled="busy || !!runBlockedBy" :title="runBlockedTitle" class="touch-target min-h-11 rounded bg-accent px-3 font-bold text-bg" @click="control('resume')">Resume</button>
                 <button type="button" :disabled="busy" class="touch-target min-h-11 rounded border border-border px-3" @click="ask('delete-queue')">Delete queue</button>
               </div>
             </div>
+            <p v-if="runBlockedBy && (controls?.start || controls?.resume)" data-testid="queue-run-blocked" class="mt-1 text-sm text-muted">
+              Can't run yet: queue {{ runBlockedBy.name }} is running and Run queues in parallel is off.
+            </p>
             <p v-if="queue.scheduledAt" data-testid="queue-scheduled" class="mt-1 text-sm text-accent">
               Scheduled for <time :datetime="queue.scheduledAt">{{ new Date(queue.scheduledAt).toLocaleString() }}</time>.
             </p>

@@ -20,7 +20,7 @@ Each box is one roadmap criterion. Its coverage line names the task that writes 
   - U: T4 · I: T4 (simultaneous finishes, restart) · E: T4 *Cap of one*, *Slots in start order*, *Stale holds a slot*, *Cap after restart*.
 - [x] **3 With the switch off, V2-M1 behavior is unchanged.**
   - `HOSTBUD_PARALLEL_QUEUES` defaults to `false`, is validated, and reaches only `hostbud`.
-  - The one-queue rule and message are identical; the V2-M1 unit, integration and e2e tests run unchanged.
+  - ~~The one-queue rule and message are identical.~~ Changed 2026-09-29 (owner): with the switch off, queues can still be created to organize work; only running is limited to one queue at a time (`TestSwitchOffCreatesQueuesButRunsOne`, the API integration test, the panel spec, and the updated V2-M1/V2-M2 e2e scenarios).
   - Queues left over from switch-on stay listed; starting one while another has an active run → 409 naming the switch. No run is cancelled.
   - U: T2 · I: T2 (V2-M1 queue tests with the switch off, `deploytest`) · E: the V2-M1 suite on the switch-off app (unchanged), plus T2 *Switch off: a leftover queue waits for the active one*.
 - [x] **4 Session names never collide; the first queue keeps the V2-M1 name.**

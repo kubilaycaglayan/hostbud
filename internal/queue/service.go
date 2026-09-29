@@ -33,7 +33,6 @@ func conflict(msg, hint string) *Error { return &Error{http.StatusConflict, msg,
 
 // Messages the owner sees (V2-M1 T8).
 const (
-	msgOneQueue    = "V2-M1 supports one queue; several queues arrive with V2-M2"
 	msgParallelOff = "Parallel queues are off — pause queue %s and wait for its run to end, or turn on Run queues in parallel in the Queue panel"
 	msgDuplicate   = "a queue named %q already exists in this project"
 	hintDuplicate  = "Pick another name; queue names are unique per project (case doesn't matter)."
@@ -620,8 +619,9 @@ func (s *Service) changed(ctx context.Context, action, queueID string) (View, er
 	return s.Get(ctx, queueID)
 }
 
-// Create creates a queue for a saved project. With the parallel-queues
-// switch off, V2-M1's limit of one queue holds.
+// Create creates a queue for a saved project. Queues can always be
+// created, to organize work; with the parallel-queues switch off only one
+// of them may run at a time (checkOnlyActive on Start and Resume).
 func (s *Service) Create(ctx context.Context, projectID, name string, afterRunID ...string) (View, error) {
 	var link store.QueueLink
 	if len(afterRunID) > 0 {
@@ -633,13 +633,6 @@ func (s *Service) Create(ctx context.Context, projectID, name string, afterRunID
 // CreateLinked creates a queue that waits for link before its first item:
 // an active tracked goal, or any existing session going idle.
 func (s *Service) CreateLinked(ctx context.Context, projectID, name string, link store.QueueLink) (View, error) {
-	queues, err := s.store.Queues(ctx, s.machine)
-	if err != nil {
-		return View{}, err
-	}
-	if len(queues) > 0 && !s.ParallelQueues() {
-		return View{}, conflict(msgOneQueue, "Add more items to the existing queue.")
-	}
 	named := name != ""
 	if !named {
 		name = "Queue"

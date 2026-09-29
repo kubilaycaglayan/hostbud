@@ -91,7 +91,7 @@ func queueStatus(err error) int {
 	return 0
 }
 
-func TestServiceCreateOneQueueAndEvents(t *testing.T) {
+func TestServiceCreateQueuesAndEvents(t *testing.T) {
 	e := newServiceEnv(t)
 	ctx := context.Background()
 	if _, err := e.svc.Create(ctx, "project_missing", "Q"); queueStatus(err) != http.StatusBadRequest {
@@ -104,10 +104,12 @@ func TestServiceCreateOneQueueAndEvents(t *testing.T) {
 	if got := e.drain(); len(got) != 1 || got[0].Action != "created" || got[0].Queue == nil || got[0].Queue.ID != v.ID {
 		t.Fatalf("events: %+v", got)
 	}
-	_, err = e.svc.Create(ctx, "project_a", "Second")
-	if queueStatus(err) != http.StatusConflict || err.Error() != "V2-M1 supports one queue; several queues arrive with V2-M2" {
-		t.Fatalf("second queue: %v", err)
+	// With the switch off a second queue is still created (to organize
+	// work); only running is limited to one queue at a time.
+	if second, err := e.svc.Create(ctx, "project_a", "Second"); err != nil || second.Status != store.QueueIdle {
+		t.Fatalf("second queue: %+v, %v", second, err)
 	}
+	e.drain()
 	// Reads never publish.
 	if _, err := e.svc.List(ctx); err != nil {
 		t.Fatal(err)

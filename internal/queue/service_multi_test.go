@@ -30,7 +30,7 @@ func jsonKeys(t *testing.T, v any) []string {
 }
 
 // With the switch off, create, start and resume answer with V2-M1's fields
-// exactly (no warnings key), and the one-queue rule and message stay.
+// exactly (no warnings key).
 func TestSwitchOffKeepsV2M1Responses(t *testing.T) {
 	e := newServiceEnv(t)
 	ctx := context.Background()
@@ -41,14 +41,6 @@ func TestSwitchOffKeepsV2M1Responses(t *testing.T) {
 	}
 	if got := jsonKeys(t, q); !slices.Equal(got, v2m1) {
 		t.Fatalf("create keys %v, want %v", got, v2m1)
-	}
-	if _, err := e.svc.Create(ctx, "project_a", "Second"); queueStatus(err) != http.StatusConflict || err.Error() != msgOneQueue {
-		t.Fatalf("second queue: %v", err)
-	}
-	var qe *Error
-	_, err = e.svc.Create(ctx, "project_a", "Second")
-	if !errors.As(err, &qe) || qe.Hint != "Add more items to the existing queue." {
-		t.Fatalf("second queue hint: %+v", qe)
 	}
 	_, _ = e.svc.AddItem(ctx, q.ID, "claude", "", "/goal m1")
 	v, err := e.svc.Start(ctx, q.ID)
@@ -96,6 +88,38 @@ func TestSwitchOnSeveralQueuesUniqueNames(t *testing.T) {
 		if err != nil || v.Name != want {
 			t.Fatalf("unnamed queue: %q, %v; want %q", v.Name, err, want)
 		}
+	}
+}
+
+// Switch off: several queues can still be created (to organize work),
+// with unique names and "Queue n" defaults, but only one may run.
+func TestSwitchOffCreatesQueuesButRunsOne(t *testing.T) {
+	e := newServiceEnv(t)
+	ctx := context.Background()
+	a, err := e.svc.Create(ctx, "project_a", "Alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := e.svc.Create(ctx, "project_a", "Beta")
+	if err != nil || b.Status != store.QueueIdle {
+		t.Fatalf("second queue with the switch off: %+v, %v", b, err)
+	}
+	if v, err := e.svc.Create(ctx, "project_a", ""); err != nil || v.Name != "Queue" {
+		t.Fatalf("unnamed queue with the switch off: %q, %v", v.Name, err)
+	}
+	if _, err := e.svc.Create(ctx, "project_a", "beta"); queueStatus(err) != http.StatusConflict {
+		t.Fatalf("duplicate name with the switch off: %v", err)
+	}
+	_, _ = e.svc.AddItem(ctx, a.ID, "claude", "", "/goal a1")
+	_, _ = e.svc.AddItem(ctx, b.ID, "claude", "", "/goal b1")
+	if _, err := e.svc.Start(ctx, a.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.svc.Start(ctx, b.ID); queueStatus(err) != http.StatusConflict || !strings.Contains(err.Error(), "pause queue Alpha") {
+		t.Fatalf("start a second queue with the switch off: %v", err)
+	}
+	if got, _ := e.svc.Get(ctx, b.ID); got.Status != store.QueueIdle {
+		t.Fatalf("refused queue status %s", got.Status)
 	}
 }
 
@@ -242,9 +266,6 @@ func TestSetParallelStoresAndPublishes(t *testing.T) {
 	e := newServiceEnv(t)
 	ctx := context.Background()
 	a, _ := e.svc.Create(ctx, "project_a", "Alpha")
-	if _, err := e.svc.Create(ctx, "project_a", "Beta"); queueStatus(err) != http.StatusConflict {
-		t.Fatalf("second queue while off: %v", err)
-	}
 	e.drain()
 	if on, err := e.svc.SetParallel(ctx, true); err != nil || !on || !e.svc.ParallelQueues() {
 		t.Fatalf("switch on: %v %v", on, err)
@@ -256,7 +277,7 @@ func TestSetParallelStoresAndPublishes(t *testing.T) {
 		t.Fatalf("switch on handed out slots %d times, want 1", e.dispatch.capacityChanges)
 	}
 	if _, err := e.svc.Create(ctx, "project_a", "Beta"); err != nil {
-		t.Fatalf("second queue while on: %v", err)
+		t.Fatalf("second queue: %v", err)
 	}
 	_, _ = e.svc.AddItem(ctx, a.ID, "claude", "", "/goal a1")
 	if _, err := e.svc.Start(ctx, a.ID); err != nil {

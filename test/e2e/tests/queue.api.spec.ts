@@ -18,10 +18,13 @@ test('(V2-M1 T8) Queue API: build, reorder, edit, delete, start and pause', asyn
   const queue = await createQueue(request, project.id)
   expect(queue).toMatchObject({ projectId: project.id, name: 'Milestones', status: 'idle', projectName: project.name, projectPath: project.path, items: [] })
 
-  // A second queue is refused (V2-M1: one queue).
+  // A second queue can be created with parallel queues off (to organize
+  // work); only running is limited to one queue at a time.
   const second = await mutate(request, 'POST', '/api/queues', { projectId: project.id, name: 'Another' }, ORIGIN)
-  expect(second.status()).toBe(409)
-  expect((await second.json()).error).toBe('V2-M1 supports one queue; several queues arrive with V2-M2')
+  expect(second.status()).toBe(201)
+  const another = await second.json() as { id: string; status: string }
+  expect(another.status).toBe('idle')
+  expect((await mutate(request, 'DELETE', `/api/queues/${another.id}`, undefined, ORIGIN)).status()).toBe(204)
 
   const conditions = ['e2e queue api m1 stays pending', 'e2e queue api m2', 'e2e queue api m3']
   await stubs.setBehavior(conditions[0], 'pending', 1)

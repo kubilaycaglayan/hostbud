@@ -158,7 +158,7 @@ PostgreSQL is initialized as a fresh application database. The previous provisio
 
 A **queue** runs coding agents one after another in one project, with each item starting in its own interactive tmux session. Open the **Queue** panel from the app bar (or the command palette: *Open queue panel*).
 
-- **Create the queue** for a saved project. All its items run in that project's directory. By default there is one queue (V2-M1); see *Parallel queues* below for more.
+- **Create the queue** for a saved project. All its items run in that project's directory. You can create several queues to organize work; by default only one runs at a time (see *Parallel queues* below).
 - **Add items**: pick the agent (`claude` for Claude Code, `codex` for Codex), optional flags (split like a shell command, e.g. `--dangerously-skip-permissions`, `--yolo`, `--model 'opus 4'`), and a one-line instruction such as `work on milestone 2 per docs/roadmap/M2-tasks.md`. The queue defaults Claude Code to `--dangerously-skip-permissions` and Codex to `--yolo`; turn off the matching quick option to remove it. Queued items can be edited, deleted and reordered (drag, the arrow buttons, or Alt+↑/↓).
 - **Start**, **Pause** and **Resume** the queue. Pausing never touches the running session: the current run carries on (and is still tracked), and no new item starts.
 - **Schedule a start** by entering a relative delay such as `15m` or `4h14m` beside Start. The due time is saved in PostgreSQL and survives a hostbud restart; pausing cancels a pending start. Delays must be from 1 second to 30 days.
@@ -171,7 +171,7 @@ A **queue** runs coding agents one after another in one project, with each item 
 
 ### Parallel queues (opt-in)
 
-Tick **Run queues in parallel** in the Queue panel to allow several queues that run at the same time; it applies at once, no redeploy. Each queue stays strictly sequential. Off keeps one queue; queues created while it was on stay listed, but only one runs at a time (starting another says which queue to pause first). Switching it off never stops a run. `HOSTBUD_PARALLEL_QUEUES` in `.env` (default `false`) is only the initial value until you use the switch.
+Tick **Run queues in parallel** in the Queue panel to allow several queues that run at the same time; it applies at once, no redeploy. Each queue stays strictly sequential. Off still lets you create queues (to organize work), but only one runs at a time: Start and Resume are disabled while another queue runs, and the server refuses them saying which queue to pause first. Switching it off never stops a run. `HOSTBUD_PARALLEL_QUEUES` in `.env` (default `false`) is only the initial value until you use the switch.
 
 - **New queue** in the Queue panel creates another one (names are unique per project). The switcher shows every queue: buttons on a desktop, a select on the phone. **Rename** and **Delete queue** (asks first; refused while a run is active) act on the queue shown.
 - **Start after (optional)** links a new queue to something already running:

@@ -208,16 +208,16 @@ describe('QueuePanel', () => {
     expect(flags.value).toBe("--model 'opus 4' --yolo")
   })
 
-  it('shows the server error with its hint (one-queue limit, 409s)', async () => {
+  it('shows the server error with its hint (409s)', async () => {
     stubFetch((method, path) => path === '/api/queues' && method === 'GET'
       ? { status: 200, body: { queues: [] } }
-      : { status: 409, body: { error: 'V2-M1 supports one queue; several queues arrive with V2-M2', hint: 'Add more items to the existing queue.' } })
+      : { status: 409, body: { error: 'a queue named "Milestones" already exists in this project', hint: 'Pick another name; queue names are unique per project (case doesn\'t matter).' } })
     await mountPanel(null)
     button('Create queue')!.click()
     await flushPromises()
     const alert = $$('[role="alert"]').map((a) => a.textContent).join(' ')
-    expect(alert).toContain('V2-M1 supports one queue')
-    expect(alert).toContain('Add more items to the existing queue.')
+    expect(alert).toContain('already exists in this project')
+    expect(alert).toContain('Pick another name')
   })
 
   it('reorders queued items with the move buttons and Alt+Arrow keys', async () => {
@@ -360,10 +360,34 @@ describe('QueuePanel', () => {
     await mountPanel([queue([queued], 'idle'), second({ status: 'idle' })], false, false)
     expect($$('nav[aria-label="Queues"] button')).toHaveLength(2)
     const newButton = $$('button').find((b) => b.textContent?.trim() === 'New queue') as HTMLButtonElement
-    expect(newButton.disabled).toBe(true)
-    expect(newButton.title).toContain('Run queues in parallel')
-    expect($$('[data-testid="parallel-off"]')[0].textContent).toContain('One queue at a time')
+    expect(newButton.disabled).toBe(false)
+    expect($$('[data-testid="parallel-off"]')[0].textContent).toContain('One queue runs at a time')
+    expect($$('[data-testid="parallel-off"]')[0].textContent).toContain('still create queues')
     expect(($$('[data-testid="parallel-toggle"]')[0] as HTMLInputElement).checked).toBe(false)
+  })
+
+  it('with the switch off, creates another queue but blocks running it while another queue runs', async () => {
+    const created = second({ items: [queued], status: 'idle' })
+    const calls = stubFetch(() => ({ status: 201, body: created }))
+    await mountPanel(queue([{ ...queued, status: 'running' }], 'running'), false, false)
+    button('New queue')!.click()
+    await flushPromises()
+    const name = $$('form[aria-label="Create queue"] input')[0] as HTMLInputElement
+    name.value = 'Docs'
+    name.dispatchEvent(new Event('input'))
+    button('Create queue')!.click()
+    await flushPromises()
+    expect(calls).toEqual([{ method: 'POST', path: '/api/queues', body: { projectId: 'p1', name: 'Docs', afterRunId: '', afterSession: '' } }])
+    expect(button('Show queue Docs')!.getAttribute('aria-current')).toBe('true')
+    const start = $$('button').find((b) => b.textContent?.trim() === 'Start') as HTMLButtonElement
+    expect(start.disabled).toBe(true)
+    expect(start.title).toContain('Run queues in parallel')
+    expect($$('[data-testid="queue-run-blocked"]')[0].textContent).toContain("Can't run yet")
+    // Turning the switch on lifts the block.
+    useQueuesStore().parallelQueues = true
+    await flushPromises()
+    expect(start.disabled).toBe(false)
+    expect($$('[data-testid="queue-run-blocked"]')).toHaveLength(0)
   })
 
   it('turns parallel queues on and off from the panel, no redeploy', async () => {
