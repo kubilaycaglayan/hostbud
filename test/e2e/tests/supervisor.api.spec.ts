@@ -204,15 +204,18 @@ llmTest('(V2-M5 T3) An owner skip while classification is in flight discards the
   expect((await llmDb.events(current.run!.id)).filter((e)=>e.source==='llm').map((e)=>e.kind)).toEqual(['llm_started','llm_discarded'])
 })
 
-llmTest('(V2-M5 T3) A run achieved during classification discards the result', async ({ llm, target }) => {
+llmTest('(V2-M5 T3) A run achieved during classification discards the result', async ({ llm, target }, testInfo) => {
+  testInfo.setTimeout(60_000)
   await target.resetTmux(); await stubs.reset(); await llm.post('http://hostbud-e2e-llmfake:8080/ctl/reset')
-  await llm.post('http://hostbud-e2e-llmfake:8080/ctl/script',{data:{delayMs:5000}})
+  // Keep the provider response in flight well beyond the stub's 12-second
+  // silent completion so the achievement unambiguously wins the race.
+  await llm.post('http://hostbud-e2e-llmfake:8080/ctl/script',{data:{delayMs:20_000}})
   const project=await newProject(llm,target,'e2e-llm-achieve-race'); const queue=await createQueue(llm,project.id)
   await stubs.setBehavior('e2e llm achieve race','silent-then-achieve:12',0.1)
   const item=await addItem(llm,queue.id,{instruction:'/goal e2e llm achieve race'}); await control(llm,queue.id,'start')
   await expect.poll(async()=>await (await llm.get('http://hostbud-e2e-llmfake:8080/ctl/requests')).json(),{timeout:30_000}).toHaveLength(1)
-  await expect.poll(async()=>(await itemOf(llm,queue.id,item.id)).status,{timeout:15_000}).toBe('done')
-  await new Promise((resolve)=>setTimeout(resolve,5500))
+  await expect.poll(async()=>(await itemOf(llm,queue.id,item.id)).status,{timeout:30_000}).toBe('done')
+  await new Promise((resolve)=>setTimeout(resolve,20_500))
   const current=await itemOf(llm,queue.id,item.id)
   expect(current.run?.flag).toBeUndefined()
   expect((await llmDb.events(current.run!.id)).filter((e)=>e.source==='llm').map((e)=>e.kind)).toEqual(['llm_started','llm_discarded'])
