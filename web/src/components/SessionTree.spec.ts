@@ -240,6 +240,25 @@ describe('SessionTree', () => {
     wrapper.unmount()
   })
 
+  it('refuses a rename to an existing session name without duplicating rows', async () => {
+    const wrapper = mount(SessionTree, { attachTo: document.body })
+    const row = wrapper.get('[data-tree-key="session:one"]')
+    ;(row.element as HTMLElement).focus()
+    await row.trigger('keydown', { key: 'F2' })
+    const input = wrapper.get('input[aria-label="Rename one"]')
+    await input.setValue('two')
+    await input.trigger('keydown.enter')
+    await flushPromises()
+    await nextTick()
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/machines/host/sessions/one', expect.objectContaining({ method: 'PATCH' }))
+    expect(wrapper.get('#inline-rename-error').text()).toMatch(/already exists/)
+    expect(useTreeStore().order.sessions.a).toEqual(['one', 'two'])
+    expect(useSessionsStore().list('host').map((s) => s.name)).toEqual(['one', 'two', 'loose'])
+    expect(wrapper.findAll('[data-tree-key="session:one"]')).toHaveLength(1)
+    expect(wrapper.findAll('[data-tree-key="session:two"]')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
   it('renames immediately and returns focus to the selected terminal cursor', async () => {
     fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
       if (String(url) === '/api/machines/host/sessions/one' && init?.method === 'PATCH') {
