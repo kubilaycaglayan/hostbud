@@ -8,8 +8,8 @@ Goal: a queue can loop its items instead of finishing, and stops starting new pa
 |---|---|
 | T1 Schema, store, dispatcher and API | Done |
 | T2 Queue panel | Done |
-| T3 Docs, acceptance, verification and deploy | Done |
-| T4 Safe Docker cleanup | See acceptance checklist |
+| T3 Docs, acceptance, verification and deploy | Done: `make lint test`, E2E type-check, `make gitleaks`, deploy and health check passed |
+| T4 Safe Docker cleanup | Done: skipped because hostbud toolbox containers and warm test targets were active |
 
 ## Tasks
 

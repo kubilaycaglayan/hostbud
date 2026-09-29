@@ -23,6 +23,6 @@
 ## Definition of done
 
 - [x] U/I tests pass; E2E scenarios are written and type-checked.
-- [ ] `make lint test`, `make gitleaks`, and deploy pass; `/api/health` reports healthy.
-- [ ] Docker cleanup done or safely skipped.
+- [x] `make lint test`, `make gitleaks`, and deploy pass; `/api/health` reports healthy; migration 0015 applied.
+- [x] Docker cleanup safely skipped because hostbud toolbox containers and warm test targets were active; production volumes were not touched.
 - [x] Summary includes owner checks and the pending on-demand E2E run.
