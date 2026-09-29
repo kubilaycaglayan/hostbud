@@ -255,14 +255,14 @@ export const queuesApi = {
   create: (projectId: string, name: string, afterRunId = '') => request<Queue>('POST', '/api/queues', { projectId, name, afterRunId }),
   rename: (id: string, name: string) => request<Queue>('PATCH', `/api/queues/${q(id)}`, { name }),
   remove: (id: string) => request<void>('DELETE', `/api/queues/${q(id)}`),
-  addItem: (id: string, item: { agent: string; flags: string; instruction: string; verifyCommand?: string; requiresApproval?: boolean }) =>
+  addItem: (id: string, item: { agent: string; flags: string; instruction: string; executionMode?: 'agent' | 'session'; targetSession?: string; command?: string; verifyCommand?: string; requiresApproval?: boolean }) =>
     request<QueueItem>('POST', `/api/queues/${q(id)}/items`, item),
-  updateItem: (id: string, item: { agent?: string; flags?: string; instruction?: string; verifyCommand?: string; requiresApproval?: boolean }) =>
+  updateItem: (id: string, item: { agent?: string; flags?: string; instruction?: string; executionMode?: 'agent' | 'session'; targetSession?: string; command?: string; verifyCommand?: string; requiresApproval?: boolean }) =>
     request<QueueItem>('PATCH', `/api/queue-items/${q(id)}`, item),
   removeItem: (id: string) => request<void>('DELETE', `/api/queue-items/${q(id)}`),
   reorder: (id: string, itemIds: string[]) => request<Queue>('PUT', `/api/queues/${q(id)}/order`, { itemIds }),
   // Starting a run checks the client and creates its session over ssh.
-  start: (id: string) => request<Queue>('POST', `/api/queues/${q(id)}/start`, undefined, { signal: execSignal() }),
+  start: (id: string, delay = '') => request<Queue>('POST', `/api/queues/${q(id)}/start`, delay ? { delay } : undefined, { signal: execSignal() }),
   pause: (id: string) => request<Queue>('POST', `/api/queues/${q(id)}/pause`),
   resume: (id: string) => request<Queue>('POST', `/api/queues/${q(id)}/resume`, undefined, { signal: execSignal() }),
   retry: (id: string) => request<Queue>('POST', `/api/queue-items/${q(id)}/retry`),

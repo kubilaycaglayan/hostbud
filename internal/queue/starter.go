@@ -34,6 +34,10 @@ type SessionCreator interface {
 	Create(ctx context.Context, spec session.Spec) (string, error)
 }
 
+type SessionCommander interface {
+	SendCommand(ctx context.Context, machine, name, command string) error
+}
+
 // StarterStore is what the starter needs from the store.
 type StarterStore interface {
 	CreateRun(ctx context.Context, itemID string, tokenHash []byte, startedAt time.Time) (store.Run, error)
@@ -45,11 +49,12 @@ type StarterStore interface {
 
 // Starter creates a run and its tmux session (v2 §5.1).
 type Starter struct {
-	store    StarterStore
-	sessions SessionCreator
-	hookURL  string
-	log      *slog.Logger
-	now      func() time.Time
+	store     StarterStore
+	sessions  SessionCreator
+	commander SessionCommander
+	hookURL   string
+	log       *slog.Logger
+	now       func() time.Time
 	// inSlot reports whether runs are created behind the machine's cap
 	// (V2-M2, the parallel-queues switch; set by the dispatcher).
 	inSlot func() bool
@@ -60,7 +65,16 @@ func NewStarter(st StarterStore, sessions SessionCreator, hookURL string, log *s
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
-	return &Starter{store: st, sessions: sessions, hookURL: hookURL, log: log, now: time.Now}
+	s := &Starter{store: st, sessions: sessions, hookURL: hookURL, log: log, now: time.Now}
+	s.commander, _ = sessions.(SessionCommander)
+	return s
+}
+
+func (s *Starter) SendCommand(ctx context.Context, machine, name, command string) error {
+	if s.commander == nil {
+		return errors.New("existing-session command dispatch is unavailable")
+	}
+	return s.commander.SendCommand(ctx, machine, name, command)
 }
 
 // RunSessionName is a run's session name: <project>-q<position> for the

@@ -41,6 +41,9 @@ export interface QueueItem {
   /** V2-M4 completion gates ("" = no verify command). */
   verifyCommand: string
   requiresApproval: boolean
+  executionMode?: 'agent' | 'session'
+  targetSession?: string
+  command?: string
   verify?: VerifySummary
   run?: RunSummary
   /** V2-M2: the head item of a running queue while the machine's cap is reached. */
@@ -60,6 +63,7 @@ export interface Queue {
   status: 'idle' | 'running' | 'paused' | 'finished'
   startedAt?: string
   endedAt?: string
+  scheduledAt?: string
   projectName: string
   projectPath: string
   items: QueueItem[]

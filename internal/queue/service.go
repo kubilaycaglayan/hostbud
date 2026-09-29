@@ -56,6 +56,7 @@ type Store interface {
 	RenameQueue(ctx context.Context, id, name string) (store.Queue, error)
 	DeleteQueue(ctx context.Context, id string) error
 	TransitionQueue(ctx context.Context, id string, from []string, to string) (store.Queue, error)
+	SetQueueSchedule(ctx context.Context, id string, due *time.Time, allowed ...string) (store.Queue, error)
 	QueueItems(ctx context.Context, queueID string) ([]store.QueueItem, error)
 	QueueItem(ctx context.Context, id string) (store.QueueItem, error)
 	Run(ctx context.Context, id string) (store.Run, error)
@@ -194,6 +195,7 @@ type Service struct {
 	parallel  atomic.Bool
 	// verifyTimeout is HOSTBUD_VERIFY_TIMEOUT, for the owner's messages.
 	verifyTimeout time.Duration
+	now           func() time.Time
 }
 
 // SetVerifyTimeout records HOSTBUD_VERIFY_TIMEOUT for the owner's messages
@@ -202,7 +204,7 @@ func (s *Service) SetVerifyTimeout(d time.Duration) { s.verifyTimeout = d }
 
 // NewService returns the queue service for the host machine.
 func NewService(st Store, validator ItemValidator, bus *events.Bus) *Service {
-	return &Service{store: st, validator: validator, bus: bus, machine: store.HostMachineID}
+	return &Service{store: st, validator: validator, bus: bus, machine: store.HostMachineID, now: time.Now}
 }
 
 // SetDispatcher connects the dispatcher (T9).
@@ -711,8 +713,21 @@ func (s *Service) AddItem(ctx context.Context, queueID, agent, flags, instructio
 	if _, err := s.queue(ctx, queueID); err != nil {
 		return ItemView{}, err
 	}
-	if err := s.validate(agent, flags, instruction); err != nil {
-		return ItemView{}, err
+	mode := "agent"
+	if len(gates) > 0 && gates[0].ExecutionMode != "" {
+		mode = gates[0].ExecutionMode
+	}
+	switch mode {
+	case "agent":
+		if err := s.validate(agent, flags, instruction); err != nil {
+			return ItemView{}, err
+		}
+	case "session":
+		if err := store.ValidateItemExecution(store.ItemExecution{Mode: mode, TargetSession: gates[0].TargetSession, Command: gates[0].Command}); err != nil {
+			return ItemView{}, invalid(err.Error(), "")
+		}
+	default:
+		return ItemView{}, invalid("execution mode must be agent or session", "")
 	}
 	if len(gates) > 0 {
 		if err := validateVerify(gates[0].VerifyCommand); err != nil {
@@ -803,7 +818,7 @@ func (s *Service) Reorder(ctx context.Context, queueID string, itemIDs []string)
 }
 
 // Start starts an idle queue, or a finished one that has queued items again.
-func (s *Service) Start(ctx context.Context, id string) (View, error) {
+func (s *Service) Start(ctx context.Context, id string, delay ...time.Duration) (View, error) {
 	q, err := s.queue(ctx, id)
 	if err != nil {
 		return View{}, err
@@ -811,9 +826,25 @@ func (s *Service) Start(ctx context.Context, id string) (View, error) {
 	if q.Status == store.QueuePaused {
 		return View{}, conflict("the queue is paused; use Resume", "")
 	}
+	if q.Status != store.QueueIdle && q.Status != store.QueueFinished {
+		return View{}, conflict("the queue is already running", "Pause it before changing its schedule.")
+	}
 	if _, err := s.store.FirstQueuedItem(ctx, id); errors.Is(err, store.ErrNotFound) {
 		return View{}, conflict("nothing is queued", "Add an item first.")
 	} else if err != nil {
+		return View{}, err
+	}
+	var due *time.Time
+	if len(delay) > 0 {
+		if delay[0] < 0 || delay[0] > 30*24*time.Hour {
+			return View{}, invalid("delay must be between 1s and 30d", "Examples: 15m or 4h14m.")
+		}
+		if delay[0] > 0 {
+			t := s.now().UTC().Add(delay[0])
+			due = &t
+		}
+	}
+	if _, err := s.store.SetQueueSchedule(ctx, id, due, store.QueueIdle, store.QueueFinished); err != nil {
 		return View{}, err
 	}
 	return s.transition(ctx, q, []string{store.QueueIdle, store.QueueFinished}, store.QueueRunning, "started", true)
@@ -824,6 +855,9 @@ func (s *Service) Start(ctx context.Context, id string) (View, error) {
 func (s *Service) Pause(ctx context.Context, id string) (View, error) {
 	q, err := s.queue(ctx, id)
 	if err != nil {
+		return View{}, err
+	}
+	if _, err := s.store.SetQueueSchedule(ctx, id, nil, store.QueueRunning); err != nil && !errors.Is(err, store.ErrConflict) {
 		return View{}, err
 	}
 	return s.transition(ctx, q, []string{store.QueueRunning}, store.QueuePaused, "paused", false)

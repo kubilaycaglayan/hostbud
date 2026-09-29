@@ -106,6 +106,10 @@ export interface QueueItem {
   /** V2-M4 completion gates ("" = no verify command). */
   verifyCommand?: string
   requiresApproval?: boolean
+  /** V2-M8: new tracked agent session or command sent to an existing session. */
+  executionMode?: 'agent' | 'session'
+  targetSession?: string
+  command?: string
   verify?: VerifySummary
   run?: RunSummary
   /** V2-M2: the head item of a running queue while the machine's cap is reached. */
@@ -127,6 +131,8 @@ export interface Queue {
   /** V2-M7: first start and finish time. */
   startedAt?: string
   endedAt?: string
+  /** V2-M8: scheduled start, cleared when the delay expires or queue pauses. */
+  scheduledAt?: string
   projectName: string
   projectPath: string
   items: QueueItem[]

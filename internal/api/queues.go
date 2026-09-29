@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"hostbud/internal/queue"
 	"hostbud/internal/store"
@@ -23,7 +24,7 @@ type QueueService interface {
 	UpdateItem(ctx context.Context, id string, u store.QueueItemUpdate) (queue.ItemView, error)
 	DeleteItem(ctx context.Context, id string) error
 	Reorder(ctx context.Context, queueID string, itemIDs []string) (queue.View, error)
-	Start(ctx context.Context, id string) (queue.View, error)
+	Start(ctx context.Context, id string, delay ...time.Duration) (queue.View, error)
 	Pause(ctx context.Context, id string) (queue.View, error)
 	Resume(ctx context.Context, id string) (queue.View, error)
 	Override(ctx context.Context, itemID, action string) (queue.View, error)
@@ -238,6 +239,9 @@ type queueItemRequest struct {
 	// V2-M4 completion gates ("" = no verify command).
 	VerifyCommand    *string `json:"verifyCommand"`
 	RequiresApproval *bool   `json:"requiresApproval"`
+	ExecutionMode    *string `json:"executionMode"`
+	TargetSession    *string `json:"targetSession"`
+	Command          *string `json:"command"`
 }
 
 func (s *server) addQueueItem(w http.ResponseWriter, r *http.Request) {
@@ -252,8 +256,9 @@ func (s *server) addQueueItem(w http.ResponseWriter, r *http.Request) {
 		return *p
 	}
 	var gates []store.ItemGates
-	if req.VerifyCommand != nil || req.RequiresApproval != nil {
-		gates = append(gates, store.ItemGates{VerifyCommand: value(req.VerifyCommand), RequiresApproval: req.RequiresApproval != nil && *req.RequiresApproval})
+	if req.VerifyCommand != nil || req.RequiresApproval != nil || req.ExecutionMode != nil || req.TargetSession != nil || req.Command != nil {
+		gates = append(gates, store.ItemGates{VerifyCommand: value(req.VerifyCommand), RequiresApproval: req.RequiresApproval != nil && *req.RequiresApproval,
+			ExecutionMode: value(req.ExecutionMode), TargetSession: value(req.TargetSession), Command: value(req.Command)})
 	}
 	it, err := s.cfg.Queues.AddItem(r.Context(), r.PathValue("id"), value(req.Agent), value(req.Flags), value(req.Instruction), gates...)
 	if err != nil {
@@ -270,6 +275,7 @@ func (s *server) updateQueueItem(w http.ResponseWriter, r *http.Request) {
 	}
 	it, err := s.cfg.Queues.UpdateItem(r.Context(), r.PathValue("id"), store.QueueItemUpdate{
 		Agent: req.Agent, Flags: req.Flags, Instruction: req.Instruction, VerifyCommand: req.VerifyCommand, RequiresApproval: req.RequiresApproval,
+		ExecutionMode: req.ExecutionMode, TargetSession: req.TargetSession, Command: req.Command,
 	})
 	if err != nil {
 		s.queueError(w, err)
@@ -314,7 +320,21 @@ func (s *server) queueControl(action string) http.HandlerFunc {
 		var err error
 		switch action {
 		case "start":
-			v, err = s.cfg.Queues.Start(r.Context(), id)
+			var req struct {
+				Delay string `json:"delay"`
+			}
+			if r.ContentLength > 0 && !decode(w, r, &req) {
+				return
+			}
+			var delay time.Duration
+			if req.Delay != "" {
+				delay, err = time.ParseDuration(req.Delay)
+				if err != nil || delay <= 0 || delay > 30*24*time.Hour {
+					writeError(w, http.StatusBadRequest, "delay must be between 1s and 30d", "Examples: 15m or 4h14m.")
+					return
+				}
+			}
+			v, err = s.cfg.Queues.Start(r.Context(), id, delay)
 		case "pause":
 			v, err = s.cfg.Queues.Pause(r.Context(), id)
 		default:

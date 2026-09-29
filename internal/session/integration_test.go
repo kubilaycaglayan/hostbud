@@ -68,6 +68,28 @@ func TestIntegrationCreateWithDefaults(t *testing.T) {
 	}
 }
 
+func TestIntegrationSendCommandToExistingSession(t *testing.T) {
+	svc, c := setup(t)
+	ctx := context.Background()
+	name, err := svc.Create(ctx, session.Spec{Machine: sshx.HostMachineID, Name: "command-target", Path: "~/sess-it/proj.one"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := `printf '%s\n' 'hostbud-command-marker'`
+	if err := svc.SendCommand(ctx, sshx.HostMachineID, name, command); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		out, err := c.Exec(ctx, sshx.HostMachineID, "tmux", "capture-pane", "-p", "-t", "="+name+":")
+		if err == nil && strings.Contains(string(out), "hostbud-command-marker") {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatal("command output did not appear in the selected session")
+}
+
 func TestIntegrationSessionNameBoundariesAndUnicodePath(t *testing.T) {
 	svc, c := setup(t)
 	ctx := context.Background()

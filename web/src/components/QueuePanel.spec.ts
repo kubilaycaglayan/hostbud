@@ -140,14 +140,14 @@ describe('QueuePanel', () => {
     instruction.dispatchEvent(new Event('input'))
     button('Add item')!.click()
     await flushPromises()
-    expect(calls).toEqual([{ method: 'POST', path: '/api/queues/q1/items', body: { agent: 'claude', flags: '--dangerously-skip-permissions', instruction: '/goal ship M2' } }])
+    expect(calls).toEqual([{ method: 'POST', path: '/api/queues/q1/items', body: { agent: 'claude', flags: '--dangerously-skip-permissions', instruction: '/goal ship M2', executionMode: 'agent' } }])
   })
 
   it('defaults permission modes by agent, exposes a quick toggle, and preserves custom flags', async () => {
     const calls = stubFetch(() => ({ status: 201, body: {} }))
     await mountPanel(queue([], 'idle'))
     const form = $$('form[aria-label="Add item"]')[0]
-    const agent = form.querySelector('select') as HTMLSelectElement
+    const agent = form.querySelectorAll('select')[1] as HTMLSelectElement
     const flags = form.querySelector('input[spellcheck="false"]') as HTMLInputElement
     const mode = form.querySelector('input[type="checkbox"]') as HTMLInputElement
     expect(flags.value).toBe('--dangerously-skip-permissions')
@@ -171,7 +171,7 @@ describe('QueuePanel', () => {
     instruction.dispatchEvent(new Event('input'))
     button('Add item')!.click()
     await flushPromises()
-    expect(calls[0].body).toEqual({ agent: 'codex', flags: "--model 'opus 4'", instruction: '/goal verify flags' })
+    expect(calls[0].body).toEqual({ agent: 'codex', flags: "--model 'opus 4'", instruction: '/goal verify flags', executionMode: 'agent' })
   })
 
   it('offers the matching permission-mode toggle while editing an item', async () => {
@@ -510,7 +510,7 @@ describe('QueuePanel completion gates (V2-M4)', () => {
     ;(form.querySelector('[data-testid="requires-approval"]') as HTMLInputElement).click()
     button('Add item')!.click()
     await flushPromises()
-    expect(calls[0].body).toEqual({ agent: 'claude', flags: '--dangerously-skip-permissions', instruction: '/goal ship', verifyCommand: 'make test', requiresApproval: true })
+    expect(calls[0].body).toEqual({ agent: 'claude', flags: '--dangerously-skip-permissions', instruction: '/goal ship', executionMode: 'agent', verifyCommand: 'make test', requiresApproval: true })
   })
 
   it('follows live updates: the buttons go when another device approves', async () => {

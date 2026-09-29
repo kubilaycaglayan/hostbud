@@ -29,9 +29,9 @@ target() {
 }
 
 postgres() {
-	if [ "$(docker inspect -f '{{.Config.Image}} {{.State.Running}}' hostbud-test-postgres 2>/dev/null)" != "postgres:15.13-bookworm true" ]; then
+	if [ "$(docker inspect -f '{{.Config.Image}} {{.State.Running}} {{.HostConfig.ShmSize}}' hostbud-test-postgres 2>/dev/null)" != "postgres:15.13-bookworm true 134217728" ]; then
 		docker rm -f hostbud-test-postgres >/dev/null 2>&1 || true
-		docker run -d --name hostbud-test-postgres --network "$net" --label hostbud.test=1 \
+		docker run -d --name hostbud-test-postgres --network "$net" --shm-size=128m --label hostbud.test=1 \
 			-e POSTGRES_DB=hostbud_test -e POSTGRES_USER=hostbud_test \
 			-e POSTGRES_PASSWORD=hostbud-test-password postgres:15.13-bookworm >/dev/null
 	fi

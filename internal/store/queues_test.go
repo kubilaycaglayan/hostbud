@@ -13,6 +13,28 @@ import (
 	"time"
 )
 
+func TestQueueItemExecutionValidation(t *testing.T) {
+	for _, x := range []ItemExecution{
+		{Mode: "agent"},
+		{Mode: "session", TargetSession: "work-1", Command: "make test"},
+	} {
+		if err := ValidateItemExecution(x); err != nil {
+			t.Errorf("valid execution %+v: %v", x, err)
+		}
+	}
+	for _, x := range []ItemExecution{
+		{Mode: "bad"},
+		{Mode: "session", TargetSession: "work:0", Command: "echo x"},
+		{Mode: "session", TargetSession: "work", Command: "echo x\necho y"},
+		{Mode: "session", TargetSession: "work", Command: ""},
+		{Mode: "agent", TargetSession: "work"},
+	} {
+		if err := ValidateItemExecution(x); err == nil {
+			t.Errorf("accepted invalid execution %+v", x)
+		}
+	}
+}
+
 func queueFixture(t *testing.T) (*Store, Project) {
 	t.Helper()
 	ctx := context.Background()

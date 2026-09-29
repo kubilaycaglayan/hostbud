@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from '../helpers/fixtures.ts'
 import { newProject } from '../helpers/queues.ts'
+import { shq } from '../helpers/target.ts'
 import { Stubs } from '../helpers/stubs.ts'
 
 // V2-M1 T11: the Queue panel on the phone — a full-screen sheet, touch-sized
@@ -16,6 +17,27 @@ test.describe('Queue panel on iPhone 13 Pro', () => {
   test.beforeEach(async ({ target }) => {
     await target.resetTmux()
     await stubs.reset()
+  })
+
+  test('(V2-M8 T3) Schedule a command for an existing session on phone', async ({ page, ui, request, target }) => {
+    test.skip(test.info().project.name.endsWith('-domain'), 'uses the loopback access path for setup')
+    const project = await newProject(request, target, 'e2e-phone-scheduled')
+    await target.run(`tmux new-session -d -s phone-schedule-target -c ${shq(project.path)}`)
+    await ui.open()
+    await openPanelAndCreate(page, project.id)
+    const dialog = panel(page)
+    const form = dialog.getByRole('form', { name: 'Add item' })
+    await form.getByLabel('Execution').selectOption('session')
+    await expect.poll(async () => form.getByLabel('Existing session').locator('option').count()).toBeGreaterThan(1)
+    await form.getByLabel('Existing session').selectOption('phone-schedule-target')
+    await form.getByLabel('Command').fill("echo 'scheduled phone command'")
+    await form.getByRole('button', { name: 'Add item' }).tap()
+    await dialog.getByLabel('Start delay').fill('2s')
+    await dialog.getByRole('button', { name: 'Start' }).tap()
+    await expect(dialog.getByTestId('queue-scheduled')).toContainText('Scheduled for')
+    await expect.poll(async () => target.capture('phone-schedule-target'), { timeout: 10_000 }).toContain('scheduled phone command')
+    await expect(dialog.getByTestId('item-status')).toHaveText('Done')
+    await noHorizontalScroll(page)
   })
 
   const panel = (page: Page) => page.getByRole('dialog', { name: 'Queue' })

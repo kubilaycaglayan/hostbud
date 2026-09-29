@@ -85,10 +85,11 @@ type Dispatcher struct {
 	log        *slog.Logger
 	staleAfter time.Duration
 
-	work    chan func(context.Context)
-	timers  map[string]Timer   // stale timer per run
-	follows map[string][]Timer // follow-up reads per run
-	waiting map[string]bool    // queues last published as waiting for a slot
+	work      chan func(context.Context)
+	timers    map[string]Timer   // stale timer per run
+	follows   map[string][]Timer // follow-up reads per run
+	waiting   map[string]bool    // queues last published as waiting for a slot
+	scheduled map[string]Timer   // durable delayed queue starts, re-armed on restart
 
 	dispatching, again bool // dispatch is running / was asked for again meanwhile
 
@@ -127,7 +128,7 @@ func NewDispatcher(st DispatchStore, adapters Adapters, starter *Starter, servic
 	}
 	d := &Dispatcher{
 		store: st, adapters: adapters, starter: starter, service: service, bus: bus, clock: realClock{}, log: log, staleAfter: staleAfter,
-		work: make(chan func(context.Context), 4096), timers: map[string]Timer{}, follows: map[string][]Timer{}, waiting: map[string]bool{},
+		work: make(chan func(context.Context), 4096), timers: map[string]Timer{}, follows: map[string][]Timer{}, waiting: map[string]bool{}, scheduled: map[string]Timer{},
 	}
 	service.SetDispatcher(d)
 	starter.inSlot = service.ParallelQueues
@@ -138,6 +139,7 @@ func NewDispatcher(st DispatchStore, adapters Adapters, starter *Starter, servic
 func (d *Dispatcher) SetClock(c Clock) {
 	d.clock = c
 	d.starter.now = c.Now
+	d.service.now = c.Now
 }
 
 func (d *Dispatcher) enqueue(f func(context.Context)) {
@@ -328,6 +330,27 @@ func (d *Dispatcher) advance(ctx context.Context, queueID, source string) {
 	if err != nil || q.Status != store.QueueRunning {
 		return
 	}
+	if q.ScheduledAt != nil {
+		if wait := q.ScheduledAt.Sub(d.clock.Now()); wait > 0 {
+			if d.scheduled[queueID] == nil {
+				id := queueID
+				d.scheduled[id] = d.clock.AfterFunc(wait, func() {
+					d.enqueue(func(ctx context.Context) {
+						delete(d.scheduled, id)
+						d.advance(ctx, id, store.SourceTimer)
+					})
+				})
+			}
+			return
+		}
+		delete(d.scheduled, queueID)
+		_, _ = d.store.SetQueueSchedule(ctx, queueID, nil, store.QueueRunning)
+		q.ScheduledAt = nil
+		d.service.Publish(ctx, "schedule_due", queueID)
+	} else if timer := d.scheduled[queueID]; timer != nil {
+		timer.Stop()
+		delete(d.scheduled, queueID)
+	}
 	if !d.predecessorReady(ctx, q) {
 		return
 	}
@@ -369,6 +392,21 @@ func (d *Dispatcher) predecessorReady(ctx context.Context, q store.Queue) bool {
 // again and the queue keeps its place in line).
 func (d *Dispatcher) startItem(ctx context.Context, q store.Queue, item store.QueueItem, source string) bool {
 	if _, err := d.store.TransitionQueueItem(ctx, item.ID, []string{store.ItemQueued}, store.ItemRunning); err != nil {
+		return true
+	}
+	if item.ExecutionMode == "session" {
+		err := d.starter.SendCommand(ctx, item.MachineID, item.TargetSession, item.Command)
+		if err != nil {
+			_, _ = d.store.TransitionQueueItem(ctx, item.ID, []string{store.ItemRunning}, store.ItemNeedsAttention)
+			_, _ = d.service.Pause(ctx, q.ID)
+			d.service.Publish(ctx, "command_dispatch_failed", q.ID)
+			return true
+		}
+		if _, err := d.store.TransitionQueueItem(ctx, item.ID, []string{store.ItemRunning}, store.ItemDone); err != nil {
+			return true
+		}
+		d.service.Publish(ctx, "command_dispatched", q.ID)
+		d.next(ctx, q.ID, source)
 		return true
 	}
 	project, err := d.store.Project(ctx, q.ProjectID)

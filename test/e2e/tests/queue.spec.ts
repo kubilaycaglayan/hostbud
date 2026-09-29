@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from '../helpers/fixtures.ts'
 import { getQueue, newProject, type Queue } from '../helpers/queues.ts'
+import { shq } from '../helpers/target.ts'
 import { Stubs } from '../helpers/stubs.ts'
 
 // V2-M1 T10: the Queue panel on desktop, driving stub clients on the
@@ -38,6 +39,27 @@ async function order(page: Page): Promise<string[]> {
 test.describe('Queue panel (desktop)', () => {
   test.describe.configure({ timeout: 120_000 })
   test.skip(({ isMobile }) => isMobile, 'the phone variant is queue.phone.spec.ts')
+
+  test('(V2-M8 T3) Schedule a command for an existing session', async ({ page, ui, request, target }) => {
+    const project = await newProject(request, target, 'e2e-scheduled-ui')
+    await target.run(`tmux new-session -d -s schedule-ui-target -c ${shq(project.path)}`)
+    await ui.open()
+    await page.getByRole('banner').getByRole('button', { name: 'Queue', exact: true }).click()
+    const dialog = panel(page)
+    await dialog.getByLabel('Project').selectOption(project.id)
+    await dialog.getByRole('button', { name: 'Create queue' }).click()
+    const form = dialog.getByRole('form', { name: 'Add item' })
+    await form.getByLabel('Execution').selectOption('session')
+    await form.getByLabel('Existing session').selectOption('schedule-ui-target')
+    await form.getByLabel('Command').fill("echo 'scheduled ui command'")
+    await form.getByRole('button', { name: 'Add item' }).click()
+    await dialog.getByLabel('Start delay').fill('2s')
+    await dialog.getByRole('button', { name: 'Start' }).click()
+    await expect(dialog.getByTestId('queue-scheduled')).toContainText('Scheduled for')
+    await expect(dialog.getByTestId('item-status')).toHaveText('Queued')
+    await expect.poll(async () => target.capture('schedule-ui-target'), { timeout: 10_000 }).toContain('scheduled ui command')
+    await expect(dialog.getByTestId('item-status')).toHaveText('Done')
+  })
 
   test('(V2-M1 T16) Permission flags are quick to select and default by agent', async ({ page, ui, request, target }) => {
     const project = await newProject(request, target, 'e2e-queue-permission-flags')

@@ -209,6 +209,45 @@ func (s *Service) Create(ctx context.Context, spec Spec) (string, error) {
 	return name, nil
 }
 
+// SendCommand dispatches one user-authored command to an existing session's
+// active pane. It sends the command as a single tmux key argument, so shell
+// metacharacters are interpreted by that pane's shell as entered by the user.
+func (s *Service) SendCommand(ctx context.Context, machine, name, command string) error {
+	if err := tmux.ValidateName(name); err != nil {
+		return errorf(CodeInvalid, "Choose an existing session.", "invalid session name")
+	}
+	if strings.TrimSpace(command) == "" || len(command) > 16<<10 || strings.ContainsAny(command, "\x00\n\r") {
+		return errorf(CodeInvalid, "Use one command line (up to 16 KiB).", "invalid session command")
+	}
+	t, ok := s.machines[machine]
+	if !ok {
+		return errorf(CodeUnknownMachine, "", "unknown machine")
+	}
+	if err := t.Refresh(ctx); err != nil {
+		return s.remoteError(err)
+	}
+	_, _, sessions, err := s.ready(machine)
+	if err != nil {
+		return err
+	}
+	found := false
+	for _, item := range sessions {
+		if item.Name == name {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return errorf(CodeNotFound, "Choose a session that is still open.", "session is no longer available")
+	}
+	target := "=" + name + ":"
+	_, err = s.exec.Exec(ctx, machine, "tmux", "send-keys", "-l", "-t", target, command, ";", "send-keys", "-t", target, "Enter")
+	if err != nil {
+		return s.remoteError(err)
+	}
+	return nil
+}
+
 // newSessionRunner returns how to run new-session: with env vars, as a
 // script on stdin (values stay out of every argv); otherwise as plain argv.
 func (s *Service) newSessionRunner(ns tmux.NewSession, version tmux.Version) (func(context.Context, string) error, error) {

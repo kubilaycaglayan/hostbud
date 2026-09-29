@@ -273,11 +273,19 @@ func (m *memStore) eventKinds(runID string) []string {
 
 // fakeSessions records Create calls.
 type fakeSessions struct {
-	mu    sync.Mutex
-	specs []session.Spec
-	at    []time.Time
-	err   error
-	taken map[string]bool
+	mu       sync.Mutex
+	specs    []session.Spec
+	at       []time.Time
+	err      error
+	taken    map[string]bool
+	commands []string
+}
+
+func (f *fakeSessions) SendCommand(_ context.Context, machine, name, command string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.commands = append(f.commands, machine+"/"+name+"/"+command)
+	return f.err
 }
 
 func (f *fakeSessions) Create(_ context.Context, spec session.Spec) (string, error) {
@@ -467,6 +475,21 @@ func (m *memStore) TransitionQueue(_ context.Context, id string, from []string, 
 	return q, nil
 }
 
+func (m *memStore) SetQueueSchedule(_ context.Context, id string, due *time.Time, allowed ...string) (store.Queue, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	q, ok := m.q().queues[id]
+	if !ok {
+		return q, store.ErrNotFound
+	}
+	if len(allowed) > 0 && !slices.Contains(allowed, q.Status) {
+		return store.Queue{}, store.ErrConflict
+	}
+	q.ScheduledAt = due
+	m.q().queues[id] = q
+	return q, nil
+}
+
 func (m *memStore) itemsOf(queueID string) []store.QueueItem {
 	var out []store.QueueItem
 	for _, it := range m.q().items {
@@ -514,13 +537,17 @@ func (m *memStore) AddQueueItem(_ context.Context, queueID, agent, flags, instru
 	}
 	m.q().seq++
 	it := store.QueueItem{ID: fmt.Sprintf("item_%02d", m.q().seq), QueueID: queueID, MachineID: q.MachineID, Position: len(m.itemsOf(queueID)) + 1,
-		Agent: agent, Flags: flags, Instruction: instruction, Status: store.ItemQueued}
+		Agent: agent, Flags: flags, Instruction: instruction, Status: store.ItemQueued, ExecutionMode: "agent"}
 	if len(gates) > 0 {
 		verify, err := store.NormalizeVerifyCommand(gates[0].VerifyCommand)
 		if err != nil {
 			return store.QueueItem{}, err
 		}
 		it.VerifyCommand, it.RequiresApproval = verify, gates[0].RequiresApproval
+		if gates[0].ExecutionMode != "" {
+			it.ExecutionMode = gates[0].ExecutionMode
+		}
+		it.TargetSession, it.Command = gates[0].TargetSession, gates[0].Command
 	}
 	m.q().items[it.ID] = it
 	return it, nil

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -78,10 +79,11 @@ const (
 )
 
 var (
-	queueStatuses = []string{QueueIdle, QueueRunning, QueuePaused, QueueFinished}
-	itemStatuses  = []string{ItemQueued, ItemRunning, ItemVerifying, ItemAwaitingApproval, ItemDone, ItemNeedsAttention, ItemSkipped}
-	runStatuses   = []string{RunStarting, RunRunning, RunAchieved, RunFailed, RunExited, RunStale, RunCancelled}
-	eventSources  = []string{SourceHook, SourcePoller, SourceTimer, SourceUser, SourceLLM, SourceVerify}
+	queueSessionNameRE = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
+	queueStatuses      = []string{QueueIdle, QueueRunning, QueuePaused, QueueFinished}
+	itemStatuses       = []string{ItemQueued, ItemRunning, ItemVerifying, ItemAwaitingApproval, ItemDone, ItemNeedsAttention, ItemSkipped}
+	runStatuses        = []string{RunStarting, RunRunning, RunAchieved, RunFailed, RunExited, RunStale, RunCancelled}
+	eventSources       = []string{SourceHook, SourcePoller, SourceTimer, SourceUser, SourceLLM, SourceVerify}
 	// ActiveRunStatuses are the run states that still hold the queue.
 	ActiveRunStatuses = []string{RunStarting, RunRunning, RunStale}
 	agentKinds        = []string{"claude", "codex"}
@@ -113,6 +115,7 @@ type Queue struct {
 	WaitingSince *time.Time `json:"waitingSince,omitempty"`
 	StartedAt    *time.Time `json:"startedAt,omitempty"`
 	EndedAt      *time.Time `json:"endedAt,omitempty"`
+	ScheduledAt  *time.Time `json:"scheduledAt,omitempty"`
 	// AfterRunID gates this queue until an already active tracked run achieves its goal.
 	AfterRunID *string `json:"afterRunId,omitempty"`
 }
@@ -135,12 +138,26 @@ type QueueItem struct {
 	// whether the owner must approve before the item is done.
 	VerifyCommand    string `json:"verifyCommand"`
 	RequiresApproval bool   `json:"requiresApproval"`
+	ExecutionMode    string `json:"executionMode"`
+	TargetSession    string `json:"targetSession,omitempty"`
+	Command          string `json:"command,omitempty"`
+}
+
+// ItemExecution configures either a tracked agent run or a one-shot command
+// dispatched into an existing tmux session.
+type ItemExecution struct {
+	Mode          string
+	TargetSession string
+	Command       string
 }
 
 // ItemGates are an item's V2-M4 completion gates; the zero value is none.
 type ItemGates struct {
 	VerifyCommand    string
 	RequiresApproval bool
+	ExecutionMode    string
+	TargetSession    string
+	Command          string
 }
 
 // Gated reports whether the item has any completion gate.
@@ -188,6 +205,9 @@ type QueueItemUpdate struct {
 	// V2-M4 gates: the only fields a needs-attention item may change.
 	VerifyCommand    *string
 	RequiresApproval *bool
+	ExecutionMode    *string
+	TargetSession    *string
+	Command          *string
 }
 
 // RunUpdate lists the run fields to set; nil fields stay.
@@ -203,9 +223,9 @@ type RunUpdate struct {
 }
 
 const (
-	queueCols = `id, machine_id, project_id, name, status, created_at, updated_at, waiting_since, after_run_id, started_at, ended_at`
+	queueCols = `id, machine_id, project_id, name, status, created_at, updated_at, waiting_since, after_run_id, started_at, ended_at, scheduled_at`
 	itemCols  = `id, queue_id, machine_id, position, agent, flags, instruction, status, created_at, updated_at,
-		verify_command, requires_approval, started_at, ended_at`
+		verify_command, requires_approval, started_at, ended_at, execution_mode, target_session, command`
 	runCols = `id, item_id, machine_id, session_name, agent_session_id, transcript_path, transcript_offset,
 		client_version, token_hash, status, started_at, ended_at, last_signal_at, detail`
 	eventCols = `id, run_id, machine_id, source, kind, payload_json, created_at`
@@ -215,9 +235,9 @@ type scanner interface{ Scan(...any) error }
 
 func scanQueue(row scanner) (Queue, error) {
 	var q Queue
-	var waiting, started, ended sql.NullTime
+	var waiting, started, ended, scheduled sql.NullTime
 	var afterRun sql.NullString
-	err := row.Scan(&q.ID, &q.MachineID, &q.ProjectID, &q.Name, &q.Status, &q.CreatedAt, &q.UpdatedAt, &waiting, &afterRun, &started, &ended)
+	err := row.Scan(&q.ID, &q.MachineID, &q.ProjectID, &q.Name, &q.Status, &q.CreatedAt, &q.UpdatedAt, &waiting, &afterRun, &started, &ended, &scheduled)
 	if waiting.Valid {
 		t := waiting.Time.UTC()
 		q.WaitingSince = &t
@@ -233,6 +253,10 @@ func scanQueue(row scanner) (Queue, error) {
 		t := ended.Time.UTC()
 		q.EndedAt = &t
 	}
+	if scheduled.Valid {
+		t := scheduled.Time.UTC()
+		q.ScheduledAt = &t
+	}
 	return q, err
 }
 
@@ -241,7 +265,7 @@ func scanItem(row scanner) (QueueItem, error) {
 	var verify sql.NullString
 	var started, ended sql.NullTime
 	err := row.Scan(&it.ID, &it.QueueID, &it.MachineID, &it.Position, &it.Agent, &it.Flags, &it.Instruction, &it.Status, &it.CreatedAt, &it.UpdatedAt,
-		&verify, &it.RequiresApproval, &started, &ended)
+		&verify, &it.RequiresApproval, &started, &ended, &it.ExecutionMode, &it.TargetSession, &it.Command)
 	it.VerifyCommand = verify.String
 	if started.Valid {
 		t := started.Time.UTC()
@@ -398,6 +422,26 @@ func validItem(agent, flags, instruction string) error {
 	return nil
 }
 
+// ValidateItemExecution enforces the selected execution contract.
+func ValidateItemExecution(x ItemExecution) error {
+	switch x.Mode {
+	case "agent":
+		if x.TargetSession != "" || x.Command != "" {
+			return errors.New("agent items cannot set a target session or command")
+		}
+	case "session":
+		if !queueSessionNameRE.MatchString(x.TargetSession) {
+			return errors.New("choose a valid existing session")
+		}
+		if strings.TrimSpace(x.Command) == "" || len(x.Command) > maxInstructionBytes || strings.ContainsAny(x.Command, "\x00\n\r") {
+			return errors.New("command must be one line of 1–16384 bytes")
+		}
+	default:
+		return errors.New("execution mode must be agent or session")
+	}
+	return nil
+}
+
 // CreateQueue creates an idle queue for a saved project.
 func (s *Store) CreateQueue(ctx context.Context, projectID, name string, afterRunIDs ...string) (Queue, error) {
 	name, err := validQueueName(name)
@@ -462,6 +506,27 @@ func (s *Store) Queues(ctx context.Context, machineID string) ([]Queue, error) {
 func (s *Store) Queue(ctx context.Context, id string) (Queue, error) {
 	q, err := scanQueue(s.db.QueryRowContext(ctx, `SELECT `+queueCols+` FROM queues WHERE id = $1`, id))
 	return q, notFound(err)
+}
+
+// SetQueueSchedule persists or clears the due time for a not-yet-running
+// queue. The queue status is guarded so pause and timer races remain safe.
+func (s *Store) SetQueueSchedule(ctx context.Context, id string, due *time.Time, allowed ...string) (Queue, error) {
+	if len(allowed) == 0 {
+		allowed = []string{QueueIdle, QueueRunning, QueuePaused, QueueFinished}
+	}
+	var value any
+	if due != nil {
+		value = due.UTC()
+	}
+	q, err := scanQueue(s.db.QueryRowContext(ctx, `UPDATE queues SET scheduled_at = $2, updated_at = $3 WHERE id = $1 AND status = ANY($4) RETURNING `+queueCols,
+		id, value, s.now(), allowed))
+	if errors.Is(err, sql.ErrNoRows) {
+		if _, e := s.Queue(ctx, id); e != nil {
+			return Queue{}, e
+		}
+		return Queue{}, ErrConflict
+	}
+	return q, err
 }
 
 // RenameQueue changes a queue's name.
@@ -550,12 +615,26 @@ func lockQueue(ctx context.Context, tx *sql.Tx, id string) error {
 // AddQueueItem appends a queued item at the end of the queue, with its
 // completion gates if given (V2-M4; none by default).
 func (s *Store) AddQueueItem(ctx context.Context, queueID, agent, flags, instruction string, gates ...ItemGates) (QueueItem, error) {
-	if err := validItem(agent, flags, instruction); err != nil {
-		return QueueItem{}, err
-	}
 	var g ItemGates
 	if len(gates) > 0 {
 		g = gates[0]
+	}
+	x := ItemExecution{Mode: g.ExecutionMode, TargetSession: g.TargetSession, Command: g.Command}
+	if x.Mode == "" {
+		x.Mode = "agent"
+	}
+	if x.Mode == "agent" {
+		if err := validItem(agent, flags, instruction); err != nil {
+			return QueueItem{}, err
+		}
+	} else if !slices.Contains(agentKinds, agent) {
+		agent = "claude"
+	}
+	if err := ValidateItemExecution(x); err != nil {
+		return QueueItem{}, err
+	}
+	if x.Mode == "session" && (g.VerifyCommand != "" || g.RequiresApproval) {
+		return QueueItem{}, errors.New("verify and approval gates require a tracked agent session")
 	}
 	verify, err := NormalizeVerifyCommand(g.VerifyCommand)
 	if err != nil {
@@ -573,11 +652,11 @@ func (s *Store) AddQueueItem(ctx context.Context, queueID, agent, flags, instruc
 		now := s.now()
 		it, err = scanItem(tx.QueryRowContext(ctx, `
 			INSERT INTO queue_items (id, queue_id, machine_id, position, agent, flags, instruction, status, created_at, updated_at,
-				verify_command, requires_approval)
+				verify_command, requires_approval, execution_mode, target_session, command)
 			SELECT $1, q.id, q.machine_id, COALESCE((SELECT max(position) FROM queue_items WHERE queue_id = q.id), 0) + 1,
-				$3, $4, $5, 'queued', $6, $6, $7, $8
+				$3, $4, $5, 'queued', $6, $6, $7, $8, $9, $10, $11
 			FROM queues q WHERE q.id = $2
-			RETURNING `+itemCols, id, queueID, agent, flags, instruction, now, nullIfEmpty(verify), g.RequiresApproval))
+			RETURNING `+itemCols, id, queueID, agent, flags, instruction, now, nullIfEmpty(verify), g.RequiresApproval, x.Mode, x.TargetSession, x.Command))
 		return err
 	})
 	return it, err
@@ -628,9 +707,10 @@ func (s *Store) UpdateQueueItem(ctx context.Context, id string, u QueueItemUpdat
 	}
 	editable := EditableStatuses(u)
 	it, err := scanItem(s.db.QueryRowContext(ctx, `
-		UPDATE queue_items SET agent = $2, flags = $3, instruction = $4, verify_command = $5, requires_approval = $6, updated_at = $7
-		WHERE id = $1 AND status = ANY($8) RETURNING `+itemCols,
-		id, next.Agent, next.Flags, next.Instruction, nullIfEmpty(next.VerifyCommand), next.RequiresApproval, s.now(), editable))
+		UPDATE queue_items SET agent = $2, flags = $3, instruction = $4, verify_command = $5, requires_approval = $6,
+			execution_mode = $7, target_session = $8, command = $9, updated_at = $10
+		WHERE id = $1 AND status = ANY($11) RETURNING `+itemCols,
+		id, next.Agent, next.Flags, next.Instruction, nullIfEmpty(next.VerifyCommand), next.RequiresApproval, next.ExecutionMode, next.TargetSession, next.Command, s.now(), editable))
 	if errors.Is(err, sql.ErrNoRows) {
 		return QueueItem{}, ErrConflict
 	}
@@ -641,6 +721,9 @@ func (s *Store) UpdateQueueItem(ctx context.Context, id string, u QueueItemUpdat
 // limits; the verify command normalized).
 func ApplyItemUpdate(cur QueueItem, u QueueItemUpdate) (QueueItem, error) {
 	next := cur
+	if next.ExecutionMode == "" {
+		next.ExecutionMode = "agent"
+	}
 	if u.Agent != nil {
 		next.Agent = *u.Agent
 	}
@@ -660,13 +743,35 @@ func ApplyItemUpdate(cur QueueItem, u QueueItemUpdate) (QueueItem, error) {
 		}
 		next.VerifyCommand = verify
 	}
-	return next, validItem(next.Agent, next.Flags, next.Instruction)
+	if u.ExecutionMode != nil {
+		next.ExecutionMode = *u.ExecutionMode
+	}
+	if u.TargetSession != nil {
+		next.TargetSession = *u.TargetSession
+	}
+	if u.Command != nil {
+		next.Command = *u.Command
+	}
+	if next.ExecutionMode == "agent" {
+		if err := validItem(next.Agent, next.Flags, next.Instruction); err != nil {
+			return cur, err
+		}
+	} else if !slices.Contains(agentKinds, next.Agent) {
+		return cur, errors.New("unknown agent")
+	}
+	if err := ValidateItemExecution(ItemExecution{Mode: next.ExecutionMode, TargetSession: next.TargetSession, Command: next.Command}); err != nil {
+		return cur, err
+	}
+	if next.ExecutionMode == "session" && (next.VerifyCommand != "" || next.RequiresApproval) {
+		return cur, errors.New("verify and approval gates require a tracked agent session")
+	}
+	return next, nil
 }
 
 // EditableStatuses are the item states u may be applied in: any field
 // while queued; the gates alone also while the item needs attention.
 func EditableStatuses(u QueueItemUpdate) []string {
-	if u.Agent == nil && u.Flags == nil && u.Instruction == nil {
+	if u.Agent == nil && u.Flags == nil && u.Instruction == nil && u.ExecutionMode == nil && u.TargetSession == nil && u.Command == nil {
 		return []string{ItemQueued, ItemNeedsAttention}
 	}
 	return []string{ItemQueued}

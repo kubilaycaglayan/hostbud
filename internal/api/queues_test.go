@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"hostbud/internal/events"
 	"hostbud/internal/queue"
@@ -26,6 +27,7 @@ type fakeQueues struct {
 	order    []string
 	parallel bool
 	capacity *int
+	delay    time.Duration
 }
 
 func (f *fakeQueues) rec(call string) { f.calls = append(f.calls, call) }
@@ -66,8 +68,11 @@ func (f *fakeQueues) Reorder(_ context.Context, queueID string, ids []string) (q
 	f.order = ids
 	return queue.View{}, f.err
 }
-func (f *fakeQueues) Start(_ context.Context, id string) (queue.View, error) {
+func (f *fakeQueues) Start(_ context.Context, id string, delay ...time.Duration) (queue.View, error) {
 	f.rec("start " + id)
+	if len(delay) > 0 {
+		f.delay = delay[0]
+	}
 	return queue.View{}, f.err
 }
 func (f *fakeQueues) Pause(_ context.Context, id string) (queue.View, error) {
@@ -163,6 +168,7 @@ func TestQueueRoutesCallTheService(t *testing.T) {
 		{"DELETE", "/api/queue-items/item_a", "", 204, "delete-item item_a"},
 		{"PUT", "/api/queues/queue_a/order", `{"itemIds":["item_b","item_a"]}`, 200, "reorder queue_a"},
 		{"POST", "/api/queues/queue_a/start", "", 200, "start queue_a"},
+		{"POST", "/api/queues/queue_a/start", `{"delay":"4h14m"}`, 200, "start queue_a"},
 		{"POST", "/api/queues/queue_a/pause", "", 200, "pause queue_a"},
 		{"POST", "/api/queues/queue_a/resume", "", 200, "resume queue_a"},
 		{"POST", "/api/queue-items/item_a/retry", "", 200, "retry item_a"},
@@ -183,6 +189,14 @@ func TestQueueRoutesCallTheService(t *testing.T) {
 	}
 	if strings.Join(q.order, ",") != "item_b,item_a" {
 		t.Errorf("order %v", q.order)
+	}
+	if q.delay != 254*time.Minute {
+		t.Errorf("start delay = %s", q.delay)
+	}
+	for _, value := range []string{"0s", "nonsense", "31d"} {
+		if rec := queueRequest(t, h, "POST", "/api/queues/queue_a/start", `{"delay":"`+value+`"}`, nil); rec.Code != http.StatusBadRequest {
+			t.Errorf("delay %q status = %d", value, rec.Code)
+		}
 	}
 }
 

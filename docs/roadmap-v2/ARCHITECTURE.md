@@ -1,6 +1,6 @@
 # hostbud v2 — Agent task queue (architecture decision)
 
-Status: **V2-M1–V2-M6 implemented** (M2–M6 opt-in; full browser suites run on demand). See the per-milestone acceptance checklists for verification status and the open owner checks. This document superseded the v2 sketch in the v1 [ARCHITECTURE.md §10](../ARCHITECTURE.md#10-v2--agent-task-queue) and the *v2* section of the v1 [ROADMAP.md](../ROADMAP.md), which now point here. The v1 obligations in v1 §10 still apply. The V2-M1 spike results are in §12.
+Status: **V2-M1–V2-M8 implemented** (M2–M8 opt-in; full browser suites run on demand). See the per-milestone acceptance checklists for verification status and the open owner checks. This document superseded the v2 sketch in the v1 [ARCHITECTURE.md §10](../ARCHITECTURE.md#10-v2--agent-task-queue) and the *v2* section of the v1 [ROADMAP.md](../ROADMAP.md), which now point here. The v1 obligations in v1 §10 still apply. The V2-M1 spike results are in §12.
 
 ---
 
@@ -75,11 +75,12 @@ Both clients the owner uses have a native `/goal` command. It keeps the agent wo
 ## 3. Decisions
 
 1. **Runs are interactive TUI sessions** in tmux, exactly like sessions the owner starts by hand. The owner can attach, watch and type at any time.
-2. **A queue item is an agent, extra flags and an instruction.**
+2. **A queue item chooses an execution mode.**
    - `agent` is `claude` or `codex`.
    - `flags` is free text, for example `--dangerously-skip-permissions`, `--yolo` or `--model …`. It is split into arguments and shell-quoted by `sshx`.
    - `instruction` is, in the PoC, a `/goal …` line.
    - hostbud builds the whole command, including hook injection, and passes the instruction as the client's **initial prompt argument**. There is no `send-keys` typing and no timing guesswork.
+   - V2-M8 also offers `session` mode: an exact existing session target and a one-line command. It uses tmux `send-keys -l` with the command as one argument and a separate Enter key. A successful dispatch marks the item done; it is fire-and-forget and has no agent-goal signal. Completion gates are only available in `agent` mode.
 3. **A queue belongs to one project.** All its items run in that project's directory. The PoC has a single queue.
 4. **Done means the client's own `/goal` was achieved.** There is no additional gate in the PoC.
 5. **Detection is per-run hooks plus structured goal state.**
@@ -91,6 +92,7 @@ Both clients the owner uses have a native `/goal` command. It keeps the agent wo
 8. **Client adapters and a documented run protocol** (§7, §8) let other agent clients be added without changing the queue core.
 9. **Everything after the PoC is opt-in.** Parallel queues, notifications, completion gates and the LLM supervisor are all off by default.
 10. **Queue dependencies are opt-in per queue (V2-M6).** A queue may name a currently active hostbud-tracked run as its predecessor. It remains queued until that run's structured goal is achieved; stale predecessors can still achieve late. A failed, exited or cancelled predecessor pauses the dependent queue. Unlinked queues retain existing behavior. A manually started tmux session cannot be selected because hostbud has no tracked goal binding for it.
+11. **Delayed queue starts and execution targets (V2-M8).** A queue may be scheduled to start after a relative delay (for example `15m` or `4h14m`). The due timestamp is persisted in PostgreSQL, so a restart does not lose the schedule. The owner can cancel the pending schedule by pausing the queue. A queued item chooses one of two execution modes: `agent` creates a new tracked tmux session and runs the selected Claude/Codex agent with the instruction; `session` sends the item's command to an explicitly selected existing session. Session mode means successful command dispatch, not agent-goal completion, so that item is marked done once tmux accepts the command. Session names use the exact validated tmux target and commands are passed as one shell-quoted argument through `sshx`; hostbud never kills or closes the target session.
 
 ---
 

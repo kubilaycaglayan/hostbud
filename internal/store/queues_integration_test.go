@@ -177,6 +177,46 @@ func TestIntegrationQueueAfterActiveRun(t *testing.T) {
 	}
 }
 
+func TestIntegrationQueueScheduleAndExecutionModePersist(t *testing.T) {
+	ctx := context.Background()
+	repo, err := Open(ctx, testConfig(t.TempDir()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = repo.Close() }()
+	if _, err := repo.EnsureHostMachine(ctx, "Host machine"); err != nil {
+		t.Fatal(err)
+	}
+	p, err := repo.CreateProject(ctx, HostMachineID, "/home/dev/scheduled", "scheduled")
+	if err != nil {
+		t.Fatal(err)
+	}
+	q, err := repo.CreateQueue(ctx, p.ID, "scheduled")
+	if err != nil {
+		t.Fatal(err)
+	}
+	due := time.Date(2026, 9, 29, 15, 0, 0, 0, time.UTC)
+	q, err = repo.SetQueueSchedule(ctx, q.ID, &due, QueueIdle)
+	if err != nil || q.ScheduledAt == nil || !q.ScheduledAt.Equal(due) {
+		t.Fatalf("schedule = %+v, %v", q, err)
+	}
+	it, err := repo.AddQueueItem(ctx, q.ID, "claude", "", "", ItemGates{ExecutionMode: "session", TargetSession: "work", Command: "make test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if it.ExecutionMode != "session" || it.TargetSession != "work" || it.Command != "make test" {
+		t.Fatalf("execution target = %+v", it)
+	}
+	loadedQ, err := repo.Queue(ctx, q.ID)
+	if err != nil || loadedQ.ScheduledAt == nil || !loadedQ.ScheduledAt.Equal(due) {
+		t.Fatalf("reloaded schedule = %+v, %v", loadedQ, err)
+	}
+	loadedItem, err := repo.QueueItem(ctx, it.ID)
+	if err != nil || loadedItem.ExecutionMode != "session" || loadedItem.Command != "make test" {
+		t.Fatalf("reloaded item = %+v, %v", loadedItem, err)
+	}
+}
+
 // columnChecksums is tableChecksums over fixed columns, so a table that
 // gains a column keeps a comparable checksum.
 // v2m1ItemCols are queue_items' columns before V2-M4 (0009 adds the gate

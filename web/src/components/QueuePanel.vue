@@ -12,6 +12,7 @@ import FormError from './FormError.vue'
 import { AGENTS, type Agent, flagsError, INSTRUCTION_PREFIX, instructionError, itemActions, moveQueued, queueControls, statusLabel, verifyCommandError, verifyLine } from '@/lib/queue'
 import { useQueuesStore } from '@/stores/queues'
 import { useProjectsStore } from '@/stores/projects'
+import { useSessionsStore } from '@/stores/sessions'
 import { describeError } from '@/stores/toasts'
 
 // Queue panel: a queue belongs to a project; its items run one after
@@ -28,6 +29,7 @@ const emit = defineEmits<{ openSession: [name: string] }>()
 
 const store = useQueuesStore()
 const projects = useProjectsStore()
+const sessions = useSessionsStore()
 // The shown queue: the one picked in the switcher, else the first.
 const selectedId = ref<string | null>(null)
 const queue = computed(() => store.queues.find((q) => q.id === selectedId.value) ?? store.queues[0] ?? null)
@@ -137,7 +139,7 @@ function saveRename() {
 }
 
 // ---- adding and editing items ----
-interface Draft { agent: Agent; flags: string; instruction: string; verifyCommand: string; requiresApproval: boolean }
+interface Draft { agent: Agent; flags: string; instruction: string; executionMode: 'agent' | 'session'; targetSession: string; command: string; verifyCommand: string; requiresApproval: boolean }
 const VERIFY_HINT = "Runs as argv in the project directory on the host, not in the agent's session; quote words like flags. For pipes or &&: sh -c '…'."
 /** The gate fields to send: none when unset (the server's default). */
 function gates(d: Pick<Draft, 'verifyCommand' | 'requiresApproval'>) {
@@ -162,12 +164,12 @@ function switchAgentFlags(flags: string, agent: Agent): string {
   const custom = setFlag(setFlag(flags, permissionFlag.claude, false), permissionFlag.codex, false)
   return setFlag(custom, permissionFlag[agent], true)
 }
-const draft = ref<Draft>({ agent: 'claude', flags: permissionFlag.claude, instruction: INSTRUCTION_PREFIX, verifyCommand: '', requiresApproval: false })
+const draft = ref<Draft>({ agent: 'claude', flags: permissionFlag.claude, instruction: INSTRUCTION_PREFIX, executionMode: 'agent', targetSession: '', command: '', verifyCommand: '', requiresApproval: false })
 const draftPermissionFlag = computed({
   get: () => draft.value.agent,
   set: (agent: Agent) => { draft.value = { ...draft.value, agent, flags: switchAgentFlags(draft.value.flags, agent) } },
 })
-const edit = ref<Draft>({ agent: 'claude', flags: '', instruction: '', verifyCommand: '', requiresApproval: false })
+const edit = ref<Draft>({ agent: 'claude', flags: '', instruction: '', executionMode: 'agent', targetSession: '', command: '', verifyCommand: '', requiresApproval: false })
 const editPermissionFlag = computed({
   get: () => edit.value.agent,
   set: (agent: Agent) => { edit.value = { ...edit.value, agent, flags: switchAgentFlags(edit.value.flags, agent) } },
@@ -176,12 +178,12 @@ const draftTouched = ref(false)
 const draftErrors = computed(() => ({ flags: flagsError(draft.value.flags), instruction: instructionError(draft.value.instruction), verify: verifyCommandError(draft.value.verifyCommand) }))
 function addItem() {
   draftTouched.value = true
-  if (!queue.value || draftErrors.value.flags || draftErrors.value.instruction || draftErrors.value.verify) return
+  if (!queue.value || (draft.value.executionMode === 'agent' && (draftErrors.value.flags || draftErrors.value.instruction || draftErrors.value.verify)) || (draft.value.executionMode === 'session' && (!draft.value.targetSession || !draft.value.command.trim()))) return
   const q = queue.value
   const d = { ...draft.value }
   void act("Couldn't add the item", async () => {
-    await queuesApi.addItem(q.id, { agent: d.agent, flags: d.flags, instruction: d.instruction, ...gates(d) })
-    draft.value = { agent: d.agent, flags: permissionFlag[d.agent], instruction: INSTRUCTION_PREFIX, verifyCommand: '', requiresApproval: false }
+    await queuesApi.addItem(q.id, { agent: d.agent, flags: d.flags, instruction: d.instruction, executionMode: d.executionMode, ...(d.executionMode === 'session' ? { targetSession: d.targetSession, command: d.command } : { ...gates(d) }) })
+    draft.value = { agent: d.agent, flags: permissionFlag[d.agent], instruction: INSTRUCTION_PREFIX, executionMode: 'agent', targetSession: '', command: '', verifyCommand: '', requiresApproval: false }
     draftTouched.value = false
   })
 }
@@ -191,20 +193,21 @@ const editing = ref<string | null>(null)
 // other fields); a queued one edits everything.
 const gatesOnly = ref(false)
 const editErrors = computed(() => ({
-  flags: gatesOnly.value ? '' : flagsError(edit.value.flags),
-  instruction: gatesOnly.value ? '' : instructionError(edit.value.instruction),
-  verify: verifyCommandError(edit.value.verifyCommand),
+  flags: gatesOnly.value || edit.value.executionMode === 'session' ? '' : flagsError(edit.value.flags),
+  instruction: gatesOnly.value || edit.value.executionMode === 'session' ? '' : instructionError(edit.value.instruction),
+  verify: edit.value.executionMode === 'session' ? '' : verifyCommandError(edit.value.verifyCommand),
 }))
 function startEdit(item: QueueItem, onlyGates = false) {
   editing.value = item.id
   gatesOnly.value = onlyGates
-  edit.value = { agent: item.agent, flags: item.flags, instruction: item.instruction, verifyCommand: item.verifyCommand ?? '', requiresApproval: Boolean(item.requiresApproval) }
+  edit.value = { agent: item.agent, flags: item.flags, instruction: item.instruction, executionMode: item.executionMode ?? 'agent', targetSession: item.targetSession ?? '', command: item.command ?? '', verifyCommand: item.verifyCommand ?? '', requiresApproval: Boolean(item.requiresApproval) }
 }
 function saveEdit(item: QueueItem) {
   if (editErrors.value.flags || editErrors.value.instruction || editErrors.value.verify) return
+  if (!gatesOnly.value && edit.value.executionMode === 'session' && (!edit.value.targetSession || !edit.value.command.trim())) return
   const e = { ...edit.value }
   const gateFields = { verifyCommand: e.verifyCommand.trim(), requiresApproval: e.requiresApproval }
-  const body = gatesOnly.value ? gateFields : { agent: e.agent, flags: e.flags, instruction: e.instruction, ...gateFields }
+  const body = gatesOnly.value ? gateFields : { agent: e.agent, flags: e.flags, instruction: e.instruction, executionMode: e.executionMode, ...(e.executionMode === 'session' ? { targetSession: e.targetSession, command: e.command } : { targetSession: '', command: '', ...gateFields }) }
   void act(gatesOnly.value ? "Couldn't save the gates" : "Couldn't save the item", async () => {
     await queuesApi.updateItem(item.id, body)
     editing.value = null
@@ -242,8 +245,9 @@ function onDragEnd() {
 function control(action: 'start' | 'pause' | 'resume') {
   if (!queue.value) return
   const q = queue.value
-  void act(`Couldn't ${action} the queue`, () => queuesApi[action](q.id))
+  void act(`Couldn't ${action} the queue`, () => action === 'start' ? queuesApi.start(q.id, startDelay.value.trim()) : queuesApi[action](q.id))
 }
+const startDelay = ref('')
 
 // The pending confirmation. Its dialog's open state is separate: closing
 // the dialog (the action button closes it first) must not lose the action.
@@ -439,12 +443,18 @@ const badge: Record<QueueItem['status'], string> = {
               </button>
               <span data-testid="queue-status" class="rounded border border-border px-2 text-sm" :class="queue.status === 'running' ? 'border-accent font-bold text-accent' : ''">{{ queue.status }}</span>
               <div class="ml-auto flex flex-wrap gap-2">
+                <label v-if="controls?.start" class="block text-sm">Start after
+                  <input v-model="startDelay" autocomplete="off" placeholder="now, 15m, 4h14m" aria-label="Start delay" class="mt-1 min-h-11 w-32 rounded border border-border bg-bg px-2 font-mono text-base">
+                </label>
                 <button v-if="controls?.start || queue.status === 'idle' || queue.status === 'finished'" type="button" :disabled="busy || !controls?.start" class="touch-target min-h-11 rounded bg-accent px-3 font-bold text-bg" @click="control('start')">Start</button>
                 <button v-if="controls?.pause" type="button" :disabled="busy" class="touch-target min-h-11 rounded border border-border px-3" @click="control('pause')">Pause</button>
                 <button v-if="controls?.resume" type="button" :disabled="busy" class="touch-target min-h-11 rounded bg-accent px-3 font-bold text-bg" @click="control('resume')">Resume</button>
                 <button type="button" :disabled="busy" class="touch-target min-h-11 rounded border border-border px-3" @click="ask('delete-queue')">Delete queue</button>
               </div>
             </div>
+            <p v-if="queue.scheduledAt" data-testid="queue-scheduled" class="mt-1 text-sm text-accent">
+              Scheduled for <time :datetime="queue.scheduledAt">{{ new Date(queue.scheduledAt).toLocaleString() }}</time>.
+            </p>
             <p class="mt-1 break-all text-sm text-muted">
               {{ queue.projectPath }}
             </p>
@@ -484,7 +494,22 @@ const badge: Record<QueueItem['status'], string> = {
                 @keydown="onRowKey($event, item)"
               >
                 <form v-if="editing === item.id" class="flex flex-col gap-2" :aria-label="gatesOnly ? `Edit gates of item ${item.position}` : `Edit item ${item.position}`" @submit.prevent="saveEdit(item)">
-                  <template v-if="!gatesOnly">
+                  <label v-if="!gatesOnly" class="block">Execution
+                    <select v-model="edit.executionMode" autocomplete="off" class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 text-base">
+                      <option value="agent">New session with agent</option><option value="session">Command in existing session</option>
+                    </select>
+                  </label>
+                  <template v-if="!gatesOnly && edit.executionMode === 'session'">
+                    <label class="block">Existing session
+                      <select v-model="edit.targetSession" autocomplete="off" class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 text-base">
+                        <option value="">Choose a session</option><option v-for="s in sessions.list(props.machine)" :key="s.name" :value="s.name">{{ s.name }} · {{ s.path }}</option>
+                      </select>
+                    </label>
+                    <label class="block">Command
+                      <textarea v-model="edit.command" autocomplete="off" spellcheck="false" rows="2" class="mt-1 min-h-11 w-full resize-y rounded border border-border bg-bg px-2 py-1 font-mono text-base"></textarea>
+                    </label>
+                  </template>
+                  <template v-if="!gatesOnly && edit.executionMode === 'agent'">
                   <label class="block">Agent
                     <select v-model="editPermissionFlag" autocomplete="off" class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 text-base">
                       <option v-for="a in AGENTS" :key="a" :value="a">{{ a }}</option>
@@ -503,6 +528,7 @@ const badge: Record<QueueItem['status'], string> = {
                   </label>
                   <p v-if="editErrors.instruction" class="text-sm text-danger">{{ editErrors.instruction }}</p>
                   </template>
+                  <template v-if="edit.executionMode === 'agent' || gatesOnly">
                   <label class="block">Verify command
                     <input v-model="edit.verifyCommand" data-testid="verify-command" autocomplete="off" autocapitalize="off" dir="ltr" spellcheck="false" placeholder="e.g. make test" class="mt-1 min-h-11 w-full min-w-0 rounded border border-border bg-bg px-3 text-left font-mono text-base">
                   </label>
@@ -512,6 +538,7 @@ const badge: Record<QueueItem['status'], string> = {
                     <input v-model="edit.requiresApproval" data-testid="requires-approval" type="checkbox" autocomplete="off" class="size-4">
                     Require approval
                   </label>
+                  </template>
                   <div class="flex justify-end gap-1.5">
                     <button type="submit" :disabled="busy" class="touch-target min-h-8 rounded bg-accent px-2 font-bold text-bg">Save</button>
                     <button type="button" class="touch-target min-h-8 rounded border border-border px-2" @click="editing = null">Cancel</button>
@@ -524,10 +551,12 @@ const badge: Record<QueueItem['status'], string> = {
                     </span>
                     <span class="min-w-6 pt-1 text-muted">{{ item.position }}.</span>
                     <div class="min-w-0 flex-1">
-                      <p class="break-words font-mono text-sm">{{ item.instruction }}</p>
+                      <p class="break-words font-mono text-sm">{{ item.executionMode === 'session' ? item.command : item.instruction }}</p>
                       <p class="mt-1 break-words text-sm text-muted">
-                        {{ item.agent }}<template v-if="item.flags"> · <span class="font-mono">{{ item.flags }}</span></template>
-                        <template v-if="item.run?.sessionName"> · session <span class="font-mono">{{ item.run.sessionName }}</span></template>
+                        <template v-if="item.executionMode === 'session'">Command in <span class="font-mono">{{ item.targetSession }}</span></template>
+                        <template v-else>{{ item.agent }}<template v-if="item.flags"> · <span class="font-mono">{{ item.flags }}</span></template>
+                          <template v-if="item.run?.sessionName"> · session <span class="font-mono">{{ item.run.sessionName }}</span></template>
+                        </template>
                       </p>
                       <p class="mt-1 flex flex-wrap items-center gap-2">
                         <span data-testid="item-status" :class="badge[item.status]" class="rounded border px-2 text-sm">{{ statusLabel(item) }}</span>
@@ -541,6 +570,8 @@ const badge: Record<QueueItem['status'], string> = {
                       <p v-if="item.run?.detail && (item.status === 'needs_attention' || item.run.status === 'failed')" role="status" class="mt-1 break-words text-sm text-danger">
                         {{ item.run.detail }}
                       </p>
+                      <p v-if="item.executionMode === 'session' && item.status === 'done'" class="mt-1 text-sm text-muted">Sent to the existing session; the command may still be running.</p>
+                      <p v-if="item.executionMode === 'session' && item.status === 'needs_attention'" role="status" class="mt-1 text-sm text-danger">The command could not be sent. Check that the session is still open, then retry.</p>
                       <div v-if="item.run?.flag && !['running', 'unknown'].includes(item.run.flag.label)" data-testid="llm-flag" class="mt-2 rounded border border-warning p-2 text-sm" role="status">
                         <p class="font-semibold">{{ item.run.flag.label === 'completed' ? 'Looks finished — check and Mark done' : `Supervisor: ${item.run.flag.label.replace('_', ' ')}` }}</p>
                         <p class="mt-1 break-words text-muted">{{ item.run.flag.reason }}</p>
@@ -586,6 +617,22 @@ const badge: Record<QueueItem['status'], string> = {
 
             <form class="mt-3 flex flex-col gap-2 border-t border-border pt-2" aria-label="Add item" @submit.prevent="addItem">
               <h4 class="font-bold">Add item</h4>
+              <label class="block">Execution
+                <select v-model="draft.executionMode" autocomplete="off" class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 text-base">
+                  <option value="agent">New session with agent</option><option value="session">Command in existing session</option>
+                </select>
+              </label>
+              <template v-if="draft.executionMode === 'session'">
+                <label class="block">Existing session
+                  <select v-model="draft.targetSession" autocomplete="off" class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 text-base">
+                    <option value="">Choose a session</option><option v-for="s in sessions.list(props.machine)" :key="s.name" :value="s.name">{{ s.name }} · {{ s.path }}</option>
+                  </select>
+                </label>
+                <label class="block">Command
+                  <textarea v-model="draft.command" autocomplete="off" spellcheck="false" rows="2" placeholder="e.g. make test" class="mt-1 min-h-11 w-full resize-y rounded border border-border bg-bg px-2 py-1 font-mono text-base"></textarea>
+                </label>
+              </template>
+              <template v-else>
               <div class="flex flex-wrap gap-2">
                 <label class="block min-w-32">Agent
                   <select v-model="draftPermissionFlag" autocomplete="off" class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 text-base">
@@ -605,6 +652,8 @@ const badge: Record<QueueItem['status'], string> = {
                 <textarea v-model="draft.instruction" autocomplete="off" spellcheck="false" rows="2" class="mt-1 min-h-11 w-full resize-y rounded border border-border bg-bg px-2 py-1 font-mono text-base"></textarea>
               </label>
               <p v-if="draftTouched && draftErrors.instruction" class="text-sm text-danger">{{ draftErrors.instruction }}</p>
+              </template>
+              <template v-if="draft.executionMode === 'agent'">
               <label class="block">Verify command <span class="text-muted">(optional)</span>
                 <input v-model="draft.verifyCommand" data-testid="verify-command" autocomplete="off" autocapitalize="off" dir="ltr" spellcheck="false" placeholder="e.g. make test" class="mt-1 min-h-11 w-full min-w-0 rounded border border-border bg-bg px-3 text-left font-mono text-base">
               </label>
@@ -614,6 +663,7 @@ const badge: Record<QueueItem['status'], string> = {
                 <input v-model="draft.requiresApproval" data-testid="requires-approval" type="checkbox" autocomplete="off" class="size-4">
                 Require approval before the item is done
               </label>
+              </template>
               <div class="flex justify-end">
                 <button type="submit" :disabled="busy" class="touch-target min-h-8 rounded bg-accent px-2 font-bold text-bg">Add item</button>
               </div>
