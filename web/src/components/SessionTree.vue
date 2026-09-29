@@ -239,6 +239,12 @@ async function renameSession(from: string, raw: string) {
   const invalid = sessionNameError(to, true)
   if (invalid) { editError.value = invalid; throw new Error(invalid) }
   if (to === from) { cancelRename('session:' + from); return }
+  // Refused before the optimistic rename: re-keying the tree onto a live
+  // name would merge both rows, and the rollback couldn't tell them apart.
+  if (sessions.list('host').some((session) => session.name === to)) {
+    editError.value = `a session named "${to}" already exists. Pick another name.`
+    throw new Error(editError.value)
+  }
   const position = tree.groups.groups
     .map((group) => ({ group: group.project.id, index: group.sessions.findIndex((session) => session.name === from) }))
     .concat([{ group: '__other__', index: tree.groups.other.findIndex((session) => session.name === from) }])
