@@ -9,3 +9,12 @@
 - **Main recurring finding:** 29 API scenarios hit the single-queue guard because the main API-only request fixture bypassed scenario reset. Fixed in `12d22a3` by sharing `page.request`; two harness regression scenarios are written and `make e2e-lint` passes (the scenarios remain unrun under the one-pass instruction). The 2-case LLM API Origin mismatch is fixed by deriving `mutate()`'s default Origin from the active test base URL. The multi-app project-reset and linked-session rename failures are fixed, along with stale attachment-indicator assertions from before M8. Commit `c476a23` corrects API reset, oversized JSON, linked rename, and attached-state expectations.
 - **Fix batch update:** corrections are recorded for all 29 reported groups, worked from the most frequent downward. They include reported locator/reset/expectation issues, cached-shell fallback on Caddy 502 responses, project pin menu timing, deferred “Show keyboard” focus, shell/scroll assumptions, tree startup ordering and touch drag support, compact tree visibility after actions, theme localStorage isolation, tmux-stall retry state, permission-mode setup, the phone timeout route stub, parallel-session readiness, queue-item fallback dragging, notification permission for the active application origin, session-inventory readiness, and deterministic supervisor classification timing. The offline fallback, tree ordering, touch-drag configuration, queue drag configuration, and pin-menu behavior have unit coverage. Current checks: `make e2e-lint` passes; prior `make web-test` passed 621 tests. Scenario outcomes remain unverified because the requested loop prohibits a second pass.
 - **Next:** stop here unless the owner explicitly requests another E2E pass. No second full or focused E2E run has been performed.
+
+## Pass 02 — requested full suite
+
+- **Commit under test:** `3fe7ae4` (clean working tree).
+- **Result:** 459 passed, 7 failed, 77 skipped, 0 flaky (543 total).
+- **Playwright duration:** 39.6 minutes; approximately 40 minutes wall time.
+- **Detailed report:** [2026-09-29-v1-m8-pass-02.md](../e2e-triage/2026-09-29-v1-m8-pass-02.md).
+- **Findings:** the pass 01 batch cleared 124 failures. Remaining: queue-history strict-mode locator (2 profiles), tree.custom client-pid checks in T4/T5, renamed-session expanded state after restart (T6), and the phone "Project tree" dialog timeout in mobile-layout T16 (2 profiles). All open.
+- **Next:** fix the 7 failures as a batch; no further full run unless the owner asks.
