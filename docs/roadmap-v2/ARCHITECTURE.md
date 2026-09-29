@@ -214,7 +214,7 @@ The supervisor is constructed only when `HOSTBUD_LLM_PROVIDER=openai` and its co
 
 ```sql
 queues(id, machine_id FK, project_id FK, name, status CHECK(status IN ('idle','running','paused','finished')),
-       created_at, updated_at)
+       created_at, updated_at, after_run_id TEXT NULL)
 queue_items(id, queue_id FK, position, agent CHECK(agent IN ('claude','codex')), flags TEXT,
             instruction TEXT, status CHECK(status IN ('queued','running','done','needs_attention','skipped')),
             created_at, updated_at)
@@ -233,6 +233,7 @@ run_events(id, run_id FK, source CHECK(source IN ('hook','poller','timer','user'
 - This replaces the `tasks`/`runs`/`machine_capacity` sketch in ARCHITECTURE §10.
 - V2-M2 adds `internal/store/migrations/0006_parallel_queues.sql` (additions only): `machine_capacity(machine_id PK FK, max_concurrent_runs INT NULL CHECK 1–32, updated_at)`, `queues.waiting_since TIMESTAMPTZ NULL` and the unique index `queues_project_name` on `(project_id, lower(name))` (§5.5).
 - V2-M4 adds `internal/store/migrations/0009_completion_gates.sql`: `queue_items.verify_command TEXT NULL` (1–4096 bytes; NULL = none) and `requires_approval BOOLEAN NOT NULL DEFAULT false`, and it widens `queue_items.status` (+ `verifying`, `awaiting_approval`) and `run_events.source` (+ `verify`), each CHECK replaced in one `DROP CONSTRAINT … ADD CONSTRAINT` statement. The new sets are strict supersets: existing rows stay valid and nothing is updated (§5.6).
+- V2-M6 adds `internal/store/migrations/0010_queue_goal_dependency.sql`: nullable `queues.after_run_id`, identifying an active hostbud-tracked goal run selected when the queue is created. It intentionally has no foreign key: if the source run is deleted, its successor keeps the identifier and fails closed instead of starting. `afterRunStatus` in queue views is derived from the current run row, not stored. The `POST /api/queues` body accepts optional `afterRunId`; empty or omitted keeps existing behavior.
 - V2-M3 adds `internal/store/migrations/0008_notifications.sql` (additions only): `notification_prefs(user_id PK FK, enabled DEFAULT false, on_done, on_attention, on_finished DEFAULT true)` (no row = off), `push_subscriptions(id, user_id, endpoint UNIQUE, p256dh, auth, created_at)`, `notification_outbox(id, user_id, dedupe_key, payload_json ≤ 1 KiB, created_at, UNIQUE(user_id, dedupe_key))` and `notification_deliveries(outbox_id, subscription_id, status, claimed_at, finished_at, PK(outbox_id, subscription_id))`. Outbox and delivery rows are operational and pruned after 7 days.
 
 ---
