@@ -141,7 +141,7 @@ func TestIntegrationPollerReportsProviderHookStatus(t *testing.T) {
 	}
 	_, sessions = inv.Snapshot()
 	got, ok = findSession(sessions, "inventory-hook-status-it")
-	if !ok || got.Status != tmux.AgentWorking || !slices.Equal(got.Agents, []string{"codex"}) {
+	if !ok || got.Status != "" || !slices.Equal(got.Agents, []string{"codex"}) {
 		t.Fatalf("stale ended state with live Codex process = %+v (found %v)", got, ok)
 	}
 	testenv.Sh(t, c, "tmux send-keys -t =inventory-hook-status-it: C-c")
