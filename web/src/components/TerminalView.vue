@@ -6,7 +6,7 @@ import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
-import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
 import { TermSession, termURL, type SessionState } from '@/api/term'
 import { ApiError, copyModeApi, filesystemApi, terminalOutputApi } from '@/api/client'
 import { blurActiveFieldOnHide } from '@/lib/pageFocus'
@@ -291,7 +291,9 @@ function prepareInput(input: HTMLTextAreaElement | undefined) {
 
 /** Focuses the terminal, which brings up a phone's on-screen keyboard. */
 function showKeyboard() {
-  term.value?.focus()
+  // The action is emitted before the dropdown finishes closing. Focus xterm
+  // on the next render tick, after the menu has removed its active item.
+  void nextTick(() => term.value?.focus())
 }
 
 /** Opens the search bar (or refocuses it), pre-filled with the selection's
