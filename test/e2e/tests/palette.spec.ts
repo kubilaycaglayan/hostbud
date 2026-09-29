@@ -112,7 +112,7 @@ test('(T8) Global shortcuts do not reach the running program', async ({ page, ui
   await expect(ui.treeItem(vim)).toBeFocused()
   await page.keyboard.press('Control+Shift+E')
   await expect(drawer).toBeHidden()
-  await expect(page.locator('.xterm-helper-textarea')).toBeFocused()
+  await expect(page.locator('[data-focused="true"] .xterm-helper-textarea')).toBeFocused()
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.keyboard.press('Control+Shift+[')
   await expect.poll(() => ui.activeTabName()).toBe(shell)
@@ -153,13 +153,13 @@ test('(T9) Palette jumps to a session and Escape restores terminal focus', async
   await dialog.getByRole('combobox', { name: 'Command palette' }).fill(names[1].slice(0, 12))
   await page.keyboard.press('Enter')
   await ui.waitForTerminal(names[1])
-  await expect(page.locator('.xterm-helper-textarea')).toBeFocused()
+  await expect(page.locator('[data-focused="true"] .xterm-helper-textarea')).toBeFocused()
 
   await page.keyboard.press('Control+Shift+K')
   await dialog.getByRole('combobox', { name: 'Command palette' }).fill(names[0].slice(0, 12))
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()
-  await expect(page.locator('.xterm-helper-textarea')).toBeFocused()
+  await expect(page.locator('[data-focused="true"] .xterm-helper-textarea')).toBeFocused()
 })
 
 test('(T9) Palette runs theme, tree, session and confirmation actions', async ({ page, ui, target, request }) => {

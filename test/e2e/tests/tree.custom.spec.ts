@@ -283,7 +283,7 @@ test('(T4) Inline rename a session', async ({ page, ui, target }) => {
   await expect(input).toBeFocused()
   await input.fill(taken)
   await input.press('Enter')
-  await expect(page.getByRole('alert')).toContainText(/already exists|in use/i)
+  await expect(page.getByRole('alert').first()).toContainText(/already exists|in use/i)
   await expect(ui.treeItem(oldName)).toBeVisible()
   await input.press('Escape')
   await ui.treeItem(oldName).focus()

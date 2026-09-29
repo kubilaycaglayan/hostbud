@@ -181,7 +181,7 @@ test.describe('custom tree on iPhone 13 Pro', () => {
     await ui.showList()
     for (const index of [0, 1]) {
       if (index === 0) {
-        const header = ui.treeItem(entries[index].name).locator(':scope > div')
+        const header = ui.treeItem(entries[index].name).locator(':scope > .tree-row')
         await header.dispatchEvent('pointerdown', { pointerType: 'touch', clientX: 12, clientY: 12 })
         await page.waitForTimeout(550)
         await header.dispatchEvent('pointerup', { pointerType: 'touch', clientX: 12, clientY: 12 })

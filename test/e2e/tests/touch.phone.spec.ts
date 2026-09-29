@@ -103,7 +103,7 @@ test('(T14) Touch targets and zoom for M6 controls', async ({ page, target, ui }
   await expect(page.locator(`[data-tree-key^="pane:host/${session}/"]`)).toHaveCount(2)
   await assertTouchTargets(page)
 
-  const projectHeader = ui.treeItem(project).locator(':scope > div')
+  const projectHeader = ui.treeItem(project).locator(':scope > .tree-row')
   await projectHeader.dispatchEvent('pointerdown', { pointerType: 'touch', clientX: 12, clientY: 12 })
   await page.waitForTimeout(550)
   await projectHeader.dispatchEvent('pointerup', { pointerType: 'touch', clientX: 12, clientY: 12 })

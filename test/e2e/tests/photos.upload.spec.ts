@@ -58,7 +58,7 @@ test('(M8 T10) Send original photo bytes to the active session repo', async ({ p
     const event = new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: data })
     textarea.dispatchEvent(event)
   }, { bytes: pastedBytes, name: pastedName })
-  await expect(page.getByText('Photo added to repo')).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Notifications' }).getByText('Photo added to repo').last()).toBeVisible()
   await expect(page.getByText(new RegExp(`\\.\\/${pastedName}`))).toBeVisible()
   const pastedExpected = createHash('sha256').update(Buffer.from(pastedBytes)).digest('hex')
   expect((await target.run(`sha256sum ${shq(`${repoPath}/${pastedName}`)}`)).split(/\s+/)[0]).toBe(pastedExpected)
