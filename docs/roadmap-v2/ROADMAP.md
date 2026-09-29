@@ -1,6 +1,6 @@
 # hostbud v2 — Roadmap (agent task queue)
 
-Status: **V2-M1 implemented** (acceptance: [V2-M1-acceptance.md](V2-M1-acceptance.md)); **V2-M2 implemented** (opt-in, `HOSTBUD_PARALLEL_QUEUES`, off by default; [V2-M2-tasks.md](V2-M2-tasks.md) · [V2-M2-acceptance.md](V2-M2-acceptance.md); its e2e run is on demand); **V2-M3 implemented** (opt-in per account, off by default; Web Push needs `HOSTBUD_VAPID_*`; [V2-M3-tasks.md](V2-M3-tasks.md) · [V2-M3-acceptance.md](V2-M3-acceptance.md); its e2e run is on demand); **V2-M4 implemented** (opt-in per item, both gates empty by default; `HOSTBUD_VERIFY_TIMEOUT`; [V2-M4-tasks.md](V2-M4-tasks.md) · [V2-M4-acceptance.md](V2-M4-acceptance.md); its e2e run is on demand); **V2-M5 implemented** (opt-in, empty provider is off; [V2-M5-tasks.md](V2-M5-tasks.md) · [V2-M5-acceptance.md](V2-M5-acceptance.md); full e2e run is on demand and owner checks remain open). V2-M1 breakdown: [V2-M1-tasks.md](V2-M1-tasks.md) · [V2-M1-acceptance.md](V2-M1-acceptance.md). Design source of truth: [ARCHITECTURE.md](ARCHITECTURE.md) in this directory (cited below as **v2 §N**). The v1 documents are cited as **v1 ARCHITECTURE §N** ([../ARCHITECTURE.md](../ARCHITECTURE.md)) and **v1 ROADMAP** ([../ROADMAP.md](../ROADMAP.md)).
+Status: **V2-M1 implemented** (acceptance: [V2-M1-acceptance.md](V2-M1-acceptance.md)); **V2-M2 implemented** (opt-in, `HOSTBUD_PARALLEL_QUEUES`, off by default; [V2-M2-tasks.md](V2-M2-tasks.md) · [V2-M2-acceptance.md](V2-M2-acceptance.md); its e2e run is on demand); **V2-M3 implemented** (opt-in per account, off by default; Web Push needs `HOSTBUD_VAPID_*`; [V2-M3-tasks.md](V2-M3-tasks.md) · [V2-M3-acceptance.md](V2-M3-acceptance.md); its e2e run is on demand); **V2-M4 implemented** (opt-in per item, both gates empty by default; `HOSTBUD_VERIFY_TIMEOUT`; [V2-M4-tasks.md](V2-M4-tasks.md) · [V2-M4-acceptance.md](V2-M4-acceptance.md); its e2e run is on demand); **V2-M5 implemented** (opt-in, empty provider is off; [V2-M5-tasks.md](V2-M5-tasks.md) · [V2-M5-acceptance.md](V2-M5-acceptance.md); full e2e run is on demand and owner checks remain open); **V2-M6 in progress** ([V2-M6-tasks.md](V2-M6-tasks.md) · [V2-M6-acceptance.md](V2-M6-acceptance.md)). V2-M1 breakdown: [V2-M1-tasks.md](V2-M1-tasks.md) · [V2-M1-acceptance.md](V2-M1-acceptance.md). Design source of truth: [ARCHITECTURE.md](ARCHITECTURE.md) in this directory (cited below as **v2 §N**). The v1 documents are cited as **v1 ARCHITECTURE §N** ([../ARCHITECTURE.md](../ARCHITECTURE.md)) and v1 ROADMAP ([../ROADMAP.md](../ROADMAP.md)).
 
 This roadmap replaces the *v2 — Orchestration* section of the v1 ROADMAP (V2.1–V2.5). That section and v1 ARCHITECTURE §10 were aligned with it in V2-M1 T12 and now point here.
 
@@ -498,6 +498,19 @@ Breakdown: [V2-M5-tasks.md](V2-M5-tasks.md) · [V2-M5-acceptance.md](V2-M5-accep
 **Manual checks (owner):** one real OpenAI classification of a quiet real agent session; review cost settings.
 
 ---
+
+## V2-M6 — Queue after an active goal (opt-in)
+
+Goal: when creating a queue, optionally select an active hostbud-tracked agent run and hold the new queue until that run's structured `/goal` is achieved. This supports chaining a fresh queue after work already in progress.
+
+Scope and task breakdown: [V2-M6-tasks.md](V2-M6-tasks.md) · [V2-M6-acceptance.md](V2-M6-acceptance.md).
+
+**Switch:** per queue. No selected predecessor means existing behavior. The selection is limited to active, hostbud-tracked runs on the same machine. Manually started tmux sessions are not selectable because hostbud cannot observe their structured goal state.
+
+1. A new queue persists its optional predecessor run; existing queues are unchanged. — U/I: T1 · E: T2.
+2. Starting a dependent queue waits for predecessor achievement, including a late achievement after stale and restart recovery. — U/I: T2 · E: T2 *Queue waits for active goal*.
+3. A failed, exited or cancelled predecessor pauses its dependent queue; it never releases it. — U/I: T2 · E: T2 *Unsuccessful predecessor pauses dependent queue*.
+4. The create form defaults to no dependency and lists eligible active goals when present. — U: T3 · I: T3 · E: T3 *No dependency by default*.
 
 ## Later (not scheduled)
 

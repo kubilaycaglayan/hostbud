@@ -328,6 +328,9 @@ func (d *Dispatcher) advance(ctx context.Context, queueID, source string) {
 	if err != nil || q.Status != store.QueueRunning {
 		return
 	}
+	if !d.predecessorReady(ctx, q) {
+		return
+	}
 	if busy, err := d.queueBusy(ctx, queueID); err != nil || busy {
 		return
 	}
@@ -340,6 +343,25 @@ func (d *Dispatcher) advance(ctx context.Context, queueID, source string) {
 		return
 	}
 	d.startItem(ctx, q, item, source)
+}
+
+// predecessorReady keeps a dependent queue out of both dispatcher paths
+// until its linked goal achieves. Stale is active because it can achieve late.
+func (d *Dispatcher) predecessorReady(ctx context.Context, q store.Queue) bool {
+	if q.AfterRunID == nil {
+		return true
+	}
+	run, err := d.store.Run(ctx, *q.AfterRunID)
+	if err == nil && run.Status == store.RunAchieved {
+		return true
+	}
+	if err == nil && (run.Status == store.RunStarting || run.Status == store.RunRunning || run.Status == store.RunStale) {
+		return false
+	}
+	if errors.Is(err, store.ErrNotFound) || err == nil {
+		_, _ = d.service.Pause(ctx, q.ID)
+	}
+	return false
 }
 
 // startItem creates the item's run and session. It reports false only when
@@ -448,6 +470,9 @@ func (d *Dispatcher) dispatchOnce(ctx context.Context, machine, source string) {
 		return
 	}
 	for _, q := range queues {
+		if q.Status == store.QueueRunning && !d.predecessorReady(ctx, q) {
+			continue
+		}
 		// A running queue out of line: one from before V2-M2, or one whose
 		// start raced a restart. It joins at the back.
 		if q.Status == store.QueueRunning && q.WaitingSince == nil {
@@ -462,6 +487,9 @@ func (d *Dispatcher) dispatchOnce(ctx context.Context, machine, source string) {
 		return
 	}
 	for _, q := range waiting {
+		if !d.predecessorReady(ctx, q) {
+			continue
+		}
 		if busy, err := d.queueBusy(ctx, q.ID); err != nil {
 			continue
 		} else if busy {
@@ -830,7 +858,22 @@ func (d *Dispatcher) finish(ctx context.Context, run store.Run, to, detail, sour
 	if publish {
 		d.service.Publish(ctx, "run_"+to, item.QueueID)
 	}
+	if to != store.RunAchieved && to != store.RunStale {
+		d.pauseDependents(ctx, run.ID)
+	}
 	return done, nil
+}
+
+func (d *Dispatcher) pauseDependents(ctx context.Context, runID string) {
+	views, err := d.service.List(ctx)
+	if err != nil {
+		return
+	}
+	for _, q := range views {
+		if q.AfterRunID != nil && *q.AfterRunID == runID && q.Status == store.QueueRunning {
+			_, _ = d.service.Pause(ctx, q.ID)
+		}
+	}
 }
 
 // achieved: the only outcome that advances the queue (§5.4). A late
@@ -841,6 +884,7 @@ func (d *Dispatcher) achieved(ctx context.Context, rc runCtx, source string) {
 	if err != nil {
 		return
 	}
+	d.releaseDependents(ctx, run.ID)
 	if rc.item.Gated() {
 		// V2-M4: the item enters its gates; the queue waits (a late achieved
 		// leaves it paused, so the gates never advance it).
@@ -859,6 +903,18 @@ func (d *Dispatcher) achieved(ctx context.Context, rc runCtx, source string) {
 		d.next(ctx, rc.queueID, source)
 	case d.slots():
 		d.dispatch(ctx, source) // the stale run's slot is free; its queue stays paused
+	}
+}
+
+func (d *Dispatcher) releaseDependents(ctx context.Context, runID string) {
+	views, err := d.service.List(ctx)
+	if err != nil {
+		return
+	}
+	for _, q := range views {
+		if q.AfterRunID != nil && *q.AfterRunID == runID && q.Status == store.QueueRunning {
+			d.Kick(q.ID)
+		}
 	}
 }
 

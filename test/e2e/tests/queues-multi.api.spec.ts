@@ -81,6 +81,43 @@ test.describe('parallel queues', () => {
     expect(order.map((r) => r.status)).toEqual(['achieved', 'achieved', 'achieved', 'achieved'])
   })
 
+  test('(V2-M6 T2) Queue waits for active goal', async ({ multi, target }) => {
+    const p = await project(multi, target, 'e2e-after-goal')
+    const prior = await queueOn(multi, p.id, 'Prior', [{ condition: 'e2e predecessor slow', behavior: 'slow:5' }])
+    expect((await control(multi, prior.queue.id, 'start')).status()).toBe(200)
+    await waitItem(multi, prior.queue.id, prior.items[0].id, 'running')
+    const runId = (await itemOf(multi, prior.queue.id, prior.items[0].id)).run!.id
+    const next = await createQueue(multi, p.id, 'After goal', runId)
+    const nextItem = await addItem(multi, next.id, { instruction: '/goal e2e dependent runs' })
+    await stubs.setBehavior('e2e dependent runs', 'achieve:1', 0.5)
+    expect((await control(multi, next.id, 'start')).status()).toBe(200)
+    await new Promise((resolve) => setTimeout(resolve, 1_000))
+    expect((await itemOf(multi, next.id, nextItem.id)).status).toBe('queued')
+    await waitItem(multi, next.id, nextItem.id, 'running', 30_000)
+    expect((await itemOf(multi, prior.queue.id, prior.items[0].id)).run!.status).toBe('achieved')
+    await expect.poll(async () => (await getQueue(multi, next.id)).status).toBe('finished')
+  })
+
+  test('(V2-M6 T3) No dependency by default', async ({ multi, target }) => {
+    const p = await project(multi, target, 'e2e-no-after-goal')
+    const q = await createQueue(multi, p.id, 'Ordinary queue')
+    expect(q.afterRunId).toBeUndefined()
+  })
+
+  test('(V2-M6 T2) Unsuccessful predecessor pauses dependent queue', async ({ multi, target }) => {
+    const p = await project(multi, target, 'e2e-after-fail')
+    const prior = await queueOn(multi, p.id, 'Prior', [{ condition: 'e2e predecessor fails', behavior: 'fail' }])
+    await stubs.setBehavior('e2e predecessor fails', 'fail', 4)
+    expect((await control(multi, prior.queue.id, 'start')).status()).toBe(200)
+    await waitItem(multi, prior.queue.id, prior.items[0].id, 'running')
+    const runId = (await itemOf(multi, prior.queue.id, prior.items[0].id)).run!.id
+    const next = await createQueue(multi, p.id, 'After failed goal', runId)
+    const item = await addItem(multi, next.id, { instruction: '/goal e2e must not run' })
+    expect((await control(multi, next.id, 'start')).status()).toBe(200)
+    await expect.poll(async () => (await getQueue(multi, next.id)).status).toBe('paused')
+    expect((await itemOf(multi, next.id, item.id)).status).toBe('queued')
+  })
+
   test('(V2-M2 T2) Same-directory warning', async ({ multi, target }) => {
     const shared = await project(multi, target, 'e2e-shared')
     const a = await queueOn(multi, shared.id, 'Alpha', [{ condition: 'e2e shared a1', behavior: 'slow:8' }])

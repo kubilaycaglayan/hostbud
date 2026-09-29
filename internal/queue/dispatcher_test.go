@@ -348,6 +348,52 @@ func TestDispatcherRunsItemsInOrder(t *testing.T) {
 	}
 }
 
+// V2-M6 T2: a dependent queue remains queued while its predecessor is
+// active, then starts immediately when the predecessor reports achieved.
+func TestQueueDependencyWaitsForTrackedGoal(t *testing.T) {
+	e := newDispEnv(t, "predecessor")
+	e.svc.SetParallelQueues(true)
+	e.startQueue()
+	prior := e.run(1)
+	e.hook(prior, EventSessionStart, "session-prior")
+	dependent, err := e.svc.Create(e.ctx(), "project_a", "Dependent", prior.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dependent.AfterRunID == nil || *dependent.AfterRunID != prior.ID {
+		t.Fatalf("dependency = %v, want %s", dependent.AfterRunID, prior.ID)
+	}
+	predecessor, err := e.st.Run(e.ctx(), prior.ID)
+	if err != nil || predecessor.Status == store.RunAchieved {
+		t.Fatalf("predecessor before start = %+v, %v", predecessor, err)
+	}
+	_, err = e.svc.AddItem(e.ctx(), dependent.ID, "claude", "", "/goal dependent")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.svc.Start(e.ctx(), dependent.ID); err != nil {
+		t.Fatal(err)
+	}
+	e.d.Sync()
+	view, err := e.svc.Get(e.ctx(), dependent.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := view.Items[0].Status; got != store.ItemQueued {
+		t.Fatalf("dependent item started early: %s", got)
+	}
+	e.claude.set("session-prior", agents.Achieved)
+	e.hook(prior, EventTurnEnd, "session-prior")
+	e.d.Sync()
+	view, err = e.svc.Get(e.ctx(), dependent.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := view.Items[0].Status; got != store.ItemRunning {
+		t.Fatalf("dependent item status after achieved: %s", got)
+	}
+}
+
 func TestDispatcherFailClosed(t *testing.T) {
 	for _, c := range []struct {
 		name   string

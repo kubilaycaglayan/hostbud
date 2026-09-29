@@ -1,6 +1,6 @@
 # hostbud v2 — Agent task queue (architecture decision)
 
-Status: **V2-M1–V2-M5 implemented** (M2–M5 opt-in; the full M5 browser suite runs on demand). See the per-milestone acceptance checklists for verification status and the open owner checks. This document superseded the v2 sketch in the v1 [ARCHITECTURE.md §10](../ARCHITECTURE.md#10-v2--agent-task-queue) and the *v2* section of the v1 [ROADMAP.md](../ROADMAP.md), which now point here. The v1 obligations in v1 §10 still apply. The V2-M1 spike results are in §12.
+Status: **V2-M1–V2-M5 implemented; V2-M6 in progress** (M2–M6 opt-in; the full browser suite runs on demand). See the per-milestone acceptance checklists for verification status and the open owner checks. This document superseded the v2 sketch in the v1 [ARCHITECTURE.md §10](../ARCHITECTURE.md#10-v2--agent-task-queue) and the *v2* section of the v1 [ROADMAP.md](../ROADMAP.md), which now point here. The v1 obligations in v1 §10 still apply. The V2-M1 spike results are in §12.
 
 ---
 
@@ -90,6 +90,7 @@ Both clients the owner uses have a native `/goal` command. It keeps the agent wo
 7. **hostbud never kills a run's session.** Finished sessions stay open until the owner closes them, which goes through the usual confirmation.
 8. **Client adapters and a documented run protocol** (§7, §8) let other agent clients be added without changing the queue core.
 9. **Everything after the PoC is opt-in.** Parallel queues, notifications, completion gates and the LLM supervisor are all off by default.
+10. **Queue dependencies are opt-in per queue (V2-M6).** A queue may name a currently active hostbud-tracked run as its predecessor. It remains queued until that run's structured goal is achieved; stale predecessors can still achieve late. A failed, exited or cancelled predecessor pauses the dependent queue. Unlinked queues retain existing behavior. A manually started tmux session cannot be selected because hostbud has no tracked goal binding for it.
 
 ---
 

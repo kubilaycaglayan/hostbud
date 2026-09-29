@@ -5,11 +5,13 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/pressly/goose/v3"
 )
@@ -132,11 +134,55 @@ func TestIntegrationQueueMigrationKeepsV1Data(t *testing.T) {
 	}
 }
 
+// V2-M6 T1: only a live tracked run may be attached to a new queue.
+func TestIntegrationQueueAfterActiveRun(t *testing.T) {
+	ctx := context.Background()
+	repo, err := Open(ctx, testConfig(t.TempDir()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = repo.Close() }()
+	if _, err := repo.EnsureHostMachine(ctx, "Host machine"); err != nil {
+		t.Fatal(err)
+	}
+	project, err := repo.CreateProject(ctx, HostMachineID, "/home/dev/after-goal", "after-goal")
+	if err != nil {
+		t.Fatal(err)
+	}
+	prior, err := repo.CreateQueue(ctx, project.ID, "Prior")
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, err := repo.AddQueueItem(ctx, prior.ID, "claude", "", "/goal finish first")
+	if err != nil {
+		t.Fatal(err)
+	}
+	run, err := repo.CreateRun(ctx, item.ID, make([]byte, 32), time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	dependent, err := repo.CreateQueue(ctx, project.ID, "Dependent", run.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dependent.AfterRunID == nil || *dependent.AfterRunID != run.ID {
+		t.Fatalf("after run = %v; want %s", dependent.AfterRunID, run.ID)
+	}
+	ended := time.Now()
+	if _, err := repo.TransitionRun(ctx, run.ID, []string{RunStarting}, RunAchieved, "", &ended); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repo.CreateQueue(ctx, project.ID, "Too late", run.ID); !errors.Is(err, ErrConflict) {
+		t.Fatalf("terminal predecessor accepted: %v", err)
+	}
+}
+
 // columnChecksums is tableChecksums over fixed columns, so a table that
 // gains a column keeps a comparable checksum.
 // v2m1ItemCols are queue_items' columns before V2-M4 (0009 adds the gate
 // columns, whose defaults would change a "*" checksum).
 const v2m1ItemCols = "id, queue_id, machine_id, position, agent, flags, instruction, status, created_at, updated_at"
+const v2m5QueueCols = "id, machine_id, project_id, name, status, created_at, updated_at, waiting_since"
 
 func columnChecksums(t *testing.T, db *sql.DB, tables map[string]string) map[string]string {
 	t.Helper()

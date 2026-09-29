@@ -38,7 +38,7 @@ func (f *fakeQueues) Get(_ context.Context, id string) (queue.View, error) {
 	f.rec("get " + id)
 	return queue.View{Queue: store.Queue{ID: id}}, f.err
 }
-func (f *fakeQueues) Create(_ context.Context, projectID, name string) (queue.View, error) {
+func (f *fakeQueues) Create(_ context.Context, projectID, name string, afterRunID ...string) (queue.View, error) {
 	f.rec("create " + projectID + " " + name)
 	return queue.View{Queue: store.Queue{ID: "queue_a", ProjectID: projectID, Name: name}}, f.err
 }

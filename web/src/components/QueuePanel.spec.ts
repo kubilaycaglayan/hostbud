@@ -271,9 +271,27 @@ describe('QueuePanel', () => {
     name.dispatchEvent(new Event('input'))
     button('Create queue')!.click()
     await flushPromises()
-    expect(calls).toEqual([{ method: 'POST', path: '/api/queues', body: { projectId: 'p1', name: 'Docs' } }])
+    expect(calls).toEqual([{ method: 'POST', path: '/api/queues', body: { projectId: 'p1', name: 'Docs', afterRunId: '' } }])
     expect(button('Show queue Docs')!.getAttribute('aria-current')).toBe('true')
     expect($$('form[aria-label="Create queue"]')).toHaveLength(0)
+  })
+
+  it('can opt into waiting for a tracked active goal', async () => {
+    const active = { ...queued, status: 'running' as const, run: { id: 'run-active', status: 'running' as const, sessionName: 'app-q2', startedAt: '' } }
+    const calls = stubFetch(() => ({ status: 201, body: second({ items: [] }) }))
+    await mountPanel(queue([active], 'running'), false, true)
+    button('New queue')!.click()
+    await flushPromises()
+    const selector = $$('form[aria-label="Create queue"] select').at(-1) as HTMLSelectElement
+    expect(selector.options[0].textContent).toContain('Start normally')
+    expect(selector.options[1].textContent).toContain('app-q2')
+    selector.value = 'run-active'
+    selector.dispatchEvent(new Event('change'))
+    const name = $$('form[aria-label="Create queue"] input')[0] as HTMLInputElement
+    name.value = 'Following'; name.dispatchEvent(new Event('input'))
+    button('Create queue')!.click()
+    await flushPromises()
+    expect(calls[0].body).toMatchObject({ afterRunId: 'run-active' })
   })
 
   it('with the switch off, shows what exists and explains the switch', async () => {

@@ -16,7 +16,7 @@ import (
 type QueueService interface {
 	List(ctx context.Context) ([]queue.View, error)
 	Get(ctx context.Context, id string) (queue.View, error)
-	Create(ctx context.Context, projectID, name string) (queue.View, error)
+	Create(ctx context.Context, projectID, name string, afterRunID ...string) (queue.View, error)
 	Rename(ctx context.Context, id, name string) (queue.View, error)
 	Delete(ctx context.Context, id string) error
 	AddItem(ctx context.Context, queueID, agent, flags, instruction string, gates ...store.ItemGates) (queue.ItemView, error)
@@ -188,8 +188,9 @@ func (s *server) getQueue(w http.ResponseWriter, r *http.Request) {
 }
 
 type createQueueRequest struct {
-	ProjectID string `json:"projectId"`
-	Name      string `json:"name"`
+	ProjectID  string `json:"projectId"`
+	Name       string `json:"name"`
+	AfterRunID string `json:"afterRunId"`
 }
 
 func (s *server) createQueue(w http.ResponseWriter, r *http.Request) {
@@ -197,7 +198,7 @@ func (s *server) createQueue(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
-	v, err := s.cfg.Queues.Create(r.Context(), req.ProjectID, req.Name)
+	v, err := s.cfg.Queues.Create(r.Context(), req.ProjectID, req.Name, req.AfterRunID)
 	if err != nil {
 		s.queueError(w, err)
 		return

@@ -125,6 +125,9 @@ export interface Queue {
   projectPath: string
   items: QueueItem[]
   warnings?: QueueWarning[]
+  /** V2-M6: selected active run whose achieved goal releases this queue. */
+  afterRunId?: string
+  afterRunStatus?: string
 }
 
 /** GET /api/queues. */

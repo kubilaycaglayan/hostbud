@@ -111,6 +111,8 @@ type Queue struct {
 	// WaitingSince is when the queue last started waiting for a run slot
 	// (start, resume, or its previous run ending; V2-M2 FIFO order).
 	WaitingSince *time.Time `json:"waitingSince,omitempty"`
+	// AfterRunID gates this queue until an already active tracked run achieves its goal.
+	AfterRunID *string `json:"afterRunId,omitempty"`
 }
 
 // QueueItem is one agent run request: agent, flags and instruction.
@@ -197,7 +199,7 @@ type RunUpdate struct {
 }
 
 const (
-	queueCols = `id, machine_id, project_id, name, status, created_at, updated_at, waiting_since`
+	queueCols = `id, machine_id, project_id, name, status, created_at, updated_at, waiting_since, after_run_id`
 	itemCols  = `id, queue_id, machine_id, position, agent, flags, instruction, status, created_at, updated_at,
 		verify_command, requires_approval`
 	runCols = `id, item_id, machine_id, session_name, agent_session_id, transcript_path, transcript_offset,
@@ -210,10 +212,14 @@ type scanner interface{ Scan(...any) error }
 func scanQueue(row scanner) (Queue, error) {
 	var q Queue
 	var waiting sql.NullTime
-	err := row.Scan(&q.ID, &q.MachineID, &q.ProjectID, &q.Name, &q.Status, &q.CreatedAt, &q.UpdatedAt, &waiting)
+	var afterRun sql.NullString
+	err := row.Scan(&q.ID, &q.MachineID, &q.ProjectID, &q.Name, &q.Status, &q.CreatedAt, &q.UpdatedAt, &waiting, &afterRun)
 	if waiting.Valid {
 		t := waiting.Time.UTC()
 		q.WaitingSince = &t
+	}
+	if afterRun.Valid {
+		q.AfterRunID = &afterRun.String
 	}
 	return q, err
 }
@@ -372,7 +378,7 @@ func validItem(agent, flags, instruction string) error {
 }
 
 // CreateQueue creates an idle queue for a saved project.
-func (s *Store) CreateQueue(ctx context.Context, projectID, name string) (Queue, error) {
+func (s *Store) CreateQueue(ctx context.Context, projectID, name string, afterRunIDs ...string) (Queue, error) {
 	name, err := validQueueName(name)
 	if err != nil {
 		return Queue{}, err
@@ -381,15 +387,26 @@ func (s *Store) CreateQueue(ctx context.Context, projectID, name string) (Queue,
 	if err != nil {
 		return Queue{}, err
 	}
+	var afterRunID any
+	if len(afterRunIDs) > 0 && afterRunIDs[0] != "" {
+		run, runErr := s.Run(ctx, afterRunIDs[0])
+		if runErr != nil {
+			return Queue{}, runErr
+		}
+		if run.MachineID != p.MachineID || (run.Status != RunStarting && run.Status != RunRunning && run.Status != RunStale) {
+			return Queue{}, ErrConflict
+		}
+		afterRunID = run.ID
+	}
 	id, err := newQueueRowID("queue")
 	if err != nil {
 		return Queue{}, err
 	}
 	now := s.now()
 	q, err := scanQueue(s.db.QueryRowContext(ctx, `
-		INSERT INTO queues (id, machine_id, project_id, name, status, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, 'idle', $5, $5) RETURNING `+queueCols,
-		id, p.MachineID, p.ID, name, now))
+		INSERT INTO queues (id, machine_id, project_id, name, status, created_at, updated_at, after_run_id)
+		VALUES ($1, $2, $3, $4, 'idle', $5, $5, $6) RETURNING `+queueCols,
+		id, p.MachineID, p.ID, name, now, afterRunID))
 	return q, duplicateName(err)
 }
 

@@ -52,12 +52,13 @@ type Store interface {
 	Project(ctx context.Context, id string) (store.Project, error)
 	Queues(ctx context.Context, machineID string) ([]store.Queue, error)
 	Queue(ctx context.Context, id string) (store.Queue, error)
-	CreateQueue(ctx context.Context, projectID, name string) (store.Queue, error)
+	CreateQueue(ctx context.Context, projectID, name string, afterRunID ...string) (store.Queue, error)
 	RenameQueue(ctx context.Context, id, name string) (store.Queue, error)
 	DeleteQueue(ctx context.Context, id string) error
 	TransitionQueue(ctx context.Context, id string, from []string, to string) (store.Queue, error)
 	QueueItems(ctx context.Context, queueID string) ([]store.QueueItem, error)
 	QueueItem(ctx context.Context, id string) (store.QueueItem, error)
+	Run(ctx context.Context, id string) (store.Run, error)
 	FirstQueuedItem(ctx context.Context, queueID string) (store.QueueItem, error)
 	AddQueueItem(ctx context.Context, queueID, agent, flags, instruction string, gates ...store.ItemGates) (store.QueueItem, error)
 	UpdateQueueItem(ctx context.Context, id string, u store.QueueItemUpdate) (store.QueueItem, error)
@@ -141,10 +142,11 @@ type ItemView struct {
 // View is a queue with its project and items.
 type View struct {
 	store.Queue
-	ProjectName string     `json:"projectName"`
-	ProjectPath string     `json:"projectPath"`
-	Items       []ItemView `json:"items"`
-	Warnings    []Warning  `json:"warnings,omitempty"`
+	ProjectName    string     `json:"projectName"`
+	ProjectPath    string     `json:"projectPath"`
+	Items          []ItemView `json:"items"`
+	Warnings       []Warning  `json:"warnings,omitempty"`
+	AfterRunStatus string     `json:"afterRunStatus,omitempty"`
 }
 
 // WarningSharedDirectory: another active queue runs in the same directory,
@@ -393,6 +395,11 @@ func (s *Service) item(ctx context.Context, id string) (store.QueueItem, error) 
 
 func (s *Service) view(ctx context.Context, q store.Queue) (View, error) {
 	v := View{Queue: q, Items: []ItemView{}}
+	if q.AfterRunID != nil {
+		if predecessor, err := s.store.Run(ctx, *q.AfterRunID); err == nil {
+			v.AfterRunStatus = predecessor.Status
+		}
+	}
 	if p, err := s.store.Project(ctx, q.ProjectID); err == nil {
 		v.ProjectName, v.ProjectPath = p.Name, p.Path
 	} else if !errors.Is(err, store.ErrNotFound) {
@@ -598,7 +605,7 @@ func (s *Service) changed(ctx context.Context, action, queueID string) (View, er
 
 // Create creates a queue for a saved project. With the parallel-queues
 // switch off, V2-M1's limit of one queue holds.
-func (s *Service) Create(ctx context.Context, projectID, name string) (View, error) {
+func (s *Service) Create(ctx context.Context, projectID, name string, afterRunID ...string) (View, error) {
 	queues, err := s.store.Queues(ctx, s.machine)
 	if err != nil {
 		return View{}, err
@@ -610,10 +617,10 @@ func (s *Service) Create(ctx context.Context, projectID, name string) (View, err
 	if !named {
 		name = "Queue"
 	}
-	q, err := s.store.CreateQueue(ctx, projectID, name)
+	q, err := s.store.CreateQueue(ctx, projectID, name, afterRunID...)
 	// An unnamed queue takes the first free "Queue n".
 	for n := 2; errors.Is(err, store.ErrDuplicate) && !named && n <= 100; n++ {
-		q, err = s.store.CreateQueue(ctx, projectID, fmt.Sprintf("Queue %d", n))
+		q, err = s.store.CreateQueue(ctx, projectID, fmt.Sprintf("Queue %d", n), afterRunID...)
 	}
 	switch {
 	case errors.Is(err, store.ErrDuplicate):

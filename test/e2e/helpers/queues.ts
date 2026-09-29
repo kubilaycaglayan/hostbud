@@ -61,6 +61,8 @@ export interface Queue {
   items: QueueItem[]
   /** V2-M2: non-blocking notices (another busy queue in the same directory). */
   warnings?: QueueWarning[]
+  afterRunId?: string
+  afterRunStatus?: string
 }
 
 /** GET /api/queues. */
@@ -80,8 +82,8 @@ export async function newProject(request: APIRequestContext, target: Target, pre
   return { id: (await res.json() as { id: string }).id, name, path }
 }
 
-export async function createQueue(request: APIRequestContext, projectId: string, name = 'Milestones'): Promise<Queue> {
-  const res = await mutate(request, 'POST', '/api/queues', { projectId, name })
+export async function createQueue(request: APIRequestContext, projectId: string, name = 'Milestones', afterRunId = ''): Promise<Queue> {
+  const res = await mutate(request, 'POST', '/api/queues', { projectId, name, afterRunId })
   expect(res.status(), await res.text()).toBe(201)
   return await res.json() as Queue
 }

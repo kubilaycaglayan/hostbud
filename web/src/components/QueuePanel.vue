@@ -85,6 +85,10 @@ watch(open, (isOpen) => { if (isOpen && !store.loaded) void store.load() })
 // ---- creating, renaming and deleting queues ----
 const newProjectId = ref('')
 const newName = ref('Milestones')
+const afterRunId = ref('')
+const activeGoalRuns = computed(() => store.queues.flatMap((q) => q.items
+  .filter((it) => it.run && ['starting', 'running', 'stale'].includes(it.run.status))
+  .map((it) => ({ id: it.run!.id, session: it.run!.sessionName, queue: q.name, goal: it.instruction.replace(/^\/goal\s+/, '') }))))
 watch(() => projects.items, (list) => { if (!newProjectId.value && list.length) newProjectId.value = list[0].id }, { immediate: true })
 // With queues present, "New queue" opens the form; it needs the switch.
 const addingQueue = ref(false)
@@ -92,12 +96,13 @@ const showCreate = computed(() => store.loaded && (!store.queues.length || addin
 function newQueue() {
   addingQueue.value = true
   newName.value = ''
+  afterRunId.value = ''
 }
 function createQueue() {
   // An unnamed queue: "Milestones" for the first, else the server's "Queue n".
   const name = newName.value.trim() || (store.queues.length ? '' : 'Milestones')
   void act("Couldn't create the queue", async () => {
-    const created = await queuesApi.create(newProjectId.value, name)
+    const created = await queuesApi.create(newProjectId.value, name, afterRunId.value)
     selectedId.value = created.id
     addingQueue.value = false
     return created
@@ -382,6 +387,12 @@ const badge: Record<QueueItem['status'], string> = {
             <label class="block">Queue name
               <input v-model="newName" autocomplete="off" class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 text-base">
             </label>
+            <label v-if="activeGoalRuns.length" class="block">Start after active goal (optional)
+              <select v-model="afterRunId" autocomplete="off" class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 text-base">
+                <option value="">Start normally</option>
+                <option v-for="run in activeGoalRuns" :key="run.id" :value="run.id">{{ run.session }} · {{ run.goal }} ({{ run.queue }})</option>
+              </select>
+            </label>
             <div class="flex gap-2">
               <button type="submit" :disabled="busy || !newProjectId" class="touch-target min-h-11 rounded bg-accent px-3 font-bold text-bg">
                 Create queue
@@ -393,6 +404,11 @@ const badge: Record<QueueItem['status'], string> = {
           </form>
 
           <template v-if="queue && !addingQueue">
+            <p v-if="queue.afterRunId" class="mt-2 text-sm text-muted" data-testid="queue-dependency">
+              <template v-if="queue.afterRunStatus === 'achieved'">Started after its linked goal was achieved.</template>
+              <template v-else-if="['starting', 'running', 'stale'].includes(queue.afterRunStatus || '')">Waiting for the linked session's goal to be achieved.</template>
+              <template v-else>The linked goal is unavailable or ended without achievement. This queue is paused; create a new queue linked to an active goal.</template>
+            </p>
             <div class="mt-2 flex flex-wrap items-center gap-2">
               <form v-if="renaming" class="flex min-w-0 flex-wrap items-end gap-2" aria-label="Rename queue" @submit.prevent="saveRename">
                 <label class="block min-w-0">Queue name

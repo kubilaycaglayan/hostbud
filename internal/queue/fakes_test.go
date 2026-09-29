@@ -375,7 +375,7 @@ func (m *memStore) Queue(_ context.Context, id string) (store.Queue, error) {
 	return q, nil
 }
 
-func (m *memStore) CreateQueue(_ context.Context, projectID, name string) (store.Queue, error) {
+func (m *memStore) CreateQueue(_ context.Context, projectID, name string, afterRunIDs ...string) (store.Queue, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	p, ok := m.q().projects[projectID]
@@ -387,6 +387,9 @@ func (m *memStore) CreateQueue(_ context.Context, projectID, name string) (store
 	}
 	m.q().seq++
 	q := store.Queue{ID: fmt.Sprintf("queue_%02d", m.q().seq), MachineID: p.MachineID, ProjectID: p.ID, Name: name, Status: store.QueueIdle}
+	if len(afterRunIDs) > 0 && afterRunIDs[0] != "" {
+		q.AfterRunID = &afterRunIDs[0]
+	}
 	m.q().queues[q.ID] = q
 	return q, nil
 }
