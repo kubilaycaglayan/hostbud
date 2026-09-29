@@ -45,7 +45,7 @@ test('(T5) Leave scroll mode', async ({ page, target, ui }) => {
   await page.getByRole('button', { name: 'Scroll history' }).tap()
   const terminalInput = page.getByRole('textbox', { name: 'Terminal input' })
   await expect(terminalInput).toBeFocused()
-  await page.keyboard.insertText('echo scroll-typed-input')
+  await page.keyboard.type('echo scroll-typed-input')
   await page.keyboard.press('Enter')
   await expect.poll(() => target.capture(name)).toContain('scroll-typed-input')
   await expect.poll(() => target.display(name, '#{pane_in_mode}')).toBe('0')

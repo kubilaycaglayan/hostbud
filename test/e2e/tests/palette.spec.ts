@@ -192,7 +192,10 @@ test('(T9) Palette runs theme, tree, session and confirmation actions', async ({
   await open(`Hide ${session}`)
   await choose(`Hide ${session}`)
   // The page's own account (page.request), after the debounced save.
-  const hiddenSessions = async () => ((await (await page.request.get('/api/ui-state/tree')).json()).hidden.sessions as string[])
+  const hiddenSessions = async () => {
+    const state = await (await page.request.get('/api/ui-state/tree')).json() as { hidden?: { sessions?: string[] } }
+    return state.hidden?.sessions ?? []
+  }
   await expect.poll(hiddenSessions).toContain(`host/${session}`)
   await open(`Unhide ${session}`)
   await choose(`Unhide ${session}`)

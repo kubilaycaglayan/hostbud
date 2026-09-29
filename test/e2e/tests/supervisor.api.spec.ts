@@ -87,18 +87,22 @@ llmTest('(V2-M5 T5) Flag notifies once per run and label with the allowlisted pa
   const item = await addItem(llm, queue.id, { instruction: '/goal e2e llm notify' })
   await control(llm, queue.id, 'start')
   await expect.poll(async () => (await itemOf(llm, queue.id, item.id)).run?.flag?.label, { timeout: 40_000 }).toBe('waiting_input')
-  await expect.poll(async () => received(device), { timeout: 15_000 }).toHaveLength(1)
+  await expect.poll(async () => received(device), { timeout: 15_000 }).toHaveLength(2)
   await expect.poll(async () => (await llm.get('http://hostbud-e2e-llmfake:8080/ctl/requests')).json(), { timeout: 20_000 }).toHaveLength(2)
-  expect(await received(device)).toHaveLength(1)
+  expect(await received(device)).toHaveLength(2)
   const runId=(await itemOf(llm,queue.id,item.id)).run!.id
   await expect.poll(async()=>(await llmDb.events(runId)).filter((e)=>e.kind==='llm_result').length,{timeout:10_000}).toBe(2)
   await llm.post('http://hostbud-e2e-llmfake:8080/ctl/script', { data: { label: 'blocked', reason: 'The run is blocked.' } })
   await expect.poll(async () => (await llm.get('http://hostbud-e2e-llmfake:8080/ctl/requests')).json(), { timeout: 20_000 }).toHaveLength(3)
   await expect.poll(async () => (await itemOf(llm, queue.id, item.id)).run?.flag?.label, { timeout: 10_000 }).toBe('blocked')
-  await expect.poll(async () => received(device), { timeout: 15_000 }).toHaveLength(2)
+  await expect.poll(async () => received(device), { timeout: 15_000 }).toHaveLength(3)
   const updated = await itemOf(llm, queue.id, item.id)
   const payloads = await received(device)
-  expect(payloads.map((p) => p.key)).toEqual([`run:${updated.run!.id}:llm:waiting_input`, `run:${updated.run!.id}:llm:blocked`])
+  expect(payloads.map((p) => p.key)).toEqual([
+    `run:${updated.run!.id}:attention`,
+    `run:${updated.run!.id}:llm:waiting_input`,
+    `run:${updated.run!.id}:llm:blocked`,
+  ])
   for (const payload of payloads) {
     expect(payload).toMatchObject({ kind: 'attention', project: project.name, position: 1 })
     expect(JSON.stringify(payload)).not.toMatch(/reason|pane|instruction|example-secret|API_KEY/)
