@@ -271,7 +271,8 @@ llmTest('(V2-M5 T3) Other provider 4xx records unknown without retry', async ({ 
   await expect.poll(async()=>(await llmDb.events((await itemOf(llm,queue.id,item.id)).run!.id)).filter((e)=>e.kind==='llm_result').length,{timeout:30_000}).toBe(1)
   const current=await itemOf(llm,queue.id,item.id)
   expect(current.status).toBe('needs_attention'); expect(current.run?.flag).toBeUndefined()
-  expect(await (await llm.get('http://hostbud-e2e-llmfake:8080/ctl/requests')).json()).toHaveLength(1)
+  const requests = await (await llm.get('http://hostbud-e2e-llmfake:8080/ctl/requests')).json() as { pane: string }[]
+  expect(requests.filter((request) => request.pane.includes('e2e llm bad request'))).toHaveLength(1)
 })
 
 llmTest('(V2-M5 T3) Malformed and out-of-schema provider content stays unknown', async ({ llm, target }) => {
@@ -285,6 +286,8 @@ llmTest('(V2-M5 T3) Malformed and out-of-schema provider content stays unknown',
   expect(current.status).toBe('needs_attention'); expect(current.run?.flag).toBeUndefined()
   await llm.post('http://hostbud-e2e-llmfake:8080/ctl/script',{data:{content:'{"label":"complete","reason":"outside the enum"}'}})
   expect((await override(llm,item.id,'retry')).status()).toBe(200)
+  // Owner retries enqueue the item but leave its queue paused until Resume.
+  expect((await control(llm,queue.id,'resume')).status()).toBe(200)
   await expect.poll(async()=>(await itemOf(llm,queue.id,item.id)).run?.id,{timeout:15_000}).not.toBe(current.run!.id)
   const retryRun=(await itemOf(llm,queue.id,item.id)).run!
   await expect.poll(async()=>(await llmDb.events(retryRun.id)).filter((e)=>e.kind==='llm_result').length,{timeout:30_000}).toBe(1)
