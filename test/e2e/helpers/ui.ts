@@ -309,6 +309,10 @@ export class UI {
  */
 export async function dragSortable(handle: Locator, target: Locator, position = { x: 20, y: 1 }): Promise<void> {
   const page = handle.page()
+  // Like dragTo: a press outside the viewport would land elsewhere (in a
+  // dialog, on its overlay).
+  await target.scrollIntoViewIfNeeded()
+  await handle.scrollIntoViewIfNeeded()
   const start = await handle.boundingBox()
   const finish = await target.boundingBox()
   if (!start || !finish) throw new Error('drag handle or target is not visible')
