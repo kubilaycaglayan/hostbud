@@ -41,7 +41,7 @@ async function dragTab(ui: UI, from: string, to: string, isMobile: boolean) {
   const start = await center(ui.tab(from))
   const end = await center(ui.tab(to))
   // Past the target's middle, toward its far edge.
-  const endX = end.x + Math.sign(end.x - start.x) * (end.box.width / 2 - 2)
+  const endX = end.x + Math.sign(end.x - start.x) * (end.box.width / 2 + (isMobile ? 12 : -2))
   if (!isMobile) {
     await ui.page.mouse.move(start.x, start.y)
     await ui.page.mouse.down()
@@ -54,14 +54,14 @@ async function dragTab(ui: UI, from: string, to: string, isMobile: boolean) {
   }
   const touch = (x: number, y: number) => [{ identifier: 1, clientX: x, clientY: y, pageX: x, pageY: y }]
   const el = ui.tab(from)
-  await el.dispatchEvent('touchstart', { touches: touch(start.x, start.y), targetTouches: touch(start.x, start.y), changedTouches: touch(start.x, start.y) })
+  await el.dispatchEvent('touchstart', { bubbles: true, cancelable: true, touches: touch(start.x, start.y), targetTouches: touch(start.x, start.y), changedTouches: touch(start.x, start.y) })
   await ui.page.waitForTimeout(400) // the hold that starts a touch drag (TabBar's delay)
   for (let i = 1; i <= 12; i++) {
     const x = start.x + ((endX - start.x) * i) / 12
-    await el.dispatchEvent('touchmove', { touches: touch(x, start.y), targetTouches: touch(x, start.y), changedTouches: touch(x, start.y) })
+    await el.dispatchEvent('touchmove', { bubbles: true, cancelable: true, touches: touch(x, start.y), targetTouches: touch(x, start.y), changedTouches: touch(x, start.y) })
     await ui.page.waitForTimeout(60) // Sortable samples the pointer every 50 ms
   }
-  await el.dispatchEvent('touchend', { touches: [], targetTouches: [], changedTouches: touch(endX, start.y) })
+  await el.dispatchEvent('touchend', { bubbles: true, cancelable: true, touches: [], targetTouches: [], changedTouches: touch(endX, start.y) })
 }
 
 /** Each tab's look: its classes, size and children (label and close only). */
