@@ -39,6 +39,27 @@ async function sampleFrames(page: Page, ms: number, during: () => Promise<void>)
   return page.evaluate(() => (window as unknown as { __frames: string[] }).__frames)
 }
 
+/** Samples xterm's rendered scroll offset, in terminal rows, per animation frame. */
+async function sampleScrollRows(page: Page, ms: number, during: () => Promise<void>): Promise<number[]> {
+  await page.evaluate((duration) => {
+    const w = window as unknown as { __scrollRows: number[] }
+    w.__scrollRows = []
+    const viewport = document.querySelector('.xterm-viewport')
+    const firstRow = document.querySelector('.xterm-rows > div')
+    if (!(viewport instanceof HTMLElement) || !(firstRow instanceof HTMLElement)) return
+    const rowHeight = firstRow.getBoundingClientRect().height
+    const end = performance.now() + duration
+    const tick = () => {
+      w.__scrollRows.push(rowHeight ? viewport.scrollTop / rowHeight : 0)
+      if (performance.now() < end) requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  }, ms)
+  await during()
+  await page.waitForTimeout(ms)
+  return page.evaluate(() => (window as unknown as { __scrollRows: number[] }).__scrollRows)
+}
+
 test.beforeEach(({ isMobile }) => {
   test.skip(isMobile, 'mouse-wheel scenarios are desktop only')
 })
@@ -56,17 +77,18 @@ test('(T6) Readable terminal scrolling', async ({ page, ui, target }) => {
 
   // mouse off, controlled notches: up moves toward older lines, one row per
   // frame at most, and reaches the same place as before the change.
-  const up = await sampleFrames(page, 700, async () => {
+  const upOffsets = await sampleScrollRows(page, 700, async () => {
     for (let i = 0; i < 4; i++) {
       await page.mouse.wheel(0, -100)
       await page.waitForTimeout(100)
     }
   })
-  const upTops = up.map(topOf).filter((t): t is number => t !== null)
-  expect(upTops.at(-1)!).toBeLessThan(bottom)
-  for (let i = 1; i < upTops.length; i++) {
-    expect(upTops[i]).toBeLessThanOrEqual(upTops[i - 1]) // never backwards
-    expect(upTops[i - 1] - upTops[i]).toBeLessThanOrEqual(2) // no jumps
+  const afterUp = topOf(await page.evaluate(() => window.__hostbud!.termViewport()))!
+  expect(afterUp).toBeLessThan(bottom)
+  expect(upOffsets.length).toBeGreaterThan(1)
+  for (let i = 1; i < upOffsets.length; i++) {
+    expect(upOffsets[i]).toBeLessThanOrEqual(upOffsets[i - 1]) // never backwards
+    expect(upOffsets[i - 1] - upOffsets[i]).toBeLessThanOrEqual(2) // no jumps over two rows per frame
   }
   await page.screenshot({ path: test.info().outputPath('wheel-scrolled-up.png') })
   expect(await target.display(name, '#{pane_in_mode}')).toBe('0')
