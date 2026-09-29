@@ -95,7 +95,7 @@ test.describe('custom tree on iPhone 13 Pro', () => {
     await header.getByRole('button', { name: `Expand ${project}` }).tap()
     await expect(header.locator('[data-project-count]')).toHaveCount(0)
     await expect(ui.treeItem('Other sessions').locator('[data-other-label]')).toHaveCSS('text-transform', 'uppercase')
-    const positions = await Promise.all([header.locator('span').first().boundingBox(), row.locator('button[data-session-row]').boundingBox()])
+    const positions = await Promise.all([header.locator(':scope > .tree-row').boundingBox(), row.locator('button[data-session-row]').boundingBox()])
     expect(positions[0]?.x).toBeLessThan(positions[1]?.x ?? 0)
   })
 

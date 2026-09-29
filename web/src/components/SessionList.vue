@@ -198,7 +198,7 @@ const sortableSessions = computed({
       :data-tree-key="props.treeView ? 'session:' + s.name : undefined"
       :data-tree-kind="props.treeView ? 'session' : undefined"
       :data-tree-group="props.treeView ? props.groupKey : undefined"
-      class="tree-row flex cursor-pointer flex-wrap items-center gap-x-1.5 rounded-r border-l-[3px] py-0.5 pr-1 pl-1.5 hover:bg-tree-header"
+      class="tree-row flex cursor-pointer flex-wrap items-center gap-x-1.5 rounded-r border-l-[3px] py-0.5 pr-1 pl-1 hover:bg-tree-header"
       :class="[s.name === props.selected ? 'border-accent bg-selected' : 'border-transparent', isHidden(s.name) ? 'opacity-50' : '']"
       @click="selectRowClick($event, s.name)"
     >

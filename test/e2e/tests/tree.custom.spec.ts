@@ -152,7 +152,7 @@ for (const mode of ['collapse', 'hierarchy'] as const) {
       await header.getByRole('button', { name: `Expand ${projectName}` }).click()
       await expect(header.locator('[data-project-count]')).toHaveCount(0)
       await expect(ui.treeItem('Other sessions').locator('[data-other-label]')).toHaveCSS('text-transform', 'uppercase')
-      const positions = await Promise.all([header.locator('span').first().boundingBox(), row.locator('button[data-session-row]').boundingBox()])
+      const positions = await Promise.all([header.locator(':scope > .tree-row').boundingBox(), row.locator('button[data-session-row]').boundingBox()])
       expect(positions[0]?.x).toBeLessThan(positions[1]?.x ?? 0)
       return
     }
@@ -187,8 +187,8 @@ test('Session rows show pane titles without activity ages or attachment dots', a
   await expect(ui.treeItem(plain).locator('[data-session-subtitle]')).toHaveCount(0)
   await expect(page.locator('[data-session-age], [data-session-dot]')).toHaveCount(0)
   await ui.openTerminal(titled)
-  await expect(ui.treeItem(titled)).toHaveClass(/bg-tree-header/)
-  await expect(ui.treeItem(plain)).not.toHaveClass(/bg-tree-header/)
+  await expect(ui.treeItem(titled)).toHaveClass(/(^|\s)bg-tree-header(?:\s|$)/)
+  await expect(ui.treeItem(plain)).not.toHaveClass(/(^|\s)bg-tree-header(?:\s|$)/)
 })
 
 test('(T2) Empty Other sessions group stays hidden', async ({ page, ui, target, request }) => {
