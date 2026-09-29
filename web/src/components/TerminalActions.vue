@@ -10,7 +10,7 @@ const item = 'touch-target flex min-h-11 cursor-pointer items-center rounded px-
 const open = ref(false)
 const splitStep = ref<'start' | 'position' | 'session'>('start')
 const splitDirection = ref<'row' | 'column'>('row')
-let restoreFocusOnClose = true
+let focusKeyboardOnClose = false
 
 watch(open, (isOpen) => {
   if (!isOpen) splitStep.value = 'start'
@@ -28,16 +28,20 @@ function chooseSession(session: string | null) {
 }
 
 function chooseAction(name: 'search' | 'copy' | 'keyboard' | 'dictation' | 'snapshot' | 'photos' | 'close') {
-  // Show keyboard deliberately moves focus into xterm. Prevent the menu's
-  // close autofocus from taking it straight back to the trigger.
-  if (name === 'keyboard') restoreFocusOnClose = false
+  // Wait for close-autofocus so xterm gets focus after menu selection while
+  // preserving the tap's user activation for the phone keyboard.
+  if (name === 'keyboard') {
+    focusKeyboardOnClose = true
+    return
+  }
   emit('action', name)
 }
 
 function onCloseAutoFocus(event: Event) {
-  if (restoreFocusOnClose) return
-  restoreFocusOnClose = true
+  if (!focusKeyboardOnClose) return
+  focusKeyboardOnClose = false
   event.preventDefault()
+  emit('action', 'keyboard')
 }
 </script>
 
