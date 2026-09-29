@@ -226,10 +226,12 @@ llmTest('(V2-M5 T3) An owner skip while classification is in flight discards the
 llmTest('(V2-M5 T3) A run achieved during classification discards the result', async ({ llm, target }, testInfo) => {
   testInfo.setTimeout(100_000)
   await target.resetTmux(); await stubs.reset(); await llm.post('http://hostbud-e2e-llmfake:8080/ctl/reset')
-  // Keep the provider response in flight well beyond the stub's 12-second
-  // turn so the achievement unambiguously wins the race. The turn ends with a
-  // Stop hook: an achievement without one is only read on Resume once stale.
-  await llm.post('http://hostbud-e2e-llmfake:8080/ctl/script',{data:{delayMs:20_000}})
+  // Classification starts after the 10 s quiet window; the stub's 12 s turn
+  // then achieves (with a Stop hook: an achievement without one is only read
+  // on Resume once stale) while the answer is still in flight. 8 s keeps the
+  // answer after that and inside the provider client's 20 s timeout, which
+  // would otherwise retry instead of answering late.
+  await llm.post('http://hostbud-e2e-llmfake:8080/ctl/script',{data:{delayMs:8_000}})
   const project=await newProject(llm,target,'e2e-llm-achieve-race'); const queue=await createQueue(llm,project.id)
   await stubs.setBehavior('e2e llm achieve race','slow:12',0.1)
   const item=await addItem(llm,queue.id,{instruction:'/goal e2e llm achieve race'}); await control(llm,queue.id,'start')

@@ -211,7 +211,9 @@ test('(T9) Palette runs theme, tree, session and confirmation actions', async ({
   await newSessionDialog.getByLabel('Name').fill(nextSession)
   await newSessionDialog.getByRole('button', { name: 'Create' }).click()
   await ui.waitForTerminal(nextSession)
+  await ui.showList() // opening the terminal closed the compact drawer
   await expect(ui.treeItem(project).getByRole('treeitem', { name: nextSession })).toBeVisible()
+  await ui.closeList()
 
   await open(`Kill ${session}`)
   await choose(`Kill ${session}`)

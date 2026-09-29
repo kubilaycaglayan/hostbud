@@ -7,6 +7,12 @@ import { shq, uniqueName } from '../helpers/target.ts'
 import type { UI } from '../helpers/ui.ts'
 
 // Phone and desktop profiles exercise the same original-file upload flow.
+
+// Sending a name the repo already has is refused (409); the app then picks
+// the next numbered name.
+test.use({
+  allowedBrowserErrors: /^HTTP 409: PUT http:\/\/localhost:9055\/api\/machines\/host\/fs\/upload\?|status of 409 \(Conflict\) @ http:\/\/localhost:9055\/api\/machines\/host\/fs\/upload\?/,
+})
 async function createAccount(ui: UI) {
   const account = newAccount('e2e-photo-upload')
   forbidInLogs(account.email, account.password)
@@ -47,6 +53,10 @@ test('(M8 T10) Send original photo bytes to the active session repo', async ({ p
   expect(actual).toBe(expected)
   expect((await target.run(`stat -c %s ${shq(targetFile)}`)).trim()).toBe(String(bytes.length))
 
+  // Close the (modal) dialog: it hides the notifications region.
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
+
   // Cmd-V with a clipboard image routes the image file to the same repo
   // uploader rather than sending binary bytes through the terminal PTY.
   const pastedName = 'pasted-from-clipboard.png'
@@ -65,6 +75,9 @@ test('(M8 T10) Send original photo bytes to the active session repo', async ({ p
   await expect.poll(() => ui.termText(session)).toContain(`../${pastedName}`)
 
   const numberedFilename = 'iphone-sample-1.heic'
+  await page.getByRole('button', { name: 'Terminal actions' }).click()
+  await page.getByRole('menuitem', { name: 'Send photos to this repo' }).click()
+  await expect(dialog).toBeVisible()
   await dialog.locator('input[type=file]').setInputFiles({ name: filename, mimeType: 'image/heic', buffer: bytes })
   await dialog.getByRole('button', { name: 'Send photos' }).click()
   await expect(dialog.getByLabel('Sent photos')).toContainText(numberedFilename)
@@ -72,6 +85,6 @@ test('(M8 T10) Send original photo bytes to the active session repo', async ({ p
   expect((await target.run(`sha256sum ${shq(`${repoPath}/${numberedFilename}`)}`)).split(/\s+/)[0]).toBe(expected)
   await expect.poll(() => ui.termText(session)).toContain(`../${numberedFilename}`)
 
-  await dialog.getByRole('button', { name: 'Close' }).click()
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click()
   await target.tmux('kill-session', '-t', `=${session}`)
 })

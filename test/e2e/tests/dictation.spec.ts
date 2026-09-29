@@ -45,7 +45,8 @@ test('(T8) Switching tabs does not automatically open the terminal keyboard', as
   await ui.showList()
   await ui.openTerminal(first)
   await ui.openTerminal(second)
-  const input = ui.page.getByRole('region', { name: `Terminal: ${first}` }).getByRole('textbox', { name: 'Terminal input' })
+  // The inactive tab's terminal is hidden from role queries: find it by CSS.
+  const input = ui.page.locator(`section[aria-label="Terminal: ${first}"] .xterm-helper-textarea`)
   await input.evaluate((el) => (el as HTMLElement).blur())
   await ui.tab(first).click()
   await expect(input).not.toBeFocused()

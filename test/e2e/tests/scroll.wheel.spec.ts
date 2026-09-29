@@ -45,9 +45,11 @@ async function sampleScrollRows(page: Page, ms: number, during: () => Promise<vo
     const w = window as unknown as { __scrollRows: number[] }
     w.__scrollRows = []
     const viewport = document.querySelector('.xterm-viewport')
-    const firstRow = document.querySelector('.xterm-rows > div')
-    if (!(viewport instanceof HTMLElement) || !(firstRow instanceof HTMLElement)) return
-    const rowHeight = firstRow.getBoundingClientRect().height
+    const screen = document.querySelector('.xterm-screen')
+    const rows = window.__hostbud?.termSize().rows ?? 0
+    if (!(viewport instanceof HTMLElement) || !(screen instanceof HTMLElement) || !rows) return
+    // The canvas/WebGL renderers have no row elements: screen height / rows.
+    const rowHeight = screen.getBoundingClientRect().height / rows
     const end = performance.now() + duration
     const tick = () => {
       w.__scrollRows.push(rowHeight ? viewport.scrollTop / rowHeight : 0)

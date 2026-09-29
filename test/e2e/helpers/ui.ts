@@ -109,7 +109,8 @@ export class UI {
   /** Opens the app and waits for the signed-in shell. */
   async open(): Promise<void> {
     await this.page.goto('/')
-    await expect(this.tree()).toBeVisible()
+    // A compact screen with a restored terminal shows it instead of the tree.
+    await expect(this.tree().or(this.page.getByRole('region', { name: /^Terminal: / })).first()).toBeVisible()
   }
 
   /** The list item of a session in the tree (exact name). Call showList()

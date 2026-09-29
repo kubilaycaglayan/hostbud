@@ -25,7 +25,8 @@ test.describe('Queues panel on iPhone 13 Pro (parallel queues)', () => {
 
   const panel = (page: Page) => page.getByRole('dialog', { name: 'Queue' })
   const row = (page: Page, condition: string) => panel(page).getByRole('listitem', { name: new RegExp(`: /goal ${condition}$`) })
-  const switcher = (page: Page) => panel(page).getByLabel('Queue', { exact: true })
+  // The label wraps the select, so its name continues with the selected option.
+  const switcher = (page: Page) => panel(page).getByRole('combobox', { name: /^Queue\b(?! name)/ })
 
   async function addItem(page: Page, condition: string) {
     const form = panel(page).getByRole('form', { name: 'Add item' })
