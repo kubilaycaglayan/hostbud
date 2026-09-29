@@ -54,6 +54,7 @@ test.describe('command palette on iPhone 13 Pro', () => {
     await palette.getByRole('combobox', { name: 'Command palette' }).fill(`Rename ${session}`)
     await page.keyboard.press('Enter')
     await expect(page.getByRole('dialog', { name: 'Project tree' })).toBeVisible()
+    await ui.showList()
     const editor = page.getByRole('textbox', { name: `Rename ${session}` })
     await expect(editor).toBeFocused()
     await expect(ui.treeItem(project)).toHaveAttribute('aria-expanded', 'true')

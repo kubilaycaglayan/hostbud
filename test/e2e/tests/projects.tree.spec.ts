@@ -24,6 +24,7 @@ async function createAccount(ui: import('../helpers/ui.ts').UI) {
 }
 
 async function openProjectSession(page: import('@playwright/test').Page, name: string) {
+  await returnToTree(page)
   await page.getByRole('button', { name: `New session in ${name}` }).click()
   const dialog = page.getByRole('dialog', { name: 'New session here' })
   await expect(dialog).toBeVisible()
