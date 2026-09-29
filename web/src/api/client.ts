@@ -113,6 +113,12 @@ export interface CreateSession {
   startCommand?: string
 }
 
+/** One request's outcome when killing several sessions. */
+export interface KillSessionsResult {
+  killed: string[]
+  failed: { name: string; error: string; hint?: string }[]
+}
+
 const sessionsPath = (machine: string) => `/api/machines/${encodeURIComponent(machine)}/sessions`
 
 export const sessionsApi = {
@@ -125,6 +131,9 @@ export const sessionsApi = {
   /** Kills a session: callers must have the user's confirmation. */
   kill: (machine: string, name: string) =>
     request<void>('DELETE', `${sessionsPath(machine)}/${encodeURIComponent(name)}`, undefined, { signal: execSignal() }),
+  /** Kills several sessions in one request, refreshing the list once; callers must have the user's confirmation. */
+  killMany: (machine: string, names: string[]) =>
+    request<KillSessionsResult>('POST', `${sessionsPath(machine)}/kill`, { names }, { signal: execSignal() }),
 }
 
 export const windowsApi = {

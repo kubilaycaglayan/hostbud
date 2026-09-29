@@ -120,6 +120,23 @@ func (f *fakeService) Kill(_ context.Context, m, name string) error {
 	return f.err
 }
 
+func (f *fakeService) KillMany(_ context.Context, m string, names []string) ([]string, []session.KillFailure, error) {
+	f.calls = append(f.calls, "kill-many "+m+" "+strings.Join(names, ","))
+	if f.err != nil {
+		return nil, nil, f.err
+	}
+	var killed []string
+	var failed []session.KillFailure
+	for _, n := range names {
+		if n == "gone" {
+			failed = append(failed, session.KillFailure{Name: n, Message: "no session named \"gone\"", Hint: "It may have been closed already."})
+		} else {
+			killed = append(killed, n)
+		}
+	}
+	return killed, failed, nil
+}
+
 func (f *fakeService) Output(_ context.Context, _, name string) (string, error) {
 	if err := tmux.ValidateName(name); err != nil {
 		return "", &session.Error{Code: session.CodeInvalid, Message: "invalid session name"}
@@ -621,6 +638,36 @@ func TestMutations(t *testing.T) {
 	want := []string{"create host  ~/app htop", "rename host a b", "kill host b"}
 	if strings.Join(e.svc.calls, "|") != strings.Join(want, "|") {
 		t.Fatalf("calls %q", e.svc.calls)
+	}
+}
+
+func TestKillManySessions(t *testing.T) {
+	e := newEnv(t)
+	rec := e.do(t, http.MethodPost, "/api/machines/host/sessions/kill", `{"names":["a","gone","b"]}`, nil)
+	type result struct {
+		Killed []string              `json:"killed"`
+		Failed []session.KillFailure `json:"failed"`
+	}
+	body := decodeBody[result](t, rec)
+	if rec.Code != http.StatusOK || strings.Join(body.Killed, ",") != "a,b" || len(body.Failed) != 1 ||
+		body.Failed[0].Name != "gone" || body.Failed[0].Hint == "" {
+		t.Fatalf("kill many: %d %s", rec.Code, rec.Body)
+	}
+	if got := e.svc.calls[len(e.svc.calls)-1]; got != "kill-many host a,gone,b" {
+		t.Fatalf("service call %q", got)
+	}
+	if rec := e.do(t, http.MethodPost, "/api/machines/host/sessions/kill", `{"names":["a"]}`, nil); !strings.Contains(rec.Body.String(), `"failed":[]`) {
+		t.Errorf("no failures should be an empty list: %s", rec.Body)
+	}
+	if got := e.do(t, http.MethodPost, "/api/machines/nope/sessions/kill", `{"names":["a"]}`, nil).Code; got != 404 {
+		t.Errorf("unknown machine = %d", got)
+	}
+	if got := e.do(t, http.MethodPost, "/api/machines/host/sessions/kill", `{"names":["a"]}`, map[string]string{"Origin": "http://evil.example.com"}).Code; got != 403 {
+		t.Errorf("foreign origin = %d", got)
+	}
+	e.svc.err = &session.Error{Code: session.CodeInvalid, Message: "invalid session name"}
+	if got := e.do(t, http.MethodPost, "/api/machines/host/sessions/kill", `{"names":["a b"]}`, nil).Code; got != 400 {
+		t.Errorf("invalid name = %d", got)
 	}
 }
 

@@ -19,6 +19,7 @@ type SessionService interface {
 	Create(ctx context.Context, spec session.Spec) (string, error)
 	Rename(ctx context.Context, machine, from, to string) error
 	Kill(ctx context.Context, machine, name string) error
+	KillMany(ctx context.Context, machine string, names []string) ([]string, []session.KillFailure, error)
 	CopyMode(ctx context.Context, machine, name string, action tmux.CopyAction, lines int) (session.CopyModeState, error)
 	ListWindows(ctx context.Context, machine, name string) (session.WindowsState, error)
 	SelectWindow(ctx context.Context, machine, name, windowID, paneID string) (session.WindowsState, error)
@@ -187,6 +188,32 @@ func (s *server) killSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+type killManyRequest struct {
+	Names []string `json:"names"`
+}
+
+// killSessions kills several sessions in one request (a project's "kill
+// all"), refreshing the inventory once; the UI asks the user to confirm first.
+// It answers 200 with the killed names and per-session failures.
+func (s *server) killSessions(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.machine(w, r); !ok {
+		return
+	}
+	var req killManyRequest
+	if !decode(w, r, &req) {
+		return
+	}
+	killed, failed, err := s.cfg.Sessions.KillMany(r.Context(), r.PathValue("machine"), req.Names)
+	if err != nil {
+		s.writeSessionError(w, err)
+		return
+	}
+	if failed == nil {
+		failed = []session.KillFailure{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"killed": killed, "failed": failed})
 }
 
 type copyModeRequest struct {

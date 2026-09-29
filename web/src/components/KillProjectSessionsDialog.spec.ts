@@ -36,22 +36,37 @@ describe('KillProjectSessionsDialog', () => {
   })
 
   it('kills every session after the second confirmation, continuing past a failure', async () => {
-    const calls = stubFetch((method, path) => path.endsWith('/a') ? { status: 500, body: { error: 'boom' } } : { status: 204 })
+    const calls = stubFetch(() => ({ status: 200, body: { killed: ['b'], failed: [{ name: 'a', error: 'boom' }] } }))
     const wrapper = mount(KillProjectSessionsDialog, { attachTo: document.body, props: { machine: 'host', project, sessions: ['a', 'b'] } })
     await flushPromises()
     button('Continue…').click()
     await flushPromises()
     button('Kill 2 sessions').click()
     await flushPromises()
-    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual(['DELETE /api/machines/host/sessions/a', 'DELETE /api/machines/host/sessions/b'])
+    // One request for all of them: the server refreshes the list once.
+    expect(calls).toEqual([{ method: 'POST', path: '/api/machines/host/sessions/kill', body: { names: ['a', 'b'] } }])
     expect(wrapper.emitted('killed')).toEqual([['b']])
     expect(wrapper.emitted('done')).toBeUndefined()
-    expect($('[role="alert"]')?.textContent).toContain("Couldn't kill a.")
+    expect($('[role="alert"]')?.textContent).toContain("Couldn't kill a. Boom.")
+    wrapper.unmount()
+  })
+
+  it('counts every session as failed when the request itself fails', async () => {
+    stubFetch(() => ({ status: 503, body: { error: 'host unreachable', hint: 'Check ssh.' } }))
+    const wrapper = mount(KillProjectSessionsDialog, { attachTo: document.body, props: { machine: 'host', project, sessions: ['a', 'b'] } })
+    await flushPromises()
+    button('Continue…').click()
+    await flushPromises()
+    button('Kill 2 sessions').click()
+    await flushPromises()
+    expect(wrapper.emitted('killed')).toBeUndefined()
+    expect(wrapper.emitted('done')).toBeUndefined()
+    expect($('[role="alert"]')?.textContent).toContain("Couldn't kill a, b. Host unreachable. Check ssh.")
     wrapper.unmount()
   })
 
   it('reports done when every kill succeeds', async () => {
-    stubFetch(() => ({ status: 204 }))
+    stubFetch(() => ({ status: 200, body: { killed: ['a'], failed: [] } }))
     const wrapper = mount(KillProjectSessionsDialog, { attachTo: document.body, props: { machine: 'host', project, sessions: ['a'] } })
     await flushPromises()
     button('Continue…').click()

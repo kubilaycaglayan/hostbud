@@ -272,7 +272,7 @@ describe('QueuePanel', () => {
 
   it('kills a done item\'s open session after a confirmation', async () => {
     const done = { ...attention, status: 'done' as const, run: { ...attention.run!, status: 'achieved' as const } }
-    const calls = stubFetch(() => ({ status: 204 }))
+    const calls = stubFetch(() => ({ status: 200, body: { killed: ['app-q1'], failed: [] } }))
     useSessionsStore().$patch({ byMachine: { host: [{ id: '$1', name: 'app-q1', path: '/home/dev/app', attached: 0, windows: 1, created: '', activity: '' }] } })
     const w = await mountPanel(queue([done, queued]))
     expect(button('Kill session of item 1')!.querySelector('svg')).toBeTruthy()
@@ -283,7 +283,7 @@ describe('QueuePanel', () => {
     expect(document.body.textContent).toContain('Kill session app-q1?')
     $$('[role="alertdialog"] button').find((b) => b.textContent?.trim() === 'Kill session')!.click()
     await flushPromises()
-    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual(['DELETE /api/machines/host/sessions/app-q1'])
+    expect(calls).toEqual([{ method: 'POST', path: '/api/machines/host/sessions/kill', body: { names: ['app-q1'] } }])
     expect(w.emitted('killed')).toEqual([['app-q1']])
   })
 
@@ -295,7 +295,7 @@ describe('QueuePanel', () => {
 
   it('kills every open completed session of the shown queue, continuing past a failure', async () => {
     const done = (id: string, position: number, sessionName: string) => ({ ...attention, id, position, status: 'done' as const, run: { ...attention.run!, id: `r${id}`, status: 'achieved' as const, sessionName } })
-    const calls = stubFetch((_m, path) => path.endsWith('/app-q1') ? { status: 500, body: { error: 'tmux failed' } } : { status: 204 })
+    const calls = stubFetch(() => ({ status: 200, body: { killed: ['app-q2'], failed: [{ name: 'app-q1', error: 'tmux failed' }] } }))
     const live = (name: string) => ({ id: name, name, path: '/home/dev/app', attached: 0, windows: 1, created: '', activity: '' })
     useSessionsStore().$patch({ byMachine: { host: [live('app-q1'), live('app-q2'), live('app-q3')] } })
     const w = await mountPanel(queue([done('a', 1, 'app-q1'), done('b', 2, 'app-q2'), { ...attention, id: 'c', position: 3, status: 'running', run: { ...attention.run!, sessionName: 'app-q3' } }]))
@@ -305,7 +305,7 @@ describe('QueuePanel', () => {
     expect(document.body.textContent).toContain('app-q1, app-q2')
     $$('[role="alertdialog"] button').find((b) => b.textContent?.trim() === 'Kill sessions')!.click()
     await flushPromises()
-    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual(['DELETE /api/machines/host/sessions/app-q1', 'DELETE /api/machines/host/sessions/app-q2'])
+    expect(calls).toEqual([{ method: 'POST', path: '/api/machines/host/sessions/kill', body: { names: ['app-q1', 'app-q2'] } }])
     expect(w.emitted('killed')).toEqual([['app-q2']])
     expect(document.body.textContent).toContain("Couldn't kill session app-q1")
   })

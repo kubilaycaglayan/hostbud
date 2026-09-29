@@ -629,3 +629,20 @@ func TestIntegrationErrorsMapped(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestIntegrationKillManyKillsAllAndReportsMissing(t *testing.T) {
+	svc, c := setup(t)
+	ctx := context.Background()
+	testenv.Sh(t, c, "tmux new-session -d -s km-a && tmux new-session -d -s km-b && tmux new-session -d -s km-keep")
+	killed, failed, err := svc.KillMany(ctx, sshx.HostMachineID, []string{"km-a", "km-gone", "km-b"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(killed, []string{"km-a", "km-b"}) || len(failed) != 1 || failed[0].Name != "km-gone" {
+		t.Fatalf("killed %q failed %+v", killed, failed)
+	}
+	out := testenv.Sh(t, c, "tmux list-sessions -F '#{session_name}'")
+	if strings.Contains(out, "km-a") || strings.Contains(out, "km-b") || !strings.Contains(out, "km-keep") {
+		t.Fatalf("sessions left: %q", out)
+	}
+}

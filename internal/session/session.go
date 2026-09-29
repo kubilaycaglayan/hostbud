@@ -324,6 +324,72 @@ func (s *Service) Kill(ctx context.Context, machine, name string) error {
 	if err != nil {
 		return err
 	}
+	if err := s.kill(ctx, machine, name); err != nil {
+		return err
+	}
+	s.refresh(ctx, t)
+	return nil
+}
+
+// MaxKillMany caps the sessions one KillMany call accepts.
+const MaxKillMany = 256
+
+// KillFailure is one session KillMany couldn't kill.
+type KillFailure struct {
+	Name    string `json:"name"`
+	Message string `json:"error"`
+	Hint    string `json:"hint,omitempty"`
+}
+
+// KillMany kills several sessions and refreshes the inventory once at the
+// end: a refresh lists every pane on the host, so refreshing after each kill
+// made killing a project's sessions take seconds. A failed kill doesn't stop
+// the rest, but once the host is unreachable the remaining ones fail with the
+// same error instead of each waiting for its own timeout. The caller must have
+// the user's confirmation.
+func (s *Service) KillMany(ctx context.Context, machine string, names []string) (killed []string, failed []KillFailure, err error) {
+	t, _, _, err := s.ready(machine)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(names) == 0 || len(names) > MaxKillMany {
+		return nil, nil, errorf(CodeInvalid, "", "send between 1 and %d session names", MaxKillMany)
+	}
+	for _, name := range names {
+		if tmux.ValidateName(name) != nil {
+			return nil, nil, errorf(CodeInvalid, "", "invalid session name")
+		}
+	}
+	killed = []string{}
+	var unreachable *Error
+	for _, name := range names {
+		var kerr error
+		if unreachable != nil {
+			kerr = unreachable
+		} else {
+			kerr = s.kill(ctx, machine, name)
+		}
+		if kerr == nil {
+			killed = append(killed, name)
+			continue
+		}
+		var e *Error
+		if !errors.As(kerr, &e) {
+			e = &Error{Code: CodeInternal, Message: kerr.Error()}
+		}
+		if e.Code == CodeUnavailable || e.Code == CodeTimeout {
+			unreachable = e
+		}
+		failed = append(failed, KillFailure{Name: name, Message: e.Message, Hint: e.Hint})
+	}
+	if len(killed) > 0 {
+		s.refresh(ctx, t)
+	}
+	return killed, failed, nil
+}
+
+// kill kills one session without refreshing the inventory.
+func (s *Service) kill(ctx context.Context, machine, name string) error {
 	args, err := tmux.KillSessionArgs(name)
 	if err != nil {
 		return errorf(CodeInvalid, "", "invalid session name")
@@ -341,7 +407,6 @@ func (s *Service) Kill(ctx context.Context, machine, name string) error {
 	}
 	s.log.Info("session killed", "machine", machine)
 	s.log.Debug("session killed details", "machine", machine, "session", name)
-	s.refresh(ctx, t)
 	return nil
 }
 

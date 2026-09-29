@@ -5,8 +5,7 @@ import {
   AlertDialogOverlay, AlertDialogPortal, AlertDialogRoot, AlertDialogTitle,
 } from 'reka-ui'
 import type { Project } from '@/api/types'
-import { sessionsApi } from '@/api/client'
-import { describeError } from '@/stores/toasts'
+import { killSessions } from '@/lib/killSessions'
 
 // Killing every session of a project is destructive twice over, so it takes
 // two confirmations: the first names the count, the second lists the sessions.
@@ -25,25 +24,16 @@ function count(n: number) {
   return `${n} ${n === 1 ? 'session' : 'sessions'}`
 }
 
-/** Kills the sessions one after another; a failure doesn't stop the rest. */
+/** Kills the sessions in one request; a failure doesn't stop the rest. */
 async function kill() {
   if (!props.project || busy.value) return
   busy.value = true
   error.value = ''
-  const failed: string[] = []
-  let first: ReturnType<typeof describeError> | null = null
-  for (const name of props.sessions) {
-    try {
-      await sessionsApi.kill(props.machine, name)
-      emit('killed', name)
-    } catch (e) {
-      failed.push(name)
-      first ??= describeError(e)
-    }
-  }
+  const outcome = await killSessions(props.machine, props.sessions)
+  for (const name of outcome.killed) emit('killed', name)
   busy.value = false
-  if (first) {
-    error.value = [`Couldn't kill ${failed.join(', ')}.`, first.message, first.hint].filter(Boolean).join(' ')
+  if (outcome.error) {
+    error.value = [`Couldn't kill ${outcome.failed.join(', ')}.`, outcome.error.message, outcome.error.hint].filter(Boolean).join(' ')
     return
   }
   emit('done')

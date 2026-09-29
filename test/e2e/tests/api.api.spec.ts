@@ -61,6 +61,32 @@ test('API mutations: create, rename and kill are reflected in tmux ls', async ({
   expect((await listSessions(request)).map((s) => s.name)).not.toContain(renamed)
 })
 
+test('API kill many: one request kills several sessions and reports the missing one', async ({ target, request }) => {
+  const a = uniqueName('e2e-killmany-a')
+  const b = uniqueName('e2e-killmany-b')
+  const keep = uniqueName('e2e-killmany-keep')
+  const gone = uniqueName('e2e-killmany-gone')
+  for (const name of [a, b, keep]) await target.tmux('new-session', '-d', '-s', name)
+  const res = await mutate(request, 'POST', `${sessionsPath}/kill`, { names: [a, gone, b] })
+  expect(res.status(), await res.text()).toBe(200)
+  const body = await res.json()
+  expect(body.killed).toEqual([a, b])
+  expect(body.failed).toEqual([expect.objectContaining({ name: gone, hint: expect.any(String) })])
+  const left = await target.sessions()
+  expect(left).not.toContain(a)
+  expect(left).not.toContain(b)
+  expect(left).toContain(keep)
+  // The batch refreshed the inventory once at the end: the list is current right away.
+  const listed = (await listSessions(request)).map((s) => s.name)
+  expect(listed).not.toContain(a)
+  expect(listed).not.toContain(b)
+  expect(listed).toContain(keep)
+
+  const invalid = await mutate(request, 'POST', `${sessionsPath}/kill`, { names: [keep, 'bad name'] })
+  expect(invalid.status()).toBe(400)
+  expect(await target.sessions()).toContain(keep)
+})
+
 test('(T10) Create with a taken name numbers it; rename still conflicts', async ({ target, request }) => {
   const name = uniqueName('e2e-api-dup')
   const another = uniqueName('e2e-api-rename')

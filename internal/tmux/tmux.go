@@ -127,24 +127,29 @@ func ListPaneCommands() []string {
 // Codex set to the current task); tmux's default title, the hostname, is
 // blanked. The title is last so '|' in it stays inside the field.
 const paneMetadataScript = `tmux list-panes -a -F 'P|#{session_name}|#{pane_id}|#{pane_current_command}|#{@hostbud_agent_status}|#{pane_tty}|#{window_active}#{pane_active}|#{?#{||:#{==:#{pane_title},#{host}},#{==:#{pane_title},#{host_short}}},,#{pane_title}}' |
-while IFS='|' read -r marker session pane command status tty focus title; do
-	[ "$marker" = P ] || continue
-	tty=${tty#/dev/}
-	agents=$(ps -t "$tty" -o comm= 2>/dev/null | awk '
-		{
-			command = tolower($1)
-			if (command == "codex" || command == "coy" || command ~ /^codex-/) codex = 1
-			if (command == "claude" || command == "claude-code" || command == "cly") claude = 1
-		}
-		END { if (codex) printf "codex"; printf ","; if (claude) printf "claude" }
-	')
-	if [ "$focus" = 11 ] && [ -n "$title" ]; then
-		title=$(printf '%s' "$title" | tr -d '\t\r\n')
-		printf 'P\t%s\t%s\t%s\t%s\t%s\t%s\n' "$session" "$pane" "$command" "$status" "$agents" "$title"
-	else
-		printf 'P\t%s\t%s\t%s\t%s\t%s\n' "$session" "$pane" "$command" "$status" "$agents"
-	fi
-done`
+awk -F '|' '
+BEGIN {
+	# One ps for every pane: a ps per pane cost ~25ms each on every poll.
+	while (("ps -A -o tty= -o comm= 2>/dev/null" | getline line) > 0) {
+		if (split(line, p, " ") < 2) continue
+		command = tolower(p[2])
+		if (command == "codex" || command == "coy" || command ~ /^codex-/) codex[p[1]] = 1
+		if (command == "claude" || command == "claude-code" || command == "cly") claude[p[1]] = 1
+	}
+}
+$1 == "P" {
+	tty = $6
+	sub(/^\/dev\//, "", tty)
+	agents = ((tty in codex) ? "codex" : "") "," ((tty in claude) ? "claude" : "")
+	title = ""
+	if (NF >= 8) {
+		title = $0
+		for (i = 1; i <= 7; i++) title = substr(title, index(title, "|") + 1)
+		gsub(/[\t\r\n]/, "", title)
+	}
+	if ($7 == "11" && title != "") printf "P\t%s\t%s\t%s\t%s\t%s\t%s\n", $2, $3, $4, $5, agents, title
+	else printf "P\t%s\t%s\t%s\t%s\t%s\n", $2, $3, $4, $5, agents
+}'`
 
 type PaneMetadata struct {
 	Agents []string

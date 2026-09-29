@@ -242,6 +242,8 @@ for (const profile of ['desktop', 'phone'] as const) {
 
       await openMenu()
       await page.getByRole('alertdialog', { name: `Kill all in ${projectName}?` }).getByRole('button', { name: 'Continue…' }).click()
+      const killRequests: string[] = []
+      page.on('request', (r) => { if (r.url().includes(`/api/machines/${MACHINE}/sessions/`) && r.method() !== 'GET') killRequests.push(`${r.method()} ${new URL(r.url()).pathname}`) })
       await page.getByRole('alertdialog', { name: 'Really kill 2 sessions?' }).getByRole('button', { name: 'Kill 2 sessions' }).click()
       await expect(group.getByRole('button', { name: first, exact: true })).toHaveCount(0)
       await expect(group.getByRole('button', { name: second, exact: true })).toHaveCount(0)
@@ -250,6 +252,8 @@ for (const profile of ['desktop', 'phone'] as const) {
       const left = await alive()
       expect(left).not.toContain(second)
       expect(left).toContain(outside)
+      // One batch request, not one per session.
+      expect(killRequests).toEqual([`POST /api/machines/${MACHINE}/sessions/kill`])
     })
 
     test('(T5) Other sessions and Save as project', async ({ page, target, request }) => {

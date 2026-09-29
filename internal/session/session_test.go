@@ -671,3 +671,58 @@ func TestKill(t *testing.T) {
 		t.Errorf("invalid: %v", err)
 	}
 }
+
+func TestKillManyRefreshesOnce(t *testing.T) {
+	hooks := &lifecycleRecorder{}
+	f := &fakeExec{handler: func(args []string) error {
+		if args[len(args)-1] == "=gone" {
+			return remote(1, "can't find session: gone")
+		}
+		return nil
+	}}
+	tr := okHost("a", "b")
+	svc := New(f, map[string]Tracker{"host": tr}, nil, hooks)
+	killed, failed, err := svc.KillMany(context.Background(), "host", []string{"a", "gone", "b"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(killed, []string{"a", "b"}) || len(failed) != 1 || failed[0].Name != "gone" || failed[0].Hint == "" {
+		t.Fatalf("killed %q failed %+v", killed, failed)
+	}
+	if len(f.calls) != 3 || !slices.Equal(f.calls[2], []string{"tmux", "kill-session", "-t", "=b"}) {
+		t.Fatalf("calls %q", f.calls)
+	}
+	if tr.refreshes != 1 {
+		t.Fatalf("refreshes = %d, want 1", tr.refreshes)
+	}
+	if !slices.Equal(hooks.calls, []string{"end host a", "end host b"}) {
+		t.Fatalf("hooks %q", hooks.calls)
+	}
+}
+
+func TestKillManyStopsTryingOnceTheHostIsUnreachable(t *testing.T) {
+	f := &fakeExec{handler: func([]string) error {
+		return &sshx.Error{Kind: sshx.KindUnreachable, Message: "host unreachable", Hint: "check ssh"}
+	}}
+	tr := okHost("a", "b")
+	killed, failed, err := newSvc(f, tr).KillMany(context.Background(), "host", []string{"a", "b", "c"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(killed) != 0 || len(failed) != 3 || failed[2].Message != "host unreachable" || len(f.calls) != 1 || tr.refreshes != 0 {
+		t.Fatalf("killed %q failed %+v calls %d refreshes %d", killed, failed, len(f.calls), tr.refreshes)
+	}
+}
+
+func TestKillManyValidatesEveryNameFirst(t *testing.T) {
+	f := &fakeExec{}
+	svc := newSvc(f, okHost())
+	for _, names := range [][]string{nil, {"a", "b c"}, slices.Repeat([]string{"a"}, MaxKillMany+1)} {
+		if _, _, err := svc.KillMany(context.Background(), "host", names); code(err) != CodeInvalid {
+			t.Errorf("%d names: %v", len(names), err)
+		}
+	}
+	if len(f.calls) != 0 {
+		t.Fatalf("killed before validating: %q", f.calls)
+	}
+}

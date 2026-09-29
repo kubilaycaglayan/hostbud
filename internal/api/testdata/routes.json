@@ -17,6 +17,7 @@
   {"method":"POST","path":"/api/machines/{machine}/sessions","stateChanging":true,"authRequired":true,"websocket":false,"jsonBody":true},
   {"method":"PATCH","path":"/api/machines/{machine}/sessions/{name}","stateChanging":true,"authRequired":true,"websocket":false,"jsonBody":true},
   {"method":"DELETE","path":"/api/machines/{machine}/sessions/{name}","stateChanging":true,"authRequired":true,"websocket":false,"jsonBody":false},
+  {"method":"POST","path":"/api/machines/{machine}/sessions/kill","stateChanging":true,"authRequired":true,"websocket":false,"jsonBody":true},
   {"method":"GET","path":"/ws/events","stateChanging":false,"authRequired":true,"websocket":true,"jsonBody":false},
   {"method":"GET","path":"/ws/term","stateChanging":false,"authRequired":true,"websocket":true,"jsonBody":false},
   {"method":"GET","path":"/api/runtime/terminal-slots","stateChanging":false,"authRequired":true,"websocket":false,"jsonBody":false},

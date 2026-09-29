@@ -204,6 +204,7 @@ func mountRoutes(s *server, mux *http.ServeMux) {
 	addFunc("POST /api/machines/{machine}/sessions", s.createSession)
 	addFunc("PATCH /api/machines/{machine}/sessions/{name}", s.renameSession)
 	addFunc("DELETE /api/machines/{machine}/sessions/{name}", s.killSession)
+	addFunc("POST /api/machines/{machine}/sessions/kill", s.killSessions)
 	addFunc("GET /ws/events", s.eventsSocket)
 	if cfg.Terminal != nil {
 		add("GET /ws/term", cfg.Terminal)

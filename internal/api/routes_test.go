@@ -84,6 +84,7 @@ func TestRouteInventoryMatchesRouter(t *testing.T) {
 		"POST /api/machines/{machine}/sessions/{name}/select":    true,
 		"POST /api/machines/{machine}/sessions":                  true,
 		"PATCH /api/machines/{machine}/sessions/{name}":          true,
+		"POST /api/machines/{machine}/sessions/kill":             true,
 		"PUT /api/ui-state/{key}":                                true,
 		"POST /api/machines/{machine}/fs/mkdir":                  true,
 		"POST /api/projects":                                     true, "PATCH /api/projects/{id}": true,

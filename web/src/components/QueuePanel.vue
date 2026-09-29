@@ -5,7 +5,7 @@ import {
 } from 'reka-ui'
 import { VueDraggable } from 'vue-draggable-plus'
 import { ArrowDown, ArrowUp, Check, ChevronsDown, CircleCheck, GripVertical, History, ListOrdered, ListX, Pause, Pencil, Play, Plus, PowerOff, RotateCcw, RotateCw, Save, ShieldCheck, SkipForward, SquareTerminal, ThumbsDown, Timer, ThumbsUp, Trash2, TriangleAlert, X } from 'lucide-vue-next'
-import { queuesApi, sessionsApi } from '@/api/client'
+import { queuesApi } from '@/api/client'
 import type { QueueItem, QueueItemHistory } from '@/api/types'
 import ConfirmDialog from './ConfirmDialog.vue'
 import DurationPicker from './DurationPicker.vue'
@@ -14,6 +14,7 @@ import { AGENTS, type Agent, completedSessions, DEFAULT_LOOP_RUNTIME_SECONDS, el
 import { useQueuesStore } from '@/stores/queues'
 import { useProjectsStore } from '@/stores/projects'
 import { useSessionsStore } from '@/stores/sessions'
+import { killSessions } from '@/lib/killSessions'
 import { describeError } from '@/stores/toasts'
 
 // Queue panel: a queue belongs to a project; its items run one after
@@ -418,9 +419,9 @@ function confirmAction() {
   confirmOpen.value = false
   if (!c) return
   if (c.kind === 'kill-completed') {
-    void killSessions([...completedOpen.value])
+    void killOpenSessions([...completedOpen.value])
   } else if (c.kind === 'kill-session' && c.item?.run?.sessionName) {
-    void killSessions([c.item.run.sessionName])
+    void killOpenSessions([c.item.run.sessionName])
   } else if (c.kind === 'parallel-on' || c.kind === 'parallel-off') {
     setParallel(c.kind === 'parallel-on')
   } else if (c.item && c.kind === 'delete-item') {
@@ -453,22 +454,14 @@ function retry(item: QueueItem) {
 // The open run sessions of this queue's done items.
 const openSessions = computed(() => new Set(sessions.list(props.machine).map((s) => s.name)))
 const completedOpen = computed(() => completedSessions(items.value, openSessions.value))
-/** Kills the sessions one after another; a failure doesn't stop the rest. */
-async function killSessions(names: string[]) {
+/** Kills the sessions in one request; a failure doesn't stop the rest. */
+async function killOpenSessions(names: string[]) {
   busy.value = true
   error.value = null
-  const failed: string[] = []
-  let first: ReturnType<typeof describeError> | null = null
-  for (const name of names) {
-    try {
-      await sessionsApi.kill(props.machine, name)
-      emit('killed', name)
-    } catch (e) {
-      failed.push(name)
-      first ??= describeError(e)
-    }
-  }
-  if (first) error.value = { title: `Couldn't kill ${failed.length === 1 ? 'session' : 'sessions'} ${failed.join(', ')}`, ...first }
+  const outcome = await killSessions(props.machine, names)
+  for (const name of outcome.killed) emit('killed', name)
+  const failed = outcome.failed
+  if (outcome.error) error.value = { title: `Couldn't kill ${failed.length === 1 ? 'session' : 'sessions'} ${failed.join(', ')}`, ...outcome.error }
   busy.value = false
 }
 function openSession(item: QueueItem) {
