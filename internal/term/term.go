@@ -107,14 +107,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		account = h.AccountID(r)
 	}
 	if !h.reserve(account) {
-		limit := h.MaxPerUser
-		if limit <= 0 {
-			limit = 32
-		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusTooManyRequests)
 		_ = json.NewEncoder(w).Encode(map[string]string{
-			"error": "Too many open terminals (" + strconv.Itoa(limit) + ")",
+			"error": "Too many open terminals (" + strconv.Itoa(h.PerUserLimit()) + ")",
 			"hint":  "Close some tabs or panes; each open terminal keeps an ssh process on the host.",
 		})
 		return
@@ -190,14 +186,19 @@ func (h *Handler) release(account string) {
 	h.active.Add(-1)
 }
 
+// PerUserLimit returns the effective per-account attach cap.
+func (h *Handler) PerUserLimit() int {
+	if h.MaxPerUser <= 0 {
+		return 50
+	}
+	return h.MaxPerUser
+}
+
 // AtCapacity reports whether an account or the server has no attach slots.
 func (h *Handler) AtCapacity(account string) bool {
 	h.limitMu.Lock()
 	defer h.limitMu.Unlock()
-	perUser, total := h.MaxPerUser, h.MaxTotal
-	if perUser <= 0 {
-		perUser = 32
-	}
+	perUser, total := h.PerUserLimit(), h.MaxTotal
 	if total <= 0 {
 		total = 128
 	}

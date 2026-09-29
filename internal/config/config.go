@@ -157,7 +157,7 @@ func Load(getenv func(string) string) (Config, error) {
 	scrubValue := strings.ToLower(get("HOSTBUD_LLM_SCRUB", "true"))
 	cfg.LLMScrub = scrubValue != "false"
 	cfg.LLMScrubInvalid = scrubValue != "true" && scrubValue != "false"
-	cfg.MaxTerminalsPerUser = countRange("HOSTBUD_MAX_TERMINALS_PER_USER", "32", 1, 256)
+	cfg.MaxTerminalsPerUser = countRange("HOSTBUD_MAX_TERMINALS_PER_USER", "50", 1, 256)
 	cfg.MaxTerminals = countRange("HOSTBUD_MAX_TERMINALS", "128", 1, 1024)
 	cfg.SessionTTL = duration("HOSTBUD_SESSION_TTL", "720h", time.Minute)
 	cfg.LoginMaxFailures = count("HOSTBUD_LOGIN_MAX_FAILURES", "5")

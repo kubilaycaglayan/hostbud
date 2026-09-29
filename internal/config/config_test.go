@@ -32,7 +32,7 @@ func TestLoadDefaults(t *testing.T) {
 		LLMQuietAfter:       20 * time.Minute,
 		LLMMaxPerRunHour:    2,
 		LLMScrub:            true,
-		MaxTerminalsPerUser: 32,
+		MaxTerminalsPerUser: 50,
 		MaxTerminals:        128,
 		LogLevel:            slog.LevelInfo,
 		LocalPort:           9055,

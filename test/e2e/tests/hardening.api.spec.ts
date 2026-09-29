@@ -51,7 +51,7 @@ test('(T4) terminal cap returns an actionable 429 before starting another attach
   const path = `/ws/term?machine=${MACHINE}&session=${name}&cols=80&rows=24`
   const sockets: import('node:stream').Duplex[] = []
   try {
-    const opened = await Promise.all(Array.from({ length: 32 }, () => upgradeSocket(path, ORIGIN, cookie)))
+    const opened = await Promise.all(Array.from({ length: 50 }, () => upgradeSocket(path, ORIGIN, cookie)))
     for (const item of opened) {
       expect(item.status).toBe(101)
       if (item.socket) sockets.push(item.socket)
@@ -59,10 +59,10 @@ test('(T4) terminal cap returns an actionable 429 before starting another attach
     const rejected = await upgradeSocket(path, ORIGIN, cookie)
     expect(rejected.status).toBe(429)
     expect(JSON.parse(rejected.body ?? '')).toMatchObject({
-      error: 'Too many open terminals (32)',
+      error: 'Too many open terminals (50)',
       hint: 'Close some tabs or panes; each open terminal keeps an ssh process on the host.',
     })
-    await expect.poll(() => target.tmux('list-clients', '-t', `=${name}`, '-F', '#{client_pid}').then((s) => s.trim().split('\n').filter(Boolean).length)).toBe(32)
+    await expect.poll(() => target.tmux('list-clients', '-t', `=${name}`, '-F', '#{client_pid}').then((s) => s.trim().split('\n').filter(Boolean).length)).toBe(50)
   } finally {
     for (const socket of sockets) socket.destroy()
   }

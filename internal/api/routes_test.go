@@ -29,6 +29,7 @@ type routeOnlyTerminal struct{}
 
 func (routeOnlyTerminal) ServeHTTP(http.ResponseWriter, *http.Request) {}
 func (routeOnlyTerminal) AtCapacity(string) bool                       { return false }
+func (routeOnlyTerminal) PerUserLimit() int                            { return 50 }
 
 func TestRouteInventoryMatchesRouter(t *testing.T) {
 	data, err := os.ReadFile("testdata/routes.json")
