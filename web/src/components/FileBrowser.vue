@@ -78,6 +78,7 @@ async function navigate(next: string) {
   error.value = null
   try {
     const result = await filesystemApi.list(props.machine, next, hidden.value, controller.signal)
+    if (navigationController !== controller) return // a newer navigation won
     path.value = result.path
     pathInput.value = result.path
     entries.value = result.entries
@@ -87,7 +88,8 @@ async function navigate(next: string) {
 async function initialize() {
   try {
     const home = await filesystemApi.home(props.machine)
-    await navigate(home.path)
+    // The user may already have gone somewhere while home was loading.
+    if (!navigationController) await navigate(home.path)
     await projectStore.load(props.machine)
     useTreeStore().sync()
   } catch (e) { error.value = describeError(e) }
