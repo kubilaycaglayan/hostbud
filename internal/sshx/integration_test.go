@@ -5,6 +5,7 @@ package sshx_test
 import (
 	"context"
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -111,6 +112,38 @@ func TestIntegrationConcurrentExecsShareControlMaster(t *testing.T) {
 		if got[strconv.Itoa(i)] != 1 {
 			t.Errorf("result %q appeared %d times", strconv.Itoa(i), got[strconv.Itoa(i)])
 		}
+	}
+}
+
+// More open channels than sshd's MaxSessions (default 10) must not push
+// short commands off the command master: they would each pay a handshake.
+func TestIntegrationLongLivedChannelsKeepCommandMasterFree(t *testing.T) {
+	c := testenv.Connected(t, testenv.SSHD)
+	conn := func() string {
+		t.Helper()
+		out, err := c.Exec(context.Background(), sshx.HostMachineID, "printenv", "SSH_CONNECTION")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	before := conn()
+	for range 12 {
+		stream, err := c.Stream(context.Background(), sshx.HostMachineID, "cat")
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = stream.Close() })
+		// A round trip proves the channel is open before the next one.
+		if _, err := stream.Write([]byte("x")); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := io.ReadFull(stream, make([]byte, 1)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if after := conn(); after != before {
+		t.Fatalf("exec left the command master: connection %q, then %q", before, after)
 	}
 }
 

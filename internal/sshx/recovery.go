@@ -208,6 +208,10 @@ func (c *Client) findMasterProcess() (int, error) {
 		if err != nil {
 			continue
 		}
+		// Never the long-lived masters or their channels (open terminals).
+		if strings.Contains(string(argv), filepath.Join(c.cfg.Dir, longLivedDir)+"/") {
+			continue
+		}
 		parts := strings.Split(string(argv), "\x00")
 		config, alias, socket := false, false, false
 		for i, part := range parts {

@@ -43,6 +43,7 @@ type Client struct {
 	timeoutMu  sync.Mutex
 	timeouts   map[string]int
 	recovering map[string]chan struct{}
+	long       longLived
 }
 
 // New writes the ssh config and known_hosts (pinning the keys found in
@@ -93,36 +94,41 @@ func (c *Client) Binary() string { return c.cfg.SSHBinary }
 func (c *Client) Timeout() time.Duration { return c.cfg.Timeout }
 
 // OpenSFTP starts the system ssh binary's SFTP subsystem for machine. It uses
-// the generated config and the same ControlMaster as Exec, but never builds a
-// remote shell command. The returned stream owns the child process and should
+// the generated config and a long-lived ControlMaster (LongLived), and never
+// builds a remote shell command. The returned stream owns the child process and should
 // be closed when the SFTP client is closed.
 func (c *Client) OpenSFTP(ctx context.Context, machine string) (io.ReadWriteCloser, error) {
 	alias, err := Alias(machine)
 	if err != nil {
 		return nil, err
 	}
+	opts, release := c.LongLived(machine)
 	childCtx, cancel := context.WithCancel(ctx)
-	cmd := exec.CommandContext(childCtx, c.cfg.SSHBinary, "-F", c.configPath, alias, "-s", "sftp") //nolint:gosec // fixed subsystem and generated alias
+	cmd := exec.CommandContext(childCtx, c.cfg.SSHBinary, append(append([]string{"-F", c.configPath}, opts...), alias, "-s", "sftp")...) //nolint:gosec // fixed subsystem and generated alias
 	cmd.WaitDelay = time.Second
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		cancel()
+		release()
 		return nil, fmt.Errorf("open ssh stdin: %w", err)
 	}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		cancel()
+		release()
 		return nil, fmt.Errorf("open ssh stdout: %w", err)
 	}
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if err := cmd.Start(); err != nil {
 		cancel()
+		release()
 		return nil, fmt.Errorf("start ssh SFTP subsystem: %w", err)
 	}
 	p := &subsystemPipe{stdin: stdin, stdout: stdout, cancel: cancel, done: make(chan struct{})}
 	go func() {
 		p.waitErr = cmd.Wait()
+		release()
 		close(p.done)
 	}()
 	return p, nil
@@ -133,8 +139,10 @@ func (c *Client) OpenSFTP(ctx context.Context, machine string) (io.ReadWriteClos
 // Codex's app-server proxy). Cancelling ctx or closing the stream ends it;
 // the caller bounds it with a deadline.
 func (c *Client) Stream(ctx context.Context, machine string, args ...string) (io.ReadWriteCloser, error) {
-	argv, err := c.Args(machine, nil, args...)
+	opts, release := c.LongLived(machine)
+	argv, err := c.Args(machine, opts, args...)
 	if err != nil {
+		release()
 		return nil, err
 	}
 	childCtx, cancel := context.WithCancel(ctx)
@@ -143,20 +151,24 @@ func (c *Client) Stream(ctx context.Context, machine string, args ...string) (io
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		cancel()
+		release()
 		return nil, fmt.Errorf("open ssh stdin: %w", err)
 	}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		cancel()
+		release()
 		return nil, fmt.Errorf("open ssh stdout: %w", err)
 	}
 	if err := cmd.Start(); err != nil {
 		cancel()
+		release()
 		return nil, fmt.Errorf("start ssh: %w", err)
 	}
 	p := &subsystemPipe{stdin: stdin, stdout: stdout, cancel: cancel, done: make(chan struct{})}
 	go func() {
 		p.waitErr = cmd.Wait()
+		release()
 		close(p.done)
 	}()
 	return p, nil

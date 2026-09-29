@@ -87,13 +87,13 @@ func isKeyType(t string) bool {
 		strings.HasPrefix(t, "sk-ssh-") || strings.HasPrefix(t, "sk-ecdsa-")
 }
 
-// writeFiles creates Dir (0700), Dir/cm (0700), known_hosts and config.
+// writeFiles creates Dir, Dir/cm and Dir/cml (0700), known_hosts and config.
 func writeFiles(c Config) (configPath string, err error) {
 	hosts, err := knownHosts(c.HostKeysDir)
 	if err != nil {
 		return "", err
 	}
-	for _, d := range []string{c.Dir, filepath.Join(c.Dir, "cm")} {
+	for _, d := range []string{c.Dir, filepath.Join(c.Dir, "cm"), filepath.Join(c.Dir, longLivedDir)} {
 		if err := os.MkdirAll(d, 0o700); err != nil {
 			return "", fmt.Errorf("create %s: %w", d, err)
 		}

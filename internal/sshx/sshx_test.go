@@ -174,6 +174,50 @@ func TestArgs(t *testing.T) {
 	}
 }
 
+func TestLongLivedShardsBelowMaxSessions(t *testing.T) {
+	c, err := New(testConfig(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := func(opts []string) string {
+		t.Helper()
+		if len(opts) != 2 || opts[0] != "-o" || !strings.HasPrefix(opts[1], "ControlPath=") {
+			t.Fatalf("opts = %q", opts)
+		}
+		return strings.TrimPrefix(opts[1], "ControlPath=")
+	}
+	var releases []func()
+	var paths []string
+	for range longLivedPerMaster + 1 {
+		opts, release := c.LongLived("host")
+		paths = append(paths, path(opts))
+		releases = append(releases, release)
+	}
+	first := filepath.Join(c.cfg.Dir, longLivedDir, "%C-0")
+	for i, p := range paths[:longLivedPerMaster] {
+		if p != first {
+			t.Fatalf("channel %d on %q; want %q", i, p, first)
+		}
+	}
+	if last := paths[longLivedPerMaster]; last != filepath.Join(c.cfg.Dir, longLivedDir, "%C-1") {
+		t.Fatalf("channel over the cap on %q; want the next master", last)
+	}
+	if strings.HasPrefix(first, filepath.Join(c.cfg.Dir, "cm")+"/") {
+		t.Fatal("long-lived master shares the command master's directory")
+	}
+	// A freed slot is reused, and releasing twice frees it once.
+	releases[3]()
+	releases[3]()
+	opts, _ := c.LongLived("host")
+	if path(opts) != first {
+		t.Fatalf("freed slot not reused: %q", path(opts))
+	}
+	opts, _ = c.LongLived("host")
+	if path(opts) != paths[longLivedPerMaster] {
+		t.Fatalf("double release freed two slots: %q", path(opts))
+	}
+}
+
 // fakeSSH installs a shell script as the ssh binary.
 func fakeSSH(t *testing.T, script string) *Client {
 	t.Helper()

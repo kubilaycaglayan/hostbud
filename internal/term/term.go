@@ -65,13 +65,20 @@ type Handler struct {
 // Active is the number of live attach processes.
 func (h *Handler) Active() int { return int(h.active.Load()) }
 
-// AttachArgv returns the full argv for attaching to a session.
-func AttachArgv(ssh SSH, machine, session string, version tmux.Version) ([]string, error) {
+// longLivedSSH is implemented by sshx.Client: an attach stays open, so it
+// uses a long-lived ControlMaster instead of the one short commands share.
+type longLivedSSH interface {
+	LongLived(machine string) (opts []string, release func())
+}
+
+// AttachArgv returns the full argv for attaching to a session; sshOpts go
+// before the alias.
+func AttachArgv(ssh SSH, machine, session string, version tmux.Version, sshOpts ...string) ([]string, error) {
 	attach, err := tmux.AttachArgs(session, version)
 	if err != nil {
 		return nil, err
 	}
-	args, err := ssh.Args(machine, []string{"-tt"}, attach...)
+	args, err := ssh.Args(machine, append([]string{"-tt"}, sshOpts...), attach...)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +104,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if h.TmuxVersion != nil {
 		version = h.TmuxVersion(q.Get("machine"))
 	}
-	argv, err := AttachArgv(h.SSH, q.Get("machine"), q.Get("session"), version)
+	var sshOpts []string
+	if l, ok := h.SSH.(longLivedSSH); ok {
+		opts, release := l.LongLived(q.Get("machine"))
+		defer release()
+		sshOpts = opts
+	}
+	argv, err := AttachArgv(h.SSH, q.Get("machine"), q.Get("session"), version, sshOpts...)
 	if err != nil {
 		http.Error(w, "invalid machine or session: "+err.Error(), http.StatusBadRequest)
 		return
