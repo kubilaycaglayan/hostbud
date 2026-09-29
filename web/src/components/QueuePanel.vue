@@ -61,7 +61,7 @@ const progressSegments = computed(() => items.value.map((item) => ({
   label: statusLabel(item),
   color: item.status === 'done' ? 'bg-ok'
     : item.status === 'needs_attention' ? 'bg-danger'
-      : ['running', 'verifying', 'awaiting_approval'].includes(item.status) ? 'bg-accent'
+      : ['running', 'verifying', 'awaiting_approval'].includes(item.status) ? 'bg-warning'
         : 'bg-border',
 })))
 const remainingCount = computed(() => items.value.filter((item) => item.status === 'queued').length)

@@ -22,6 +22,7 @@
   --hb-fg: #d7dae0;
   --hb-muted: #8b919c;
   --hb-accent: #5fb3f9;
+  --hb-warning: #e3b341;
   --hb-danger: #f47067;
   --hb-ok: #57ab5a;
   --hb-overlay: rgb(0 0 0 / 0.55);
@@ -38,6 +39,7 @@
   --hb-fg: #1f2328;
   --hb-muted: #656d76;
   --hb-accent: #0969da;
+  --hb-warning: #9a6700;
   --hb-danger: #cf222e;
   --hb-ok: #1a7f37;
   --hb-overlay: rgb(0 0 0 / 0.38);
@@ -54,6 +56,7 @@
   --hb-fg: #263f44;
   --hb-muted: #263f44;
   --hb-accent: #07598f;
+  --hb-warning: #b58900;
   --hb-danger: #8f310d;
   --hb-ok: #405900;
   --hb-overlay: rgb(0 43 54 / 0.34);
@@ -70,6 +73,7 @@
   --hb-fg: #f0ecd9;
   --hb-muted: #d7e2d9;
   --hb-accent: #86c5e8;
+  --hb-warning: #f0c674;
   --hb-danger: #ffb08e;
   --hb-ok: #d0e278;
   --hb-overlay: rgb(0 20 26 / 0.55);
@@ -86,6 +90,7 @@
   --color-fg: var(--hb-fg);
   --color-muted: var(--hb-muted);
   --color-accent: var(--hb-accent);
+  --color-warning: var(--hb-warning);
   --color-danger: var(--hb-danger);
   --color-ok: var(--hb-ok);
   --color-overlay: var(--hb-overlay);
