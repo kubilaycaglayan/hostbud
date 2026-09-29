@@ -329,6 +329,11 @@ export async function dragSortable(handle: Locator, target: Locator, position = 
       await page.mouse.move(from.x + ((to.x - from.x) * i) / steps, from.y + ((to.y - from.y) * i) / steps)
       await page.waitForTimeout(60) // Sortable samples the pointer every 50 ms
     }
+    // Sortable ignores a target that is still animating a swap (150 ms):
+    // hold still, then move again so a pending swap lands before the drop.
+    await page.waitForTimeout(250)
+    await page.mouse.move(to.x, to.y + 1)
+    await page.waitForTimeout(100)
     await page.mouse.up()
     return
   }
@@ -341,5 +346,8 @@ export async function dragSortable(handle: Locator, target: Locator, position = 
     await handle.dispatchEvent('touchmove', { bubbles: true, cancelable: true, touches: points(x, y), targetTouches: points(x, y), changedTouches: points(x, y) })
     await page.waitForTimeout(60)
   }
+  await page.waitForTimeout(250) // past a swap animation, as above
+  await handle.dispatchEvent('touchmove', { bubbles: true, cancelable: true, touches: points(to.x, to.y + 1), targetTouches: points(to.x, to.y + 1), changedTouches: points(to.x, to.y + 1) })
+  await page.waitForTimeout(100)
   await handle.dispatchEvent('touchend', { bubbles: true, cancelable: true, touches: [], targetTouches: [], changedTouches: points(to.x, to.y) })
 }

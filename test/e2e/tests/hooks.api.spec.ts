@@ -39,6 +39,10 @@ const BODY = JSON.stringify({ session_id: 'e2e-session', transcript_path: '/home
 test('(V2-M1 T3) Hook endpoint: token-only contract through Caddy', async ({ request, target }) => {
   const run = await seed(request, target)
   const other = await seed(request, target, 'running')
+  // turn_end makes the dispatcher read the transcript: give it one with the
+  // goal still pending, or a missing file would end the run (later hooks 410).
+  const record = JSON.stringify({ type: 'attachment', attachment: { type: 'goal_status', condition: 'e2e', met: false, sentinel: true }, sessionId: 'e2e-session', timestamp: new Date().toISOString(), uuid: 'e2e-hooks-goal' })
+  await target.run(`mkdir -p /home/dev/.claude/projects/e2e && printf '%s\\n' ${shq(record)} > /home/dev/.claude/projects/e2e/e2e-session.jsonl`)
 
   // Accepted without a cookie; a foreign Origin doesn't matter.
   expect((await hook(run.runId, 'session_start', run.token, BODY)).status()).toBe(204)

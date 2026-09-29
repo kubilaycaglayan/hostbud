@@ -83,11 +83,13 @@ test('(T8) Toggle to the last tab, dropping closed tabs from its history', async
   await ui.type('echo shortcut-mru-c', true)
   await expect.poll(() => captured(target, names[2])).toContain('shortcut-mru-c')
   await ui.tab(names[0]).click()
+  // History a, c, b. Closing the active a selects its neighbour b; the chord
+  // then skips the closed a and goes to c, the most recent open tab.
   await page.getByRole('button', { name: `Close ${names[0]}` }).click()
-  await expect.poll(() => ui.activeTabName()).toBe(names[2])
+  await expect.poll(() => ui.activeTabName()).toBe(names[1])
   await ui.focusTerminal()
   await page.keyboard.press('Control+Shift+D')
-  await expect.poll(() => ui.activeTabName()).toBe(names[1])
+  await expect.poll(() => ui.activeTabName()).toBe(names[2])
 })
 
 test('(T8) Global shortcuts do not reach the running program', async ({ page, ui, target }) => {

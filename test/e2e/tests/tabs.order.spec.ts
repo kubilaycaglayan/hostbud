@@ -2,7 +2,7 @@ import type { Locator, Page } from '@playwright/test'
 import { ctl } from '../helpers/ctl.ts'
 import { expect, test } from '../helpers/fixtures.ts'
 import { uniqueName, type Target } from '../helpers/target.ts'
-import type { UI } from '../helpers/ui.ts'
+import { dragSortable, type UI } from '../helpers/ui.ts'
 
 // Custom tab order (M8 T4): tabs drag directly to a new position, with no
 // handle and no restyling. The order is saved in the account's layout.
@@ -52,16 +52,9 @@ async function dragTab(ui: UI, from: string, to: string, isMobile: boolean) {
     await ui.page.mouse.up()
     return
   }
-  const touch = (x: number, y: number) => [{ identifier: 1, clientX: x, clientY: y, pageX: x, pageY: y }]
-  const el = ui.tab(from)
-  await el.dispatchEvent('touchstart', { bubbles: true, cancelable: true, touches: touch(start.x, start.y), targetTouches: touch(start.x, start.y), changedTouches: touch(start.x, start.y) })
-  await ui.page.waitForTimeout(400) // the hold that starts a touch drag (TabBar's delay)
-  for (let i = 1; i <= 12; i++) {
-    const x = start.x + ((endX - start.x) * i) / 12
-    await el.dispatchEvent('touchmove', { bubbles: true, cancelable: true, touches: touch(x, start.y), targetTouches: touch(x, start.y), changedTouches: touch(x, start.y) })
-    await ui.page.waitForTimeout(60) // Sortable samples the pointer every 50 ms
-  }
-  await el.dispatchEvent('touchend', { bubbles: true, cancelable: true, touches: [], targetTouches: [], changedTouches: touch(endX, start.y) })
+  // Touch hold past TabBar's delay, then stepped moves, into the target's
+  // far edge (the shared helper also scrolls the switcher into view).
+  await dragSortable(ui.tab(from), ui.tab(to), { x: end.x > start.x ? end.box.width + 12 : -12, y: end.box.height / 2 })
 }
 
 /** Each tab's look: its classes, size and children (label and close only). */
@@ -100,7 +93,15 @@ test('(T4) Custom tab order', async ({ ui, target, isMobile }) => {
   await expect(ui.page.getByRole('tablist', { name: 'Open terminals' }).getByRole('button', { name: /drag|reorder|move/i })).toHaveCount(0)
 
   // Drag the first tab past the last: the order changes, nothing else.
-  await dragTab(ui, a, c, isMobile)
+  if (isMobile) {
+    // The phone's scrolling switcher shows two tabs at a time: a past b,
+    // then past c.
+    await dragTab(ui, a, b, isMobile)
+    await expect.poll(() => ui.tabNames()).toEqual([b, a, c])
+    await dragTab(ui, a, c, isMobile)
+  } else {
+    await dragTab(ui, a, c, isMobile)
+  }
   await expect.poll(() => ui.tabNames()).toEqual([b, c, a])
   expect(await ui.activeTabName()).toBe(c)
   // Same looks, moved with their tabs (no drag classes left behind).

@@ -6,12 +6,24 @@ import { ctl } from '../helpers/ctl.ts'
 import { uniqueName } from '../helpers/target.ts'
 
 async function account(ui: import('../helpers/ui.ts').UI, label = 'e2e-theme') {
-  await ui.page.evaluate(() => localStorage.removeItem('hostbud.theme'))
   const fresh = newAccount(label)
   forbidInLogs(fresh.email, fresh.password)
   await owner.allow(fresh.email)
   await ui.createAccount(fresh)
+  // Drop an earlier test's origin-local theme (only readable once the app
+  // is open), so the fresh account starts from its own saved state.
+  await ui.page.evaluate(() => localStorage.removeItem('hostbud.theme'))
+  await ui.open()
   return fresh
+}
+
+/** Closes the compact tree drawer if it is open (no-op on desktop). */
+async function closeDrawer(page: import('@playwright/test').Page) {
+  const drawer = page.getByRole('dialog', { name: 'Project tree' })
+  if (await drawer.isVisible()) {
+    await page.keyboard.press('Escape')
+    await expect(drawer).toBeHidden()
+  }
 }
 
 async function chooseTheme(page: import('@playwright/test').Page, mode: 'Dark' | 'Light' | 'Solarized' | 'Dimmed' | 'System') {
@@ -93,6 +105,7 @@ test('(T15) Selected session and active tab stand out across themes', async ({ p
   // Hit the row's leading blank/padding area, outside the name and controls.
   await page.mouse.click(box!.x + 2, box!.y + box!.height / 2)
   await expect(page.getByRole('tab', { name: second, exact: true })).toHaveAttribute('aria-selected', 'true')
+  await ui.showList() // selecting a row closes the compact drawer
   await expect(row).toHaveAttribute('aria-selected', 'true')
   await expect(page.locator('[data-session-age], [data-session-dot]')).toHaveCount(0)
   await expect(page.getByRole('img', { name: 'attached session' })).toHaveCount(0)
@@ -106,12 +119,14 @@ test('(T15) Selected session and active tab stand out across themes', async ({ p
     ['Solarized', 'solarized'],
     ['Dimmed', 'dimmed'],
   ] as const) {
+    await closeDrawer(page) // the Account menu is behind the compact drawer
     await chooseTheme(page, choice)
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+    await ui.showList()
     const [selected, other, tab] = await Promise.all([
       row.evaluate((el) => getComputedStyle(el).backgroundColor),
       ui.treeItem(first).evaluate((el) => getComputedStyle(el).backgroundColor),
-      page.getByRole('tab', { name: second, exact: true }).evaluate((el) => getComputedStyle(el.parentElement!).backgroundColor),
+      page.getByRole('tab', { name: second, exact: true, includeHidden: true }).evaluate((el) => getComputedStyle(el.parentElement!).backgroundColor),
     ])
     expect(selected).not.toBe(other)
     expect(tab).toBe(selected)
