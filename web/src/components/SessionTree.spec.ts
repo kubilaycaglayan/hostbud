@@ -352,6 +352,20 @@ describe('SessionTree', () => {
     wrapper.unmount()
   })
 
+  it('closes a session menu on Hide so Show hidden does not reopen it', async () => {
+    const wrapper = mount(SessionTree, { attachTo: document.body })
+    await wrapper.get('[data-tree-key="session:one"] button[aria-label="More actions for one"]').trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+    ;[...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((node) => node.textContent?.trim() === 'Hide')!.click()
+    await flushPromises()
+    expect(wrapper.find('[data-tree-key="session:one"]').exists()).toBe(false)
+    await wrapper.get('button[aria-pressed="false"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[data-tree-key="session:one"]').attributes('aria-label')).toBe('one, hidden')
+    expect(document.body.querySelector('[role="menu"]')).toBeNull()
+    wrapper.unmount()
+  })
+
   it('hides and unhides projects and sessions through Show hidden without touching tmux or layout', async () => {
     const tree = useTreeStore()
     const layout = (await import('@/stores/layout')).useLayoutStore()
