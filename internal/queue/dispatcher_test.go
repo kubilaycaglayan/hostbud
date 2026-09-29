@@ -186,6 +186,7 @@ func newDispEnv(t *testing.T, conditions ...string) *dispEnv {
 	starter := NewStarter(e.st, e.sessions, "http://127.0.0.1:9055", nil)
 	e.d = NewDispatcher(e.st, adapterMap{"claude": e.claude, "codex": e.claude}, starter, e.svc, e.bus, staleAfter, nil)
 	e.d.SetClock(e.clock)
+	e.st.now = e.clock.Now
 	var err error
 	if e.queue, err = e.svc.Create(context.Background(), "project_a", "Q"); err != nil {
 		t.Fatal(err)
@@ -471,6 +472,52 @@ func TestQueueDependencyWaitsForExistingSession(t *testing.T) {
 	e.d.enqueue(func(ctx context.Context) { ready <- e.d.predecessorReady(ctx, q) })
 	if !<-ready {
 		t.Fatal("a begun queue is still gated by its linked session")
+	}
+}
+
+// A linked session missing from a snapshot taken before the queue was
+// created is not known to be gone (the inventory hadn't listed it yet): the
+// queue waits for a newer snapshot.
+func TestQueueLinkedSessionMissingFromOlderSnapshotWaits(t *testing.T) {
+	e := newDispEnv(t)
+	e.svc.SetParallelQueues(true)
+	snapshot := func(sessions ...tmux.Session) {
+		e.d.enqueue(func(ctx context.Context) { e.d.sessionsChanged(ctx, inventory.SessionsChanged{Sessions: sessions}) })
+		e.d.Sync()
+	}
+	snapshot(tmux.Session{Name: "unrelated"})
+	e.clock.advance(time.Second)
+	dependent, err := e.svc.CreateLinked(e.ctx(), "project_a", "After new session", store.QueueLink{Session: "just-created"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.svc.AddItem(e.ctx(), dependent.ID, "claude", "", "first"); err != nil {
+		t.Fatal(err)
+	}
+	status := func() string {
+		t.Helper()
+		v, err := e.svc.Get(e.ctx(), dependent.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v.Items[0].Status
+	}
+	if _, err := e.svc.Start(e.ctx(), dependent.ID); err != nil {
+		t.Fatal(err)
+	}
+	e.d.Sync()
+	if got := status(); got != store.ItemQueued {
+		t.Fatalf("started from a snapshot older than the queue: %s", got)
+	}
+	e.clock.advance(time.Second)
+	snapshot(tmux.Session{Name: "unrelated"}, tmux.Session{Name: "just-created", Status: tmux.AgentWorking, Agents: []string{"claude"}})
+	if got := status(); got != store.ItemQueued {
+		t.Fatalf("started while the session works: %s", got)
+	}
+	e.clock.advance(time.Second)
+	snapshot(tmux.Session{Name: "unrelated"})
+	if got := status(); got != store.ItemRunning {
+		t.Fatalf("item after the session was gone from a newer snapshot: %s", got)
 	}
 }
 

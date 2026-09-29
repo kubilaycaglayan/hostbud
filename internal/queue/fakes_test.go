@@ -16,6 +16,7 @@ import (
 // memStore is an in-memory store for the queue package's unit tests.
 type memStore struct {
 	mu     sync.Mutex
+	now    func() time.Time // stamps CreatedAt (nil: zero time)
 	runs   map[string]store.Run
 	order  []string
 	events []store.RunEvent
@@ -403,6 +404,9 @@ func (m *memStore) CreateQueueLinked(_ context.Context, projectID, name string, 
 	}
 	m.q().seq++
 	q := store.Queue{ID: fmt.Sprintf("queue_%02d", m.q().seq), MachineID: p.MachineID, ProjectID: p.ID, Name: name, Status: store.QueueIdle}
+	if m.now != nil {
+		q.CreatedAt = m.now()
+	}
 	if link.RunID != "" {
 		q.AfterRunID = &link.RunID
 	}
