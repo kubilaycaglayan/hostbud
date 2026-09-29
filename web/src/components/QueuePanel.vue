@@ -444,7 +444,7 @@ const badge: Record<QueueItem['status'], string> = {
               <span data-testid="queue-status" class="rounded border border-border px-2 text-sm" :class="queue.status === 'running' ? 'border-accent font-bold text-accent' : ''">{{ queue.status }}</span>
               <div class="ml-auto flex flex-wrap gap-2">
                 <label v-if="controls?.start" class="block text-sm">Start after
-                  <input v-model="startDelay" autocomplete="off" placeholder="now, 15m, 4h14m" aria-label="Start delay" class="mt-1 min-h-11 w-32 rounded border border-border bg-bg px-2 font-mono text-base">
+                  <input v-model="startDelay" autocomplete="off" placeholder="15m or 4h14m" aria-label="Start delay" class="mt-1 min-h-11 w-32 rounded border border-border bg-bg px-2 font-mono text-base">
                 </label>
                 <button v-if="controls?.start || queue.status === 'idle' || queue.status === 'finished'" type="button" :disabled="busy || !controls?.start" class="touch-target min-h-11 rounded bg-accent px-3 font-bold text-bg" @click="control('start')">Start</button>
                 <button v-if="controls?.pause" type="button" :disabled="busy" class="touch-target min-h-11 rounded border border-border px-3" @click="control('pause')">Pause</button>
