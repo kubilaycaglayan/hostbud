@@ -179,11 +179,14 @@ func TestCreateRunInSlotHoldsTheCapUnderConcurrency(t *testing.T) {
 		}
 		items = append(items, it)
 	}
-	// No cap: every run is created.
-	for i := range 2 {
+	// An unset cap defaults to two in the parallel run-slot path.
+	for i := range DefaultConcurrentRuns {
 		if _, err := s.CreateRunInSlot(ctx, items[i].ID, tokenHash(fmt.Sprint("free", i)), time.Now()); err != nil {
-			t.Fatalf("no cap: %v", err)
+			t.Fatalf("default cap run %d: %v", i, err)
 		}
+	}
+	if _, err := s.CreateRunInSlot(ctx, items[2].ID, tokenHash("default-cap"), time.Now()); !errors.Is(err, ErrNoSlot) {
+		t.Fatalf("unset cap should default to two runs: %v", err)
 	}
 	three := 3
 	if err := s.SetMachineCapacity(ctx, HostMachineID, &three); err != nil {

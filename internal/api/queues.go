@@ -132,13 +132,13 @@ func (s *server) putCapacity(w http.ResponseWriter, r *http.Request) {
 	var limit *int
 	switch raw := strings.TrimSpace(string(req.MaxConcurrentRuns)); raw {
 	case "":
-		writeError(w, http.StatusBadRequest, "maxConcurrentRuns is required", "Send a whole number from 1 to 32, or null for no cap.")
+		writeError(w, http.StatusBadRequest, "maxConcurrentRuns is required", "Send a whole number from 1 to 32, or null to restore the default of two.")
 		return
 	case "null":
 	default:
 		n, err := strconv.Atoi(raw)
 		if err != nil {
-			writeError(w, http.StatusBadRequest, "maxConcurrentRuns must be a whole number from 1 to 32, or null", "Leave it empty for no cap.")
+			writeError(w, http.StatusBadRequest, "maxConcurrentRuns must be a whole number from 1 to 32, or null", "Leave it empty to restore the default of two.")
 			return
 		}
 		limit = &n

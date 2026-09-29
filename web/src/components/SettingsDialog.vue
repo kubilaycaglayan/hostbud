@@ -20,6 +20,7 @@ const queues = useQueuesStore()
 const notifications = useNotificationsStore()
 const text = ref('')
 const saved = ref('')
+const savedText = ref('')
 const loading = ref(false)
 const busy = ref(false)
 const touched = ref(false)
@@ -38,7 +39,8 @@ watch(open, async (isOpen) => {
   void supervisorApi.status().then((status) => { supervisor.value = status }).catch(() => { supervisor.value = null })
   try {
     const c = await queuesApi.capacity(props.machine)
-    text.value = c.maxConcurrentRuns === null ? '' : String(c.maxConcurrentRuns)
+    text.value = c.maxConcurrentRuns === null ? (queues.parallelQueues ? '2' : '') : String(c.maxConcurrentRuns)
+    savedText.value = text.value
   } catch (e) {
     error.value = { title: "Couldn't load the settings", ...describeError(e) }
   } finally {
@@ -50,12 +52,14 @@ async function save() {
   touched.value = true
   saved.value = ''
   if (problem.value) return
+  if (text.value.trim() !== savedText.value.trim() && !window.confirm(`Change the maximum parallel runs to ${text.value.trim() || 'the default (2 when parallel queues are on)'}?`)) return
   busy.value = true
   error.value = null
   try {
     const c = await queuesApi.setCapacity(props.machine, capacityValue(text.value))
-    text.value = c.maxConcurrentRuns === null ? '' : String(c.maxConcurrentRuns)
-    saved.value = c.maxConcurrentRuns === null ? 'Saved: no cap.' : `Saved: at most ${c.maxConcurrentRuns} at once.`
+    text.value = c.maxConcurrentRuns === null ? (queues.parallelQueues ? '2' : '') : String(c.maxConcurrentRuns)
+    savedText.value = text.value
+    saved.value = c.maxConcurrentRuns === null ? 'Saved: default limit (2 when parallel queues are on).' : `Saved: at most ${c.maxConcurrentRuns} at once.`
   } catch (e) {
     error.value = { title: "Couldn't save the cap", ...describeError(e) }
   } finally {
@@ -98,10 +102,10 @@ async function save() {
               Queue runs
             </h2>
             <p class="text-sm text-muted">
-              How many queue runs may be active at once on this machine. A run that went stale still counts until you act on it. Leave it empty for no cap.
+              Maximum simultaneous queue runs on this machine. A stale run counts until you act on it. Parallel queues default to 2; the limit is ignored while parallel queues are off.
             </p>
             <p v-if="!queues.parallelQueues" data-testid="parallel-off" class="text-sm text-muted">
-              Parallel queues are off (Queue panel → Run queues in parallel), so one queue runs at a time; the cap applies once they're on.
+              Parallel queues are off (Queue panel → Run queues in parallel), so the cap does not apply. Turning them on requires confirmation.
             </p>
             <label class="block">Maximum parallel runs
               <input
@@ -109,7 +113,7 @@ async function save() {
                 type="text"
                 inputmode="numeric"
                 autocomplete="off"
-                placeholder="No cap"
+                placeholder="2 when parallel queues are on"
                 :disabled="loading"
                 :aria-invalid="touched && problem ? 'true' : undefined"
                 class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 text-base"

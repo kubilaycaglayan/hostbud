@@ -530,8 +530,12 @@ func (s *Service) waitingFor(ctx context.Context, q store.Queue, items []store.Q
 		return "", nil
 	}
 	limit, err := s.store.MachineCapacity(ctx, q.MachineID)
-	if err != nil || limit == nil {
+	if err != nil {
 		return "", err
+	}
+	if limit == nil {
+		defaultLimit := store.DefaultConcurrentRuns
+		limit = &defaultLimit
 	}
 	active, err := s.store.CountActiveRuns(ctx, q.MachineID)
 	if err != nil || active < *limit {
@@ -550,7 +554,7 @@ func (s *Service) Capacity(ctx context.Context) (*int, error) {
 // queue.changed, since their waiting state may change (V2-M2).
 func (s *Service) SetCapacity(ctx context.Context, maxRuns *int) (*int, error) {
 	if err := s.store.SetMachineCapacity(ctx, s.machine, maxRuns); errors.Is(err, store.ErrCapacityRange) {
-		return nil, invalid(err.Error(), "Leave it empty for no cap.")
+		return nil, invalid(err.Error(), "Leave it empty to restore the default limit of two.")
 	} else if err != nil {
 		return nil, err
 	}

@@ -38,8 +38,11 @@ Each box is one roadmap criterion. Its coverage line names the task that writes 
   - U: T5 · I: T5 (route table, Origin) · E: T5 *Queues panel* (desktop and phone), *Capacity API*.
 - [x] **8 The docs are aligned** as listed in R T6 and T6.
   - U/I: T6 docs check · E: n/a (documents).
+- [x] **9 Parallel runs default to two and settings changes are confirmed.**
+  - The effective limit is 2 only when parallel queues are on; an empty setting restores 2. An explicit 1–32 value overrides it, and parallel-off mode ignores the cap.
+  - U: T9 (store cap enforcement, dispatcher/clear behavior, confirmation cancellation and acceptance) · I: T9 (persisted store default; authenticated, Origin-checked settings route, existing integration checks) · E: T9 *Queues panel* (desktop and phone; confirm cap update and reset to default).
 
-Status (2026-09-28): criteria 1–8 are ticked with their U/I tests passing (CP1–CP4; CP2 three times in a row) and their E items counted as written. Commits: T1 `982375a`, T2 `af7fcae`, T3 `99ef4a7`, T4 `59c402b`, T5 `e193a79`, T6 `0ef8c68`.
+Status (2026-09-28): criteria 1–8 are ticked with their U/I tests passing (CP1–CP4; CP2 three times in a row) and their E items counted as written. Commits: T1 `982375a`, T2 `af7fcae`, T3 `99ef4a7`, T4 `59c402b`, T5 `e193a79`, T6 `0ef8c68`. Criterion 9 is being added as V2-M2 T9.
 
 ## E2E scenarios
 
@@ -53,7 +56,7 @@ Written in T2–T5 and type-checked; run on demand (desktop and `iphone-13-pro`)
 - [ ] (T4) Slots in start order
 - [ ] (T4) Stale holds a slot
 - [ ] (T4) Cap after restart
-- [ ] (T5) Queues panel (desktop and phone)
+- [ ] (T5, T9) Queues panel (desktop and phone; T9 verifies confirmations and default reset)
 - [ ] (T5) Capacity API
 - [ ] (on demand) Full suite green on both e2e apps: every v1, V2-M1 and V2-M2 scenario, both profiles, no skips or weakened assertions — run only when the owner asks; open until then, not a blocker
 

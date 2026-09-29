@@ -43,12 +43,13 @@ test.describe('Queues panel on iPhone 13 Pro (parallel queues)', () => {
     await expect(settings.getByLabel('Maximum parallel runs')).toBeEnabled()
     await settings.getByLabel('Maximum parallel runs').fill(value)
     await settings.getByRole('button', { name: 'Save' }).tap()
-    await expect(settings.getByRole('form', { name: 'Queue runs' }).getByRole('status')).toContainText(value ? `at most ${value}` : 'no cap')
+    await expect(settings.getByRole('form', { name: 'Queue runs' }).getByRole('status')).toContainText(value ? `at most ${value}` : 'default limit')
     await settings.getByRole('button', { name: 'Close settings' }).tap()
     await page.getByRole('banner').getByRole('button', { name: 'Queue', exact: true }).tap()
   }
 
-  test('(V2-M2 T5) Queues panel (phone)', async ({ page, ui, multi, target }, info) => {
+  test('(V2-M2 T5, T9) Queues panel (phone) and confirmed cap settings', async ({ page, ui, multi, target }, info) => {
+    page.on('dialog', dialog => dialog.accept())
     test.skip(info.project.name === 'iphone-13-pro-domain', 'the multi app has no domain site; iphone-13-pro covers the phone')
     const project = await newProject(multi, target, 'e2e-phone-multi')
     await stubs.setBehavior('e2e phone alpha', 'achieve:8', 1)

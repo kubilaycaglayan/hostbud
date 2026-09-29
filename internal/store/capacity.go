@@ -12,8 +12,9 @@ import (
 
 // Capacity bounds for machine_capacity.max_concurrent_runs.
 const (
-	MinConcurrentRuns = 1
-	MaxConcurrentRuns = 32
+	MinConcurrentRuns     = 1
+	MaxConcurrentRuns     = 32
+	DefaultConcurrentRuns = 2
 )
 
 // ErrCapacityRange means a cap outside MinConcurrentRuns–MaxConcurrentRuns.
@@ -134,14 +135,16 @@ func (s *Store) CreateRunInSlot(ctx context.Context, itemID string, tokenHash []
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return err
 		}
+		maxRuns := int64(DefaultConcurrentRuns)
 		if limit.Valid {
-			var active int64
-			if err := tx.QueryRowContext(ctx, slotHolders, machine, ActiveRunStatuses).Scan(&active); err != nil {
-				return err
-			}
-			if active >= limit.Int64 {
-				return ErrNoSlot
-			}
+			maxRuns = limit.Int64
+		}
+		var active int64
+		if err := tx.QueryRowContext(ctx, slotHolders, machine, ActiveRunStatuses).Scan(&active); err != nil {
+			return err
+		}
+		if active >= maxRuns {
+			return ErrNoSlot
 		}
 		r, err = scanRun(tx.QueryRowContext(ctx, `
 			INSERT INTO runs (id, item_id, machine_id, token_hash, status, started_at)

@@ -134,15 +134,15 @@ export function statusLabel(item: QueueItem): string {
   return item.run ? `${label} · ${RUN_LABELS[item.run.status] ?? item.run.status}` : label
 }
 
-/** The cap input's problem, or '' for a whole number 1–32 or empty (no cap). */
+/** The cap input's problem, or '' for a whole number 1–32 or empty (default 2). */
 export function capacityError(text: string): string {
   const value = text.trim()
   if (!value) return ''
-  if (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 32) return 'Enter a whole number from 1 to 32, or leave it empty for no cap.'
+  if (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 32) return 'Enter a whole number from 1 to 32, or leave it empty for the default limit of 2.'
   return ''
 }
 
-/** The cap input as the API wants it: null for empty (no cap). */
+/** The cap input as the API wants it: null for empty (default limit of 2). */
 export function capacityValue(text: string): number | null {
   const value = text.trim()
   return value ? Number(value) : null

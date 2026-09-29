@@ -519,7 +519,10 @@ func (d *Dispatcher) slotFree(ctx context.Context, machine string) bool {
 		return false
 	}
 	if limit == nil {
-		return true
+		// Parallel queues use a conservative default until the owner chooses
+		// another cap. This path is reached only while parallel mode is on.
+		defaultLimit := store.DefaultConcurrentRuns
+		limit = &defaultLimit
 	}
 	active, err := d.store.CountActiveRuns(ctx, machine)
 	return err == nil && active < *limit

@@ -158,22 +158,26 @@ func TestSlotsCapOneTakesTurns(t *testing.T) {
 	}
 }
 
-// No cap: every queue runs at once, each one sequential.
-func TestSlotsNoCapRunsAllQueues(t *testing.T) {
+// With no configured cap, parallel queues use the default of two runs.
+func TestSlotsDefaultCapRunsTwoQueues(t *testing.T) {
 	e := newSlotEnv(t, nil, 2, "A", "B", "C")
 	for _, name := range []string{"A", "B", "C"} {
 		e.start(name)
 	}
-	if got := e.active(); !slices.Equal(got, []string{"A", "B", "C"}) {
-		t.Fatalf("active %v", got)
+	if got := e.active(); !slices.Equal(got, []string{"A", "B"}) || !e.waitingFor("C") {
+		t.Fatalf("default cap: active %v", got)
 	}
 	e.achieve("B")
-	if got := e.active(); !slices.Equal(got, []string{"A", "B", "C"}) {
-		t.Fatalf("after B achieved: active %v (B's second item should run)", got)
+	if got := e.active(); !slices.Equal(got, []string{"A", "C"}) || !e.waitingFor("B") {
+		t.Fatalf("after B achieved: FIFO slot goes to C, active %v", got)
 	}
 	items, _ := e.st.QueueItems(e.ctx(), e.queues["A"].ID)
 	if items[0].Status != store.ItemRunning || items[1].Status != store.ItemQueued {
 		t.Fatalf("A isn't sequential: %s, %s", items[0].Status, items[1].Status)
+	}
+	e.achieve("C")
+	if got := e.active(); !slices.Equal(got, []string{"A", "B"}) {
+		t.Fatalf("B's second item starts after its slot becomes free: %v", got)
 	}
 }
 
@@ -231,7 +235,7 @@ func TestSlotsStaleHoldsOwnerActionFrees(t *testing.T) {
 
 // Lowering the cap stops nothing; raising or clearing it dispatches at once.
 func TestSlotsCapChanges(t *testing.T) {
-	e := newSlotEnv(t, nil, 2, "A", "B", "C")
+	e := newSlotEnv(t, intp(3), 2, "A", "B", "C")
 	for _, name := range []string{"A", "B", "C"} {
 		e.start(name)
 	}
@@ -263,7 +267,7 @@ func TestSlotsCapChanges(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.d.Sync()
-	if got := e.active(); !slices.Equal(got, []string{"A", "B", "C"}) {
+	if got := e.active(); !slices.Equal(got, []string{"A", "C"}) || !e.waitingFor("B") {
 		t.Fatalf("clearing the cap: active %v", got)
 	}
 	for _, bad := range []int{0, 33} {

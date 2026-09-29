@@ -16,6 +16,7 @@ const queued: Queue['items'][number] = { id: 'i2', queueId: 'q1', position: 2, a
 
 beforeEach(() => setActivePinia(createPinia()))
 afterEach(() => {
+  vi.restoreAllMocks()
   vi.unstubAllGlobals()
   document.body.innerHTML = ''
 })
@@ -315,8 +316,9 @@ describe('QueuePanel', () => {
   })
 
   it('turns parallel queues on and off from the panel, no redeploy', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
     const calls = stubFetch((_m, _p, body) => ({ status: 200, body }))
-    await mountPanel([queue([queued], 'idle')], false, false)
+    await mountPanel([queue([queued], 'idle')], false, false);
     const toggle = () => $$('[data-testid="parallel-toggle"]')[0] as HTMLInputElement
     toggle().click()
     await flushPromises()
@@ -328,6 +330,16 @@ describe('QueuePanel', () => {
     toggle().click()
     await flushPromises()
     expect(calls[1]).toEqual({ method: 'PUT', path: '/api/machines/host/parallel-queues', body: { parallelQueues: false } })
+    expect(useQueuesStore().parallelQueues).toBe(false)
+  })
+
+  it('leaves the parallel switch unchanged when confirmation is declined', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const calls = stubFetch((_m, _p, body) => ({ status: 200, body }))
+    await mountPanel([queue([queued], 'idle')], false, false);
+    ;($$('[data-testid="parallel-toggle"]')[0] as HTMLInputElement).click()
+    await flushPromises()
+    expect(calls).toEqual([])
     expect(useQueuesStore().parallelQueues).toBe(false)
   })
 

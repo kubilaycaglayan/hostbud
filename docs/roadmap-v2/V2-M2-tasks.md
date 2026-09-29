@@ -18,6 +18,7 @@ Update this table in the same commit that finishes a task.
 | T6 Docs | Done |
 | T7 Milestone acceptance | Done |
 | T8 Safe Docker cleanup | Done |
+| T9 Default parallel run cap and confirmations | Done |
 
 **Precondition:** V2-M1 is done (its checklist ticked, open owner items excepted). Record the check in the Progress note.
 
@@ -127,6 +128,16 @@ Scope: R T7, done as V2-M1 T13 (the deploy checks; e2e fixing rules apply to on-
 
 As in V2-M1 T14. Extend `docker-clean` to cover `hostbud-e2e-app-multi` and its database. Never close a tmux session.
 - **Tests/E2E:** n/a (operations; the health check verifies).
+
+## T9 — Default parallel run cap and confirmations
+
+- When parallel queues are enabled, an unset/cleared machine cap means **2** active runs. The machine slot lock still re-counts atomically; parallel-off dispatch keeps V2-M1 behavior and ignores this cap.
+- Settings continues to accept 1–32; clearing restores the default. Explain that the setting applies only in parallel mode.
+- Ask for browser confirmation before changing the parallel switch or saving a changed cap. Cancelling either confirmation leaves state unchanged.
+- **Tests:** U: unset cap allows two but refuses a third in the store; dispatcher default and clear-to-default behavior; UI cancel/accept for switch and cap. I: capacity API/integration behavior remains origin/auth checked, and default cap is enforced with persisted store.
+- **E2E:** update *Queues panel* (desktop and phone) to cover confirmed cap changes and show that clearing restores the default 2; E scenarios are type-checked, full run on demand.
+
+- **T9 (2026-09-29):** unset/cleared slot cap defaults to 2 in both dispatcher admission and the store's locked re-check, only on the parallel queue path; clearing wakes waiters under the default. Settings and parallel switch changes ask for confirmation; cancellation leaves persisted state unchanged. Settings, queue panel and README explain the default. Updated queue unit tests and desktop/phone E2E panel scenarios. `make lint test` green, E2E TypeScript check green; full E2E run remains on demand.
 
 ---
 

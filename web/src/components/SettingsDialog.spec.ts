@@ -6,8 +6,12 @@ import type { SupervisorStatus } from '@/api/types'
 import { useQueuesStore } from '@/stores/queues'
 import { stubFetch } from '@/test-utils'
 
-beforeEach(() => setActivePinia(createPinia()))
+beforeEach(() => {
+  setActivePinia(createPinia())
+  vi.spyOn(window, 'confirm').mockReturnValue(true)
+})
 afterEach(() => {
+  vi.restoreAllMocks()
   vi.unstubAllGlobals()
   document.body.innerHTML = ''
 })
@@ -32,6 +36,16 @@ function type(value: string) {
 }
 
 describe('SettingsDialog', () => {
+  it('does not save a changed cap when confirmation is declined', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const calls = await mountSettings(null)
+    type('5')
+    save().click()
+    await flushPromises()
+    expect(calls.filter((c) => c.method === 'PUT')).toEqual([])
+    expect(input().value).toBe('5')
+  })
+
   it('shows the supervisor off reason and privacy details when enabled', async () => {
     await mountSettings(null)
     expect($$('[data-testid="supervisor-settings"]')[0].textContent).toContain('set HOSTBUD_LLM_PROVIDER=openai')
@@ -45,14 +59,14 @@ describe('SettingsDialog', () => {
     expect(details).toContain('Flags are advisory and never advance a queue')
   })
 
-  it('loads the cap; empty means no cap', async () => {
+  it('loads a configured cap; empty uses the parallel default', async () => {
     await mountSettings(3)
     expect(input().value).toBe('3')
     expect(input().getAttribute('autocomplete')).toBe('off')
     document.body.innerHTML = ''
     setActivePinia(createPinia())
     await mountSettings(null)
-    expect(input().value).toBe('')
+    expect(input().value).toBe('2')
   })
 
   it('validates before sending: whole numbers 1–32 or empty', async () => {
@@ -75,7 +89,7 @@ describe('SettingsDialog', () => {
       { method: 'PUT', path: '/api/machines/host/capacity', body: { maxConcurrentRuns: 2 } },
       { method: 'PUT', path: '/api/machines/host/capacity', body: { maxConcurrentRuns: null } },
     ])
-    expect($$('form[aria-label="Queue runs"] [role="status"]')[0].textContent).toContain('no cap')
+    expect($$('form[aria-label="Queue runs"] [role="status"]')[0].textContent).toContain('default limit')
   })
 
   it('shows the server error', async () => {

@@ -75,6 +75,16 @@ async function act(title: string, fn: () => Promise<unknown>) {
 /** The parallel-queues switch: stored on the server, no redeploy.
  * Switching off stops no run. */
 function toggleParallel(on: boolean) {
+  const accepted = window.confirm(on
+    ? 'Run queues in parallel? Up to 2 runs will be active at once by default. Change this limit in Settings.'
+    : 'Turn off parallel queues? Active runs will continue, and new queues will wait.')
+  if (!accepted) {
+    void nextTick(() => {
+      const toggle = document.querySelector<HTMLInputElement>('[data-testid="parallel-toggle"]')
+      if (toggle) toggle.checked = store.parallelQueues
+    })
+    return
+  }
   void act("Couldn't change parallel queues", async () => {
     store.parallelQueues = (await queuesApi.setParallel(props.machine, on)).parallelQueues
   })

@@ -37,7 +37,7 @@ async function setCap(page: Page, value: string) {
   await expect(settings.getByLabel('Maximum parallel runs')).toBeEnabled()
   await settings.getByLabel('Maximum parallel runs').fill(value)
   await settings.getByRole('button', { name: 'Save' }).click()
-  await expect(settings.getByRole('form', { name: 'Queue runs' }).getByRole('status')).toContainText(value ? `at most ${value}` : 'no cap')
+  await expect(settings.getByRole('form', { name: 'Queue runs' }).getByRole('status')).toContainText(value ? `at most ${value}` : 'default limit')
   await settings.getByRole('button', { name: 'Close settings' }).click()
   await page.getByRole('banner').getByRole('button', { name: 'Queue', exact: true }).click()
 }
@@ -46,7 +46,8 @@ test.describe('Queues panel (desktop, parallel queues)', () => {
   test.describe.configure({ timeout: 150_000 })
   test.skip(({ isMobile }) => isMobile, 'the phone variant is queues.phone.spec.ts')
 
-  test('(V2-M2 T5) Queues panel', async ({ page, ui, multi, target }) => {
+  test('(V2-M2 T5, T9) Queues panel and confirmed cap settings', async ({ page, ui, multi, target }) => {
+    page.on('dialog', dialog => dialog.accept())
     const project = await newProject(multi, target, 'e2e-panel-multi')
     await stubs.setBehavior('e2e multi alpha', 'achieve:8', 1)
     await stubs.setBehavior('e2e multi beta', 'achieve:2', 0.5)
