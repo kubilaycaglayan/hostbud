@@ -130,8 +130,8 @@ func TestServiceItemValidationAndEditingRules(t *testing.T) {
 	for _, bad := range [][3]string{
 		{"gemini", "", "/goal x"},
 		{"claude", `--model 'x`, "/goal x"},
-		{"claude", "", "work on M2"},
-		{"codex", "", "/goal "},
+		{"claude", "", ""},
+		{"codex", "", "two\nlines"},
 	} {
 		if _, err := e.svc.AddItem(ctx, q.ID, bad[0], bad[1], bad[2]); queueStatus(err) != http.StatusBadRequest {
 			t.Errorf("AddItem(%q) = %v", bad, err)
@@ -149,7 +149,7 @@ func TestServiceItemValidationAndEditingRules(t *testing.T) {
 	if it, err := e.svc.UpdateItem(ctx, ids[0], store.QueueItemUpdate{Instruction: &instr}); err != nil || it.Instruction != instr || it.Agent != "claude" {
 		t.Fatalf("edit queued: %+v, %v", it, err)
 	}
-	bad := "/goal"
+	bad := ""
 	if _, err := e.svc.UpdateItem(ctx, ids[0], store.QueueItemUpdate{Instruction: &bad}); queueStatus(err) != http.StatusBadRequest {
 		t.Fatalf("invalid edit: %v", err)
 	}

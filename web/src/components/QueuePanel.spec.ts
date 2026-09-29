@@ -113,7 +113,7 @@ describe('QueuePanel', () => {
     button('Mark item 1 done')!.click()
     await flushPromises()
     expect(calls).toHaveLength(0)
-    expect(document.body.textContent).toContain("This overrides the agent's own /goal verdict")
+    expect(document.body.textContent).toContain("Confirm that the agent's work is complete")
     const confirm = $$('[role="alertdialog"] button').find((b) => b.textContent?.trim() === 'Mark done')
     expect(confirm).toBeTruthy()
     confirm!.click()
@@ -143,17 +143,17 @@ describe('QueuePanel', () => {
     expect($$('[role="alertdialog"]')).toHaveLength(0)
   })
 
-  it('validates the instruction before sending, prefilled with "/goal "', async () => {
+  it('validates the instruction before sending, with an empty prompt field', async () => {
     const calls = stubFetch(() => ({ status: 201, body: {} }))
     await mountPanel(queue([], 'idle'))
     const instruction = $$('form[aria-label="Add item"] textarea')[0] as HTMLTextAreaElement
-    expect(instruction.value).toBe('/goal ')
+    expect(instruction.value).toBe('')
     expect(instruction.className).toContain('resize-y')
     expect(instruction).toBeTruthy()
     button('Add item')!.click()
     await flushPromises()
     expect(calls).toHaveLength(0)
-    expect(document.body.textContent).toContain('Start with /goal followed by the condition')
+    expect(document.body.textContent).toContain('Enter an instruction for the agent')
     instruction.value = '/goal ship M2'
     instruction.dispatchEvent(new Event('input'))
     button('Add item')!.click()
@@ -316,13 +316,15 @@ describe('QueuePanel', () => {
 
   it('can opt into waiting for a tracked active goal', async () => {
     const active = { ...queued, status: 'running' as const, run: { id: 'run-active', status: 'running' as const, sessionName: 'app-q2', startedAt: '' } }
+    const plainClaude = { ...active, id: 'plain', agent: 'claude' as const, instruction: 'ordinary Claude prompt', run: { ...active.run, id: 'run-plain', sessionName: 'app-q3' } }
     const calls = stubFetch(() => ({ status: 201, body: second({ items: [] }) }))
-    await mountPanel(queue([active], 'running'), false, true)
+    await mountPanel(queue([active, plainClaude], 'running'), false, true)
     button('New queue')!.click()
     await flushPromises()
     const selector = $$('form[aria-label="Create queue"] select').at(-1) as HTMLSelectElement
     expect(selector.options[0].textContent).toContain('Start normally')
     expect(selector.options[1].textContent).toContain('app-q2')
+    expect([...selector.options].some((option) => option.textContent?.includes('app-q3'))).toBe(false)
     selector.value = 'run-active'
     selector.dispatchEvent(new Event('change'))
     const name = $$('form[aria-label="Create queue"] input')[0] as HTMLInputElement

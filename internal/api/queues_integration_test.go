@@ -99,14 +99,14 @@ func TestIntegrationQueueRoutesUsePostgres(t *testing.T) {
 		t.Fatalf("second queue message: %s", body)
 	}
 	var ids []string
-	for _, instr := range []string{"/goal m1", "/goal m2", "/goal m3"} {
+	for _, instr := range []string{"work on milestone 1", "/goal m2", "/goal m3"} {
 		status, body = call("POST", "/api/queues/"+q.ID+"/items", `{"agent":"claude","flags":"--model 'opus 4'","instruction":"`+instr+`"}`, origin)
 		want(201, status, body, "add item")
 		var it queue.ItemView
 		_ = json.Unmarshal(body, &it)
 		ids = append(ids, it.ID)
 	}
-	status, body = call("POST", "/api/queues/"+q.ID+"/items", `{"agent":"claude","instruction":"no goal"}`, origin)
+	status, body = call("POST", "/api/queues/"+q.ID+"/items", `{"agent":"claude","instruction":""}`, origin)
 	want(400, status, body, "invalid instruction")
 	status, body = call("PUT", "/api/queues/"+q.ID+"/order", `{"itemIds":["`+ids[2]+`","`+ids[0]+`","`+ids[1]+`"]}`, origin)
 	want(200, status, body, "reorder")

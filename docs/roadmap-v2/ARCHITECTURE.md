@@ -10,9 +10,9 @@ The owner works on codebases whose plans are already split into milestones and h
 
 v2 adds a **queue**:
 
-1. The owner creates a queue for a project and adds items in order, for example "M1", "M2", "M3". Each item has its own agent, flags and initial instruction, typically `/goal work on milestone 2 per docs/roadmap/M2-tasks.md`.
+1. The owner creates a queue for a project and adds items in order, for example "M1", "M2", "M3". Each item has its own agent, flags and a plain initial instruction, such as `work on milestone 2 per docs/roadmap/M2-tasks.md`.
 2. hostbud starts the first item in its own tmux session, running the agent with that instruction.
-3. When hostbud detects that the item's goal is **achieved**, it starts the next item in a new session.
+3. Codex items advance when Codex reports its thread goal complete. Plain Claude items pause after a turn for the owner to review and mark done; legacy Claude items with `/goal` retain automatic goal tracking.
 4. This repeats until the queue is empty, or until something needs the owner's attention.
 
 The first v2 milestone is a **proof of concept** of exactly this: one queue, sequential. Everything after it is optional.
@@ -78,11 +78,11 @@ Both clients the owner uses have a native `/goal` command. It keeps the agent wo
 2. **A queue item chooses an execution mode.**
    - `agent` is `claude` or `codex`.
    - `flags` is free text, for example `--dangerously-skip-permissions`, `--yolo` or `--model …`. It is split into arguments and shell-quoted by `sshx`.
-   - `instruction` is, in the PoC, a `/goal …` line.
+   - `instruction` is a non-empty, one-line prompt. Legacy Claude items may still begin with `/goal ` and keep their existing tracking behavior.
    - hostbud builds the whole command, including hook injection, and passes the instruction as the client's **initial prompt argument**. There is no `send-keys` typing and no timing guesswork.
    - V2-M8 also offers `session` mode: an exact existing session target and a one-line command. It uses tmux `send-keys -l` with the command as one argument and a separate Enter key. A successful dispatch marks the item done; it is fire-and-forget and has no agent-goal signal. Completion gates are only available in `agent` mode.
 3. **A queue belongs to one project.** All its items run in that project's directory. The PoC has a single queue.
-4. **Done means the client's own `/goal` was achieved.** There is no additional gate in the PoC.
+4. **Completion follows each client's available status contract.** Codex uses its native thread goal set by hostbud. Claude plain prompts have no authoritative completion API: when a turn ends, hostbud marks the run exited, pauses the queue for review, and requires the owner to mark the item done or retry it. A plain Claude response never advances a queue automatically. Existing Claude items beginning with `/goal ` keep native `/goal` tracking.
 5. **Detection is per-run hooks plus structured goal state.**
    - hostbud injects hooks for that run only (Claude `--settings`, Codex `-c`). The hooks forward the hook's stdin JSON to hostbud.
    - On each signal hostbud reads the goal state **read-only** from the host over `sshx`.
@@ -132,19 +132,19 @@ Both clients the owner uses have a native `/goal` command. It keeps the agent wo
    - `env`: `HOSTBUD_URL`, `HOSTBUD_RUN_ID`, `HOSTBUD_RUN_TOKEN`;
    - `startCommand`: `adapter.BuildCommand(item, run)`.
 4. The run is `starting` until the `SessionStart` hook arrives. hostbud records that hook's `session_id` / thread id as the run's **binding**, and the run becomes `running`.
-5. The adapter **arms** the goal if the client needs it (§7, `Arm`). Codex doesn't run a slash command passed as its initial prompt (§12 S2), so hostbud sets the goal through Codex's app-server `thread/goal/set` right after binding. Claude needs nothing: its `/goal` runs from the argument.
+5. The adapter **arms** a goal if the client supports it (§7, `Arm`). Codex's goal is set through its app-server `thread/goal/set` right after binding. Legacy Claude `/goal` items carry their goal in the initial prompt. Plain Claude items use the ordinary prompt argument and wait for owner review at the first turn end.
 
 ### 5.2 Signals
 | Signal | Effect |
 |---|---|
 | `SessionStart` hook | Bind the agent session id; the run becomes `running`. A second `SessionStart` for the same run with a different id (for example a `/clear`) leads to `needs_attention`. |
-| `Stop` hook (every turn end) | Update `last_signal_at`, then `adapter.ReadGoalState(binding)`: `achieved` ⇒ `achieved`; `failed` ⇒ `failed`; `pending` ⇒ still running; `unknown` ⇒ `needs_attention`. A `pending` read is **followed up** at +2 s, +5 s, +15 s, +30 s and +60 s after the hook (cancelled by the next signal or a terminal state): Claude's `/goal` evaluator is itself a `Stop` hook running in parallel, and writes its verdict about 2 s *after* hostbud's hook fires (§12 S5). |
-| `SessionEnd` hook | Read the goal state once more. If not achieved, the run is `exited`. A `SessionEnd` with `reason: "clear"` (Claude `/clear`, §12 S4) gets the detail "the agent session was cleared (/clear) — the goal can't be tracked". |
+| `Stop` hook (every turn end) | Plain Claude prompt ⇒ run becomes `exited`, item becomes `needs_attention`, and queue pauses for review. Otherwise update `last_signal_at`, then `adapter.ReadGoalState(binding)`: `achieved` ⇒ `achieved`; `failed` ⇒ `failed`; `pending` ⇒ still running; `unknown` ⇒ `needs_attention`. A `pending` read is **followed up** at +2 s, +5 s, +15 s, +30 s and +60 s after the hook (cancelled by the next signal or a terminal state): Claude's `/goal` evaluator is itself a `Stop` hook running in parallel, and writes its verdict about 2 s *after* hostbud's hook fires (§12 S5). |
+| `SessionEnd` hook | Plain Claude prompt ⇒ run becomes `exited` and the item pauses for review. Otherwise read the goal state once more; if not achieved, the run is `exited`. A `SessionEnd` with `reason: "clear"` (Claude `/clear`, §12 S4) gets the detail "the agent session was cleared (/clear) — the goal can't be tracked". |
 | Session missing from `sessions.changed` | Same as `SessionEnd`. |
 | No signal for `HOSTBUD_RUN_STALE_AFTER` (default 2 h, §12 S9) | One last `ReadGoalState` (an `achieved` record is taken as usual), otherwise `stale`. It only flags the run; nothing is killed. |
 
 ### 5.3 Binding: what counts as "achieved"
-A goal record is accepted only if **all** of these hold:
+A native goal record is accepted only if **all** of these hold:
 - **Claude:**
   - it is a top-level record with `type == "attachment"`, `attachment.type == "goal_status"` and `attachment.met == true`;
   - it comes from the transcript of the bound `session_id`;
@@ -153,6 +153,7 @@ A goal record is accepted only if **all** of these hold:
 - **Codex:** the goal of the bound thread, read with `thread/goal/get`, has `status == 'complete'`, `createdAt` (seconds) not before `run.started_at` (hostbud set it in this run), and `objective` equal to the queued condition.
 - Claude writes `{"met":false,"sentinel":true,…}` when a goal is set; that is `pending`.
 - `failed` means Claude's `{"met":false,"failed":true,…}` "impossible" record, or Codex's `blocked`. `paused`, `usage_limited` and `budget_limited` stay `pending`. Codex usage limits resume on their own; a long pause then surfaces as `stale`.
+- A plain Claude prompt has no trusted goal record. Its first turn-end signal means only that the turn stopped; hostbud asks the owner to review it, and it cannot be selected as a queue dependency predecessor.
 
 ### 5.4 State machines
 ```
@@ -265,9 +266,9 @@ type GoalState struct {
 
 **Claude Code**
 ```
-claude <flags> --settings '{"hooks":{"SessionStart":[…],"Stop":[…],"SessionEnd":[…]}}' '/goal <condition>'
+claude <flags> --settings '{"hooks":{"SessionStart":[…],"Stop":[…],"SessionEnd":[…]}}' '<instruction>'
 ```
-- `ReadGoalState` reads the transcript at the bound `transcript_path` over SFTP, read-only and incrementally (it keeps a byte offset per run).
+- Plain prompts are passed unchanged and need owner review after a turn. For legacy stored instructions beginning with `/goal `, hostbud keeps invoking that command and `ReadGoalState` reads the transcript at the bound `transcript_path` over SFTP, read-only and incrementally.
 - The path must resolve under the remote user's `~/.claude/projects/`.
 
 **Codex**

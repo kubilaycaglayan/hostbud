@@ -17,7 +17,7 @@ import { describeError } from '@/stores/toasts'
 
 // Queue panel: a queue belongs to a project; its items run one after
 // another in their own tmux session, advancing only when the agent's own
-// /goal is achieved. V2-M2 (HOSTBUD_PARALLEL_QUEUES): several queues, a
+// tracked native goal is achieved. V2-M2 (HOSTBUD_PARALLEL_QUEUES): several queues, a
 // switcher (a list on desktop, a select on the phone), rename, the
 // shared-directory warning and "waiting for a free slot". V2-M4: per-item
 // completion gates (verify command, approval), their state and output, and
@@ -155,7 +155,8 @@ const newProjectId = ref('')
 const newName = ref('Milestones')
 const afterRunId = ref('')
 const activeGoalRuns = computed(() => store.queues.flatMap((q) => q.items
-  .filter((it) => it.run && ['starting', 'running', 'stale'].includes(it.run.status))
+  .filter((it) => it.run && ['starting', 'running', 'stale'].includes(it.run.status)
+    && (it.agent === 'codex' || it.instruction.startsWith('/goal ')))
   .map((it) => ({ id: it.run!.id, session: it.run!.sessionName, queue: q.name, goal: it.instruction.replace(/^\/goal\s+/, '') }))))
 watch(() => projects.items, (list) => { if (!newProjectId.value && list.length) newProjectId.value = list[0].id }, { immediate: true })
 // With queues present, "New queue" opens the form; it needs the switch.
@@ -320,7 +321,7 @@ const confirmText = computed(() => {
   if (c.kind === 'delete-queue') return { title: `Delete queue ${queue.value?.name ?? ''}?`, body: 'Its items and their history are removed. Run sessions stay open; close them yourself.', action: 'Delete queue' }
   if (c.kind === 'skip') return { title: `Skip item ${c.item?.position}?`, body: 'The queue moves on without it when you resume.', action: 'Skip' }
   if (c.kind === 'reject') return { title: `Reject item ${c.item?.position}?`, body: 'It will need your attention and the queue pauses. Retry reruns the agent; Mark done overrides.', action: 'Reject' }
-  return { title: `Mark item ${c.item?.position} done?`, body: "This overrides the agent's own /goal verdict. The queue moves on when you resume.", action: 'Mark done' }
+  return { title: `Mark item ${c.item?.position} done?`, body: "Confirm that the agent's work is complete. The queue moves on when you resume.", action: 'Mark done' }
 })
 function confirmAction() {
   const c = confirming.value
@@ -388,7 +389,7 @@ const badge: Record<QueueItem['status'], string> = {
               </span>
             </DialogTitle>
             <DialogDescription class="text-sm text-muted">
-              Items run one after another in their own session. The next starts only when the agent's /goal is achieved.
+              Items run one after another in their own session. Codex completion is tracked from its thread goal; Claude pauses after a turn for you to review and mark done.
             </DialogDescription>
             <p v-if="queue?.startedAt" class="mt-1 text-xs text-muted">
               Started <time :datetime="queue.startedAt">{{ new Date(queue.startedAt).toLocaleString() }}</time>

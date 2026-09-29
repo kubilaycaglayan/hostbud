@@ -440,8 +440,8 @@ func validItem(agent, flags, instruction string) error {
 		return fmt.Errorf("unknown agent %q", agent)
 	case len(flags) > maxItemFlagsBytes || strings.ContainsAny(flags, "\x00\n\r"):
 		return errors.New("flags must be one line of at most 4096 bytes")
-	case strings.TrimSpace(instruction) == "" || len(instruction) > maxInstructionBytes || strings.IndexByte(instruction, 0) >= 0:
-		return errors.New("instruction must be 1–16384 bytes")
+	case strings.TrimSpace(instruction) == "" || len(instruction) > maxInstructionBytes || strings.ContainsAny(instruction, "\x00\n\r"):
+		return errors.New("instruction must be one non-empty line of at most 16384 bytes")
 	}
 	return nil
 }

@@ -348,6 +348,24 @@ func TestDispatcherRunsItemsInOrder(t *testing.T) {
 	}
 }
 
+func TestPlainClaudePromptPausesForManualCompletion(t *testing.T) {
+	e := newDispEnv(t)
+	if _, err := e.svc.AddItem(context.Background(), e.queue.ID, "claude", "", "implement the requested change"); err != nil {
+		t.Fatal(err)
+	}
+	e.startQueue()
+	r := e.run(1)
+	e.hook(r, EventSessionStart, "plain-session")
+	e.hook(r, EventTurnEnd, "plain-session")
+	got, err := e.st.Run(context.Background(), r.ID)
+	if err != nil || got.Status != store.RunExited || !strings.Contains(got.Detail, "Review the work") {
+		t.Fatalf("plain Claude run = %+v, %v", got, err)
+	}
+	if got := e.itemStatuses(); !slices.Equal(got, []string{store.ItemNeedsAttention}) || e.queueStatus() != store.QueuePaused || e.activeRuns() != 0 {
+		t.Fatalf("plain Claude result: items %v, queue %s, active runs %d", got, e.queueStatus(), e.activeRuns())
+	}
+}
+
 // V2-M6 T2: a dependent queue remains queued while its predecessor is
 // active, then starts immediately when the predecessor reports achieved.
 func TestQueueDependencyWaitsForTrackedGoal(t *testing.T) {

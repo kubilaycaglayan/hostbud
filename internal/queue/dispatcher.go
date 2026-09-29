@@ -665,13 +665,30 @@ func (d *Dispatcher) signal(ctx context.Context, s Signal) {
 			}
 			rc, _ = d.load(ctx, s.RunID)
 		}
+		if rc.item.Agent == "claude" && !agents.HasGoalCommand(rc.item.Instruction) {
+			d.manualReview(ctx, rc, store.SourceHook, "Claude finished its turn. Review the work, then mark the item done or retry it.")
+			return
+		}
 		d.read(ctx, rc.run, store.SourceHook, true)
 	case EventSessionEnd:
+		if rc.item.Agent == "claude" && !agents.HasGoalCommand(rc.item.Instruction) {
+			d.manualReview(ctx, rc, store.SourceHook, "The Claude session ended. Review its work, then mark the item done or retry it.")
+			return
+		}
 		detail := "the agent session ended without achieving the goal"
 		if parseErr == nil && b.Reason == "clear" {
 			detail = "the agent session was cleared (/clear) — the goal can't be tracked"
 		}
 		d.ended(ctx, rc, store.SourceHook, detail)
+	}
+}
+
+// manualReview ends hostbud's tracking run after an ordinary Claude prompt
+// returns. Claude exposes no authoritative completion verdict for a plain
+// prompt, so the queue pauses for an explicit user decision.
+func (d *Dispatcher) manualReview(ctx context.Context, rc runCtx, source, detail string) {
+	if run, err := d.finish(ctx, rc.run, store.RunExited, detail, source, false); err == nil {
+		d.needsAttention(ctx, run, rc.item, rc.queueID, source)
 	}
 }
 

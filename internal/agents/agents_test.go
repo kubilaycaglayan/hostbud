@@ -35,7 +35,10 @@ func TestConditionAndValidation(t *testing.T) {
 	if c, err := Condition("/goal work on milestone 2  per docs"); err != nil || c != "work on milestone 2  per docs" {
 		t.Fatalf("Condition = %q, %v", c, err)
 	}
-	for _, bad := range []string{"", "/goal", "/goal   ", "goal x", "/goalx", "/goal a\nb", "work on M2"} {
+	if c, err := Condition("work on M2"); err != nil || c != "work on M2" {
+		t.Fatalf("plain Condition = %q, %v", c, err)
+	}
+	for _, bad := range []string{"", "  ", "work on M2\nnext"} {
 		if _, err := Condition(bad); err == nil {
 			t.Errorf("Condition(%q) accepted", bad)
 		}
@@ -50,7 +53,7 @@ func TestConditionAndValidation(t *testing.T) {
 	if err := r.ValidateItem("claude", `--model 'x`, "/goal x"); err == nil {
 		t.Fatal("unbalanced flags accepted")
 	}
-	if err := r.ValidateItem("claude", "--model opus", "/goal x"); err != nil {
+	if err := r.ValidateItem("claude", "--model opus", "work on M2"); err != nil {
 		t.Fatal(err)
 	}
 }

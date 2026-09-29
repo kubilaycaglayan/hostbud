@@ -6,14 +6,12 @@ import type { QueueItem, QueueItemStatus, QueueStatus, RunStatus, VerifySummary 
 export const AGENTS = ['claude', 'codex'] as const
 export type Agent = (typeof AGENTS)[number]
 
-export const INSTRUCTION_PREFIX = '/goal '
+export const INSTRUCTION_PREFIX = ''
 
-/** The instruction's problem, or '' when it's a valid "/goal <condition>". */
+/** The instruction's problem, or '' when it is a valid one-line prompt. */
 export function instructionError(instruction: string): string {
   if (/[\r\n]/.test(instruction)) return 'The instruction must be one line.'
-  if (!instruction.startsWith(INSTRUCTION_PREFIX) || !instruction.slice(INSTRUCTION_PREFIX.length).trim()) {
-    return 'Start with /goal followed by the condition, e.g. /goal work on milestone 2 per docs/roadmap/M2-tasks.md.'
-  }
+  if (!instruction.trim()) return 'Enter an instruction for the agent.'
   return ''
 }
 

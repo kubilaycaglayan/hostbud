@@ -111,8 +111,7 @@ func (r *Registry) Kinds() []string {
 // ErrUnknownAgent is returned for an agent kind with no adapter.
 var ErrUnknownAgent = errors.New("unknown agent")
 
-// ValidateItem checks an item's agent, flags and instruction (the PoC
-// requires "/goal <condition>" on one line).
+// ValidateItem checks an item's agent, flags and one-line instruction.
 func (r *Registry) ValidateItem(agent, flags, instruction string) error {
 	if r.Get(agent) == nil {
 		return fmt.Errorf("%w %q: pick one of %s", ErrUnknownAgent, agent, strings.Join(r.Kinds(), ", "))
@@ -120,22 +119,31 @@ func (r *Registry) ValidateItem(agent, flags, instruction string) error {
 	if _, err := SplitFlags(flags); err != nil {
 		return err
 	}
-	_, err := Condition(instruction)
-	return err
+	if strings.TrimSpace(instruction) == "" || strings.ContainsAny(instruction, "\n\r") {
+		return errors.New("the instruction must be one non-empty line")
+	}
+	return nil
 }
 
-// Condition returns the goal condition of a "/goal <condition>" instruction,
-// as typed (it is what the client records). One line only.
+// Condition returns the completion objective. Legacy instructions may retain
+// the /goal prefix; new instructions are ordinary prompts.
 func Condition(instruction string) (string, error) {
-	rest, ok := strings.CutPrefix(instruction, "/goal ")
-	if !ok || strings.TrimSpace(rest) == "" {
-		return "", errors.New("the instruction must be /goal followed by the condition, e.g. /goal work on milestone 2 per docs/roadmap/M2-tasks.md")
-	}
 	if strings.ContainsAny(instruction, "\n\r") {
 		return "", errors.New("the instruction must be one line")
 	}
-	return rest, nil
+	condition := instruction
+	if HasGoalCommand(instruction) {
+		condition = strings.TrimPrefix(instruction, "/goal ")
+	}
+	if strings.TrimSpace(condition) == "" {
+		return "", errors.New("the instruction must not be empty")
+	}
+	return condition, nil
 }
+
+// HasGoalCommand identifies pre-change Claude queue items whose completion
+// lifecycle still depends on Claude's native /goal command.
+func HasGoalCommand(instruction string) bool { return strings.HasPrefix(instruction, "/goal ") }
 
 // SameCondition compares conditions after whitespace normalization (trimmed,
 // runs of whitespace collapsed).

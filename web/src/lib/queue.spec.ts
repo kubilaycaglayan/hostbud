@@ -8,9 +8,10 @@ const item = (id: string, status: QueueItem['status'], run?: Partial<QueueItem['
 })
 
 describe('queue form rules', () => {
-  it('requires "/goal " and a condition on one line', () => {
+  it('requires a non-empty one-line instruction', () => {
     expect(instructionError('/goal work on M2')).toBe('')
-    for (const bad of ['', '/goal', '/goal ', '/goal   ', 'work on M2', '/goalx', '/goal a\nb']) expect(instructionError(bad)).not.toBe('')
+    expect(instructionError('work on M2')).toBe('')
+    for (const bad of ['', '   ', 'work on M2\nnext']) expect(instructionError(bad)).not.toBe('')
   })
 
   it('checks flags split like the server', () => {

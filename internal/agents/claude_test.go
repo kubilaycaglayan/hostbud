@@ -60,10 +60,14 @@ func TestClaudeBuildCommand(t *testing.T) {
 	if len(settings.Hooks) != 3 || strings.Contains(strings.Join(argv, " "), token) {
 		t.Fatalf("settings %s", argv[5])
 	}
-	for _, bad := range []store.QueueItem{{Flags: `--model 'x`, Instruction: "/goal x"}, {Instruction: "ship it"}} {
+	for _, bad := range []store.QueueItem{{Flags: `--model 'x`, Instruction: "/goal x"}, {Instruction: ""}, {Instruction: "two\nlines"}} {
 		if _, err := c.BuildCommand(bad, store.Run{}); err == nil {
 			t.Errorf("BuildCommand(%+v) accepted", bad)
 		}
+	}
+	plain, err := c.BuildCommand(store.QueueItem{Instruction: "ship it"}, store.Run{})
+	if err != nil || plain[len(plain)-1] != "ship it" {
+		t.Fatalf("plain prompt argv = %q, %v", plain, err)
 	}
 }
 

@@ -1,8 +1,27 @@
 # hostbud v2 — Roadmap (agent task queue)
 
-Status: **V2-M1 implemented** (acceptance: [V2-M1-acceptance.md](V2-M1-acceptance.md)); **V2-M2 implemented** (opt-in, `HOSTBUD_PARALLEL_QUEUES`, off by default; [V2-M2-tasks.md](V2-M2-tasks.md) · [V2-M2-acceptance.md](V2-M2-acceptance.md); its e2e run is on demand); **V2-M3 implemented** (opt-in per account, off by default; Web Push needs `HOSTBUD_VAPID_*`; [V2-M3-tasks.md](V2-M3-tasks.md) · [V2-M3-acceptance.md](V2-M3-acceptance.md); its e2e run is on demand); **V2-M4 implemented** (opt-in per item, both gates empty by default; `HOSTBUD_VERIFY_TIMEOUT`; [V2-M4-tasks.md](V2-M4-tasks.md) · [V2-M4-acceptance.md](V2-M4-acceptance.md); its e2e run is on demand); **V2-M5 implemented** (opt-in, empty provider is off; [V2-M5-tasks.md](V2-M5-tasks.md) · [V2-M5-acceptance.md](V2-M5-acceptance.md); full e2e run is on demand and owner checks remain open); **V2-M6 implemented** (opt-in per queue; [V2-M6-tasks.md](V2-M6-tasks.md) · [V2-M6-acceptance.md](V2-M6-acceptance.md); E2E run is on demand and owner review remains open); **V2-M7 implemented** (queue and item lifecycle timestamps; [V2-M7-tasks.md](V2-M7-tasks.md) · [V2-M7-acceptance.md](V2-M7-acceptance.md); E2E run and owner review remain open); **V2-M8 implemented** (durable delayed starts and per-item execution targets; [V2-M8-tasks.md](V2-M8-tasks.md) · [V2-M8-acceptance.md](V2-M8-acceptance.md); browser run and owner review remain open, cleanup skipped because hostbud toolbox containers were active); **V2-M9 implemented** (durable queue item history and History view; [V2-M9-tasks.md](V2-M9-tasks.md) · [V2-M9-acceptance.md](V2-M9-acceptance.md); browser run and owner review remain open, cleanup skipped because hostbud toolbox containers were active). V2-M1 breakdown: [V2-M1-tasks.md](V2-M1-tasks.md) · [V2-M1-acceptance.md](V2-M1-acceptance.md). Design source of truth: [ARCHITECTURE.md](ARCHITECTURE.md) in this directory (cited below as **v2 §N**). The v1 documents are cited as **v1 ARCHITECTURE §N** ([../ARCHITECTURE.md](../ARCHITECTURE.md)) and v1 ROADMAP ([../ROADMAP.md](../ROADMAP.md)).
+Status: **V2-M1 implemented** (acceptance: [V2-M1-acceptance.md](V2-M1-acceptance.md)); **V2-M2 implemented** (opt-in, `HOSTBUD_PARALLEL_QUEUES`, off by default; [V2-M2-tasks.md](V2-M2-tasks.md) · [V2-M2-acceptance.md](V2-M2-acceptance.md); its e2e run is on demand); **V2-M3 implemented** (opt-in per account, off by default; Web Push needs `HOSTBUD_VAPID_*`; [V2-M3-tasks.md](V2-M3-tasks.md) · [V2-M3-acceptance.md](V2-M3-acceptance.md); its e2e run is on demand); **V2-M4 implemented** (opt-in per item, both gates empty by default; `HOSTBUD_VERIFY_TIMEOUT`; [V2-M4-tasks.md](V2-M4-tasks.md) · [V2-M4-acceptance.md](V2-M4-acceptance.md); its e2e run is on demand); **V2-M5 implemented** (opt-in, empty provider is off; [V2-M5-tasks.md](V2-M5-tasks.md) · [V2-M5-acceptance.md](V2-M5-acceptance.md); full e2e run is on demand and owner checks remain open); **V2-M6 implemented** (opt-in per queue; [V2-M6-tasks.md](V2-M6-tasks.md) · [V2-M6-acceptance.md](V2-M6-acceptance.md); E2E run is on demand and owner review remains open); **V2-M7 implemented** (queue and item lifecycle timestamps; [V2-M7-tasks.md](V2-M7-tasks.md) · [V2-M7-acceptance.md](V2-M7-acceptance.md); E2E run and owner review remain open); **V2-M8 implemented** (durable delayed starts and per-item execution targets; [V2-M8-tasks.md](V2-M8-tasks.md) · [V2-M8-acceptance.md](V2-M8-acceptance.md); browser run and owner review remain open, cleanup skipped because hostbud toolbox containers were active); **V2-M9 implemented** (durable queue item history and History view; [V2-M9-tasks.md](V2-M9-tasks.md) · [V2-M9-acceptance.md](V2-M9-acceptance.md); browser run and owner review remain open, cleanup skipped because hostbud toolbox containers were active); **V2-M10 implemented** (plain prompts with per-agent completion tracking; [V2-M10-tasks.md](V2-M10-tasks.md) · [V2-M10-acceptance.md](V2-M10-acceptance.md); browser run and owner review remain open, cleanup skipped because hostbud toolbox and test containers were active). V2-M1 breakdown: [V2-M1-tasks.md](V2-M1-tasks.md) · [V2-M1-acceptance.md](V2-M1-acceptance.md). Design source of truth: [ARCHITECTURE.md](ARCHITECTURE.md) in this directory (cited below as **v2 §N**). The v1 documents are cited as **v1 ARCHITECTURE §N** ([../ARCHITECTURE.md](../ARCHITECTURE.md)) and v1 ROADMAP ([../ROADMAP.md](../ROADMAP.md)).
 
 This roadmap replaces the *v2 — Orchestration* section of the v1 ROADMAP (V2.1–V2.5). That section and v1 ARCHITECTURE §10 were aligned with it in V2-M1 T12 and now point here.
+
+---
+
+## V2-M10 — Plain prompts and per-agent completion tracking
+
+**Goal.** Let queue items use ordinary one-line prompts. Codex completion remains tied to Codex's native thread goal. Plain Claude prompts pause for owner review after a turn because Claude exposes no trusted completion status for an ordinary prompt. Existing Claude queue items beginning with `/goal ` retain their current behavior.
+
+### T1 — Plain instruction and completion lifecycle
+- Accept ordinary non-empty one-line instructions in UI and API; launch Claude with the prompt unchanged and retain legacy `/goal ` handling for existing items.
+- Keep Codex's app-server thread goal lifecycle, using the plain instruction as its objective.
+- On plain Claude `Stop` or `SessionEnd`, mark the run exited, move the item to `needs_attention`, pause its queue and show that the user must review and mark done or retry. Never treat a turn-end hook or model text as proof of success.
+- **Tests:** U: validation and command construction accept plain instructions; dispatcher confirms turn end pauses and does not advance, while legacy Claude and Codex goal behavior remains; I: queue API accepts a plain prompt and integration exercises Claude turn-end handling.
+- **E2E:** add a queue-panel scenario showing a plain Claude prompt, manual-review status and confirmed Mark done.
+
+### T2 — Docs, acceptance, verification and deploy
+Update README and v2 architecture, finish acceptance checklist, run `make lint test`, e2e TypeScript check, `make gitleaks`, and deploy/health check. Record owner review and on-demand e2e run as open.
+
+### T3 — Safe Docker cleanup
+Follow the v2 Rules and V1 M7 T15 after deploy; skip and record if any toolbox/test container is active.
 
 ---
 
@@ -31,6 +50,7 @@ This roadmap replaces the *v2 — Orchestration* section of the v1 ROADMAP (V2.1
 - **Public repo.** No real hostnames, paths, usernames or tokens in docs, fixtures or tests. Client fixtures use `/home/dev`, `example.com`, `server-a`. Run `make gitleaks` before every commit.
 - **Everything after V2-M1 is opt-in** (v2 §3.9). Each opt-in milestone ships switched off by default, and switching it off again restores V2-M1 behavior.
 - **V2-M9 exception, explicitly requested by the owner:** metadata history recording is always on because durable storage is the requested behavior. It does not change queue dispatch; the History view is read-only.
+- **V2-M10 exception, explicitly requested by the owner:** plain one-line prompts become the default queue instruction. Codex uses its native thread goal status; plain Claude prompts require manual review at turn end. Existing Claude items prefixed with `/goal ` retain their prior behavior.
 
 ---
 

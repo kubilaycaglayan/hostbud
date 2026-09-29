@@ -19,8 +19,8 @@ const ClaudeMinVersion = "2.1.283"
 // maxTranscriptRead bounds one incremental transcript read.
 const maxTranscriptRead = 4 << 20
 
-// Claude is the Claude Code adapter: hooks through --settings, the goal as
-// the initial "/goal …" prompt, goal verdicts from the session transcript.
+// Claude is the Claude Code adapter: hooks through --settings, ordinary
+// prompts, and native goal verdicts for legacy /goal queue items.
 type Claude struct {
 	host  Host
 	files func(machine string) Files
@@ -60,17 +60,23 @@ func ClaudeSettings() string {
 	return string(b)
 }
 
-// BuildCommand: claude <flags> --settings '<hooks>' '/goal <condition>'.
+// BuildCommand: claude <flags> --settings '<hooks>' '<instruction>'. Legacy
+// queue items keep their /goal prompt so their existing tracking still works.
 func (c *Claude) BuildCommand(item store.QueueItem, _ store.Run) ([]string, error) {
 	flags, err := SplitFlags(item.Flags)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := Condition(item.Instruction); err != nil {
+	condition, err := Condition(item.Instruction)
+	if err != nil {
 		return nil, err
 	}
 	argv := append([]string{"claude"}, flags...)
-	return append(argv, "--settings", ClaudeSettings(), item.Instruction), nil
+	prompt := condition
+	if HasGoalCommand(item.Instruction) {
+		prompt = "/goal " + condition
+	}
+	return append(argv, "--settings", ClaudeSettings(), prompt), nil
 }
 
 type hookBody struct {
