@@ -62,6 +62,39 @@ test.describe('Queue panel (desktop)', () => {
     await expect(dialog.getByTestId('item-status')).toHaveText('Done')
   })
 
+  test('Loop a queue until its runtime limit', async ({ page, ui, request, target }) => {
+    test.setTimeout(180_000)
+    const project = await newProject(request, target, 'e2e-loop-ui')
+    await target.run(`tmux new-session -d -s loop-ui-target -c ${shq(project.path)}`)
+    await ui.open()
+    await page.getByRole('banner').getByRole('button', { name: 'Queue', exact: true }).click()
+    const dialog = panel(page)
+    await dialog.getByLabel('Project').selectOption(project.id)
+    await dialog.getByRole('button', { name: 'Create queue' }).click()
+    const form = dialog.getByRole('form', { name: 'Add item' })
+    await form.getByLabel('Execution').selectOption('session')
+    await form.getByRole('combobox', { name: /^Existing session/ }).selectOption('loop-ui-target')
+    await form.getByRole('textbox', { name: /^Command/ }).fill("printf '%s\\n' loop-ui-marker")
+    await form.getByRole('button', { name: 'Add item' }).click()
+    const loop = dialog.getByRole('form', { name: 'Loop queue' })
+    await expect(loop.getByLabel('Loop runtime limit')).toHaveValue('5h')
+    await loop.getByLabel('Loop runtime limit').fill('30s')
+    await loop.getByLabel('Loop the queue').check()
+    await expect(loop.getByLabel('Loop the queue')).toBeChecked()
+    await expect(loop.getByTestId('queue-loop-status')).toContainText('Pass 1')
+    await dialog.getByRole('button', { name: 'Start' }).click()
+    // Pass 1 dispatches at once; pass 2 waits for the one-minute spacing.
+    await expect(loop.getByTestId('queue-loop-status')).toContainText('Pass 2')
+    await expect(dialog.getByTestId('queue-scheduled')).toContainText('Scheduled for')
+    await expect(dialog.getByTestId('item-status')).toHaveText('Queued')
+    // By then the 30 s limit has passed: pass 2 is the last.
+    await expect(dialog.getByTestId('queue-status')).toHaveText('finished', { timeout: 100_000 })
+    const markers = (await target.capture('loop-ui-target')).split('\n').filter((l) => l.trim() === 'loop-ui-marker')
+    expect(markers).toHaveLength(2)
+    // Start runs a finished looping queue's items again.
+    await expect(dialog.getByRole('button', { name: 'Start' })).toBeEnabled()
+  })
+
   test('Attach a new queue to an existing non-queue session', async ({ page, ui, request, target }) => {
     const project = await newProject(request, target, 'e2e-attach-ui')
     await target.run([

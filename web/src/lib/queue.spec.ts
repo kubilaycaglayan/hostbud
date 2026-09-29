@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { QueueItem } from '@/api/types'
-import { capacityError, capacityValue, flagsError, instructionError, itemActions, moveQueued, queueControls, queueRunning, statusLabel, verifyCommandError, verifyLine } from './queue'
+import { capacityError, capacityValue, flagsError, instructionError, loopRuntimeError, loopRuntimeText, itemActions, moveQueued, queueControls, queueRunning, statusLabel, verifyCommandError, verifyLine } from './queue'
 
 const item = (id: string, status: QueueItem['status'], run?: Partial<QueueItem['run']>): QueueItem => ({
   id, queueId: 'q', position: 1, agent: 'claude', flags: '', instruction: '/goal x', status,
@@ -42,6 +42,10 @@ describe('button availability per status', () => {
     expect(queueControls('finished', true)).toEqual({ start: true, pause: false, resume: false })
     expect(queueControls('running', true)).toEqual({ start: false, pause: true, resume: false })
     expect(queueControls('paused', true)).toEqual({ start: false, pause: false, resume: true })
+    // A finished looping queue starts its items over; an idle one still needs a queued item.
+    expect(queueControls('finished', false, true)).toEqual({ start: true, pause: false, resume: false })
+    expect(queueControls('finished', false, false)).toEqual({ start: false, pause: false, resume: false })
+    expect(queueControls('idle', false, true)).toEqual({ start: false, pause: false, resume: false })
   })
 
   it('labels an item with its run state', () => {
@@ -102,5 +106,18 @@ describe('completion gates (V2-M4)', () => {
     expect(verifyLine({ attempt: 1, running: true })).toBe('Verify attempt 1: running…')
     expect(verifyLine({ attempt: 2, running: false, outcome: 'failed', exitCode: 1, durationMs: 3210 })).toBe('Verify attempt 2: failed · exit 1 · 3.2 s')
     expect(verifyLine({ attempt: 1, running: false, outcome: 'timeout', durationMs: 450 })).toBe('Verify attempt 1: timed out · 450 ms')
+  })
+})
+
+describe('loop runtime limit', () => {
+  it('formats seconds as a Go duration', () => {
+    expect(loopRuntimeText(18000)).toBe('5h')
+    expect(loopRuntimeText(5400)).toBe('1h30m')
+    expect(loopRuntimeText(3661)).toBe('1h1m1s')
+    expect(loopRuntimeText(45)).toBe('45s')
+  })
+  it('accepts 1s to 30 days and rejects anything else', () => {
+    for (const ok of ['5h', '1h30m', '90m', '1s', '720h', ' 2h ']) expect(loopRuntimeError(ok), ok).toBeNull()
+    for (const bad of ['', '5', 'forever', '0s', '721h', '-1h', '5d']) expect(loopRuntimeError(bad), bad).not.toBeNull()
   })
 })

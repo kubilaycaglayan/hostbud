@@ -142,6 +142,18 @@ export interface Queue {
   afterRunStatus?: string
   /** Any existing session (tracked or not) the first item waits for to be idle. */
   afterSession?: string
+  /** Loop settings; absent while they are the default (off, 5 h). */
+  loop?: QueueLoop
+}
+
+/** A looping queue runs its items again after the last one ends, until maxRuntimeSeconds since startedAt have passed (checked between passes). */
+export interface QueueLoop {
+  enabled: boolean
+  maxRuntimeSeconds: number
+  startedAt?: string
+  passStartedAt?: string
+  /** The current pass, from 1. */
+  pass: number
 }
 
 /** GET /api/queues. */

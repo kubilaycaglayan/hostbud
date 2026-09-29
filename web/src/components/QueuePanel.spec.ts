@@ -448,6 +448,55 @@ describe('QueuePanel', () => {
     expect($$('form[aria-label="Rename queue"]')).toHaveLength(0)
   })
 
+  it('turns looping on with a runtime limit and shows the pass and when looping stops', async () => {
+    const startedAt = '2026-09-29T10:00:00Z'
+    const looping = { ...queue([queued], 'running'), loop: { enabled: true, maxRuntimeSeconds: 7200, startedAt, passStartedAt: startedAt, pass: 1 } }
+    const calls = stubFetch(() => ({ status: 200, body: looping }))
+    await mountPanel(queue([queued]))
+    const box = $$('input[aria-label="Loop the queue"]')[0] as HTMLInputElement
+    const limit = $$('input[aria-label="Loop runtime limit"]')[0] as HTMLInputElement
+    expect(box.checked).toBe(false)
+    expect(limit.value).toBe('5h')
+    limit.value = 'forever'
+    limit.dispatchEvent(new Event('input'))
+    box.click()
+    await flushPromises()
+    expect(calls).toEqual([])
+    expect(box.checked).toBe(false)
+    expect(document.body.textContent).toContain('Enter a duration such as 5h')
+    limit.value = '2h'
+    limit.dispatchEvent(new Event('input'))
+    box.click()
+    await flushPromises()
+    expect(calls).toEqual([{ method: 'PUT', path: '/api/queues/q1/loop', body: { enabled: true, maxRuntime: '2h' } }])
+    expect(box.checked).toBe(true)
+    const status = $$('[data-testid="queue-loop-status"]')[0]
+    expect(status.textContent).toContain('Pass 1')
+    expect(status.querySelector('time')?.getAttribute('datetime')).toBe('2026-09-29T12:00:00.000Z')
+  })
+
+  it('changes the loop limit with Save limit and offers Start on a finished looping queue', async () => {
+    const done = { ...queued, status: 'done' as const }
+    const finished = { ...queue([done], 'finished'), loop: { enabled: true, maxRuntimeSeconds: 18000, pass: 3 } }
+    const calls = stubFetch(() => ({ status: 200, body: { ...finished, loop: { ...finished.loop, maxRuntimeSeconds: 5400 } } }))
+    await mountPanel(finished)
+    expect(button('Start')?.hasAttribute('disabled')).toBe(false)
+    expect(button('Save limit')).toBeFalsy()
+    const limit = $$('input[aria-label="Loop runtime limit"]')[0] as HTMLInputElement
+    limit.value = '90m'
+    limit.dispatchEvent(new Event('input'))
+    await flushPromises()
+    button('Save limit')!.click()
+    await flushPromises()
+    expect(calls).toEqual([{ method: 'PUT', path: '/api/queues/q1/loop', body: { enabled: true, maxRuntime: '90m' } }])
+    expect(limit.value).toBe('1h30m')
+  })
+
+  it('keeps Start disabled on a finished queue that does not loop', async () => {
+    await mountPanel(queue([{ ...queued, status: 'done' }], 'finished'))
+    expect(button('Start')?.hasAttribute('disabled')).toBe(true)
+  })
+
   it('deletes the selected queue only after confirmation', async () => {
     const calls = stubFetch(() => ({ status: 204 }))
     await mountPanel([queue([queued], 'idle'), second({ status: 'idle' })], false, true)

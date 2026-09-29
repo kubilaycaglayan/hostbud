@@ -9,7 +9,7 @@ import { ArrowDown, ArrowUp, GripVertical, Pencil, Plus, Trash2, TriangleAlert }
 import { queuesApi } from '@/api/client'
 import type { QueueItem, QueueItemHistory } from '@/api/types'
 import FormError from './FormError.vue'
-import { AGENTS, type Agent, flagsError, INSTRUCTION_PREFIX, instructionError, itemActions, moveQueued, queueControls, queueRunning, statusLabel, verifyCommandError, verifyLine } from '@/lib/queue'
+import { AGENTS, type Agent, DEFAULT_LOOP_RUNTIME, flagsError, loopRuntimeError, loopRuntimeText, INSTRUCTION_PREFIX, instructionError, itemActions, moveQueued, queueControls, queueRunning, statusLabel, verifyCommandError, verifyLine } from '@/lib/queue'
 import { useQueuesStore } from '@/stores/queues'
 import { useProjectsStore } from '@/stores/projects'
 import { useSessionsStore } from '@/stores/sessions'
@@ -55,7 +55,7 @@ watch(() => store.focus, async (f) => {
 const items = ref<QueueItem[]>([])
 watch(() => queue.value?.items, (next) => { items.value = [...(next ?? [])] }, { immediate: true })
 const hasQueued = computed(() => items.value.some((i) => i.status === 'queued'))
-const controls = computed(() => queue.value ? queueControls(queue.value.status, hasQueued.value) : null)
+const controls = computed(() => queue.value ? queueControls(queue.value.status, hasQueued.value, !!queue.value.loop?.enabled && items.value.length > 0) : null)
 // Parallel queues off: queues can still be created to organize work, but
 // only one runs at a time. The other active queue blocks Start/Resume (the
 // server's 409 stays authoritative).
@@ -218,6 +218,33 @@ function saveRename() {
     renaming.value = false
     return renamed
   })
+}
+
+// ---- looping: run the items again until the runtime limit since Start ----
+const loop = computed(() => queue.value?.loop)
+const loopLimit = ref(DEFAULT_LOOP_RUNTIME)
+const loopError = ref<string | null>(null)
+watch(() => [queue.value?.id, loop.value?.maxRuntimeSeconds] as const, ([, seconds]) => {
+  loopLimit.value = seconds ? loopRuntimeText(seconds) : DEFAULT_LOOP_RUNTIME
+  loopError.value = null
+}, { immediate: true })
+// When the loop stops starting passes: the limit after the loop's start.
+const loopEndsAt = computed(() => loop.value?.enabled && loop.value.startedAt
+  ? new Date(Date.parse(loop.value.startedAt) + loop.value.maxRuntimeSeconds * 1000).toISOString()
+  : null)
+// The box shows the server's state until the change is saved.
+function toggleLoop(e: Event) {
+  const box = e.target as HTMLInputElement
+  const on = box.checked
+  box.checked = !!loop.value?.enabled
+  saveLoop(on)
+}
+function saveLoop(enabled: boolean) {
+  const q = queue.value
+  if (!q) return
+  loopError.value = loopRuntimeError(loopLimit.value)
+  if (loopError.value) return
+  void act("Couldn't change looping", () => queuesApi.setLoop(q.id, enabled, loopLimit.value.trim()))
 }
 
 // ---- adding and editing items ----
@@ -600,6 +627,23 @@ const badge: Record<QueueItem['status'], string> = {
             <p v-if="runBlockedBy && (controls?.start || controls?.resume)" data-testid="queue-run-blocked" class="mt-1 text-sm text-muted">
               Can't run yet: queue {{ runBlockedBy.name }} is running and Run queues in parallel is off.
             </p>
+            <form aria-label="Loop queue" data-testid="queue-loop" class="mt-2 flex flex-wrap items-end gap-2 text-sm" @submit.prevent="saveLoop(!!loop?.enabled)">
+              <label class="flex min-h-11 items-center gap-2">
+                <input type="checkbox" autocomplete="off" :checked="!!loop?.enabled" :disabled="busy" aria-label="Loop the queue" class="h-5 w-5" @change="toggleLoop">
+                Loop the queue
+              </label>
+              <label class="block">Stop starting passes after
+                <input v-model="loopLimit" autocomplete="off" placeholder="5h" aria-label="Loop runtime limit" :aria-invalid="!!loopError" aria-describedby="queue-loop-help" class="mt-1 min-h-11 w-24 rounded border border-border bg-bg px-2 font-mono text-base">
+              </label>
+              <button v-if="loop?.enabled && loopLimit.trim() !== loopRuntimeText(loop.maxRuntimeSeconds)" type="submit" :disabled="busy" class="touch-target min-h-11 rounded border border-border px-3">Save limit</button>
+              <p id="queue-loop-help" class="basis-full text-muted">
+                <span v-if="loopError" role="alert" class="text-danger">{{ loopError }}</span>
+                <template v-else-if="loop?.enabled">
+                  <span data-testid="queue-loop-status">Pass {{ loop.pass }}<template v-if="loopEndsAt">; no new pass starts after <time :datetime="loopEndsAt">{{ new Date(loopEndsAt).toLocaleString() }}</time></template>.</span>
+                  After the last item the queue runs all its items again, at most once a minute. The limit counts from Start and is checked between passes; a pass that began always finishes.
+                </template>
+              </p>
+            </form>
             <p v-if="queue.scheduledAt" data-testid="queue-scheduled" class="mt-1 text-sm text-accent">
               Scheduled for <time :datetime="queue.scheduledAt">{{ new Date(queue.scheduledAt).toLocaleString() }}</time>.
             </p>

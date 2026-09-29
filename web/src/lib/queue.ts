@@ -102,9 +102,10 @@ export function queueRunning(q: Pick<Queue, 'status' | 'items'>): boolean {
   return q.status === 'running' || q.items.some((it) => it.status === 'running' || it.status === 'verifying')
 }
 
-export function queueControls(status: QueueStatus, hasQueued: boolean): { start: boolean; pause: boolean; resume: boolean } {
+/** Start needs a queued item, except a finished looping queue: Start runs its items again. */
+export function queueControls(status: QueueStatus, hasQueued: boolean, loopRestart = false): { start: boolean; pause: boolean; resume: boolean } {
   return {
-    start: (status === 'idle' || status === 'finished') && hasQueued,
+    start: (status === 'idle' || status === 'finished') && (hasQueued || (status === 'finished' && loopRestart)),
     pause: status === 'running',
     resume: status === 'paused',
   }
@@ -161,4 +162,25 @@ export function moveQueued(items: QueueItem[], id: string, delta: -1 | 1): strin
   if (at < 0 || to < 0 || to >= queued.length) return null
   ;[queued[at], queued[to]] = [queued[to], queued[at]]
   return queued
+}
+
+/** DEFAULT_LOOP_RUNTIME is a queue's loop runtime limit until it's changed. */
+export const DEFAULT_LOOP_RUNTIME = '5h'
+
+/** A runtime limit in seconds as a Go duration: 18000 → "5h", 5400 → "1h30m". */
+export function loopRuntimeText(seconds: number): string {
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  const s = seconds % 60
+  return [h ? `${h}h` : '', m ? `${m}m` : '', s ? `${s}s` : ''].join('') || '0s'
+}
+
+/** A loop runtime limit's client-side check (the server re-checks): a Go duration from 1s to 30d. */
+export function loopRuntimeError(text: string): string | null {
+  const t = text.trim()
+  if (!/^(\d+(\.\d+)?(h|m|s))+$/.test(t)) return 'Enter a duration such as 5h or 1h30m.'
+  let seconds = 0
+  for (const [, n, , unit] of t.matchAll(/(\d+(\.\d+)?)(h|m|s)/g)) seconds += Number(n) * (unit === 'h' ? 3600 : unit === 'm' ? 60 : 1)
+  if (seconds < 1 || seconds > 30 * 24 * 3600) return 'The limit must be from 1s to 30 days (720h).'
+  return null
 }
