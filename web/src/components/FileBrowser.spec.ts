@@ -94,6 +94,16 @@ describe('FileBrowser', () => {
     expect(wrapper.get('[aria-label="Breadcrumbs"]').text()).toContain('srv')
   })
 
+  it('keeps text typed into the path while a listing loads', async () => {
+    deferredPath = '/home/dev'
+    const wrapper = mount(FileBrowser, { props: { machine: 'host' } })
+    await flushPromises()
+    await wrapper.get('#browser-path').setValue('/srv/app')
+    releaseListing!()
+    await flushPromises()
+    expect(wrapper.get<HTMLInputElement>('#browser-path').element.value).toBe('/srv/app')
+  })
+
   it('navigates by breadcrumb, filters autocomplete and switches hidden entries', async () => {
     const wrapper = mount(FileBrowser, { props: { machine: 'host' } })
     await flushPromises()
