@@ -336,7 +336,7 @@ func TestParsePaneMetadataAgentAliases(t *testing.T) {
 		"forced-exit":      {Status: AgentEnded},
 		"child-command":    {Status: AgentWorking},
 		"node-launcher":    {Agents: []string{"codex"}, Status: AgentWorking},
-		"ended-live-agent": {Agents: []string{"codex"}},
+		"ended-live-agent": {Agents: []string{"codex"}, Status: AgentWorking},
 		"both-processes":   {Agents: []string{"codex", "claude"}},
 	}
 	if len(got) != len(want) {

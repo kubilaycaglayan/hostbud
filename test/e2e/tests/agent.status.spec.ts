@@ -40,7 +40,8 @@ test('(T13) Agent logos appear before provider hook status on collapsed session 
     await expect(row.locator('button[aria-label^="Expand "]')).toHaveCount(0)
 
     await target.tmux('set-option', '-p', '-t', firstPane, '@hostbud_agent_status', 'ended')
-    await expect(row.locator('[data-session-status]')).toHaveCount(0)
+    await expect(row.locator('[data-session-status]')).toHaveAttribute('data-status', 'working')
+    await expect(row.locator('[data-session-status]')).toHaveText('🟢')
     await target.tmux('set-option', '-p', '-t', firstPane, '@hostbud_agent_status', 'working')
     await expect(row.locator('[data-session-status]')).toHaveAttribute('data-status', 'working')
 
