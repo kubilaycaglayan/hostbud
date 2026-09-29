@@ -28,6 +28,7 @@ func TestLoadDefaults(t *testing.T) {
 		SFTPTimeout:         10 * time.Second,
 		UploadTimeout:       5 * time.Minute,
 		RunStaleAfter:       2 * time.Hour,
+		QueueDispatcher:     true,
 		VerifyTimeout:       10 * time.Minute,
 		LLMQuietAfter:       20 * time.Minute,
 		LLMMaxPerRunHour:    2,
@@ -265,6 +266,22 @@ func TestLoadParallelQueues(t *testing.T) {
 		if _, err := Load(envFrom(map[string]string{"HOST_SSH_USER": "dev", "HOSTBUD_PARALLEL_QUEUES": bad})); err == nil || !strings.Contains(err.Error(), "HOSTBUD_PARALLEL_QUEUES") {
 			t.Errorf("%q: err=%v, want a HOSTBUD_PARALLEL_QUEUES error", bad, err)
 		}
+	}
+}
+
+// Only one instance per database runs queues: an extra instance sharing it
+// (the e2e secondary apps) turns its dispatcher off.
+func TestLoadQueueDispatcher(t *testing.T) {
+	cfg, err := Load(envFrom(map[string]string{"HOST_SSH_USER": "dev"}))
+	if err != nil || !cfg.QueueDispatcher {
+		t.Fatalf("default: %v, %v; want on", cfg.QueueDispatcher, err)
+	}
+	cfg, err = Load(envFrom(map[string]string{"HOST_SSH_USER": "dev", "HOSTBUD_QUEUE_DISPATCHER": "false"}))
+	if err != nil || cfg.QueueDispatcher {
+		t.Fatalf("false: %v, %v", cfg.QueueDispatcher, err)
+	}
+	if _, err := Load(envFrom(map[string]string{"HOST_SSH_USER": "dev", "HOSTBUD_QUEUE_DISPATCHER": "off"})); err == nil || !strings.Contains(err.Error(), "HOSTBUD_QUEUE_DISPATCHER") {
+		t.Errorf("off: err=%v, want a HOSTBUD_QUEUE_DISPATCHER error", err)
 	}
 }
 

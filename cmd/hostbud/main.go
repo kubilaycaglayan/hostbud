@@ -205,7 +205,14 @@ func run() error {
 		llmSupervisor.SetNotifier(notifier)
 	}
 	dispatchDone := make(chan struct{})
-	go func() { dispatcher.Run(ctx); close(dispatchDone) }()
+	if cfg.QueueDispatcher {
+		go func() { dispatcher.Run(ctx); close(dispatchDone) }()
+	} else {
+		// Another instance on this database runs the queues; two dispatchers
+		// would race on inventory-driven starts and publish on separate buses.
+		log.Warn("queue dispatcher is off (HOSTBUD_QUEUE_DISPATCHER=false): this instance neither starts nor tracks queue runs")
+		close(dispatchDone)
+	}
 	defer func() { <-dispatchDone }()
 	if llmSupervisor != nil {
 		go llmSupervisor.Run(ctx)

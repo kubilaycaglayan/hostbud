@@ -192,6 +192,8 @@ services:
     environment:
       HOSTBUD_LISTEN: ":8080"
       HOSTBUD_DATA_DIR: /data
+      # It shares the main app's database: only hostbud-e2e-app runs queues.
+      HOSTBUD_QUEUE_DISPATCHER: "false"
       HOSTBUD_POLL_INTERVAL: 1s
       HOSTBUD_LOG_LEVEL: info
       HOSTBUD_LOCAL_PORT: "9056"
@@ -435,6 +437,8 @@ services:
     environment:
       HOSTBUD_LISTEN: ":8080"
       HOSTBUD_DATA_DIR: /data
+      # It shares the main app's database: only hostbud-e2e-app runs queues.
+      HOSTBUD_QUEUE_DISPATCHER: "false"
       HOSTBUD_POLL_INTERVAL: 1s
       HOSTBUD_LOG_LEVEL: info
       HOSTBUD_LOCAL_PORT: "9057"

@@ -52,6 +52,7 @@ type Config struct {
 	HookBaseURL         string        // HOSTBUD_HOOK_BASE_URL (optional: HOSTBUD_URL inside run sessions)
 	RunStaleAfter       time.Duration // HOSTBUD_RUN_STALE_AFTER (v2: no-signal window before a run is stale)
 	ParallelQueues      bool          // HOSTBUD_PARALLEL_QUEUES (V2-M2 opt-in: several queues, parallel runs)
+	QueueDispatcher     bool          // HOSTBUD_QUEUE_DISPATCHER (default true; false for an extra instance sharing the database)
 	VerifyTimeout       time.Duration // HOSTBUD_VERIFY_TIMEOUT (V2-M4: bound on an item's verify command)
 	LLMProvider         string        // HOSTBUD_LLM_PROVIDER (V2-M5; empty disables)
 	LLMModel            string        // HOSTBUD_LLM_MODEL
@@ -244,6 +245,13 @@ func Load(getenv func(string) string) (Config, error) {
 	case "false":
 	default:
 		errs = append(errs, errors.New("HOSTBUD_PARALLEL_QUEUES: must be true or false"))
+	}
+	switch get("HOSTBUD_QUEUE_DISPATCHER", "true") {
+	case "true":
+		cfg.QueueDispatcher = true
+	case "false":
+	default:
+		errs = append(errs, errors.New("HOSTBUD_QUEUE_DISPATCHER: must be true or false"))
 	}
 
 	cfg.VAPIDPublicKey = strings.TrimSpace(getenv("HOSTBUD_VAPID_PUBLIC_KEY"))

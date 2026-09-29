@@ -485,6 +485,10 @@ only for `hostbud`): several queues and parallel runs. It is only the default:
 the Queue panel's switch (`PUT /api/machines/:id/parallel-queues`) is stored
 in the database and wins once set. The per-machine run cap
 is not an env var; it is set in Settings (`PUT /api/machines/:id/capacity`).
+`HOSTBUD_QUEUE_DISPATCHER` (`true` or `false`, default `true`) must stay on in
+a normal install: exactly one instance per database runs the queue dispatcher.
+Only an extra instance sharing a database (the e2e suite's secondary apps)
+sets it to `false`; that instance starts no runs and handles no run hooks.
 V2-M3 adds the optional Web Push identity `HOSTBUD_VAPID_PUBLIC_KEY`,
 `HOSTBUD_VAPID_PRIVATE_KEY` and `HOSTBUD_VAPID_SUBJECT` (`make vapid-keys`
 prints a pair; `hostbud` only). None, some or an invalid value never fails
