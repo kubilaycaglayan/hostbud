@@ -259,6 +259,31 @@ describe('SessionTree', () => {
     wrapper.unmount()
   })
 
+  it('keeps focus on the terminal the rename selected instead of refocusing the tree', async () => {
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (String(url) === '/api/machines/host/sessions/one' && init?.method === 'PATCH') {
+        return { ok: true, status: 200, headers: new Headers(), text: async () => JSON.stringify({ name: 'renamed' }) }
+      }
+      return { ok: false, status: 404, headers: new Headers(), text: async () => '' }
+    })
+    const terminal = document.createElement('textarea')
+    document.body.appendChild(terminal)
+    // The app focuses the selected session's terminal (App.openSession).
+    const wrapper = mount(SessionTree, { attachTo: document.body, attrs: { onSelect: () => terminal.focus() } })
+    const row = wrapper.get('[data-tree-key="session:one"]')
+    ;(row.element as HTMLElement).focus()
+    await row.trigger('keydown', { key: 'F2' })
+    const input = wrapper.get('input[aria-label="Rename one"]')
+    await input.setValue('renamed')
+    await input.trigger('keydown.enter')
+    await flushPromises()
+    await nextTick()
+    await nextTick()
+    expect(document.activeElement).toBe(terminal)
+    wrapper.unmount()
+    terminal.remove()
+  })
+
   it('renames immediately and returns focus to the selected terminal cursor', async () => {
     fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
       if (String(url) === '/api/machines/host/sessions/one' && init?.method === 'PATCH') {
