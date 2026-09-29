@@ -84,6 +84,8 @@ test('(T8) Toggle to the last tab, dropping closed tabs from its history', async
   await expect.poll(() => captured(target, names[2])).toContain('shortcut-mru-c')
   await ui.tab(names[0]).click()
   await page.getByRole('button', { name: `Close ${names[0]}` }).click()
+  await expect.poll(() => ui.activeTabName()).toBe(names[2])
+  await ui.focusTerminal()
   await page.keyboard.press('Control+Shift+D')
   await expect.poll(() => ui.activeTabName()).toBe(names[1])
 })
