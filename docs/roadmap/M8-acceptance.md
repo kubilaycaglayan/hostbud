@@ -13,8 +13,8 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
 - [ ] On compact screens, application dialogs remain above the project-tree gutter when both are open; the dialog content stays visible and usable.
   - U: T16 `App.spec.ts` verifies the compact drawer layer is below application dialog layers.
   - I: n/a: frontend stacking only; no server contract changes.
-  - E: T16 *Dialogs stay above the reopened tree gutter* (iPhone 13 Pro), opening New session while the drawer is present and checking layer order and Name input usability.
-  - Status: regression test added and confirmed failing against the current drawer layer; E2E written and awaiting type-check. Browser run is on demand.
+  - E: T16 *Dialogs stay above the reopened tree gutter* (iPhone 13 Pro), opening the Command palette while the drawer is present and checking layer order and search input usability.
+  - Status: U passes (`web/src/App.spec.ts`), E written and type-checked (`test/e2e/tests/mobile-layout.phone.spec.ts`); full browser run is pending on demand.
 
 ## Project and session tree
 

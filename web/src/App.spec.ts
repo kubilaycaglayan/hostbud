@@ -457,6 +457,7 @@ describe('tabs', () => {
     // The drawer must stay below application dialogs in the shared portal stack,
     // so reopening it cannot cover a dialog after a responsive layout change.
     expect(dialog?.className).toMatch(/\bz-30\b/)
+    expect(dialog?.previousElementSibling?.className).toMatch(/\bz-20\b/)
     expect(trigger.attributes('aria-label')).toBe('Hide sidebar')
     expect(trigger.attributes('aria-expanded')).toBe('true')
     expect(trigger.attributes('aria-controls')).toBe('sessions-sidebar')

@@ -696,10 +696,10 @@ onUnmounted(() => {
     </div>
     <DialogRoot v-if="compact && hasTabs" v-model:open="drawerOpen">
       <DialogPortal>
-        <DialogOverlay class="fixed inset-0 z-40 bg-overlay" />
+        <DialogOverlay class="fixed inset-0 z-20 bg-overlay" />
         <DialogContent
           id="sessions-sidebar"
-          class="fixed inset-y-0 left-0 z-50 flex w-[min(85vw,20rem)] flex-col border-r border-border bg-surface p-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] pl-[max(0.75rem,env(safe-area-inset-left))] text-fg shadow-xl"
+          class="fixed inset-y-0 left-0 z-30 flex w-[min(85vw,20rem)] flex-col border-r border-border bg-surface p-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] pl-[max(0.75rem,env(safe-area-inset-left))] text-fg shadow-xl"
           @pointerdown="onDrawerPointerDown"
           @pointerup="onDrawerPointerUp"
           @open-auto-focus="onDrawerOpenAutoFocus"

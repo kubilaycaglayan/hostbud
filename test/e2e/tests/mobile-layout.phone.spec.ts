@@ -69,17 +69,17 @@ test('(T16) Dialogs stay above the reopened tree gutter', async ({ page, target,
   const drawer = page.getByRole('dialog', { name: 'Project tree' })
   await expect(drawer).toBeVisible()
 
-  // A global New session shortcut can open while the gutter drawer is open.
+  // The global command-palette shortcut can open while the gutter is expanded.
   // The modal dialog must occupy the higher layer and remain usable.
-  await page.keyboard.press('Control+n')
-  const create = page.getByRole('dialog', { name: 'New session' })
-  await expect(create).toBeVisible()
+  await page.keyboard.press('Control+Shift+k')
+  const palette = page.getByRole('dialog', { name: 'Command palette' })
+  await expect(palette).toBeVisible()
   const [drawerLayer, dialogLayer] = await Promise.all([
     drawer.evaluate((element) => Number(getComputedStyle(element).zIndex)),
-    create.evaluate((element) => Number(getComputedStyle(element).zIndex)),
+    palette.evaluate((element) => Number(getComputedStyle(element).zIndex)),
   ])
   expect(dialogLayer).toBeGreaterThan(drawerLayer)
-  await expect(create.getByLabel('Name')).toBeVisible()
+  await expect(palette.getByRole('combobox', { name: 'Command palette' })).toBeVisible()
 })
 
 test('(T2) Drawer keeps the terminal attached', async ({ page, target, ui }) => {
