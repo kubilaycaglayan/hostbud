@@ -76,11 +76,13 @@ async function navigate(next: string) {
   navigationController = controller
   loading.value = true
   error.value = null
+  const typed = pathInput.value
   try {
     const result = await filesystemApi.list(props.machine, next, hidden.value, controller.signal)
     if (navigationController !== controller) return // a newer navigation won
     path.value = result.path
-    pathInput.value = result.path
+    // Keep what the user typed meanwhile (Go would otherwise resubmit here).
+    if (pathInput.value === typed) pathInput.value = result.path
     entries.value = result.entries
   } catch (e) { if (!controller.signal.aborted) error.value = describeError(e) }
   finally { if (navigationController === controller) loading.value = false }
