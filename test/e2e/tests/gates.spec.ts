@@ -54,10 +54,10 @@ test.describe('Completion gates (desktop)', () => {
     await expect(form).toContainText('The verify command has an unbalanced single quote.')
     await form.getByLabel('Verify command').fill('')
 
-    await addGatedItem(page, 'e2e gates panel first', { verify: `sh -c 'echo checking <b>x</b>; sleep 2'`, approval: true })
+    await addGatedItem(page, 'e2e gates panel first', { verify: `sh -c 'printf "%s\\n" "checking <b>x</b>"; sleep 2'`, approval: true })
     await addGatedItem(page, 'e2e gates panel second', {})
     const first = row(page, 'e2e gates panel first')
-    await expect(first).toContainText(`verify sh -c 'echo checking <b>x</b>; sleep 2' · requires approval`)
+    await expect(first).toContainText(`verify sh -c 'printf "%s\\n" "checking <b>x</b>"; sleep 2' · requires approval`)
     await panel(page).getByRole('button', { name: 'Start' }).click()
     await expect(first.getByTestId('item-status')).toHaveText(/Verifying/, { timeout: 30_000 })
     await expect(first).toContainText(/Verify attempt 1: running/)
