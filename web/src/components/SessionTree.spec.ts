@@ -66,6 +66,22 @@ describe('SessionTree', () => {
     expect(useTreeStore().groups.groups.find((g) => g.project.id === 'a')?.sessions.map((s) => s.name)).toEqual(['two', 'one'])
   })
 
+  it('preserves saved row order until the first host session snapshot arrives', async () => {
+    const sessions = useSessionsStore()
+    const machines = useMachinesStore()
+    const tree = useTreeStore()
+    sessions.reset()
+    tree.order.sessions.a = ['two', 'one']
+    machines.apply({ type: 'snapshot', machines: [{ id: 'host', label: 'Host', status: 'ok', os: '', home: '/work', tmuxVersion: '', tmuxMissing: false }], sessions: {} })
+
+    tree.sync()
+    expect(tree.order.sessions.a).toEqual(['two', 'one'])
+
+    sessions.apply({ type: 'snapshot', machines: [], sessions: { host: [session('one', '/work/a'), session('two', '/work/a')] } })
+    tree.sync()
+    expect(tree.groups.groups.find((group) => group.project.id === 'a')?.sessions.map((item) => item.name)).toEqual(['two', 'one'])
+  })
+
   it('pins from the project menu, unpins with P, and keeps reordering inside a section', async () => {
     const tree = useTreeStore()
     const wrapper = mount(SessionTree, { attachTo: document.body })

@@ -138,7 +138,10 @@ export const useTreeStore = defineStore('tree', () => {
     const state: TreeState = JSON.parse(before)
     for (const p of projectsStore.items) if (!state.projects.includes(p.id)) state.projects.push(p.id)
 
-    const reachable = machinesStore.byId('host')?.status === 'ok'
+    // A healthy machine status can arrive before the first events snapshot.
+    // Until the host's session list is authoritative, preserve saved row order
+    // rather than pruning it against the empty pre-snapshot store.
+    const reachable = machinesStore.byId('host')?.status === 'ok' && Object.hasOwn(sessionsStore.byMachine, 'host')
     const projectIds = new Set(projectsStore.items.map((p) => p.id))
     const sessionList = sessionsStore.list('host')
     const sessionNames = new Set(sessionList.map((s) => s.name))
