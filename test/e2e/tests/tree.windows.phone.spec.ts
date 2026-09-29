@@ -78,7 +78,9 @@ test.describe('window tree on iPhone 13 Pro', () => {
 
     await ui.showList()
     await editor.getByRole('button', { name: 'Expand window 2' }).click()
-    const pane = page.locator(`[data-tree-key^="pane:host/${name}/"]`).nth(1)
+    const panes = page.locator(`[data-tree-key^="pane:host/${name}/"]`)
+    await expect(panes).toHaveCount(2, { timeout: 15_000 })
+    const pane = panes.nth(1)
     await expect(pane).toBeVisible()
     const paneID = (await pane.getAttribute('data-tree-pane'))!
     await pane.locator('button').click()
