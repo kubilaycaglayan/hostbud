@@ -46,11 +46,11 @@ test.describe('parallel queues', () => {
     const pa = await project(multi, target, 'e2e-par-a')
     const pb = await project(multi, target, 'e2e-par-b')
     const a = await queueOn(multi, pa.id, 'Alpha', [
-      { condition: 'e2e parallel a1', behavior: 'slow:6' },
+      { condition: 'e2e parallel a1', behavior: 'slow:15' },
       { condition: 'e2e parallel a2', behavior: 'achieve:1' },
     ])
     const b = await queueOn(multi, pb.id, 'Beta', [
-      { condition: 'e2e parallel b1', behavior: 'slow:6' },
+      { condition: 'e2e parallel b1', behavior: 'slow:15' },
       { condition: 'e2e parallel b2', behavior: 'achieve:1' },
     ])
     expect((await control(multi, a.queue.id, 'start')).status()).toBe(200)
@@ -127,7 +127,7 @@ test.describe('parallel queues', () => {
   test('(V2-M6 T2) Unsuccessful predecessor pauses dependent queue', async ({ multi, target }) => {
     const p = await project(multi, target, 'e2e-after-fail')
     const prior = await queueOn(multi, p.id, 'Prior', [{ condition: 'e2e predecessor fails', behavior: 'fail' }])
-    await stubs.setBehavior('e2e predecessor fails', 'fail', 4)
+    await stubs.setBehavior('e2e predecessor fails', 'fail', 12)
     expect((await control(multi, prior.queue.id, 'start')).status()).toBe(200)
     await waitItem(multi, prior.queue.id, prior.items[0].id, 'running')
     const runId = (await itemOf(multi, prior.queue.id, prior.items[0].id)).run!.id
@@ -140,10 +140,10 @@ test.describe('parallel queues', () => {
 
   test('(V2-M2 T2) Same-directory warning', async ({ multi, target }) => {
     const shared = await project(multi, target, 'e2e-shared')
-    const a = await queueOn(multi, shared.id, 'Alpha', [{ condition: 'e2e shared a1', behavior: 'slow:8' }])
-    const b = await queueOn(multi, shared.id, 'Beta', [{ condition: 'e2e shared b1', behavior: 'slow:8' }])
+    const a = await queueOn(multi, shared.id, 'Alpha', [{ condition: 'e2e shared a1', behavior: 'slow:15' }])
+    const b = await queueOn(multi, shared.id, 'Beta', [{ condition: 'e2e shared b1', behavior: 'slow:15' }])
     const other = await project(multi, target, 'e2e-shared-other')
-    const c = await queueOn(multi, other.id, 'Gamma', [{ condition: 'e2e shared c1', behavior: 'slow:8' }])
+    const c = await queueOn(multi, other.id, 'Gamma', [{ condition: 'e2e shared c1', behavior: 'slow:15' }])
 
     const startA = await control(multi, a.queue.id, 'start')
     expect(startA.status()).toBe(200)

@@ -20,7 +20,7 @@ test.describe('In-app notifications (desktop)', () => {
   test.beforeEach(async ({ target, context }) => {
     await target.resetTmux()
     await stubs.reset()
-    await context.grantPermissions(['notifications'], { origin: ORIGIN })
+    await context.grantPermissions(['notifications'])
   })
 
   async function runOneItem(request: import('@playwright/test').APIRequestContext, target: import('../helpers/target.ts').Target, condition: string) {
@@ -78,7 +78,12 @@ test.describe('Notification settings (desktop)', () => {
     await ui.open()
     const dialog = await openSettings(page)
     await expect(dialog.getByTestId('notifications-toggle')).not.toBeChecked()
-    await expect(dialog.getByTestId('notification-device')).toHaveText('Not set up on this device yet.')
+    const deviceStatus = dialog.getByTestId('notification-device')
+    if (await page.evaluate(() => Notification.permission) === 'denied') {
+      await expect(deviceStatus).toContainText('blocked for hostbud in this browser')
+    } else {
+      await expect(deviceStatus).toHaveText('Not set up on this device yet.')
+    }
     expect(await permissionRequests(page)).toBe(0)
     // A per-event choice saves at once, without asking for permission.
     await dialog.getByRole('checkbox', { name: 'A queue has finished' }).uncheck()
@@ -120,7 +125,7 @@ test.describe('Notification settings (desktop)', () => {
 
   test('(V2-M3 T4) Test notification', async ({ page, ui, request, context }) => {
     // In the page (no push subscription on this browser): shown right here.
-    await context.grantPermissions(['notifications'], { origin: ORIGIN })
+    await context.grantPermissions(['notifications'])
     await ui.open()
     const dialog = await openSettings(page)
     await dialog.getByTestId('notifications-toggle').click()
