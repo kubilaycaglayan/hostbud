@@ -336,26 +336,8 @@ func (d *Dispatcher) advance(ctx context.Context, queueID, source string) {
 	if err != nil || q.Status != store.QueueRunning {
 		return
 	}
-	if q.ScheduledAt != nil {
-		if wait := q.ScheduledAt.Sub(d.clock.Now()); wait > 0 {
-			if d.scheduled[queueID] == nil {
-				id := queueID
-				d.scheduled[id] = d.clock.AfterFunc(wait, func() {
-					d.enqueue(func(ctx context.Context) {
-						delete(d.scheduled, id)
-						d.advance(ctx, id, store.SourceTimer)
-					})
-				})
-			}
-			return
-		}
-		delete(d.scheduled, queueID)
-		_, _ = d.store.SetQueueSchedule(ctx, queueID, nil, store.QueueRunning)
-		q.ScheduledAt = nil
-		d.service.Publish(ctx, "schedule_due", queueID)
-	} else if timer := d.scheduled[queueID]; timer != nil {
-		timer.Stop()
-		delete(d.scheduled, queueID)
+	if d.notDue(ctx, q) {
+		return
 	}
 	if !d.predecessorReady(ctx, q) {
 		return
@@ -364,6 +346,10 @@ func (d *Dispatcher) advance(ctx context.Context, queueID, source string) {
 		return
 	}
 	item, err := d.store.FirstQueuedItem(ctx, queueID)
+	if errors.Is(err, store.ErrNotFound) && d.loopAgain(ctx, q) {
+		d.advance(ctx, queueID, source) // the next pass may be due later
+		return
+	}
 	if errors.Is(err, store.ErrNotFound) {
 		d.finishQueue(ctx, queueID)
 		return
@@ -372,6 +358,66 @@ func (d *Dispatcher) advance(ctx context.Context, queueID, source string) {
 		return
 	}
 	d.startItem(ctx, q, item, source)
+}
+
+// notDue reports whether a running queue's start is still scheduled in the
+// future; the timer that dispatches it at the due time is then armed. At or
+// after the due time it clears the schedule.
+func (d *Dispatcher) notDue(ctx context.Context, q store.Queue) bool {
+	if q.ScheduledAt == nil {
+		if timer := d.scheduled[q.ID]; timer != nil {
+			timer.Stop()
+			delete(d.scheduled, q.ID)
+		}
+		return false
+	}
+	if wait := q.ScheduledAt.Sub(d.clock.Now()); wait > 0 {
+		if d.scheduled[q.ID] == nil {
+			id := q.ID
+			d.scheduled[id] = d.clock.AfterFunc(wait, func() {
+				d.enqueue(func(ctx context.Context) {
+					delete(d.scheduled, id)
+					d.next(ctx, id, store.SourceTimer)
+				})
+			})
+		}
+		return true
+	}
+	delete(d.scheduled, q.ID)
+	_, _ = d.store.SetQueueSchedule(ctx, q.ID, nil, store.QueueRunning)
+	d.service.Publish(ctx, "schedule_due", q.ID)
+	return false
+}
+
+// loopAgain starts a looping queue's next pass when its last item ended:
+// it requeues the done and skipped items, unless the runtime limit since
+// the loop started has passed. The limit is checked only here, between
+// passes, so a pass that has begun always runs to its end.
+func (d *Dispatcher) loopAgain(ctx context.Context, q store.Queue) bool {
+	if !q.LoopEnabled {
+		return false
+	}
+	now := d.clock.Now().UTC()
+	if q.LoopStartedAt != nil && now.Sub(*q.LoopStartedAt) >= q.LoopMaxRuntime() {
+		d.service.Publish(ctx, "loop_time_limit", q.ID)
+		return false
+	}
+	passAt, due := now, (*time.Time)(nil)
+	if q.LoopPassStartedAt != nil {
+		if earliest := q.LoopPassStartedAt.Add(store.MinLoopPassInterval); earliest.After(now) {
+			passAt, due = earliest, &earliest
+		}
+	}
+	n, err := d.store.NextQueueLoopPass(ctx, q.ID, passAt, due)
+	if err != nil {
+		d.log.Error("queue: next loop pass", "err", err)
+		return false
+	}
+	if n == 0 {
+		return false
+	}
+	d.service.Publish(ctx, "loop_restarted", q.ID)
+	return true
 }
 
 // predecessorReady keeps a dependent queue out of both dispatcher paths
@@ -573,7 +619,7 @@ func (d *Dispatcher) dispatchOnce(ctx context.Context, machine, source string) {
 		return
 	}
 	for _, q := range waiting {
-		if !d.predecessorReady(ctx, q) {
+		if d.notDue(ctx, q) || !d.predecessorReady(ctx, q) {
 			continue
 		}
 		if busy, err := d.queueBusy(ctx, q.ID); err != nil {
@@ -583,6 +629,12 @@ func (d *Dispatcher) dispatchOnce(ctx context.Context, machine, source string) {
 			continue
 		}
 		item, err := d.store.FirstQueuedItem(ctx, q.ID)
+		if errors.Is(err, store.ErrNotFound) && d.loopAgain(ctx, q) {
+			if q, err = d.store.Queue(ctx, q.ID); err != nil || d.notDue(ctx, q) {
+				continue // the next pass starts at its due time
+			}
+			item, err = d.store.FirstQueuedItem(ctx, q.ID)
+		}
 		if errors.Is(err, store.ErrNotFound) {
 			_, _ = d.store.SetQueueWaiting(ctx, q.ID, nil)
 			d.finishQueue(ctx, q.ID)

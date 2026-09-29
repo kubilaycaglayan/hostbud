@@ -121,7 +121,33 @@ type Queue struct {
 	// AfterSession gates this queue until an existing tmux session, tracked
 	// or not, is idle or gone.
 	AfterSession *string `json:"afterSession,omitempty"`
+	// Loop settings: a looping queue requeues all its items when the last
+	// one ends and runs them again, unless LoopMaxRuntime has passed since
+	// LoopStartedAt (checked only between passes). LoopPassStartedAt is when
+	// the current pass began; LoopCount is the number of passes started again.
+	// The queue view shows them as `loop` (queue.LoopView).
+	LoopEnabled           bool       `json:"-"`
+	LoopMaxRuntimeSeconds int64      `json:"-"`
+	LoopStartedAt         *time.Time `json:"-"`
+	LoopPassStartedAt     *time.Time `json:"-"`
+	LoopCount             int        `json:"-"`
 }
+
+// LoopMaxRuntime is the loop runtime limit as a duration.
+func (q Queue) LoopMaxRuntime() time.Duration {
+	return time.Duration(q.LoopMaxRuntimeSeconds) * time.Second
+}
+
+// DefaultLoopMaxRuntime is a new queue's loop runtime limit.
+const DefaultLoopMaxRuntime = 5 * time.Hour
+
+// MaxLoopMaxRuntime bounds the loop runtime limit.
+const MaxLoopMaxRuntime = 30 * 24 * time.Hour
+
+// MinLoopPassInterval is the least time between the starts of two loop
+// passes, so a pass that ends at once (for example only existing-session
+// commands) can't spin.
+const MinLoopPassInterval = time.Minute
 
 // QueueLink is what a new queue waits for before its first item: an active
 // tracked run's goal (RunID) or any existing session going idle (Session).
@@ -258,8 +284,9 @@ type RunUpdate struct {
 }
 
 const (
-	queueCols = `id, machine_id, project_id, name, status, created_at, updated_at, waiting_since, after_run_id, started_at, ended_at, scheduled_at, after_session`
-	itemCols  = `id, queue_id, machine_id, position, agent, flags, instruction, status, created_at, updated_at,
+	queueCols = `id, machine_id, project_id, name, status, created_at, updated_at, waiting_since, after_run_id, started_at, ended_at, scheduled_at, after_session,
+		loop_enabled, loop_max_runtime_seconds, loop_started_at, loop_pass_started_at, loop_count`
+	itemCols = `id, queue_id, machine_id, position, agent, flags, instruction, status, created_at, updated_at,
 		verify_command, requires_approval, started_at, ended_at, execution_mode, target_session, command`
 	runCols = `id, item_id, machine_id, session_name, agent_session_id, transcript_path, transcript_offset,
 		client_version, token_hash, status, started_at, ended_at, last_signal_at, detail`
@@ -270,9 +297,18 @@ type scanner interface{ Scan(...any) error }
 
 func scanQueue(row scanner) (Queue, error) {
 	var q Queue
-	var waiting, started, ended, scheduled sql.NullTime
+	var waiting, started, ended, scheduled, loopStarted, passStarted sql.NullTime
 	var afterRun, afterSession sql.NullString
-	err := row.Scan(&q.ID, &q.MachineID, &q.ProjectID, &q.Name, &q.Status, &q.CreatedAt, &q.UpdatedAt, &waiting, &afterRun, &started, &ended, &scheduled, &afterSession)
+	err := row.Scan(&q.ID, &q.MachineID, &q.ProjectID, &q.Name, &q.Status, &q.CreatedAt, &q.UpdatedAt, &waiting, &afterRun, &started, &ended, &scheduled, &afterSession,
+		&q.LoopEnabled, &q.LoopMaxRuntimeSeconds, &loopStarted, &passStarted, &q.LoopCount)
+	if loopStarted.Valid {
+		t := loopStarted.Time.UTC()
+		q.LoopStartedAt = &t
+	}
+	if passStarted.Valid {
+		t := passStarted.Time.UTC()
+		q.LoopPassStartedAt = &t
+	}
 	if waiting.Valid {
 		t := waiting.Time.UTC()
 		q.WaitingSince = &t
@@ -613,6 +649,79 @@ func (s *Store) SetQueueSchedule(ctx context.Context, id string, due *time.Time,
 		return Queue{}, ErrConflict
 	}
 	return q, err
+}
+
+// SetQueueLoop turns looping on or off and sets its runtime limit.
+func (s *Store) SetQueueLoop(ctx context.Context, id string, enabled bool, maxRuntime time.Duration) (Queue, error) {
+	if maxRuntime < time.Second || maxRuntime > MaxLoopMaxRuntime {
+		return Queue{}, errors.New("the loop runtime limit must be between 1s and 30d")
+	}
+	q, err := scanQueue(s.db.QueryRowContext(ctx, `UPDATE queues SET loop_enabled = $2, loop_max_runtime_seconds = $3, updated_at = $4 WHERE id = $1 RETURNING `+queueCols,
+		id, enabled, int64(maxRuntime/time.Second), s.now()))
+	return q, notFound(err)
+}
+
+// BeginQueueLoop starts a queue's loop clock and its first pass at `at`
+// and resets its pass count.
+func (s *Store) BeginQueueLoop(ctx context.Context, id string, at time.Time) (Queue, error) {
+	q, err := scanQueue(s.db.QueryRowContext(ctx, `UPDATE queues SET loop_started_at = $2, loop_pass_started_at = $2, loop_count = 0, updated_at = $3
+		WHERE id = $1 RETURNING `+queueCols, id, at.UTC(), s.now()))
+	return q, notFound(err)
+}
+
+// RequeueQueueItems puts a finished queue's done and skipped items back to
+// queued, keeping their positions, and returns how many it requeued.
+func (s *Store) RequeueQueueItems(ctx context.Context, queueID string) (int, error) {
+	var n int
+	err := s.inTx(ctx, func(tx *sql.Tx) error {
+		var err error
+		n, err = s.requeueItems(ctx, tx, queueID, QueueFinished)
+		return err
+	})
+	return n, err
+}
+
+// NextQueueLoopPass starts a running looping queue's next pass: it requeues
+// the done and skipped items, counts the pass, records when it begins
+// (passAt) and sets the queue's due time (nil: now), in one transaction.
+// It returns how many items it requeued; with none, nothing changes.
+func (s *Store) NextQueueLoopPass(ctx context.Context, queueID string, passAt time.Time, due *time.Time) (int, error) {
+	var n int
+	err := s.inTx(ctx, func(tx *sql.Tx) error {
+		var err error
+		if n, err = s.requeueItems(ctx, tx, queueID, QueueRunning); err != nil || n == 0 {
+			return err
+		}
+		var dueValue any
+		if due != nil {
+			dueValue = due.UTC()
+		}
+		_, err = tx.ExecContext(ctx, `UPDATE queues SET loop_count = loop_count + 1, loop_pass_started_at = $2, scheduled_at = $3, updated_at = $4 WHERE id = $1`,
+			queueID, passAt.UTC(), dueValue, s.now())
+		return err
+	})
+	return n, err
+}
+
+// requeueItems locks the queue, checks its status and requeues its done and
+// skipped items.
+func (s *Store) requeueItems(ctx context.Context, tx *sql.Tx, queueID, status string) (int, error) {
+	if err := lockQueue(ctx, tx, queueID); err != nil {
+		return 0, err
+	}
+	var have string
+	if err := tx.QueryRowContext(ctx, `SELECT status FROM queues WHERE id = $1`, queueID).Scan(&have); err != nil {
+		return 0, notFound(err)
+	}
+	if have != status {
+		return 0, ErrConflict
+	}
+	res, err := tx.ExecContext(ctx, `UPDATE queue_items SET status = 'queued', updated_at = $2 WHERE queue_id = $1 AND status IN ('done', 'skipped')`, queueID, s.now())
+	if err != nil {
+		return 0, err
+	}
+	rows, err := res.RowsAffected()
+	return int(rows), err
 }
 
 // RenameQueue changes a queue's name.

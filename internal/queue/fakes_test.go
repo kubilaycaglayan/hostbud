@@ -403,7 +403,8 @@ func (m *memStore) CreateQueueLinked(_ context.Context, projectID, name string, 
 		return store.Queue{}, store.ErrDuplicate
 	}
 	m.q().seq++
-	q := store.Queue{ID: fmt.Sprintf("queue_%02d", m.q().seq), MachineID: p.MachineID, ProjectID: p.ID, Name: name, Status: store.QueueIdle}
+	q := store.Queue{ID: fmt.Sprintf("queue_%02d", m.q().seq), MachineID: p.MachineID, ProjectID: p.ID, Name: name, Status: store.QueueIdle,
+		LoopMaxRuntimeSeconds: int64(store.DefaultLoopMaxRuntime / time.Second)}
 	if m.now != nil {
 		q.CreatedAt = m.now()
 	}
@@ -503,6 +504,71 @@ func (m *memStore) SetQueueSchedule(_ context.Context, id string, due *time.Time
 	q.ScheduledAt = due
 	m.q().queues[id] = q
 	return q, nil
+}
+
+func (m *memStore) SetQueueLoop(_ context.Context, id string, enabled bool, maxRuntime time.Duration) (store.Queue, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	q, ok := m.q().queues[id]
+	if !ok {
+		return q, store.ErrNotFound
+	}
+	q.LoopEnabled, q.LoopMaxRuntimeSeconds = enabled, int64(maxRuntime/time.Second)
+	m.q().queues[id] = q
+	return q, nil
+}
+
+func (m *memStore) BeginQueueLoop(_ context.Context, id string, at time.Time) (store.Queue, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	q, ok := m.q().queues[id]
+	if !ok {
+		return q, store.ErrNotFound
+	}
+	at = at.UTC()
+	q.LoopStartedAt, q.LoopPassStartedAt, q.LoopCount = &at, &at, 0
+	m.q().queues[id] = q
+	return q, nil
+}
+
+func (m *memStore) RequeueQueueItems(_ context.Context, queueID string) (int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.requeue(queueID, store.QueueFinished)
+}
+
+func (m *memStore) NextQueueLoopPass(_ context.Context, queueID string, passAt time.Time, due *time.Time) (int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	n, err := m.requeue(queueID, store.QueueRunning)
+	if err != nil || n == 0 {
+		return n, err
+	}
+	q := m.q().queues[queueID]
+	passAt = passAt.UTC()
+	q.LoopCount++
+	q.LoopPassStartedAt, q.ScheduledAt = &passAt, due
+	m.q().queues[queueID] = q
+	return n, nil
+}
+
+func (m *memStore) requeue(queueID, status string) (int, error) {
+	q, ok := m.q().queues[queueID]
+	if !ok {
+		return 0, store.ErrNotFound
+	}
+	if q.Status != status {
+		return 0, store.ErrConflict
+	}
+	n := 0
+	for id, it := range m.q().items {
+		if it.QueueID == queueID && (it.Status == store.ItemDone || it.Status == store.ItemSkipped) {
+			it.Status = store.ItemQueued
+			m.q().items[id] = it
+			n++
+		}
+	}
+	return n, nil
 }
 
 func (m *memStore) itemsOf(queueID string) []store.QueueItem {

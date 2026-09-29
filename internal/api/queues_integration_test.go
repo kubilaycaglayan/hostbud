@@ -152,6 +152,7 @@ func TestIntegrationQueueRoutesUsePostgres(t *testing.T) {
 		{"DELETE", "/api/queues/" + q.ID, ""},
 		{"POST", "/api/queues/" + q.ID + "/items", `{"agent":"claude","instruction":"/goal x"}`},
 		{"PUT", "/api/queues/" + q.ID + "/order", `{"itemIds":["` + ids[0] + `","` + ids[2] + `"]}`},
+		{"PUT", "/api/queues/" + q.ID + "/loop", `{"enabled":true,"maxRuntime":"2h"}`},
 		{"PATCH", "/api/queue-items/" + ids[0], `{"instruction":"/goal x"}`},
 		{"DELETE", "/api/queue-items/" + ids[0], ""},
 		{"POST", "/api/queues/" + q.ID + "/start", ""},
@@ -171,6 +172,18 @@ func TestIntegrationQueueRoutesUsePostgres(t *testing.T) {
 		t.Fatalf("a refused request changed the queue:\n%s\n%s", before, after)
 	}
 
+	status, body = call("PUT", "/api/queues/"+q.ID+"/loop", `{"enabled":true,"maxRuntime":"2h"}`, origin)
+	want(200, status, body, "loop on")
+	var looped queue.View
+	_ = json.Unmarshal(body, &looped)
+	if looped.Loop == nil || !looped.Loop.Enabled || looped.Loop.MaxRuntimeSeconds != 7200 {
+		t.Fatalf("loop on: %s", body)
+	}
+	status, body = call("PUT", "/api/queues/"+q.ID+"/loop", `{"enabled":false}`, origin)
+	want(200, status, body, "loop off")
+	if strings.Contains(string(body), `"loop"`) {
+		t.Fatalf("loop off still shows loop settings: %s", body)
+	}
 	status, body = call("POST", "/api/queues/"+q.ID+"/start", "", origin)
 	want(200, status, body, "start")
 	status, body = call("POST", "/api/queues/"+q.ID+"/start", "", origin)
@@ -203,9 +216,9 @@ func TestIntegrationQueueRoutesUsePostgres(t *testing.T) {
 			n++
 		}
 	}
-	// 10 changes on Milestones, 3 on Second, each also heard by its peer
+	// 12 changes on Milestones, 3 on Second, each also heard by its peer
 	// in the same directory (3 more).
-	if n != 16 {
-		t.Fatalf("queue.changed events: %d, want one per change plus peers (16)", n)
+	if n != 18 {
+		t.Fatalf("queue.changed events: %d, want one per change plus peers (18)", n)
 	}
 }

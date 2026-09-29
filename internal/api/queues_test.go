@@ -55,6 +55,10 @@ func (f *fakeQueues) Rename(_ context.Context, id, name string) (queue.View, err
 	f.rec("rename " + id + " " + name)
 	return queue.View{}, f.err
 }
+func (f *fakeQueues) SetLoop(_ context.Context, id string, enabled bool, maxRuntime time.Duration) (queue.View, error) {
+	f.rec(fmt.Sprintf("loop %s %t %s", id, enabled, maxRuntime))
+	return queue.View{}, f.err
+}
 func (f *fakeQueues) Delete(_ context.Context, id string) error { f.rec("delete " + id); return f.err }
 func (f *fakeQueues) AddItem(_ context.Context, queueID, agent, flags, instruction string, gates ...store.ItemGates) (queue.ItemView, error) {
 	f.rec("add " + queueID + " " + agent + "|" + flags + "|" + instruction)
@@ -180,6 +184,9 @@ func TestQueueRoutesCallTheService(t *testing.T) {
 		{"PATCH", "/api/queue-items/item_a", `{"instruction":"/goal m2"}`, 200, "update item_a"},
 		{"DELETE", "/api/queue-items/item_a", "", 204, "delete-item item_a"},
 		{"PUT", "/api/queues/queue_a/order", `{"itemIds":["item_b","item_a"]}`, 200, "reorder queue_a"},
+		{"PUT", "/api/queues/queue_a/loop", `{"enabled":true,"maxRuntime":"5h30m"}`, 200, "loop queue_a true 5h30m0s"},
+		{"PUT", "/api/queues/queue_a/loop", `{"enabled":true}`, 200, "loop queue_a true 5h0m0s"},
+		{"PUT", "/api/queues/queue_a/loop", `{"enabled":false}`, 200, "loop queue_a false 5h0m0s"},
 		{"POST", "/api/queues/queue_a/start", "", 200, "start queue_a"},
 		{"POST", "/api/queues/queue_a/start", `{"delay":"4h14m"}`, 200, "start queue_a"},
 		{"POST", "/api/queues/queue_a/pause", "", 200, "pause queue_a"},
@@ -205,6 +212,11 @@ func TestQueueRoutesCallTheService(t *testing.T) {
 	}
 	if q.delay != 254*time.Minute {
 		t.Errorf("start delay = %s", q.delay)
+	}
+	for _, value := range []string{"0s", "nonsense", "721h", "-1h"} {
+		if rec := queueRequest(t, h, "PUT", "/api/queues/queue_a/loop", `{"enabled":true,"maxRuntime":"`+value+`"}`, nil); rec.Code != http.StatusBadRequest {
+			t.Errorf("loop maxRuntime %q status = %d", value, rec.Code)
+		}
 	}
 	for _, value := range []string{"0s", "nonsense", "31d"} {
 		if rec := queueRequest(t, h, "POST", "/api/queues/queue_a/start", `{"delay":"`+value+`"}`, nil); rec.Code != http.StatusBadRequest {

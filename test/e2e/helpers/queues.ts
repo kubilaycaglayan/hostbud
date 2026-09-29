@@ -72,6 +72,16 @@ export interface Queue {
   afterRunId?: string
   afterRunStatus?: string
   afterSession?: string
+  /** Loop settings; absent while they are the default (off, 5 h). */
+  loop?: QueueLoop
+}
+
+export interface QueueLoop {
+  enabled: boolean
+  maxRuntimeSeconds: number
+  startedAt?: string
+  passStartedAt?: string
+  pass: number
 }
 
 /** GET /api/queues. */

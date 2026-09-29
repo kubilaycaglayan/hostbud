@@ -346,6 +346,7 @@ GET    /api/queue-history?limit=100&offset=0  V2-M9: newest-first metadata snaps
 POST   /api/queues                    {projectId, name} — 201; several queues either way, names unique per project (409); with parallel queues off only one runs at a time (start/resume of another → 409)
 GET    /api/queues/:id
 PATCH  /api/queues/:id                {name}
+PUT    /api/queues/:id/loop           {enabled, maxRuntime?} — looping on/off and its runtime limit (Go duration, 1s–30d, default "5h"); applies at the next pass boundary
 DELETE /api/queues/:id                204; refused (409) while a run is active or an item is verifying; run sessions stay open
 POST   /api/queues/:id/items          {agent, flags, instruction, verifyCommand?, requiresApproval?} — appended; agent claude|codex, flags split like a shell, instruction "/goal <condition>"; V2-M4 gates: verifyCommand splits like flags, ≤ 4096 bytes, one line ("" = none)
 PATCH  /api/queue-items/:id           any subset of {agent, flags, instruction, verifyCommand, requiresApproval}; queued items only, or only the two gate fields on a needs_attention item (V2-M4); 409 otherwise

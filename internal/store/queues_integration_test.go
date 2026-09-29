@@ -405,3 +405,105 @@ func TestIntegrationParallelQueuesMigrationKeepsV2M1Data(t *testing.T) {
 		}
 	}
 }
+
+// Looping queues: settings persist, a new queue has the default limit, the
+// next pass requeues done and skipped items only while the queue runs, and
+// a finished queue's items requeue for a restart.
+func TestIntegrationQueueLoopPasses(t *testing.T) {
+	ctx := context.Background()
+	repo, err := Open(ctx, testConfig(t.TempDir()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = repo.Close() }()
+	if _, err := repo.EnsureHostMachine(ctx, "Host machine"); err != nil {
+		t.Fatal(err)
+	}
+	p, err := repo.CreateProject(ctx, HostMachineID, "/home/dev/looping", "looping")
+	if err != nil {
+		t.Fatal(err)
+	}
+	q, err := repo.CreateQueue(ctx, p.ID, "loop")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if q.LoopEnabled || q.LoopMaxRuntime() != DefaultLoopMaxRuntime || q.LoopCount != 0 || q.LoopStartedAt != nil {
+		t.Fatalf("new queue loop = %+v", q)
+	}
+	if _, err := repo.SetQueueLoop(ctx, q.ID, true, 0); err == nil {
+		t.Fatal("accepted a zero limit")
+	}
+	if q, err = repo.SetQueueLoop(ctx, q.ID, true, 90*time.Minute); err != nil || !q.LoopEnabled || q.LoopMaxRuntimeSeconds != 5400 {
+		t.Fatalf("SetQueueLoop = %+v, %v", q, err)
+	}
+	var ids []string
+	for _, c := range []string{"/goal a", "/goal b", "/goal c"} {
+		it, err := repo.AddQueueItem(ctx, q.ID, "claude", "", c)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, it.ID)
+	}
+	start := time.Date(2026, 9, 29, 10, 0, 0, 0, time.UTC)
+	if q, err = repo.BeginQueueLoop(ctx, q.ID, start); err != nil || !q.LoopStartedAt.Equal(start) || !q.LoopPassStartedAt.Equal(start) {
+		t.Fatalf("BeginQueueLoop = %+v, %v", q, err)
+	}
+	if _, err := repo.TransitionQueue(ctx, q.ID, []string{QueueIdle}, QueueRunning); err != nil {
+		t.Fatal(err)
+	}
+	for i, to := range []string{ItemDone, ItemSkipped, ItemNeedsAttention} {
+		if _, err := repo.TransitionQueueItem(ctx, ids[i], []string{ItemQueued}, to); err != nil {
+			t.Fatal(err)
+		}
+	}
+	pass := start.Add(time.Hour)
+	due := pass.Add(time.Minute)
+	n, err := repo.NextQueueLoopPass(ctx, q.ID, pass, &due)
+	if err != nil || n != 2 {
+		t.Fatalf("NextQueueLoopPass = %d, %v", n, err)
+	}
+	q, _ = repo.Queue(ctx, q.ID)
+	if q.LoopCount != 1 || !q.LoopPassStartedAt.Equal(pass) || q.ScheduledAt == nil || !q.ScheduledAt.Equal(due) || !q.LoopStartedAt.Equal(start) {
+		t.Fatalf("after next pass: %+v", q)
+	}
+	items, _ := repo.QueueItems(ctx, q.ID)
+	if items[0].Status != ItemQueued || items[1].Status != ItemQueued || items[2].Status != ItemNeedsAttention || items[0].EndedAt != nil {
+		t.Fatalf("items after next pass: %+v", items)
+	}
+	if n, err := repo.NextQueueLoopPass(ctx, q.ID, pass, nil); err != nil || n != 0 {
+		t.Fatalf("pass with nothing done = %d, %v", n, err)
+	}
+	if q, _ = repo.Queue(ctx, q.ID); q.LoopCount != 1 {
+		t.Fatalf("an empty pass was counted: %d", q.LoopCount)
+	}
+	// Only a running queue starts a pass; only a finished one requeues.
+	if _, err := repo.RequeueQueueItems(ctx, q.ID); !errors.Is(err, ErrConflict) {
+		t.Fatalf("requeue while running = %v", err)
+	}
+	if _, err := repo.TransitionQueueItem(ctx, ids[0], []string{ItemQueued}, ItemDone); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repo.TransitionQueue(ctx, q.ID, []string{QueueRunning}, QueueFinished); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repo.NextQueueLoopPass(ctx, q.ID, pass, nil); !errors.Is(err, ErrConflict) {
+		t.Fatalf("pass while finished = %v", err)
+	}
+	if n, err := repo.RequeueQueueItems(ctx, q.ID); err != nil || n != 1 {
+		t.Fatalf("RequeueQueueItems = %d, %v", n, err)
+	}
+	// History records the loop's requeue as a status change.
+	hist, err := repo.QueueItemHistory(ctx, HostMachineID, 100, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	requeued := 0
+	for _, h := range hist {
+		if h.ItemID == ids[0] && h.Action == "status" && h.Status == ItemQueued {
+			requeued++
+		}
+	}
+	if requeued != 2 {
+		t.Fatalf("history requeue rows for item a = %d", requeued)
+	}
+}

@@ -43,6 +43,7 @@
   {"method":"DELETE","path":"/api/queues/{id}","stateChanging":true,"authRequired":true,"websocket":false,"jsonBody":false},
   {"method":"POST","path":"/api/queues/{id}/items","stateChanging":true,"authRequired":true,"websocket":false,"jsonBody":true},
   {"method":"PUT","path":"/api/queues/{id}/order","stateChanging":true,"authRequired":true,"websocket":false,"jsonBody":true},
+  {"method":"PUT","path":"/api/queues/{id}/loop","stateChanging":true,"authRequired":true,"websocket":false,"jsonBody":true},
   {"method":"PATCH","path":"/api/queue-items/{id}","stateChanging":true,"authRequired":true,"websocket":false,"jsonBody":true},
   {"method":"DELETE","path":"/api/queue-items/{id}","stateChanging":true,"authRequired":true,"websocket":false,"jsonBody":false},
   {"method":"POST","path":"/api/queues/{id}/start","stateChanging":true,"authRequired":true,"websocket":false,"jsonBody":false},

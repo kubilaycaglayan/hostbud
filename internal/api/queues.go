@@ -19,6 +19,7 @@ type QueueService interface {
 	Get(ctx context.Context, id string) (queue.View, error)
 	CreateLinked(ctx context.Context, projectID, name string, link store.QueueLink) (queue.View, error)
 	Rename(ctx context.Context, id, name string) (queue.View, error)
+	SetLoop(ctx context.Context, id string, enabled bool, maxRuntime time.Duration) (queue.View, error)
 	Delete(ctx context.Context, id string) error
 	AddItem(ctx context.Context, queueID, agent, flags, instruction string, gates ...store.ItemGates) (queue.ItemView, error)
 	UpdateItem(ctx context.Context, id string, u store.QueueItemUpdate) (queue.ItemView, error)
@@ -45,6 +46,7 @@ func mountQueueRoutes(s *server, addFunc func(string, http.HandlerFunc)) {
 	addFunc("GET /api/queues/{id}", s.getQueue)
 	addFunc("PATCH /api/queues/{id}", s.renameQueue)
 	addFunc("DELETE /api/queues/{id}", s.deleteQueue)
+	addFunc("PUT /api/queues/{id}/loop", s.putQueueLoop)
 	addFunc("POST /api/queues/{id}/items", s.addQueueItem)
 	addFunc("PUT /api/queues/{id}/order", s.reorderQueue)
 	addFunc("PATCH /api/queue-items/{id}", s.updateQueueItem)
@@ -251,6 +253,33 @@ func (s *server) renameQueue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v, err := s.cfg.Queues.Rename(r.Context(), r.PathValue("id"), req.Name)
+	if err != nil {
+		s.queueError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, v)
+}
+
+type queueLoopRequest struct {
+	Enabled    bool   `json:"enabled"`
+	MaxRuntime string `json:"maxRuntime"`
+}
+
+func (s *server) putQueueLoop(w http.ResponseWriter, r *http.Request) {
+	var req queueLoopRequest
+	if !decode(w, r, &req) {
+		return
+	}
+	limit := store.DefaultLoopMaxRuntime
+	if req.MaxRuntime != "" {
+		var err error
+		limit, err = time.ParseDuration(req.MaxRuntime)
+		if err != nil || limit < time.Second || limit > store.MaxLoopMaxRuntime {
+			writeError(w, http.StatusBadRequest, "the loop runtime limit must be between 1s and 30d", "Examples: 5h or 90m.")
+			return
+		}
+	}
+	v, err := s.cfg.Queues.SetLoop(r.Context(), r.PathValue("id"), req.Enabled, limit)
 	if err != nil {
 		s.queueError(w, err)
 		return

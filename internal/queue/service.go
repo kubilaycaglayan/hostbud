@@ -56,6 +56,10 @@ type Store interface {
 	DeleteQueue(ctx context.Context, id string) error
 	TransitionQueue(ctx context.Context, id string, from []string, to string) (store.Queue, error)
 	SetQueueSchedule(ctx context.Context, id string, due *time.Time, allowed ...string) (store.Queue, error)
+	SetQueueLoop(ctx context.Context, id string, enabled bool, maxRuntime time.Duration) (store.Queue, error)
+	BeginQueueLoop(ctx context.Context, id string, at time.Time) (store.Queue, error)
+	RequeueQueueItems(ctx context.Context, queueID string) (int, error)
+	NextQueueLoopPass(ctx context.Context, queueID string, passAt time.Time, due *time.Time) (int, error)
 	QueueItems(ctx context.Context, queueID string) ([]store.QueueItem, error)
 	QueueItem(ctx context.Context, id string) (store.QueueItem, error)
 	Run(ctx context.Context, id string) (store.Run, error)
@@ -147,6 +151,30 @@ type View struct {
 	Items          []ItemView `json:"items"`
 	Warnings       []Warning  `json:"warnings,omitempty"`
 	AfterRunStatus string     `json:"afterRunStatus,omitempty"`
+	// Loop is set once the queue's loop settings differ from the default
+	// (off, 5 h), so queues that never looped keep V2-M1's fields.
+	Loop *LoopView `json:"loop,omitempty"`
+}
+
+// LoopView is a queue's loop settings and progress.
+type LoopView struct {
+	Enabled           bool       `json:"enabled"`
+	MaxRuntimeSeconds int64      `json:"maxRuntimeSeconds"`
+	StartedAt         *time.Time `json:"startedAt,omitempty"`
+	PassStartedAt     *time.Time `json:"passStartedAt,omitempty"`
+	// Pass is the current pass, from 1 (LoopCount passes started again).
+	Pass int `json:"pass"`
+}
+
+func loopView(q store.Queue) *LoopView {
+	if !q.LoopEnabled && q.LoopCount == 0 && q.LoopMaxRuntime() == store.DefaultLoopMaxRuntime {
+		return nil
+	}
+	v := &LoopView{Enabled: q.LoopEnabled, MaxRuntimeSeconds: q.LoopMaxRuntimeSeconds, Pass: q.LoopCount + 1}
+	if q.LoopEnabled {
+		v.StartedAt, v.PassStartedAt = q.LoopStartedAt, q.LoopPassStartedAt
+	}
+	return v
 }
 
 // WarningSharedDirectory: another active queue runs in the same directory,
@@ -406,7 +434,7 @@ func (s *Service) item(ctx context.Context, id string) (store.QueueItem, error) 
 }
 
 func (s *Service) view(ctx context.Context, q store.Queue) (View, error) {
-	v := View{Queue: q, Items: []ItemView{}}
+	v := View{Queue: q, Items: []ItemView{}, Loop: loopView(q)}
 	if q.AfterRunID != nil {
 		if predecessor, err := s.store.Run(ctx, *q.AfterRunID); err == nil {
 			v.AfterRunStatus = predecessor.Status
@@ -672,6 +700,21 @@ func (s *Service) Rename(ctx context.Context, id, name string) (View, error) {
 	return s.changed(ctx, "renamed", id)
 }
 
+// SetLoop turns looping on or off and sets the runtime limit. It applies at
+// the next pass boundary, so it may change while the queue runs.
+func (s *Service) SetLoop(ctx context.Context, id string, enabled bool, maxRuntime time.Duration) (View, error) {
+	if _, err := s.queue(ctx, id); err != nil {
+		return View{}, err
+	}
+	if maxRuntime < time.Second || maxRuntime > store.MaxLoopMaxRuntime {
+		return View{}, invalid("the loop runtime limit must be between 1s and 30d", "Examples: 5h or 90m.")
+	}
+	if _, err := s.store.SetQueueLoop(ctx, id, enabled, maxRuntime); err != nil {
+		return View{}, err
+	}
+	return s.changed(ctx, "loop_changed", id)
+}
+
 // Delete deletes a queue with its items and runs; their sessions stay open.
 // It is refused while a run is active.
 func (s *Service) Delete(ctx context.Context, id string) error {
@@ -832,6 +875,8 @@ func (s *Service) Reorder(ctx context.Context, queueID string, itemIDs []string)
 }
 
 // Start starts an idle queue, or a finished one that has queued items again.
+// A finished looping queue starts its items over. Starting begins the loop
+// clock (at the due time when the start is scheduled).
 func (s *Service) Start(ctx context.Context, id string, delay ...time.Duration) (View, error) {
 	q, err := s.queue(ctx, id)
 	if err != nil {
@@ -842,6 +887,11 @@ func (s *Service) Start(ctx context.Context, id string, delay ...time.Duration) 
 	}
 	if q.Status != store.QueueIdle && q.Status != store.QueueFinished {
 		return View{}, conflict("the queue is already running", "Pause it before changing its schedule.")
+	}
+	if q.LoopEnabled && q.Status == store.QueueFinished {
+		if _, err := s.store.RequeueQueueItems(ctx, id); err != nil {
+			return View{}, err
+		}
 	}
 	if _, err := s.store.FirstQueuedItem(ctx, id); errors.Is(err, store.ErrNotFound) {
 		return View{}, conflict("nothing is queued", "Add an item first.")
@@ -859,6 +909,13 @@ func (s *Service) Start(ctx context.Context, id string, delay ...time.Duration) 
 		}
 	}
 	if _, err := s.store.SetQueueSchedule(ctx, id, due, store.QueueIdle, store.QueueFinished); err != nil {
+		return View{}, err
+	}
+	loopFrom := s.now().UTC()
+	if due != nil {
+		loopFrom = *due
+	}
+	if _, err := s.store.BeginQueueLoop(ctx, id, loopFrom); err != nil {
 		return View{}, err
 	}
 	return s.transition(ctx, q, []string{store.QueueIdle, store.QueueFinished}, store.QueueRunning, "started", true)
