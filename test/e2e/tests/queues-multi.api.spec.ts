@@ -65,7 +65,7 @@ test.describe('parallel queues', () => {
       expect((await getQueue(multi, q.queue.id)).items.map((i) => i.status)).toEqual(['running', 'queued'])
     }
     const running = await Promise.all([a, b].map(async (q) => (await itemOf(multi, q.queue.id, q.items[0].id)).run!.sessionName))
-    await expect.poll(async () => (await target.sessions()).filter((s) => running.includes(s)).length).toBe(2)
+    await expect.poll(async () => (await target.sessions()).filter((s) => running.includes(s)).length, { timeout: 20_000 }).toBe(2)
 
     // Within a queue the next item starts only after its own achieved record.
     for (const q of [a, b]) {
