@@ -437,7 +437,7 @@ const badge: Record<QueueItem['status'], string> = {
               <button v-if="!renaming" type="button" class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded border border-border" aria-label="Rename queue" title="Rename" @click="startRename">
                 <Pencil :size="15" aria-hidden="true" />
               </button>
-              <span data-testid="queue-status" class="rounded border border-border px-2 text-sm">{{ queue.status }}</span>
+              <span data-testid="queue-status" class="rounded border border-border px-2 text-sm" :class="queue.status === 'running' ? 'border-accent font-bold text-accent' : ''">{{ queue.status }}</span>
               <div class="ml-auto flex flex-wrap gap-2">
                 <button v-if="controls?.start || queue.status === 'idle' || queue.status === 'finished'" type="button" :disabled="busy || !controls?.start" class="touch-target min-h-11 rounded bg-accent px-3 font-bold text-bg" @click="control('start')">Start</button>
                 <button v-if="controls?.pause" type="button" :disabled="busy" class="touch-target min-h-11 rounded border border-border px-3" @click="control('pause')">Pause</button>

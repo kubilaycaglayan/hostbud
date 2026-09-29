@@ -55,6 +55,7 @@ const toasts = useToastsStore()
 const sessions = useSessionsStore()
 const notifications = useNotificationsStore()
 const queuesStore = useQueuesStore()
+const hasRunningQueue = computed(() => queuesStore.queues.some((queue) => queue.status === 'running'))
 
 // v1 has one machine: the host.
 const MACHINE = 'host'
@@ -608,7 +609,7 @@ onUnmounted(() => {
       <IconButton label="Browse files" @click="browseFiles">
         <FolderSearch :size="18" aria-hidden="true" />
       </IconButton>
-      <IconButton label="Queue" @click="openQueue">
+      <IconButton label="Queue" :emphasized="hasRunningQueue" @click="openQueue">
         <ListOrdered :size="18" aria-hidden="true" />
       </IconButton>
       <IconButton

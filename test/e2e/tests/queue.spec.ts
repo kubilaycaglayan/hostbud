@@ -159,6 +159,8 @@ test.describe('Queue panel (desktop)', () => {
     page.on('request', (r) => { if (r.url().includes('/api/queues')) requests.push(`${r.method()} ${new URL(r.url()).pathname}`) })
     await panel(page).getByRole('button', { name: 'Start' }).click()
     await expect(row(page, 'e2e panel a').getByTestId('item-status')).toHaveText(/^Running/, { timeout: 15_000 })
+    await expect(page.getByRole('banner').getByRole('button', { name: 'Queue', exact: true }).locator('[data-icon-box]')).toHaveClass(/border-accent/)
+    await expect(panel(page).getByTestId('queue-status')).toHaveClass(/font-bold/)
     await expect(row(page, 'e2e panel a').getByRole('button', { name: /^(Edit|Delete|Move)/ })).toHaveCount(0)
     await expect(row(page, 'e2e panel a').getByTestId('item-status')).toHaveText(/^Done/, { timeout: 30_000 })
     // f fails: needs attention with its reason; the queue pauses.
