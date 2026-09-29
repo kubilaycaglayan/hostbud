@@ -44,7 +44,7 @@ async function resetAccountState(page: Page, baseURL: string | undefined): Promi
     await queues.deleteAll()
     await notifications.reset() // V2-M3: every account off, no subscriptions
   }
-  for (const project of appOrigin === LLM_URL ? [] : projects ?? []) {
+  for (const project of appOrigin === LLM_URL || appOrigin === MULTI_URL ? [] : projects ?? []) {
     const deleted = await page.request.delete(`/api/projects/${encodeURIComponent(project.id)}`, { headers })
     if (!deleted.ok()) throw new Error(`reset e2e project ${project.id}: ${deleted.status()} ${await deleted.text()}`)
   }

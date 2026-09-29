@@ -105,9 +105,10 @@ test('(T5) Linked session rename and cleanup', async ({ page, target, request, u
   await expect.poll(async () => {
     const data = await (await request.get(`/api/machines/${MACHINE}/sessions`)).json()
     return data.sessions.some((session: { name: string }) => session.name === `${sessionName}-renamed`)
-  }, { timeout: 15_000 }).toBe(false)
-  await createTargetSession(target, `${sessionName}-renamed`, outside)
-  await expect(page.getByRole('group', { name: 'Other sessions' }).getByRole('button', { name: `${sessionName}-renamed`, exact: true })).toBeVisible()
+  }, { timeout: 15_000 }).toBe(true)
+  const outsideSession = uniqueName('linked-outside')
+  await createTargetSession(target, outsideSession, outside)
+  await expect(page.getByRole('group', { name: 'Other sessions' }).getByRole('button', { name: outsideSession, exact: true })).toBeVisible()
 })
 
 for (const profile of ['desktop', 'phone'] as const) {

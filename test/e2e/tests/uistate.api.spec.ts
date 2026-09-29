@@ -33,7 +33,7 @@ test('UI state API: per-account round trip, key allowlist, Origin check and size
   expect((await put(request, 'layout', { evil: true }, FOREIGN_ORIGIN)).status()).toBe(403)
   expect((await request.get('/api/ui-state/unknown')).status()).toBe(404)
   expect((await put(request, 'unknown', {})).status()).toBe(404)
-  expect((await put(request, 'layout', 'x'.repeat(65 * 1024))).status()).toBe(413)
+  expect((await put(request, 'layout', { large: 'x'.repeat(65 * 1024) })).status()).toBe(413)
   // Nothing of that got stored.
   expect(await (await request.get('/api/ui-state/layout')).json()).toEqual(layout)
 })

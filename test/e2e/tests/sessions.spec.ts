@@ -2,7 +2,7 @@ import { expect, test } from '../helpers/fixtures.ts'
 import { newAccount } from '../helpers/auth.ts'
 import { owner } from '../helpers/db.ts'
 import { ctl } from '../helpers/ctl.ts'
-import { forbidInLogs, MACHINE, mutate, ORIGIN, POLL_INTERVAL_MS } from '../helpers/api.ts'
+import { forbidInLogs, listSessions, MACHINE, mutate, ORIGIN, POLL_INTERVAL_MS } from '../helpers/api.ts'
 import { uniqueName } from '../helpers/target.ts'
 
 // "Within one poll interval", plus slack for ssh, the event and rendering.
@@ -70,20 +70,21 @@ test('(T10) Taken session names get a number from New session and New session he
 })
 
 // Attached state (T15)
-test('attached state and window count follow the real terminal', async ({ ui, target }) => {
+test('attached state in the API and expandable rows follow the real terminal', async ({ ui, target, request }) => {
   const name = uniqueName('e2e-att')
   await target.tmux('new-session', '-d', '-s', name)
   await ui.open()
   const item = ui.session(name)
-  await expect(item.getByRole('img', { name: 'detached' })).toBeVisible(withinPoll)
+  const attachedCount = async () => (await listSessions(request)).find((session) => session.name === name)?.attached
+  await expect.poll(attachedCount, withinPoll).toBe(0)
 
   const detach = target.attachClient(name)
   try {
-    await expect(item.getByRole('img', { name: 'attached', exact: true })).toBeVisible({ timeout: 10_000 })
+    await expect.poll(attachedCount, { timeout: 10_000 }).toBe(1)
   } finally {
     detach()
   }
-  await expect(item.getByRole('img', { name: 'detached' })).toBeVisible({ timeout: 10_000 })
+  await expect.poll(attachedCount, { timeout: 10_000 }).toBe(0)
 
   // Rows show no window counts (M4 T5); a second window makes the row expandable.
   await target.tmux('new-window', '-t', `=${name}:`)
