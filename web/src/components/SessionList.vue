@@ -124,6 +124,13 @@ watch(openMenuName, (name) => {
   if (!name) longPressedName.value = ''
 })
 
+// Hiding unmounts the row with its menu still open: clear the menu first
+// so Show hidden doesn't remount the row with the menu open again.
+function hideFromMenu(name: string) {
+  openMenuName.value = ''
+  emit('hide', name, isSessionHidden(name))
+}
+
 function selectSession(name: string) {
   if (longPressedName.value === name) {
     longPressedName.value = ''
@@ -279,7 +286,7 @@ const sortableSessions = computed({
               <DropdownMenuItem
                 v-if="props.treeView"
                 :class="item"
-                @select="emit('hide', s.name, isSessionHidden(s.name))"
+                @select="hideFromMenu(s.name)"
               >
                 {{ isSessionHidden(s.name) ? 'Unhide' : 'Hide' }}
               </DropdownMenuItem>
