@@ -27,7 +27,8 @@ test('(T5) Scroll into history', async ({ page, target, ui }) => {
   await expect(page.getByTestId('scroll-bar')).toBeVisible()
   await expect.poll(() => target.display(name, '#{pane_in_mode}')).toBe('1')
   await expect.poll(async () => Number(await target.display(name, '#{scroll_position}'))).toBeGreaterThan(0)
-  await expect.poll(() => ui.termText(name)).toMatch(/(?:^|\n)(?:[1-9]\d?|[12]\d{2}|3[0-5]\d)(?:\n|$)/)
+  // tmux may put status text on the same row as the first historical line.
+  await expect.poll(() => ui.termText(name)).toMatch(/\b3[0-5]\d\b/)
   const position = Number(await target.display(name, '#{scroll_position}'))
   await page.getByRole('button', { name: 'Page up' }).tap()
   await expect.poll(async () => Number(await target.display(name, '#{scroll_position}'))).toBeGreaterThan(position)

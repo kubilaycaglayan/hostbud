@@ -25,7 +25,11 @@ export async function openShell(
   // The first attach after the stack was (re)built can take a few seconds
   // on a busy machine.
   await expect.poll(() => target.display(name, '#{session_attached}'), { timeout: 15_000 }).toBe('1')
-  await expect.poll(() => promptLine(target, name)).toMatch(/\$$/)
+  // Some callers deliberately enter a full-screen program during setup;
+  // there is no shell prompt to wait for while tmux's alternate screen is on.
+  if (await target.display(name, '#{alternate_on}') !== '1') {
+    await expect.poll(() => promptLine(target, name)).toMatch(/\$$/)
+  }
   return name
 }
 
