@@ -359,6 +359,37 @@ test.describe('Queue panel (desktop)', { tag: '@desktop' }, () => {
     await expect(ui.treeItem(session)).toHaveAttribute('aria-selected', 'true')
   })
 
+  test('Kill a done item\'s session, then all completed sessions of the queue', async ({ page, ui, request, target }) => {
+    const project = await newProject(request, target, 'e2e-kill-done')
+    await stubs.setBehavior('e2e kill done a', 'achieve:1')
+    await stubs.setBehavior('e2e kill done b', 'achieve:1')
+    await stubs.setBehavior('e2e kill done c', 'achieve:1')
+    await ui.open()
+    await page.getByRole('banner').getByRole('button', { name: 'Queue', exact: true }).click()
+    await panel(page).getByLabel('Project').selectOption(project.id)
+    await panel(page).getByRole('button', { name: 'Create queue' }).click()
+    for (const c of ['a', 'b', 'c']) await addItem(page, `e2e kill done ${c}`, 'codex')
+    await panel(page).getByRole('button', { name: 'Start' }).click()
+    await expect(row(page, 'e2e kill done c').getByTestId('item-status')).toHaveText(/^Done/, { timeout: 60_000 })
+    const q = (await listQueues(request)).find((x) => x.projectId === project.id)!
+    const names = (await getQueue(request, q.id)).items.map((i) => i.run!.sessionName)
+    const alive = async (name: string) => target.tmux('has-session', '-t', `=${name}`).then(() => true, () => false)
+    // One done item: its icon button kills its session after a confirmation.
+    const killOne = row(page, 'e2e kill done a').getByRole('button', { name: /^Kill session of item/ })
+    await killOne.click()
+    const confirm = page.getByRole('alertdialog')
+    await expect(confirm).toContainText(`Kill session ${names[0]}?`)
+    await confirm.getByRole('button', { name: 'Kill session' }).click()
+    await expect.poll(() => alive(names[0])).toBe(false)
+    await expect(killOne).toBeHidden()
+    // The rest at once: Kill completed sessions lists the open ones.
+    await panel(page).getByRole('button', { name: 'Kill completed sessions' }).click()
+    await expect(confirm).toContainText('Kill 2 completed sessions?')
+    await confirm.getByRole('button', { name: 'Kill sessions' }).click()
+    await expect.poll(async () => [await alive(names[1]), await alive(names[2])]).toEqual([false, false])
+    await expect(panel(page).getByRole('button', { name: 'Kill completed sessions' })).toBeHidden()
+  })
+
   test('(V2-M1 T10) Queue panel: Mark done confirms, and the palette opens the panel', async ({ page, ui, request, target }) => {
     const project = await newProject(request, target, 'e2e-panel-done')
     await stubs.setBehavior('e2e panel done x', 'exit')

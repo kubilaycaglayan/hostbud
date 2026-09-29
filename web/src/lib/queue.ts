@@ -56,6 +56,8 @@ export interface ItemActions {
   reject: boolean
   reverify: boolean
   openSession: boolean
+  /** A done item's run session can be killed (when it is still open). */
+  killSession: boolean
 }
 
 export function itemActions(item: QueueItem): ItemActions {
@@ -74,7 +76,15 @@ export function itemActions(item: QueueItem): ItemActions {
     reject: awaiting,
     reverify: attention && Boolean(item.verifyCommand) && item.run?.status === 'achieved',
     openSession: Boolean(item.run?.sessionName),
+    killSession: item.status === 'done' && Boolean(item.run?.sessionName),
   }
+}
+
+/** The still-open run sessions of a queue's done items, once each, in item
+ * order: what "Kill completed sessions" kills. */
+export function completedSessions(items: QueueItem[], open: ReadonlySet<string>): string[] {
+  const names = items.filter((it) => itemActions(it).killSession && open.has(it.run!.sessionName)).map((it) => it.run!.sessionName)
+  return [...new Set(names)]
 }
 
 const VERIFY_OUTCOMES: Record<NonNullable<VerifySummary['outcome']>, string> = {

@@ -4,13 +4,13 @@ import {
   DialogClose, DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle,
 } from 'reka-ui'
 import { VueDraggable } from 'vue-draggable-plus'
-import { ArrowDown, ArrowUp, GripVertical, Pencil, Plus, Trash2, TriangleAlert } from 'lucide-vue-next'
-import { queuesApi } from '@/api/client'
+import { ArrowDown, ArrowUp, Check, ChevronsDown, CircleCheck, GripVertical, History, ListOrdered, ListX, Pause, Pencil, Play, Plus, PowerOff, RotateCcw, RotateCw, Save, ShieldCheck, SkipForward, SquareTerminal, ThumbsDown, ThumbsUp, Trash2, TriangleAlert, X } from 'lucide-vue-next'
+import { queuesApi, sessionsApi } from '@/api/client'
 import type { QueueItem, QueueItemHistory } from '@/api/types'
 import ConfirmDialog from './ConfirmDialog.vue'
 import DurationPicker from './DurationPicker.vue'
 import FormError from './FormError.vue'
-import { AGENTS, type Agent, DEFAULT_LOOP_RUNTIME_SECONDS, flagsError, loopRuntimeError, loopRuntimeText, INSTRUCTION_PREFIX, instructionError, itemActions, moveQueued, queueControls, queueRunning, statusLabel, verifyCommandError, verifyLine } from '@/lib/queue'
+import { AGENTS, type Agent, completedSessions, DEFAULT_LOOP_RUNTIME_SECONDS, flagsError, loopRuntimeError, loopRuntimeText, INSTRUCTION_PREFIX, instructionError, itemActions, moveQueued, queueControls, queueRunning, statusLabel, verifyCommandError, verifyLine } from '@/lib/queue'
 import { useQueuesStore } from '@/stores/queues'
 import { useProjectsStore } from '@/stores/projects'
 import { useSessionsStore } from '@/stores/sessions'
@@ -23,10 +23,11 @@ import { describeError } from '@/stores/toasts'
 // shared-directory warning and "waiting for a free slot". V2-M4: per-item
 // completion gates (verify command, approval), their state and output, and
 // Approve / Reject / Re-run verify. It updates from /ws/events
-// (queue.changed, run.changed) only.
+// (queue.changed, run.changed) only. Done items' sessions can be killed one
+// by one or all at once ("Kill completed sessions"), after a confirmation.
 const props = withDefaults(defineProps<{ compact?: boolean; machine?: string }>(), { machine: 'host' })
 const open = defineModel<boolean>('open', { default: false })
-const emit = defineEmits<{ openSession: [name: string] }>()
+const emit = defineEmits<{ openSession: [name: string]; killed: [name: string] }>()
 
 const store = useQueuesStore()
 const projects = useProjectsStore()
@@ -358,7 +359,7 @@ const startDelay = ref(0)
 
 // The pending confirmation. Its dialog's open state is separate: closing
 // the dialog (the action button closes it first) must not lose the action.
-type ConfirmKind = 'skip' | 'mark-done' | 'delete-queue' | 'delete-item' | 'reject' | 'parallel-on' | 'parallel-off'
+type ConfirmKind = 'skip' | 'mark-done' | 'delete-queue' | 'delete-item' | 'reject' | 'parallel-on' | 'parallel-off' | 'kill-session' | 'kill-completed'
 const confirming = ref<{ kind: ConfirmKind; item?: QueueItem } | null>(null)
 const confirmOpen = ref(false)
 function ask(kind: ConfirmKind, item?: QueueItem) {
@@ -370,6 +371,11 @@ const confirmText = computed(() => {
   if (!c) return { title: '', body: '', action: '' }
   if (c.kind === 'delete-queue') return { title: `Delete queue ${queue.value?.name ?? ''}?`, body: 'Its items and their history are removed. Run sessions stay open; close them yourself.', action: 'Delete queue', danger: true }
   if (c.kind === 'delete-item') return { title: `Delete item ${c.item?.position}?`, body: "It is removed from the queue. This can't be undone.", action: 'Delete item', danger: true }
+  if (c.kind === 'kill-session') return { title: `Kill session ${c.item?.run?.sessionName ?? ''}?`, body: `Item ${c.item?.position} is done. This ends every program running in its session. It can't be undone.`, action: 'Kill session', danger: true }
+  if (c.kind === 'kill-completed') {
+    const n = completedOpen.value.length
+    return { title: `Kill ${n} completed ${n === 1 ? 'session' : 'sessions'}?`, body: `This ends every program running in ${completedOpen.value.join(', ')}. It can't be undone.`, action: 'Kill sessions', danger: true }
+  }
   if (c.kind === 'parallel-on') return { title: 'Run queues in parallel?', body: 'Up to 2 runs will be active at once by default. Change this limit in Settings.', action: 'Turn on' }
   if (c.kind === 'parallel-off') return { title: 'Turn off parallel queues?', body: 'Active runs will continue, and new queues will wait.', action: 'Turn off' }
   if (c.kind === 'skip') return { title: `Skip item ${c.item?.position}?`, body: 'The queue moves on without it when you resume.', action: 'Skip' }
@@ -381,7 +387,11 @@ function confirmAction() {
   confirming.value = null
   confirmOpen.value = false
   if (!c) return
-  if (c.kind === 'parallel-on' || c.kind === 'parallel-off') {
+  if (c.kind === 'kill-completed') {
+    void killSessions([...completedOpen.value])
+  } else if (c.kind === 'kill-session' && c.item?.run?.sessionName) {
+    void killSessions([c.item.run.sessionName])
+  } else if (c.kind === 'parallel-on' || c.kind === 'parallel-off') {
     setParallel(c.kind === 'parallel-on')
   } else if (c.item && c.kind === 'delete-item') {
     const it = c.item
@@ -409,6 +419,27 @@ function reverify(item: QueueItem) {
 }
 function retry(item: QueueItem) {
   void act("Couldn't retry the item", () => queuesApi.retry(item.id))
+}
+// The open run sessions of this queue's done items.
+const openSessions = computed(() => new Set(sessions.list(props.machine).map((s) => s.name)))
+const completedOpen = computed(() => completedSessions(items.value, openSessions.value))
+/** Kills the sessions one after another; a failure doesn't stop the rest. */
+async function killSessions(names: string[]) {
+  busy.value = true
+  error.value = null
+  const failed: string[] = []
+  let first: ReturnType<typeof describeError> | null = null
+  for (const name of names) {
+    try {
+      await sessionsApi.kill(props.machine, name)
+      emit('killed', name)
+    } catch (e) {
+      failed.push(name)
+      first ??= describeError(e)
+    }
+  }
+  if (first) error.value = { title: `Couldn't kill ${failed.length === 1 ? 'session' : 'sessions'} ${failed.join(', ')}`, ...first }
+  busy.value = false
 }
 function openSession(item: QueueItem) {
   if (!item.run?.sessionName) return
@@ -454,11 +485,13 @@ const badge: Record<QueueItem['status'], string> = {
               <template v-if="queue.endedAt"> · Finished <time :datetime="queue.endedAt">{{ new Date(queue.endedAt).toLocaleString() }}</time></template>
             </p>
           </div>
-          <button v-if="!historyOpen" type="button" class="touch-target min-h-11 rounded border border-border px-3" @click="showHistory">History</button>
-          <button v-else type="button" class="touch-target min-h-11 rounded border border-border px-3" @click="historyOpen = false">Queue</button>
-          <DialogClose aria-label="Close queue panel" title="Close" class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border">
-            ×
-          </DialogClose>
+          <div class="flex shrink-0 gap-2">
+            <button v-if="!historyOpen" type="button" class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border" aria-label="History" title="Queue history" @click="showHistory"><History :size="18" aria-hidden="true" /></button>
+            <button v-else type="button" class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border" aria-label="Queue" title="Back to the queue" @click="historyOpen = false"><ListOrdered :size="18" aria-hidden="true" /></button>
+            <DialogClose aria-label="Close queue panel" title="Close" class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border">
+              <X :size="18" aria-hidden="true" />
+            </DialogClose>
+          </div>
         </div>
         <div class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-3">
           <section v-if="historyOpen" aria-label="Queue history" data-testid="queue-history">
@@ -499,7 +532,7 @@ const badge: Record<QueueItem['status'], string> = {
                 </ol>
               </li>
             </ol>
-            <button v-if="historyHasMore" type="button" class="touch-target mt-3 min-h-11 rounded border border-border px-3" :disabled="historyLoading" @click="loadHistory()">{{ historyLoading ? 'Loading…' : 'Load older' }}</button>
+            <button v-if="historyHasMore" type="button" class="touch-target mt-3 inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border" :aria-label="historyLoading ? 'Loading…' : 'Load older'" title="Load older" :disabled="historyLoading" @click="loadHistory()"><ChevronsDown :size="18" aria-hidden="true" /></button>
             <p v-else-if="historyLoading" class="mt-3 text-sm text-muted">Loading…</p>
           </section>
           <template v-else>
@@ -536,11 +569,12 @@ const badge: Record<QueueItem['status'], string> = {
             <button
               type="button"
               :disabled="busy || addingQueue"
-              class="touch-target inline-flex min-h-8 items-center gap-1 rounded border border-border px-2 text-sm"
+              class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded border border-border"
+              aria-label="New queue"
               title="Create another queue"
               @click="newQueue"
             >
-              <Plus :size="14" aria-hidden="true" />New queue
+              <Plus :size="16" aria-hidden="true" />
             </button>
           </div>
           <label v-if="store.queues.length" class="mt-1 flex min-h-8 items-center gap-2 text-sm">
@@ -586,11 +620,11 @@ const badge: Record<QueueItem['status'], string> = {
               The first item waits until that session's agent finishes its turn or exits, or the session closes. Without agent status hooks, an open agent counts as busy until it exits.
             </p>
             <div class="flex gap-2">
-              <button type="submit" :disabled="busy || !newProjectId" class="touch-target min-h-11 rounded bg-accent px-3 font-bold text-bg">
-                Create queue
+              <button type="submit" :disabled="busy || !newProjectId" class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded bg-accent text-bg" aria-label="Create queue" title="Create queue">
+                <Check :size="18" aria-hidden="true" />
               </button>
-              <button v-if="store.queues.length" type="button" class="touch-target min-h-11 rounded border border-border px-3" @click="addingQueue = false">
-                Cancel
+              <button v-if="store.queues.length" type="button" class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border" aria-label="Cancel" title="Cancel" @click="addingQueue = false">
+                <X :size="18" aria-hidden="true" />
               </button>
             </div>
           </form>
@@ -610,8 +644,8 @@ const badge: Record<QueueItem['status'], string> = {
                 <label class="block min-w-0">Queue name
                   <input v-model="renameText" autocomplete="off" class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 text-base">
                 </label>
-                <button type="submit" :disabled="busy || !renameText.trim()" class="touch-target min-h-11 rounded bg-accent px-3 font-bold text-bg">Save</button>
-                <button type="button" class="touch-target min-h-11 rounded border border-border px-3" @click="renaming = false">Cancel</button>
+                <button type="submit" :disabled="busy || !renameText.trim()" class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded bg-accent text-bg" aria-label="Save" title="Save name"><Check :size="18" aria-hidden="true" /></button>
+                <button type="button" class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border" aria-label="Cancel" title="Cancel" @click="renaming = false"><X :size="18" aria-hidden="true" /></button>
               </form>
               <h3 v-else class="min-w-0 font-bold">
                 {{ queue.name }} <span class="font-normal text-muted">· {{ queue.projectName }}</span>
@@ -625,10 +659,11 @@ const badge: Record<QueueItem['status'], string> = {
                   <span aria-hidden="true">Start after</span>
                   <DurationPicker v-model="startDelay" label="Start delay" />
                 </div>
-                <button v-if="controls?.start || queue.status === 'idle' || queue.status === 'finished'" type="button" :disabled="busy || !controls?.start || !!runBlockedBy" :title="runBlockedTitle" class="touch-target min-h-11 rounded bg-accent px-3 font-bold text-bg" @click="control('start')">Start</button>
-                <button v-if="controls?.pause" type="button" :disabled="busy" class="touch-target min-h-11 rounded border border-border px-3" @click="control('pause')">Pause</button>
-                <button v-if="controls?.resume" type="button" :disabled="busy || !!runBlockedBy" :title="runBlockedTitle" class="touch-target min-h-11 rounded bg-accent px-3 font-bold text-bg" @click="control('resume')">Resume</button>
-                <button type="button" :disabled="busy" class="touch-target min-h-11 rounded border border-border px-3" @click="ask('delete-queue')">Delete queue</button>
+                <button v-if="controls?.start || queue.status === 'idle' || queue.status === 'finished'" type="button" :disabled="busy || !controls?.start || !!runBlockedBy" aria-label="Start" :title="runBlockedTitle ?? 'Start the queue'" class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded bg-accent text-bg" @click="control('start')"><Play :size="18" aria-hidden="true" /></button>
+                <button v-if="controls?.pause" type="button" :disabled="busy" aria-label="Pause" title="Pause the queue" class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border" @click="control('pause')"><Pause :size="18" aria-hidden="true" /></button>
+                <button v-if="controls?.resume" type="button" :disabled="busy || !!runBlockedBy" aria-label="Resume" :title="runBlockedTitle ?? 'Resume the queue'" class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded bg-accent text-bg" @click="control('resume')"><Play :size="18" aria-hidden="true" /></button>
+                <button v-if="completedOpen.length" type="button" :disabled="busy" aria-label="Kill completed sessions" :title="`Kill completed sessions (${completedOpen.length})`" data-testid="kill-completed" class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded gap-1 border border-border px-2 text-danger" @click="ask('kill-completed')"><ListX :size="18" aria-hidden="true" /><span class="text-xs" aria-hidden="true">{{ completedOpen.length }}</span></button>
+                <button type="button" :disabled="busy" aria-label="Delete queue" title="Delete queue" class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border text-danger" @click="ask('delete-queue')"><Trash2 :size="18" aria-hidden="true" /></button>
               </div>
             </div>
             <p v-if="runBlockedBy && (controls?.start || controls?.resume)" data-testid="queue-run-blocked" class="mt-1 text-sm text-muted">
@@ -643,7 +678,7 @@ const badge: Record<QueueItem['status'], string> = {
                 <span aria-hidden="true">Stop starting passes after</span>
                 <DurationPicker v-model="loopLimit" label="Loop runtime limit" />
               </div>
-              <button v-if="loop?.enabled && loopLimit !== loop.maxRuntimeSeconds" type="submit" :disabled="busy" class="touch-target min-h-11 rounded border border-border px-3">Save limit</button>
+              <button v-if="loop?.enabled && loopLimit !== loop.maxRuntimeSeconds" type="submit" :disabled="busy" aria-label="Save limit" title="Save limit" class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border"><Save :size="18" aria-hidden="true" /></button>
               <p id="queue-loop-help" class="basis-full text-muted">
                 <span v-if="loopError" role="alert" class="text-danger">{{ loopError }}</span>
                 <template v-else-if="loop?.enabled">
@@ -740,8 +775,8 @@ const badge: Record<QueueItem['status'], string> = {
                   </label>
                   </template>
                   <div class="flex justify-end gap-1.5">
-                    <button type="submit" :disabled="busy" class="touch-target min-h-8 rounded bg-accent px-2 font-bold text-bg">Save</button>
-                    <button type="button" class="touch-target min-h-8 rounded border border-border px-2" @click="editing = null">Cancel</button>
+                    <button type="submit" :disabled="busy" class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded bg-accent text-bg" aria-label="Save" title="Save"><Check :size="16" aria-hidden="true" /></button>
+                    <button type="button" class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded border border-border" aria-label="Cancel" title="Cancel" @click="editing = null"><X :size="16" aria-hidden="true" /></button>
                   </div>
                 </form>
                 <template v-else>
@@ -802,14 +837,15 @@ const badge: Record<QueueItem['status'], string> = {
                     </template>
                     <button v-if="itemActions(item).edit" type="button" class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded border border-border" :aria-label="`Edit item ${item.position}`" title="Edit" @click="startEdit(item)"><Pencil :size="15" aria-hidden="true" /></button>
                     <button v-if="itemActions(item).remove" type="button" class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded border border-border text-danger" :aria-label="`Delete item ${item.position}`" title="Delete" :disabled="busy" @click="ask('delete-item', item)"><Trash2 :size="15" aria-hidden="true" /></button>
-                    <button v-if="itemActions(item).approve" type="button" class="touch-target min-h-8 rounded bg-accent px-2 font-bold text-bg" :aria-label="`Approve item ${item.position}`" :disabled="busy" @click="approve(item)">Approve</button>
-                    <button v-if="itemActions(item).reject" type="button" class="touch-target min-h-8 rounded border border-border px-2" :aria-label="`Reject item ${item.position}`" :disabled="busy" @click="ask('reject', item)">Reject</button>
-                    <button v-if="itemActions(item).reverify" type="button" class="touch-target min-h-8 rounded border border-border px-2" :aria-label="`Re-run verify of item ${item.position}`" :disabled="busy" @click="reverify(item)">Re-run verify</button>
-                    <button v-if="itemActions(item).editGates" type="button" class="touch-target min-h-8 rounded border border-border px-2" :aria-label="`Edit gates of item ${item.position}`" @click="startEdit(item, true)">Edit gates</button>
-                    <button v-if="itemActions(item).retry" type="button" class="touch-target min-h-8 rounded bg-accent px-2 font-bold text-bg" :aria-label="`Retry item ${item.position}`" :disabled="busy" @click="retry(item)">Retry</button>
-                    <button v-if="itemActions(item).skip" type="button" class="touch-target min-h-8 rounded border border-border px-2" :aria-label="`Skip item ${item.position}`" :disabled="busy" @click="ask('skip', item)">Skip</button>
-                    <button v-if="itemActions(item).markDone" type="button" class="touch-target min-h-8 rounded border border-border px-2" :aria-label="`Mark item ${item.position} done`" :disabled="busy" @click="ask('mark-done', item)">Mark done</button>
-                    <button v-if="itemActions(item).openSession" type="button" class="touch-target min-h-8 rounded border border-border px-2" :aria-label="`Open session of item ${item.position}`" @click="openSession(item)">Open session</button>
+                    <button v-if="itemActions(item).approve" type="button" class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded bg-accent text-bg" :aria-label="`Approve item ${item.position}`" title="Approve" :disabled="busy" @click="approve(item)"><ThumbsUp :size="15" aria-hidden="true" /></button>
+                    <button v-if="itemActions(item).reject" type="button" class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded border border-border" :aria-label="`Reject item ${item.position}`" title="Reject" :disabled="busy" @click="ask('reject', item)"><ThumbsDown :size="15" aria-hidden="true" /></button>
+                    <button v-if="itemActions(item).reverify" type="button" class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded border border-border" :aria-label="`Re-run verify of item ${item.position}`" title="Re-run verify" :disabled="busy" @click="reverify(item)"><RotateCw :size="15" aria-hidden="true" /></button>
+                    <button v-if="itemActions(item).editGates" type="button" class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded border border-border" :aria-label="`Edit gates of item ${item.position}`" title="Edit gates" @click="startEdit(item, true)"><ShieldCheck :size="15" aria-hidden="true" /></button>
+                    <button v-if="itemActions(item).retry" type="button" class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded bg-accent text-bg" :aria-label="`Retry item ${item.position}`" title="Retry" :disabled="busy" @click="retry(item)"><RotateCcw :size="15" aria-hidden="true" /></button>
+                    <button v-if="itemActions(item).skip" type="button" class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded border border-border" :aria-label="`Skip item ${item.position}`" title="Skip" :disabled="busy" @click="ask('skip', item)"><SkipForward :size="15" aria-hidden="true" /></button>
+                    <button v-if="itemActions(item).markDone" type="button" class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded border border-border" :aria-label="`Mark item ${item.position} done`" title="Mark done" :disabled="busy" @click="ask('mark-done', item)"><CircleCheck :size="15" aria-hidden="true" /></button>
+                    <button v-if="itemActions(item).openSession" type="button" class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded border border-border" :aria-label="`Open session of item ${item.position}`" title="Open session" @click="openSession(item)"><SquareTerminal :size="15" aria-hidden="true" /></button>
+                    <button v-if="itemActions(item).killSession && openSessions.has(item.run!.sessionName)" type="button" class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded border border-border text-danger" :aria-label="`Kill session of item ${item.position}`" title="Kill session" :disabled="busy" @click="ask('kill-session', item)"><PowerOff :size="15" aria-hidden="true" /></button>
                   </div>
                 </template>
               </li>
@@ -865,7 +901,7 @@ const badge: Record<QueueItem['status'], string> = {
               </label>
               </template>
               <div class="flex justify-end">
-                <button type="submit" :disabled="busy" class="touch-target min-h-8 rounded bg-accent px-2 font-bold text-bg">Add item</button>
+                <button type="submit" :disabled="busy" class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded bg-accent text-bg" aria-label="Add item" title="Add item"><Plus :size="18" aria-hidden="true" /></button>
               </div>
             </form>
           </template>

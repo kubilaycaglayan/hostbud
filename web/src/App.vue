@@ -748,6 +748,7 @@ onUnmounted(() => {
       :compact="compact"
       :machine="MACHINE"
       @open-session="openQueueSession"
+      @killed="onKilled"
     />
     <SettingsDialog v-model:open="settingsOpen" :compact="compact" :machine="MACHINE" />
     <ShortcutsDialog :open="shortcutsOpen" @update:open="closeShortcuts" />

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { QueueItem } from '@/api/types'
-import { capacityError, capacityValue, flagsError, instructionError, loopRuntimeError, loopRuntimeText, itemActions, moveQueued, queueControls, queueRunning, statusLabel, verifyCommandError, verifyLine } from './queue'
+import { capacityError, capacityValue, completedSessions, flagsError, instructionError, loopRuntimeError, loopRuntimeText, itemActions, moveQueued, queueControls, queueRunning, statusLabel, verifyCommandError, verifyLine } from './queue'
 
 const item = (id: string, status: QueueItem['status'], run?: Partial<QueueItem['run']>): QueueItem => ({
   id, queueId: 'q', position: 1, agent: 'claude', flags: '', instruction: '/goal x', status,
@@ -25,11 +25,29 @@ describe('queue form rules', () => {
 
 describe('button availability per status', () => {
   it('lets only queued items be edited, deleted and moved, and only needs-attention items be overridden', () => {
-    expect(itemActions(item('a', 'queued'))).toEqual({ edit: true, remove: true, move: true, retry: false, skip: false, markDone: false, openSession: false, editGates: false, approve: false, reject: false, reverify: false })
+    expect(itemActions(item('a', 'queued'))).toEqual({ edit: true, remove: true, move: true, retry: false, skip: false, markDone: false, openSession: false, editGates: false, approve: false, reject: false, reverify: false, killSession: false })
     for (const s of ['running', 'done', 'skipped'] as const) {
       expect(itemActions(item('a', s, {}))).toMatchObject({ edit: false, remove: false, move: false, retry: false, skip: false, markDone: false, openSession: true })
     }
     expect(itemActions(item('a', 'needs_attention', { status: 'stale' }))).toMatchObject({ edit: false, retry: true, skip: true, markDone: true, openSession: true })
+  })
+
+  it('offers Kill session only for done items with a run session', () => {
+    expect(itemActions(item('a', 'done', { sessionName: 'app-q1' })).killSession).toBe(true)
+    for (const s of ['running', 'verifying', 'awaiting_approval', 'needs_attention', 'skipped'] as const) expect(itemActions(item('a', s, {})).killSession, s).toBe(false)
+    expect(itemActions(item('a', 'done')).killSession).toBe(false)
+  })
+
+  it('lists the open sessions of done items once each for Kill completed sessions', () => {
+    const items = [
+      item('a', 'done', { sessionName: 'app-q1' }),
+      item('b', 'done', { sessionName: 'app-q2' }),
+      item('c', 'running', { sessionName: 'app-q3' }),
+      item('d', 'done', { sessionName: 'app-q1' }),
+      item('e', 'done', { sessionName: 'gone' }),
+    ]
+    expect(completedSessions(items, new Set(['app-q1', 'app-q2', 'app-q3']))).toEqual(['app-q1', 'app-q2'])
+    expect(completedSessions(items, new Set())).toEqual([])
   })
 
   it('offers Start, Pause and Resume by queue state', () => {

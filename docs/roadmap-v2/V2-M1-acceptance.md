@@ -115,8 +115,10 @@ Links: tasks in [V2-M1-tasks.md](V2-M1-tasks.md); criteria R1–R17, their base 
   - Queue forms and actions are compact: Add item is right-aligned; add/edit instructions use vertically resizable text areas; item edit/delete are icon buttons; action spacing is reduced; edits update the displayed item; phone touch targets remain at least 44 px and the sheet has no horizontal overflow.
   - Agent permission modes are quick to select: Claude Code defaults to `--dangerously-skip-permissions`, Codex defaults to `--yolo`, and the quick toggle can remove its mode while preserving custom flags. Leading `--` stays left-aligned and visible while typing.
   - Deleting an item asks first. Every confirmation (item/queue delete, Skip, Mark done, Reject, the parallel-queues switch, a changed run cap in Settings) uses the app's own `ConfirmDialog`, never `window.confirm`/`window.prompt`.
-  - U: T10, T11, T15, T16 (`QueuePanel.spec.ts`) · I: n/a (frontend) · E: T10, T11, T15, T16 (`queue.spec.ts`, `queue.phone.spec.ts`).
+  - Every queue dialog action is an icon button (with its name as `aria-label` and a tooltip). A done item's still-open run session has a Kill session button, and the queue has Kill completed sessions for all of its done items' open sessions; both confirm first, kill through `DELETE /api/machines/{machine}/sessions/{name}`, and close the killed sessions' views.
+  - U: T10, T11, T15, T16, kill completed (`QueuePanel.spec.ts`, `lib/queue.spec.ts`) · I: n/a (frontend) · E: T10, T11, T15, T16, kill completed (`queue.spec.ts`, `queue.phone.spec.ts`).
   - Status (2026-09-28, T15–T16): U written and passing (`QueuePanel.spec.ts`); E written and type-checked (`queue.spec.ts`, `queue.phone.spec.ts`), run pending on demand.
+  - Status (2026-09-29, kill completed sessions, icon buttons): U written and passing; E written and type-checked (`queue.spec.ts` "Kill a done item's session…"), run pending on demand.
 - [x] **R16 Restart safety.**
   - Active runs are reloaded and their timers re-armed, with one read each.
   - A goal achieved during the restart is picked up.

@@ -256,6 +256,56 @@ describe('QueuePanel', () => {
     expect(w.emitted('update:open')).toEqual([[false]])
   })
 
+  it('kills a done item\'s open session after a confirmation', async () => {
+    const done = { ...attention, status: 'done' as const, run: { ...attention.run!, status: 'achieved' as const } }
+    const calls = stubFetch(() => ({ status: 204 }))
+    useSessionsStore().$patch({ byMachine: { host: [{ id: '$1', name: 'app-q1', path: '/home/dev/app', attached: 0, windows: 1, created: '', activity: '' }] } })
+    const w = await mountPanel(queue([done, queued]))
+    expect(button('Kill session of item 1')!.querySelector('svg')).toBeTruthy()
+    expect(button('Kill session of item 2')).toBeFalsy()
+    button('Kill session of item 1')!.click()
+    await flushPromises()
+    expect(calls).toHaveLength(0)
+    expect(document.body.textContent).toContain('Kill session app-q1?')
+    $$('[role="alertdialog"] button').find((b) => b.textContent?.trim() === 'Kill session')!.click()
+    await flushPromises()
+    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual(['DELETE /api/machines/host/sessions/app-q1'])
+    expect(w.emitted('killed')).toEqual([['app-q1']])
+  })
+
+  it('hides Kill session once the done item\'s session is gone', async () => {
+    await mountPanel(queue([{ ...attention, status: 'done' }]))
+    expect(button('Kill session of item 1')).toBeFalsy()
+    expect(button('Kill completed sessions')).toBeFalsy()
+  })
+
+  it('kills every open completed session of the shown queue, continuing past a failure', async () => {
+    const done = (id: string, position: number, sessionName: string) => ({ ...attention, id, position, status: 'done' as const, run: { ...attention.run!, id: `r${id}`, status: 'achieved' as const, sessionName } })
+    const calls = stubFetch((_m, path) => path.endsWith('/app-q1') ? { status: 500, body: { error: 'tmux failed' } } : { status: 204 })
+    const live = (name: string) => ({ id: name, name, path: '/home/dev/app', attached: 0, windows: 1, created: '', activity: '' })
+    useSessionsStore().$patch({ byMachine: { host: [live('app-q1'), live('app-q2'), live('app-q3')] } })
+    const w = await mountPanel(queue([done('a', 1, 'app-q1'), done('b', 2, 'app-q2'), { ...attention, id: 'c', position: 3, status: 'running', run: { ...attention.run!, sessionName: 'app-q3' } }]))
+    button('Kill completed sessions')!.click()
+    await flushPromises()
+    expect(document.body.textContent).toContain('Kill 2 completed sessions?')
+    expect(document.body.textContent).toContain('app-q1, app-q2')
+    $$('[role="alertdialog"] button').find((b) => b.textContent?.trim() === 'Kill sessions')!.click()
+    await flushPromises()
+    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual(['DELETE /api/machines/host/sessions/app-q1', 'DELETE /api/machines/host/sessions/app-q2'])
+    expect(w.emitted('killed')).toEqual([['app-q2']])
+    expect(document.body.textContent).toContain("Couldn't kill session app-q1")
+  })
+
+  it('uses icon buttons for the queue controls and item actions', async () => {
+    await mountPanel(queue([attention, queued]))
+    for (const label of ['History', 'Close queue panel', 'New queue', 'Resume', 'Delete queue', 'Add item', 'Retry item 1', 'Skip item 1', 'Mark item 1 done', 'Open session of item 1']) {
+      const b = button(label)!
+      expect(b, label).toBeTruthy()
+      expect(b.querySelector('svg'), label).toBeTruthy()
+      expect(b.textContent?.trim(), label).toBe('')
+    }
+  })
+
   it('uses compact actions and resizable instruction areas on desktop', async () => {
     await mountPanel(queue([queued]))
     const up = button('Move item 2 up')!
@@ -324,7 +374,7 @@ describe('QueuePanel', () => {
     const created = second({ items: [] })
     const calls = stubFetch(() => ({ status: 201, body: created }))
     await mountPanel(queue([queued], 'idle'), false, true)
-    const newButton = $$('button').find((b) => b.textContent?.trim() === 'New queue') as HTMLButtonElement
+    const newButton = $$('button').find((b) => b.getAttribute('aria-label') === 'New queue') as HTMLButtonElement
     expect(newButton.disabled).toBe(false)
     newButton.click()
     await flushPromises()
@@ -382,7 +432,7 @@ describe('QueuePanel', () => {
   it('with the switch off, shows what exists and explains the switch', async () => {
     await mountPanel([queue([queued], 'idle'), second({ status: 'idle' })], false, false)
     expect($$('nav[aria-label="Queues"] button')).toHaveLength(2)
-    const newButton = $$('button').find((b) => b.textContent?.trim() === 'New queue') as HTMLButtonElement
+    const newButton = $$('button').find((b) => b.getAttribute('aria-label') === 'New queue') as HTMLButtonElement
     expect(newButton.disabled).toBe(false)
     expect($$('[data-testid="parallel-off"]')[0].textContent).toContain('One queue runs at a time')
     expect($$('[data-testid="parallel-off"]')[0].textContent).toContain('still create queues')
@@ -402,7 +452,7 @@ describe('QueuePanel', () => {
     await flushPromises()
     expect(calls).toEqual([{ method: 'POST', path: '/api/queues', body: { projectId: 'p1', name: 'Docs', afterRunId: '', afterSession: '' } }])
     expect(button('Show queue Docs')!.getAttribute('aria-current')).toBe('true')
-    const start = $$('button').find((b) => b.textContent?.trim() === 'Start') as HTMLButtonElement
+    const start = $$('button').find((b) => b.getAttribute('aria-label') === 'Start') as HTMLButtonElement
     expect(start.disabled).toBe(true)
     expect(start.title).toContain('Run queues in parallel')
     expect($$('[data-testid="queue-run-blocked"]')[0].textContent).toContain("Can't run yet")
@@ -430,7 +480,7 @@ describe('QueuePanel', () => {
     expect(useQueuesStore().parallelQueues).toBe(true)
     expect(toggle().checked).toBe(true)
     expect($$('[data-testid="parallel-off"]')).toHaveLength(0)
-    expect(($$('button').find((b) => b.textContent?.trim() === 'New queue') as HTMLButtonElement).disabled).toBe(false)
+    expect(($$('button').find((b) => b.getAttribute('aria-label') === 'New queue') as HTMLButtonElement).disabled).toBe(false)
     toggle().click()
     await flushPromises()
     expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain('Turn off parallel queues?')
@@ -479,7 +529,7 @@ describe('QueuePanel', () => {
     expect(input.value).toBe('Milestones')
     input.value = 'Release'
     input.dispatchEvent(new Event('input'))
-    $$('form[aria-label="Rename queue"] button').find((b) => b.textContent?.trim() === 'Save')!.click()
+    $$('form[aria-label="Rename queue"] button').find((b) => b.getAttribute('aria-label') === 'Save')!.click()
     await flushPromises()
     expect(calls).toEqual([{ method: 'PATCH', path: '/api/queues/q1', body: { name: 'Release' } }])
     expect(document.body.textContent).toContain('Release')
