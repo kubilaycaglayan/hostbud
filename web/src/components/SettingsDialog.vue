@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { DialogClose, DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
 import { queuesApi, supervisorApi } from '@/api/client'
 import type { SupervisorStatus } from '@/api/types'
+import ConfirmDialog from './ConfirmDialog.vue'
 import FormError from './FormError.vue'
 import NotificationSettings from './NotificationSettings.vue'
 import { capacityError, capacityValue } from '@/lib/queue'
@@ -48,11 +49,18 @@ watch(open, async (isOpen) => {
   }
 }, { immediate: true })
 
-async function save() {
+// A changed cap is saved only after the owner confirms it.
+const confirmOpen = ref(false)
+const confirmTitle = computed(() => `Change the maximum parallel runs to ${text.value.trim() || 'the default (2 when parallel queues are on)'}?`)
+function save() {
   touched.value = true
   saved.value = ''
   if (problem.value) return
-  if (text.value.trim() !== savedText.value.trim() && !window.confirm(`Change the maximum parallel runs to ${text.value.trim() || 'the default (2 when parallel queues are on)'}?`)) return
+  if (text.value.trim() !== savedText.value.trim()) confirmOpen.value = true
+  else void persist()
+}
+
+async function persist() {
   busy.value = true
   error.value = null
   try {
@@ -135,4 +143,12 @@ async function save() {
       </DialogContent>
     </DialogPortal>
   </DialogRoot>
+  <ConfirmDialog
+    v-model:open="confirmOpen"
+    :title="confirmTitle"
+    body="Queue runs on this machine start only while fewer than this many are active."
+    action="Change limit"
+    :compact="props.compact"
+    @confirm="persist"
+  />
 </template>

@@ -37,6 +37,8 @@ async function setCap(page: Page, value: string) {
   await expect(settings.getByLabel('Maximum parallel runs')).toBeEnabled()
   await settings.getByLabel('Maximum parallel runs').fill(value)
   await settings.getByRole('button', { name: 'Save' }).click()
+  // A changed cap asks through the in-app confirmation, never window.confirm.
+  await page.getByRole('alertdialog', { name: /^Change the maximum parallel runs to / }).getByRole('button', { name: 'Change limit' }).click()
   await expect(settings.getByRole('form', { name: 'Queue runs' }).getByRole('status')).toContainText(value ? `at most ${value}` : 'default limit')
   await settings.getByRole('button', { name: 'Close settings' }).click()
   await page.getByRole('banner').getByRole('button', { name: 'Queue', exact: true }).click()
@@ -47,7 +49,7 @@ test.describe('Queues panel (desktop, parallel queues)', { tag: '@desktop' }, ()
   // The phone variant is queues.phone.spec.ts.
 
   test('(V2-M2 T5, T9) Queues panel and confirmed cap settings', async ({ page, ui, multi, target }) => {
-    page.on('dialog', dialog => dialog.accept())
+    page.on('dialog', (d) => { throw new Error(`unexpected native dialog: ${d.message()}`) })
     const project = await newProject(multi, target, 'e2e-panel-multi')
     await stubs.setBehavior('e2e multi alpha', 'achieve:8', 1)
     await stubs.setBehavior('e2e multi beta', 'achieve:2', 0.5)

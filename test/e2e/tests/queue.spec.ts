@@ -210,6 +210,19 @@ test.describe('Queue panel (desktop)', { tag: '@desktop' }, () => {
     await editInstruction.fill('/goal compact edit saved')
     await edit.getByRole('button', { name: 'Save' }).click()
     await expect(dialog.getByRole('listitem', { name: /: \/goal compact edit saved$/ })).toBeVisible()
+
+    // Deleting an item asks first, in the app's own dialog (never window.confirm).
+    page.on('dialog', (d) => { throw new Error(`unexpected native dialog: ${d.message()}`) })
+    const saved = dialog.getByRole('listitem', { name: /: \/goal compact edit saved$/ })
+    await saved.getByRole('button', { name: /^Delete item/ }).click()
+    const confirm = page.getByRole('alertdialog', { name: /^Delete item \d+\?$/ })
+    await expect(confirm).toBeVisible()
+    await confirm.getByRole('button', { name: 'Cancel' }).click()
+    await expect(confirm).toHaveCount(0)
+    await expect(saved).toBeVisible()
+    await saved.getByRole('button', { name: /^Delete item/ }).click()
+    await confirm.getByRole('button', { name: 'Delete item' }).click()
+    await expect(saved).toHaveCount(0)
   })
 
   test('(V2-M9 T6) Queue panel progress indicator', async ({ page, ui, request, target }) => {

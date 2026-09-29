@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import {
-  AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogOverlay, AlertDialogPortal, AlertDialogRoot, AlertDialogTitle,
   DialogClose, DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle,
 } from 'reka-ui'
 import { VueDraggable } from 'vue-draggable-plus'
 import { ArrowDown, ArrowUp, GripVertical, Pencil, Plus, Trash2, TriangleAlert } from 'lucide-vue-next'
 import { queuesApi } from '@/api/client'
 import type { QueueItem, QueueItemHistory } from '@/api/types'
+import ConfirmDialog from './ConfirmDialog.vue'
 import FormError from './FormError.vue'
 import { AGENTS, type Agent, DEFAULT_LOOP_RUNTIME, flagsError, loopRuntimeError, loopRuntimeText, INSTRUCTION_PREFIX, instructionError, itemActions, moveQueued, queueControls, queueRunning, statusLabel, verifyCommandError, verifyLine } from '@/lib/queue'
 import { useQueuesStore } from '@/stores/queues'
@@ -149,18 +149,15 @@ async function act(title: string, fn: () => Promise<unknown>) {
 }
 
 /** The parallel-queues switch: stored on the server, no redeploy.
- * Switching off stops no run. */
-function toggleParallel(on: boolean) {
-  const accepted = window.confirm(on
-    ? 'Run queues in parallel? Up to 2 runs will be active at once by default. Change this limit in Settings.'
-    : 'Turn off parallel queues? Active runs will continue, and new queues will wait.')
-  if (!accepted) {
-    void nextTick(() => {
-      const toggle = document.querySelector<HTMLInputElement>('[data-testid="parallel-toggle"]')
-      if (toggle) toggle.checked = store.parallelQueues
-    })
-    return
-  }
+ * Switching off stops no run. The box shows the server's state until the
+ * change is confirmed and saved. */
+function toggleParallel(e: Event) {
+  const box = e.target as HTMLInputElement
+  const on = box.checked
+  box.checked = store.parallelQueues
+  ask(on ? 'parallel-on' : 'parallel-off')
+}
+function setParallel(on: boolean) {
   void act("Couldn't change parallel queues", async () => {
     store.parallelQueues = (await queuesApi.setParallel(props.machine, on)).parallelQueues
   })
@@ -322,9 +319,6 @@ function saveEdit(item: QueueItem) {
     editing.value = null
   })
 }
-function removeItem(item: QueueItem) {
-  void act("Couldn't delete the item", () => queuesApi.removeItem(item.id))
-}
 
 // ---- order: drag (desktop), move buttons and Alt+Arrow keys ----
 function reorder(ids: string[]) {
@@ -360,7 +354,7 @@ const startDelay = ref('')
 
 // The pending confirmation. Its dialog's open state is separate: closing
 // the dialog (the action button closes it first) must not lose the action.
-type ConfirmKind = 'skip' | 'mark-done' | 'delete-queue' | 'reject'
+type ConfirmKind = 'skip' | 'mark-done' | 'delete-queue' | 'delete-item' | 'reject' | 'parallel-on' | 'parallel-off'
 const confirming = ref<{ kind: ConfirmKind; item?: QueueItem } | null>(null)
 const confirmOpen = ref(false)
 function ask(kind: ConfirmKind, item?: QueueItem) {
@@ -370,7 +364,10 @@ function ask(kind: ConfirmKind, item?: QueueItem) {
 const confirmText = computed(() => {
   const c = confirming.value
   if (!c) return { title: '', body: '', action: '' }
-  if (c.kind === 'delete-queue') return { title: `Delete queue ${queue.value?.name ?? ''}?`, body: 'Its items and their history are removed. Run sessions stay open; close them yourself.', action: 'Delete queue' }
+  if (c.kind === 'delete-queue') return { title: `Delete queue ${queue.value?.name ?? ''}?`, body: 'Its items and their history are removed. Run sessions stay open; close them yourself.', action: 'Delete queue', danger: true }
+  if (c.kind === 'delete-item') return { title: `Delete item ${c.item?.position}?`, body: "It is removed from the queue. This can't be undone.", action: 'Delete item', danger: true }
+  if (c.kind === 'parallel-on') return { title: 'Run queues in parallel?', body: 'Up to 2 runs will be active at once by default. Change this limit in Settings.', action: 'Turn on' }
+  if (c.kind === 'parallel-off') return { title: 'Turn off parallel queues?', body: 'Active runs will continue, and new queues will wait.', action: 'Turn off' }
   if (c.kind === 'skip') return { title: `Skip item ${c.item?.position}?`, body: 'The queue moves on without it when you resume.', action: 'Skip' }
   if (c.kind === 'reject') return { title: `Reject item ${c.item?.position}?`, body: 'It will need your attention and the queue pauses. Retry reruns the agent; Mark done overrides.', action: 'Reject' }
   return { title: `Mark item ${c.item?.position} done?`, body: "Confirm that the agent's work is complete. The queue moves on when you resume.", action: 'Mark done' }
@@ -380,7 +377,12 @@ function confirmAction() {
   confirming.value = null
   confirmOpen.value = false
   if (!c) return
-  if (c.kind === 'delete-queue' && queue.value) {
+  if (c.kind === 'parallel-on' || c.kind === 'parallel-off') {
+    setParallel(c.kind === 'parallel-on')
+  } else if (c.item && c.kind === 'delete-item') {
+    const it = c.item
+    void act("Couldn't delete the item", () => queuesApi.removeItem(it.id))
+  } else if (c.kind === 'delete-queue' && queue.value) {
     const q = queue.value
     void act("Couldn't delete the queue", async () => {
       await queuesApi.remove(q.id)
@@ -545,7 +547,7 @@ const badge: Record<QueueItem['status'], string> = {
               class="size-4"
               :checked="store.parallelQueues"
               :disabled="busy"
-              @change="toggleParallel(($event.target as HTMLInputElement).checked)"
+              @change="toggleParallel"
             >
             Run queues in parallel
           </label>
@@ -793,7 +795,7 @@ const badge: Record<QueueItem['status'], string> = {
                       </button>
                     </template>
                     <button v-if="itemActions(item).edit" type="button" class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded border border-border" :aria-label="`Edit item ${item.position}`" title="Edit" @click="startEdit(item)"><Pencil :size="15" aria-hidden="true" /></button>
-                    <button v-if="itemActions(item).remove" type="button" class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded border border-border text-danger" :aria-label="`Delete item ${item.position}`" title="Delete" :disabled="busy" @click="removeItem(item)"><Trash2 :size="15" aria-hidden="true" /></button>
+                    <button v-if="itemActions(item).remove" type="button" class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded border border-border text-danger" :aria-label="`Delete item ${item.position}`" title="Delete" :disabled="busy" @click="ask('delete-item', item)"><Trash2 :size="15" aria-hidden="true" /></button>
                     <button v-if="itemActions(item).approve" type="button" class="touch-target min-h-8 rounded bg-accent px-2 font-bold text-bg" :aria-label="`Approve item ${item.position}`" :disabled="busy" @click="approve(item)">Approve</button>
                     <button v-if="itemActions(item).reject" type="button" class="touch-target min-h-8 rounded border border-border px-2" :aria-label="`Reject item ${item.position}`" :disabled="busy" @click="ask('reject', item)">Reject</button>
                     <button v-if="itemActions(item).reverify" type="button" class="touch-target min-h-8 rounded border border-border px-2" :aria-label="`Re-run verify of item ${item.position}`" :disabled="busy" @click="reverify(item)">Re-run verify</button>
@@ -866,28 +868,13 @@ const badge: Record<QueueItem['status'], string> = {
       </DialogContent>
     </DialogPortal>
   </DialogRoot>
-  <AlertDialogRoot v-model:open="confirmOpen">
-    <AlertDialogPortal>
-      <AlertDialogOverlay class="fixed inset-0 z-[60] bg-overlay" />
-      <AlertDialogContent
-        class="fixed z-[60] border border-border bg-surface p-5 text-fg"
-        :class="props.compact ? 'inset-x-0 bottom-0 max-h-[90dvh] w-full overflow-y-auto rounded-t-2xl pb-[max(1.25rem,env(safe-area-inset-bottom))]' : 'top-1/2 left-1/2 w-[min(24rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded'"
-      >
-        <AlertDialogTitle class="text-base font-bold">
-          {{ confirmText.title }}
-        </AlertDialogTitle>
-        <AlertDialogDescription class="mt-2 text-muted">
-          {{ confirmText.body }}
-        </AlertDialogDescription>
-        <div class="mt-4 flex justify-end gap-2">
-          <AlertDialogCancel class="touch-target min-h-11 rounded border border-border px-3 py-2">
-            Cancel
-          </AlertDialogCancel>
-          <AlertDialogAction class="touch-target min-h-11 rounded bg-accent px-3 py-2 font-bold text-bg" @click.prevent="confirmAction">
-            {{ confirmText.action }}
-          </AlertDialogAction>
-        </div>
-      </AlertDialogContent>
-    </AlertDialogPortal>
-  </AlertDialogRoot>
+  <ConfirmDialog
+    v-model:open="confirmOpen"
+    :title="confirmText.title"
+    :body="confirmText.body"
+    :action="confirmText.action"
+    :danger="confirmText.danger"
+    :compact="props.compact"
+    @confirm="confirmAction"
+  />
 </template>

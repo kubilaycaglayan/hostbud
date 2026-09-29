@@ -44,13 +44,15 @@ test.describe('Queues panel on iPhone 13 Pro (parallel queues)', () => {
     await expect(settings.getByLabel('Maximum parallel runs')).toBeEnabled()
     await settings.getByLabel('Maximum parallel runs').fill(value)
     await settings.getByRole('button', { name: 'Save' }).tap()
+    // A changed cap asks through the in-app confirmation, never window.confirm.
+    await page.getByRole('alertdialog', { name: /^Change the maximum parallel runs to / }).getByRole('button', { name: 'Change limit' }).tap()
     await expect(settings.getByRole('form', { name: 'Queue runs' }).getByRole('status')).toContainText(value ? `at most ${value}` : 'default limit')
     await settings.getByRole('button', { name: 'Close settings' }).tap()
     await page.getByRole('banner').getByRole('button', { name: 'Queue', exact: true }).tap()
   }
 
   test('(V2-M2 T5, T9) Queues panel (phone) and confirmed cap settings', { tag: '@loopback' }, async ({ page, ui, multi, target }) => {
-    page.on('dialog', dialog => dialog.accept())
+    page.on('dialog', (d) => { throw new Error(`unexpected native dialog: ${d.message()}`) })
     // The multi app has no domain site; iphone-13-pro covers the phone.
     const project = await newProject(multi, target, 'e2e-phone-multi')
     await stubs.setBehavior('e2e phone alpha', 'achieve:8', 1)

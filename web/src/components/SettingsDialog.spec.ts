@@ -8,7 +8,6 @@ import { stubFetch } from '@/test-utils'
 
 beforeEach(() => {
   setActivePinia(createPinia())
-  vi.spyOn(window, 'confirm').mockReturnValue(true)
 })
 afterEach(() => {
   vi.restoreAllMocks()
@@ -19,6 +18,8 @@ afterEach(() => {
 const $$ = (sel: string) => [...document.body.querySelectorAll<HTMLElement>(sel)]
 const input = () => $$('form[aria-label="Queue runs"] input')[0] as HTMLInputElement
 const save = () => $$('button').find((b) => b.textContent?.trim() === 'Save')!
+// The in-app confirmation (never window.confirm).
+const dialogButton = (label: string) => $$('[role="alertdialog"] button').find((b) => b.textContent?.trim() === label)
 
 async function mountSettings(cap: number | null, parallel = true, answer?: (body: unknown) => { status: number; body?: unknown }, supervisor: SupervisorStatus = { enabled: false, reason: 'LLM supervisor is off: set HOSTBUD_LLM_PROVIDER=openai to enable' }) {
   const store = useQueuesStore()
@@ -37,13 +38,29 @@ function type(value: string) {
 
 describe('SettingsDialog', () => {
   it('does not save a changed cap when confirmation is declined', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const confirmSpy = vi.spyOn(window, 'confirm')
+    const calls = await mountSettings(null)
+    type('5')
+    save().click()
+    await flushPromises()
+    expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain('Change the maximum parallel runs to 5?')
+    dialogButton('Cancel')!.click()
+    await flushPromises()
+    expect(document.querySelector('[role="alertdialog"]')).toBeNull()
+    expect(calls.filter((c) => c.method === 'PUT')).toEqual([])
+    expect(input().value).toBe('5')
+    expect(confirmSpy).not.toHaveBeenCalled()
+  })
+
+  it('saves a changed cap after the in-app confirmation', async () => {
     const calls = await mountSettings(null)
     type('5')
     save().click()
     await flushPromises()
     expect(calls.filter((c) => c.method === 'PUT')).toEqual([])
-    expect(input().value).toBe('5')
+    dialogButton('Change limit')!.click()
+    await flushPromises()
+    expect(calls.filter((c) => c.method === 'PUT')).toEqual([{ method: 'PUT', path: '/api/machines/host/capacity', body: { maxConcurrentRuns: 5 } }])
   })
 
   it('shows the supervisor off reason and privacy details when enabled', async () => {
@@ -85,6 +102,8 @@ describe('SettingsDialog', () => {
     type('')
     save().click()
     await flushPromises()
+    dialogButton('Change limit')!.click()
+    await flushPromises()
     expect(calls.filter((c) => c.method === 'PUT')).toEqual([
       { method: 'PUT', path: '/api/machines/host/capacity', body: { maxConcurrentRuns: 2 } },
       { method: 'PUT', path: '/api/machines/host/capacity', body: { maxConcurrentRuns: null } },
@@ -96,6 +115,8 @@ describe('SettingsDialog', () => {
     await mountSettings(null, true, () => ({ status: 400, body: { error: 'the run cap must be a whole number from 1 to 32, or empty for no cap', hint: 'Leave it empty for no cap.' } }))
     type('5')
     save().click()
+    await flushPromises()
+    dialogButton('Change limit')!.click()
     await flushPromises()
     expect($$('[role="alert"]').map((a) => a.textContent).join(' ')).toContain('he run cap must be a whole number')
   })

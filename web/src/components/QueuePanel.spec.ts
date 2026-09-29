@@ -404,12 +404,18 @@ describe('QueuePanel', () => {
     expect($$('[data-testid="queue-run-blocked"]')).toHaveLength(0)
   })
 
-  it('turns parallel queues on and off from the panel, no redeploy', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
+  it('turns parallel queues on and off from the panel after an in-app confirmation', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm')
     const calls = stubFetch((_m, _p, body) => ({ status: 200, body }))
     await mountPanel([queue([queued], 'idle')], false, false);
     const toggle = () => $$('[data-testid="parallel-toggle"]')[0] as HTMLInputElement
+    const dialogButton = (label: string) => $$('[role="alertdialog"] button').find((b) => b.textContent?.trim() === label)!
     toggle().click()
+    await flushPromises()
+    expect(calls).toEqual([])
+    expect(toggle().checked).toBe(false)
+    expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain('Run queues in parallel?')
+    dialogButton('Turn on').click()
     await flushPromises()
     expect(calls).toEqual([{ method: 'PUT', path: '/api/machines/host/parallel-queues', body: { parallelQueues: true } }])
     expect(useQueuesStore().parallelQueues).toBe(true)
@@ -418,18 +424,41 @@ describe('QueuePanel', () => {
     expect(($$('button').find((b) => b.textContent?.trim() === 'New queue') as HTMLButtonElement).disabled).toBe(false)
     toggle().click()
     await flushPromises()
+    expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain('Turn off parallel queues?')
+    dialogButton('Turn off').click()
+    await flushPromises()
     expect(calls[1]).toEqual({ method: 'PUT', path: '/api/machines/host/parallel-queues', body: { parallelQueues: false } })
     expect(useQueuesStore().parallelQueues).toBe(false)
+    expect(confirmSpy).not.toHaveBeenCalled()
   })
 
-  it('leaves the parallel switch unchanged when confirmation is declined', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
+  it('leaves the parallel switch unchanged when confirmation is cancelled', async () => {
     const calls = stubFetch((_m, _p, body) => ({ status: 200, body }))
     await mountPanel([queue([queued], 'idle')], false, false);
     ;($$('[data-testid="parallel-toggle"]')[0] as HTMLInputElement).click()
     await flushPromises()
+    $$('[role="alertdialog"] button').find((b) => b.textContent?.trim() === 'Cancel')!.click()
+    await flushPromises()
     expect(calls).toEqual([])
     expect(useQueuesStore().parallelQueues).toBe(false)
+    expect(($$('[data-testid="parallel-toggle"]')[0] as HTMLInputElement).checked).toBe(false)
+  })
+
+  it('deletes an item only after confirmation', async () => {
+    const calls = stubFetch(() => ({ status: 204 }))
+    await mountPanel(queue([attention, queued]))
+    button('Delete item 2')!.click()
+    await flushPromises()
+    expect(calls).toHaveLength(0)
+    expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain('Delete item 2?')
+    $$('[role="alertdialog"] button').find((b) => b.textContent?.trim() === 'Cancel')!.click()
+    await flushPromises()
+    expect(calls).toHaveLength(0)
+    button('Delete item 2')!.click()
+    await flushPromises()
+    $$('[role="alertdialog"] button').find((b) => b.textContent?.trim() === 'Delete item')!.click()
+    await flushPromises()
+    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual([`DELETE /api/queue-items/${queued.id}`])
   })
 
   it('renames the queue', async () => {
