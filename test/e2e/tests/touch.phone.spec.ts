@@ -1,3 +1,4 @@
+import { longPress } from '../helpers/ui.ts'
 import { devices } from '@playwright/test'
 import { expect, test } from '../helpers/fixtures.ts'
 import { newAccount } from '../helpers/auth.ts'
@@ -104,9 +105,7 @@ test('(T14) Touch targets and zoom for M6 controls', async ({ page, target, ui }
   await assertTouchTargets(page)
 
   const projectHeader = ui.treeItem(project).locator(':scope > .tree-row')
-  await projectHeader.dispatchEvent('pointerdown', { pointerType: 'touch', clientX: 12, clientY: 12 })
-  await page.waitForTimeout(550)
-  await projectHeader.dispatchEvent('pointerup', { pointerType: 'touch', clientX: 12, clientY: 12 })
+  await longPress(projectHeader, { clientX: 12, clientY: 12 })
   const projectMenu = page.getByRole('menu')
   await expect(projectMenu.getByRole('menuitem', { name: 'Rename', exact: true })).toBeVisible()
   await expect(projectMenu.getByRole('menuitem', { name: 'Hide', exact: true })).toBeVisible()
@@ -115,26 +114,20 @@ test('(T14) Touch targets and zoom for M6 controls', async ({ page, target, ui }
   await projectMenu.getByRole('menuitem', { name: 'Pin', exact: true }).click()
   await expect(ui.treeItem(project).getByRole('button', { name: `Unpin ${project}` })).toBeVisible()
   await assertTouchTargets(page)
-  await projectHeader.dispatchEvent('pointerdown', { pointerType: 'touch', clientX: 12, clientY: 12 })
-  await page.waitForTimeout(550)
-  await projectHeader.dispatchEvent('pointerup', { pointerType: 'touch', clientX: 12, clientY: 12 })
+  await longPress(projectHeader, { clientX: 12, clientY: 12 })
   const pinnedMenu = page.getByRole('menu')
   await expect(pinnedMenu.getByRole('menuitem', { name: 'Unpin', exact: true })).toBeVisible()
   await pinnedMenu.getByRole('menuitem', { name: 'Unpin', exact: true }).click()
 
   const sessionRow = ui.treeItem(session).locator('button[data-session-row]')
-  await sessionRow.dispatchEvent('pointerdown', { pointerType: 'touch', pointerId: 1, clientX: 90, clientY: 180 })
-  await page.waitForTimeout(550)
-  await sessionRow.dispatchEvent('pointerup', { pointerType: 'touch', pointerId: 1, clientX: 90, clientY: 180 })
+  await longPress(sessionRow, { pointerId: 1, clientX: 90, clientY: 180 })
   const sessionMenu = page.getByRole('menu')
   await expect(sessionMenu.getByRole('menuitem', { name: 'Rename', exact: true })).toBeVisible()
   await expect(sessionMenu.getByRole('menuitem', { name: 'Hide', exact: true })).toBeVisible()
   await assertTouchTargets(page)
   await sessionMenu.getByRole('menuitem', { name: 'Hide', exact: true }).click()
   await page.getByRole('button', { name: 'Show hidden (1)' }).click()
-  await ui.treeItem(session).locator('button[data-session-row]').dispatchEvent('pointerdown', { pointerType: 'touch', pointerId: 1, clientX: 90, clientY: 180 })
-  await page.waitForTimeout(550)
-  await ui.treeItem(session).locator('button[data-session-row]').dispatchEvent('pointerup', { pointerType: 'touch', pointerId: 1, clientX: 90, clientY: 180 })
+  await longPress(ui.treeItem(`${session}, hidden`).locator('button[data-session-row]'), { pointerId: 1, clientX: 90, clientY: 180 })
   const hiddenMenu = page.getByRole('menu')
   await expect(hiddenMenu.getByRole('menuitem', { name: 'Unhide', exact: true })).toBeVisible()
   await assertTouchTargets(page)
@@ -159,6 +152,7 @@ test('(T14) Touch targets and zoom for M6 controls', async ({ page, target, ui }
     expect(state.smallInputs).toEqual([])
   }
   await editor.press('Escape')
+  await ui.closeList() // the drawer hides the app bar's palette button
 
   await page.getByRole('button', { name: 'Command palette' }).click()
   const palette = page.getByRole('dialog', { name: 'Command palette' })
@@ -168,7 +162,7 @@ test('(T14) Touch targets and zoom for M6 controls', async ({ page, target, ui }
   await page.keyboard.press('Escape')
 
   await ui.openAccountMenu()
-  await expect(page.getByRole('group', { name: 'Theme' }).getByRole('radio')).toHaveCount(3)
+  await expect(page.getByRole('group', { name: 'Theme' }).getByRole('radio')).toHaveCount(5) // System, Light, Dark, Solarized, Dimmed
   await assertTouchTargets(page)
 })
 
@@ -178,9 +172,7 @@ test('(T3) Long-press row menu', async ({ page, target, ui }) => {
   await ui.open()
   await ui.showList()
   const row = page.getByRole('button', { name: session, exact: true })
-  await row.dispatchEvent('pointerdown', { pointerType: 'touch', pointerId: 1, clientX: 80, clientY: 180, bubbles: true })
-  await page.waitForTimeout(550)
-  await row.dispatchEvent('pointerup', { pointerType: 'touch', pointerId: 1, clientX: 80, clientY: 180, bubbles: true })
+  await longPress(row, { pointerId: 1, clientX: 80, clientY: 180 })
   await expect(page.getByRole('menuitem', { name: 'Open in split right' })).toBeVisible()
   await page.keyboard.press('Escape')
   await row.tap()

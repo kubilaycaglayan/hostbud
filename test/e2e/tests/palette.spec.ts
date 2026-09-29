@@ -36,7 +36,7 @@ test('(T8) Keyboard shortcuts help opens from both scopes and restores focus', a
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()
   await expect(row).toBeFocused()
-  await page.keyboard.press('Shift+/')
+  await page.keyboard.press('Shift+Slash') // '?' (Playwright's Shift+/ sends key '/')
   await expect(dialog).toBeVisible()
   await page.keyboard.press('Escape')
 })
@@ -105,7 +105,10 @@ test('(T8) Global shortcuts do not reach the running program', async ({ page, ui
   await ui.openTerminal(shell)
   await page.keyboard.press('Control+Shift+]')
   await expect.poll(() => ui.activeTabName()).toBe(vim)
-  const before = await captured(target, vim)
+  // The viewport changes below resize vim's window: compare its text, not
+  // the screen's filler lines or the ruler's padding.
+  const vimText = async () => (await captured(target, vim)).split('\n').map((line) => line.replace(/\s+/g, ' ').trim()).filter((line) => line !== '' && line !== '~')
+  const before = await vimText()
   await page.keyboard.press('Control+Shift+E')
   await expect(ui.treeItem(vim)).toBeFocused()
   await page.keyboard.press('Control+Shift+E')
@@ -125,7 +128,7 @@ test('(T8) Global shortcuts do not reach the running program', async ({ page, ui
   await page.keyboard.press('Control+Shift+E')
   await ui.type('echo shortcut-shell', true)
   await expect.poll(() => captured(target, shell)).toContain('shortcut-shell')
-  expect(await captured(target, vim)).toBe(before)
+  expect(await vimText()).toEqual(before)
 })
 
 test('(T9) Palette opens without stealing Ctrl+K from the shell', async ({ page, ui, target }) => {
@@ -232,6 +235,8 @@ test('(T9) Palette Rename expands a collapsed project and starts inline editing'
   await page.keyboard.press('Control+Shift+K')
   const palette = page.getByRole('dialog', { name: 'Command palette' })
   await palette.getByRole('combobox', { name: 'Command palette' }).fill(`Rename ${session}`)
+  // Enter runs the highlighted result: wait for the filtered list first.
+  await expect(palette.getByRole('option', { name: new RegExp(`^Rename ${session}`) })).toBeVisible()
   await page.keyboard.press('Enter')
   await expect(palette).toBeHidden()
   await ui.showList()

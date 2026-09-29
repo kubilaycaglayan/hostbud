@@ -47,7 +47,7 @@ test.describe('command palette on iPhone 13 Pro', () => {
     await ui.openTerminal(session)
     await ui.showList()
     await ui.toggle(project)
-    await ui.showList()
+    await ui.closeList() // the drawer hides the app bar's palette button
 
     await page.getByRole('button', { name: 'Command palette' }).click()
     const palette = page.getByRole('dialog', { name: 'Command palette' })

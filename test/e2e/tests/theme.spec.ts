@@ -17,15 +17,6 @@ async function account(ui: import('../helpers/ui.ts').UI, label = 'e2e-theme') {
   return fresh
 }
 
-/** Closes the compact tree drawer if it is open (no-op on desktop). */
-async function closeDrawer(page: import('@playwright/test').Page) {
-  const drawer = page.getByRole('dialog', { name: 'Project tree' })
-  if (await drawer.isVisible()) {
-    await page.keyboard.press('Escape')
-    await expect(drawer).toBeHidden()
-  }
-}
-
 async function chooseTheme(page: import('@playwright/test').Page, mode: 'Dark' | 'Light' | 'Solarized' | 'Dimmed' | 'System') {
   const menu = page.getByRole('button', { name: 'Account', exact: true })
   if (!(await menu.evaluate((el) => el.parentElement instanceof HTMLDetailsElement && el.parentElement.open))) await menu.click()
@@ -119,7 +110,7 @@ test('(T15) Selected session and active tab stand out across themes', async ({ p
     ['Solarized', 'solarized'],
     ['Dimmed', 'dimmed'],
   ] as const) {
-    await closeDrawer(page) // the Account menu is behind the compact drawer
+    await ui.closeList() // the Account menu is behind the compact drawer
     await chooseTheme(page, choice)
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
     await ui.showList()

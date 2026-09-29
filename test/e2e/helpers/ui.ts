@@ -146,6 +146,16 @@ export class UI {
     await expect(this.tree()).toBeVisible()
   }
 
+  /** Closes the compact tree drawer if it is open: it is modal and hides the
+   * app bar (no-op on desktop). */
+  async closeList(): Promise<void> {
+    const drawer = this.page.getByRole('dialog', { name: 'Project tree' })
+    if (await drawer.isVisible()) {
+      await this.page.keyboard.press('Escape')
+      await expect(drawer).toBeHidden()
+    }
+  }
+
   /** Clicks an app-bar action (M8 T1), closing the compact tree drawer first. */
   async headerAction(name: 'New session' | 'Browse files'): Promise<void> {
     const drawer = this.page.getByRole('dialog', { name: 'Project tree' })
@@ -350,4 +360,19 @@ export async function dragSortable(handle: Locator, target: Locator, position = 
   await handle.dispatchEvent('touchmove', { bubbles: true, cancelable: true, touches: points(to.x, to.y + 1), targetTouches: points(to.x, to.y + 1), changedTouches: points(to.x, to.y + 1) })
   await page.waitForTimeout(100)
   await handle.dispatchEvent('touchend', { bubbles: true, cancelable: true, touches: [], targetTouches: [], changedTouches: points(to.x, to.y) })
+}
+
+/**
+ * A touch long press (the row menus open after 500 ms). It dispatches on an
+ * element handle: the menu that opens is modal and hides the rest of the page
+ * from role-based locators before pointerup.
+ */
+export async function longPress(target: Locator, point: { clientX: number; clientY: number; pointerId?: number }): Promise<void> {
+  const element = await target.elementHandle()
+  if (!element) throw new Error('long-press target not found')
+  const init = { pointerType: 'touch', bubbles: true, ...point }
+  await element.dispatchEvent('pointerdown', init)
+  await target.page().waitForTimeout(550)
+  await element.dispatchEvent('pointerup', init)
+  await element.dispose()
 }
