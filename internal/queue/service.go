@@ -52,7 +52,7 @@ type Store interface {
 	Project(ctx context.Context, id string) (store.Project, error)
 	Queues(ctx context.Context, machineID string) ([]store.Queue, error)
 	Queue(ctx context.Context, id string) (store.Queue, error)
-	CreateQueue(ctx context.Context, projectID, name string, afterRunID ...string) (store.Queue, error)
+	CreateQueueLinked(ctx context.Context, projectID, name string, link store.QueueLink) (store.Queue, error)
 	RenameQueue(ctx context.Context, id, name string) (store.Queue, error)
 	DeleteQueue(ctx context.Context, id string) error
 	TransitionQueue(ctx context.Context, id string, from []string, to string) (store.Queue, error)
@@ -623,6 +623,16 @@ func (s *Service) changed(ctx context.Context, action, queueID string) (View, er
 // Create creates a queue for a saved project. With the parallel-queues
 // switch off, V2-M1's limit of one queue holds.
 func (s *Service) Create(ctx context.Context, projectID, name string, afterRunID ...string) (View, error) {
+	var link store.QueueLink
+	if len(afterRunID) > 0 {
+		link.RunID = afterRunID[0]
+	}
+	return s.CreateLinked(ctx, projectID, name, link)
+}
+
+// CreateLinked creates a queue that waits for link before its first item:
+// an active tracked goal, or any existing session going idle.
+func (s *Service) CreateLinked(ctx context.Context, projectID, name string, link store.QueueLink) (View, error) {
 	queues, err := s.store.Queues(ctx, s.machine)
 	if err != nil {
 		return View{}, err
@@ -634,10 +644,10 @@ func (s *Service) Create(ctx context.Context, projectID, name string, afterRunID
 	if !named {
 		name = "Queue"
 	}
-	q, err := s.store.CreateQueue(ctx, projectID, name, afterRunID...)
+	q, err := s.store.CreateQueueLinked(ctx, projectID, name, link)
 	// An unnamed queue takes the first free "Queue n".
 	for n := 2; errors.Is(err, store.ErrDuplicate) && !named && n <= 100; n++ {
-		q, err = s.store.CreateQueue(ctx, projectID, fmt.Sprintf("Queue %d", n), afterRunID...)
+		q, err = s.store.CreateQueueLinked(ctx, projectID, fmt.Sprintf("Queue %d", n), link)
 	}
 	switch {
 	case errors.Is(err, store.ErrDuplicate):

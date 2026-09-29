@@ -61,6 +61,37 @@ test.describe('Queue panel (desktop)', () => {
     await expect(dialog.getByTestId('item-status')).toHaveText('Done')
   })
 
+  test('Attach a new queue to an existing non-queue session', async ({ page, ui, request, target }) => {
+    const project = await newProject(request, target, 'e2e-attach-ui')
+    await target.run([
+      'mkdir -p /home/dev/.hostbud-test-bin',
+      'ln -sf /bin/sleep /home/dev/.hostbud-test-bin/cly',
+      `tmux new-session -d -s attach-ui-manual -c ${shq(project.path)} /home/dev/.hostbud-test-bin/cly 120`,
+      `tmux new-session -d -s attach-ui-sink -c ${shq(project.path)}`,
+    ].join(' && '))
+    const pane = (await target.tmux('list-panes', '-t', '=attach-ui-manual:', '-F', '#{pane_id}')).trim().split('\n')[0]
+    await target.tmux('set-option', '-p', '-t', pane, '@hostbud_agent_status', 'working')
+    await ui.open()
+    await page.getByRole('banner').getByRole('button', { name: 'Queue', exact: true }).click()
+    const dialog = panel(page)
+    await dialog.getByLabel('Project').selectOption(project.id)
+    await dialog.getByLabel('Start after (optional)').selectOption('session:attach-ui-manual')
+    await expect(dialog).toContainText("waits until that session's agent finishes its turn")
+    await dialog.getByRole('button', { name: 'Create queue' }).click()
+    await expect(dialog.getByTestId('queue-dependency')).toContainText('Waits for session attach-ui-manual to be idle')
+    const form = dialog.getByRole('form', { name: 'Add item' })
+    await form.getByLabel('Execution').selectOption('session')
+    await form.getByLabel('Existing session').selectOption('attach-ui-sink')
+    await form.getByLabel('Command').fill("echo 'attached queue ran'")
+    await form.getByRole('button', { name: 'Add item' }).click()
+    await dialog.getByRole('button', { name: 'Start' }).click()
+    await expect(dialog.getByTestId('item-status')).toHaveText('Queued')
+    await target.tmux('set-option', '-p', '-t', pane, '@hostbud_agent_status', 'blocked')
+    await expect(dialog.getByTestId('item-status')).toHaveText('Done', { timeout: 15_000 })
+    await expect.poll(async () => target.capture('attach-ui-sink')).toContain('attached queue ran')
+    await expect(dialog.getByTestId('queue-dependency')).toContainText('Started after session attach-ui-manual was idle')
+  })
+
   test('(V2-M10 T1) Plain Claude prompt waits for manual completion', async ({ page, ui, request, target }) => {
     const project = await newProject(request, target, 'e2e-plain-prompt')
     await stubs.setBehavior('implement the small change', 'achieve:1')

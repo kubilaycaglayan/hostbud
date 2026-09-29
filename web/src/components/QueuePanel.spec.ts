@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import QueuePanel from './QueuePanel.vue'
 import type { Queue } from '@/api/types'
 import { useQueuesStore } from '@/stores/queues'
+import { useSessionsStore } from '@/stores/sessions'
 import { useProjectsStore } from '@/stores/projects'
 import { stubFetch } from '@/test-utils'
 
@@ -309,7 +310,7 @@ describe('QueuePanel', () => {
     name.dispatchEvent(new Event('input'))
     button('Create queue')!.click()
     await flushPromises()
-    expect(calls).toEqual([{ method: 'POST', path: '/api/queues', body: { projectId: 'p1', name: 'Docs', afterRunId: '' } }])
+    expect(calls).toEqual([{ method: 'POST', path: '/api/queues', body: { projectId: 'p1', name: 'Docs', afterRunId: '', afterSession: '' } }])
     expect(button('Show queue Docs')!.getAttribute('aria-current')).toBe('true')
     expect($$('form[aria-label="Create queue"]')).toHaveLength(0)
   })
@@ -325,13 +326,34 @@ describe('QueuePanel', () => {
     expect(selector.options[0].textContent).toContain('Start normally')
     expect(selector.options[1].textContent).toContain('app-q2')
     expect([...selector.options].some((option) => option.textContent?.includes('app-q3'))).toBe(false)
-    selector.value = 'run-active'
+    selector.value = 'run:run-active'
     selector.dispatchEvent(new Event('change'))
     const name = $$('form[aria-label="Create queue"] input')[0] as HTMLInputElement
     name.value = 'Following'; name.dispatchEvent(new Event('input'))
     button('Create queue')!.click()
     await flushPromises()
-    expect(calls[0].body).toMatchObject({ afterRunId: 'run-active' })
+    expect(calls[0].body).toMatchObject({ afterRunId: 'run-active', afterSession: '' })
+  })
+
+  it('can attach a new queue to any existing session, not only queue runs', async () => {
+    const sessions = useSessionsStore()
+    sessions.byMachine = { host: [{ id: '$1', name: 'manual-work', path: '/home/dev/app', agents: ['claude'], status: 'working', attached: 0, windows: 1, created: '', activity: '' }] }
+    const calls = stubFetch(() => ({ status: 201, body: second({ items: [], afterSession: 'manual-work' }) }))
+    await mountPanel(queue([queued], 'idle'), false, true)
+    button('New queue')!.click()
+    await flushPromises()
+    const selector = $$('form[aria-label="Create queue"] select').at(-1) as HTMLSelectElement
+    const option = [...selector.options].find((o) => o.value === 'session:manual-work')
+    expect(option?.textContent).toContain('manual-work')
+    expect(option?.parentElement?.getAttribute('label')).toBe('Existing session is idle')
+    selector.value = 'session:manual-work'
+    selector.dispatchEvent(new Event('change'))
+    await flushPromises()
+    expect(document.body.textContent).toContain("waits until that session's agent finishes its turn")
+    button('Create queue')!.click()
+    await flushPromises()
+    expect(calls[0].body).toMatchObject({ afterRunId: '', afterSession: 'manual-work' })
+    expect($$('[data-testid="queue-dependency"]')[0].textContent).toContain('Waits for session manual-work to be idle')
   })
 
   it('with the switch off, shows what exists and explains the switch', async () => {

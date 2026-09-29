@@ -253,7 +253,7 @@ export const queuesApi = {
     request<Capacity>('PUT', `/api/machines/${q(machine)}/capacity`, { maxConcurrentRuns }),
   setParallel: (machine: string, parallelQueues: boolean) =>
     request<ParallelQueues>('PUT', `/api/machines/${q(machine)}/parallel-queues`, { parallelQueues }),
-  create: (projectId: string, name: string, afterRunId = '') => request<Queue>('POST', '/api/queues', { projectId, name, afterRunId }),
+  create: (projectId: string, name: string, afterRunId = '', afterSession = '') => request<Queue>('POST', '/api/queues', { projectId, name, afterRunId, afterSession }),
   rename: (id: string, name: string) => request<Queue>('PATCH', `/api/queues/${q(id)}`, { name }),
   remove: (id: string) => request<void>('DELETE', `/api/queues/${q(id)}`),
   addItem: (id: string, item: { agent: string; flags: string; instruction: string; executionMode?: 'agent' | 'session'; targetSession?: string; command?: string; verifyCommand?: string; requiresApproval?: boolean }) =>

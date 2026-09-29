@@ -14,6 +14,7 @@ import (
 	"hostbud/internal/inventory"
 	"hostbud/internal/notify"
 	"hostbud/internal/store"
+	"hostbud/internal/tmux"
 )
 
 // DispatchStore is what the dispatcher needs from the store.
@@ -90,6 +91,9 @@ type Dispatcher struct {
 	follows   map[string][]Timer // follow-up reads per run
 	waiting   map[string]bool    // queues last published as waiting for a slot
 	scheduled map[string]Timer   // durable delayed queue starts, re-armed on restart
+	// sessions is the latest inventory snapshot by name (nil until the first
+	// one): queues linked to an existing session start from it.
+	sessions map[string]tmux.Session
 
 	dispatching, again bool // dispatch is running / was asked for again meanwhile
 
@@ -371,6 +375,9 @@ func (d *Dispatcher) advance(ctx context.Context, queueID, source string) {
 // predecessorReady keeps a dependent queue out of both dispatcher paths
 // until its linked goal achieves. Stale is active because it can achieve late.
 func (d *Dispatcher) predecessorReady(ctx context.Context, q store.Queue) bool {
+	if q.AfterSession != nil {
+		return d.sessionIdle(*q.AfterSession) || d.queueBegun(ctx, q.ID)
+	}
 	if q.AfterRunID == nil {
 		return true
 	}
@@ -385,6 +392,43 @@ func (d *Dispatcher) predecessorReady(ctx context.Context, q store.Queue) bool {
 		_, _ = d.service.Pause(ctx, q.ID)
 	}
 	return false
+}
+
+// queueBegun reports whether any item left queued: a session link gates
+// only the first item, so later work in that session never stalls the queue.
+func (d *Dispatcher) queueBegun(ctx context.Context, queueID string) bool {
+	items, err := d.store.QueueItems(ctx, queueID)
+	if err != nil {
+		return false
+	}
+	for _, it := range items {
+		if it.Status != store.ItemQueued {
+			return true
+		}
+	}
+	return false
+}
+
+// sessionIdle reports whether a linked existing session no longer holds
+// work: it is gone, its agent hook reports the turn over (blocked or ended),
+// or it shows neither an agent process nor an active hook status. An agent
+// process without hook status can't be read, so it counts as busy until it
+// exits. Before the first inventory snapshot nothing is known: not idle.
+func (d *Dispatcher) sessionIdle(name string) bool {
+	if d.sessions == nil {
+		return false
+	}
+	s, ok := d.sessions[name]
+	if !ok {
+		return true
+	}
+	switch s.Status {
+	case tmux.AgentWorking:
+		return false
+	case tmux.AgentBlocked, tmux.AgentEnded:
+		return true
+	}
+	return len(s.Agents) == 0
 }
 
 // startItem creates the item's run and session. It reports false only when
@@ -798,9 +842,12 @@ func (d *Dispatcher) ended(ctx context.Context, rc runCtx, source, detail string
 // sessionsChanged treats a run whose session left tmux like a SessionEnd.
 func (d *Dispatcher) sessionsChanged(ctx context.Context, payload inventory.SessionsChanged) {
 	names := map[string]bool{}
+	d.sessions = make(map[string]tmux.Session, len(payload.Sessions))
 	for _, s := range payload.Sessions {
 		names[s.Name] = true
+		d.sessions[s.Name] = s
 	}
+	d.releaseSessionDependents(ctx)
 	runs, err := d.store.ActiveRuns(ctx)
 	if err != nil {
 		return
@@ -973,6 +1020,25 @@ func (d *Dispatcher) releaseDependents(ctx context.Context, runID string) {
 		if q.AfterRunID != nil && *q.AfterRunID == runID && q.Status == store.QueueRunning {
 			d.Kick(q.ID)
 		}
+	}
+}
+
+// releaseSessionDependents advances running queues linked to an existing
+// session once that session is idle (each inventory snapshot).
+func (d *Dispatcher) releaseSessionDependents(ctx context.Context) {
+	queues, err := d.store.Queues(ctx, store.HostMachineID)
+	if err != nil {
+		return
+	}
+	for _, q := range queues {
+		if q.AfterSession == nil || q.Status != store.QueueRunning || !d.sessionIdle(*q.AfterSession) || d.queueBegun(ctx, q.ID) {
+			continue
+		}
+		if d.slots() {
+			d.dispatch(ctx, store.SourcePoller)
+			return
+		}
+		d.advance(ctx, q.ID, store.SourcePoller)
 	}
 }
 

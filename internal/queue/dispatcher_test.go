@@ -412,6 +412,96 @@ func TestQueueDependencyWaitsForTrackedGoal(t *testing.T) {
 	}
 }
 
+// A queue linked to any existing session (not a queue run) waits while that
+// session's agent works, starts once it is idle, and the link gates only the
+// first item.
+func TestQueueDependencyWaitsForExistingSession(t *testing.T) {
+	e := newDispEnv(t)
+	e.svc.SetParallelQueues(true)
+	snapshot := func(sessions ...tmux.Session) {
+		e.d.enqueue(func(ctx context.Context) { e.d.sessionsChanged(ctx, inventory.SessionsChanged{Sessions: sessions}) })
+		e.d.Sync()
+	}
+	dependent, err := e.svc.CreateLinked(e.ctx(), "project_a", "After manual", store.QueueLink{Session: "manual-work"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dependent.AfterSession == nil || *dependent.AfterSession != "manual-work" {
+		t.Fatalf("session link = %v", dependent.AfterSession)
+	}
+	for _, instruction := range []string{"first", "second"} {
+		if _, err := e.svc.AddItem(e.ctx(), dependent.ID, "claude", "", instruction); err != nil {
+			t.Fatal(err)
+		}
+	}
+	status := func() string {
+		t.Helper()
+		v, err := e.svc.Get(e.ctx(), dependent.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v.Items[0].Status
+	}
+	if _, err := e.svc.Start(e.ctx(), dependent.ID); err != nil {
+		t.Fatal(err)
+	}
+	e.d.Sync()
+	if got := status(); got != store.ItemQueued {
+		t.Fatalf("started before any inventory snapshot: %s", got)
+	}
+	snapshot(tmux.Session{Name: "manual-work", Status: tmux.AgentWorking, Agents: []string{"claude"}})
+	if got := status(); got != store.ItemQueued {
+		t.Fatalf("started while the session works: %s", got)
+	}
+	snapshot(tmux.Session{Name: "manual-work", Agents: []string{"codex"}})
+	if got := status(); got != store.ItemQueued {
+		t.Fatalf("started while an agent without hook status is open: %s", got)
+	}
+	snapshot(tmux.Session{Name: "manual-work", Status: tmux.AgentBlocked, Agents: []string{"claude"}})
+	if got := status(); got != store.ItemRunning {
+		t.Fatalf("item after the session went idle: %s", got)
+	}
+	if len(e.sessions.specs) != 1 {
+		t.Fatalf("sessions created = %d, want 1", len(e.sessions.specs))
+	}
+	// Later work in the linked session doesn't gate the queue's next items.
+	snapshot(tmux.Session{Name: "manual-work", Status: tmux.AgentWorking}, tmux.Session{Name: e.sessions.specs[0].Name})
+	q := mustQueue(t, e, dependent.ID)
+	ready := make(chan bool, 1)
+	e.d.enqueue(func(ctx context.Context) { ready <- e.d.predecessorReady(ctx, q) })
+	if !<-ready {
+		t.Fatal("a begun queue is still gated by its linked session")
+	}
+}
+
+func TestExistingSessionIdle(t *testing.T) {
+	d := &Dispatcher{}
+	if d.sessionIdle("x") {
+		t.Fatal("idle before any snapshot")
+	}
+	d.sessions = map[string]tmux.Session{
+		"shell":   {Name: "shell"},
+		"working": {Name: "working", Status: tmux.AgentWorking},
+		"blocked": {Name: "blocked", Status: tmux.AgentBlocked, Agents: []string{"claude"}},
+		"ended":   {Name: "ended", Status: tmux.AgentEnded},
+		"agent":   {Name: "agent", Agents: []string{"claude"}},
+	}
+	for name, want := range map[string]bool{"shell": true, "working": false, "blocked": true, "ended": true, "agent": false, "gone": true} {
+		if got := d.sessionIdle(name); got != want {
+			t.Errorf("sessionIdle(%s) = %v, want %v", name, got, want)
+		}
+	}
+}
+
+func mustQueue(t *testing.T, e *dispEnv, id string) store.Queue {
+	t.Helper()
+	q, err := e.st.Queue(e.ctx(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return q
+}
+
 func TestDispatcherFailClosed(t *testing.T) {
 	for _, c := range []struct {
 		name   string

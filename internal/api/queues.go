@@ -17,7 +17,7 @@ import (
 type QueueService interface {
 	List(ctx context.Context) ([]queue.View, error)
 	Get(ctx context.Context, id string) (queue.View, error)
-	Create(ctx context.Context, projectID, name string, afterRunID ...string) (queue.View, error)
+	CreateLinked(ctx context.Context, projectID, name string, link store.QueueLink) (queue.View, error)
 	Rename(ctx context.Context, id, name string) (queue.View, error)
 	Delete(ctx context.Context, id string) error
 	AddItem(ctx context.Context, queueID, agent, flags, instruction string, gates ...store.ItemGates) (queue.ItemView, error)
@@ -223,6 +223,9 @@ type createQueueRequest struct {
 	ProjectID  string `json:"projectId"`
 	Name       string `json:"name"`
 	AfterRunID string `json:"afterRunId"`
+	// AfterSession links the queue to any existing session (tracked or not):
+	// its first item waits until that session is idle or gone.
+	AfterSession string `json:"afterSession"`
 }
 
 func (s *server) createQueue(w http.ResponseWriter, r *http.Request) {
@@ -230,7 +233,7 @@ func (s *server) createQueue(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
-	v, err := s.cfg.Queues.Create(r.Context(), req.ProjectID, req.Name, req.AfterRunID)
+	v, err := s.cfg.Queues.CreateLinked(r.Context(), req.ProjectID, req.Name, store.QueueLink{RunID: req.AfterRunID, Session: req.AfterSession})
 	if err != nil {
 		s.queueError(w, err)
 		return

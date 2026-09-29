@@ -40,8 +40,15 @@ func (f *fakeQueues) Get(_ context.Context, id string) (queue.View, error) {
 	f.rec("get " + id)
 	return queue.View{Queue: store.Queue{ID: id}}, f.err
 }
-func (f *fakeQueues) Create(_ context.Context, projectID, name string, afterRunID ...string) (queue.View, error) {
-	f.rec("create " + projectID + " " + name)
+func (f *fakeQueues) CreateLinked(_ context.Context, projectID, name string, link store.QueueLink) (queue.View, error) {
+	msg := "create " + projectID + " " + name
+	if link.RunID != "" {
+		msg += " after-run " + link.RunID
+	}
+	if link.Session != "" {
+		msg += " after-session " + link.Session
+	}
+	f.rec(msg)
 	return queue.View{Queue: store.Queue{ID: "queue_a", ProjectID: projectID, Name: name}}, f.err
 }
 func (f *fakeQueues) Rename(_ context.Context, id, name string) (queue.View, error) {
@@ -165,6 +172,7 @@ func TestQueueRoutesCallTheService(t *testing.T) {
 		{"GET", "/api/queues", "", 200, "list"},
 		{"GET", "/api/queue-history?limit=25&offset=10", "", 200, "history 25 10"},
 		{"POST", "/api/queues", `{"projectId":"project_a","name":"Milestones"}`, 201, "create project_a Milestones"},
+		{"POST", "/api/queues", `{"projectId":"project_a","name":"Next","afterSession":"manual-work"}`, 201, "create project_a Next after-session manual-work"},
 		{"GET", "/api/queues/queue_a", "", 200, "get queue_a"},
 		{"PATCH", "/api/queues/queue_a", `{"name":"M"}`, 200, "rename queue_a M"},
 		{"DELETE", "/api/queues/queue_a", "", 204, "delete queue_a"},

@@ -118,6 +118,17 @@ type Queue struct {
 	ScheduledAt  *time.Time `json:"scheduledAt,omitempty"`
 	// AfterRunID gates this queue until an already active tracked run achieves its goal.
 	AfterRunID *string `json:"afterRunId,omitempty"`
+	// AfterSession gates this queue until an existing tmux session, tracked
+	// or not, is idle or gone.
+	AfterSession *string `json:"afterSession,omitempty"`
+}
+
+// QueueLink is what a new queue waits for before its first item: an active
+// tracked run's goal (RunID) or any existing session going idle (Session).
+// Both empty: no dependency.
+type QueueLink struct {
+	RunID   string
+	Session string
 }
 
 // QueueItem is one agent run request: agent, flags and instruction.
@@ -247,7 +258,7 @@ type RunUpdate struct {
 }
 
 const (
-	queueCols = `id, machine_id, project_id, name, status, created_at, updated_at, waiting_since, after_run_id, started_at, ended_at, scheduled_at`
+	queueCols = `id, machine_id, project_id, name, status, created_at, updated_at, waiting_since, after_run_id, started_at, ended_at, scheduled_at, after_session`
 	itemCols  = `id, queue_id, machine_id, position, agent, flags, instruction, status, created_at, updated_at,
 		verify_command, requires_approval, started_at, ended_at, execution_mode, target_session, command`
 	runCols = `id, item_id, machine_id, session_name, agent_session_id, transcript_path, transcript_offset,
@@ -260,14 +271,17 @@ type scanner interface{ Scan(...any) error }
 func scanQueue(row scanner) (Queue, error) {
 	var q Queue
 	var waiting, started, ended, scheduled sql.NullTime
-	var afterRun sql.NullString
-	err := row.Scan(&q.ID, &q.MachineID, &q.ProjectID, &q.Name, &q.Status, &q.CreatedAt, &q.UpdatedAt, &waiting, &afterRun, &started, &ended, &scheduled)
+	var afterRun, afterSession sql.NullString
+	err := row.Scan(&q.ID, &q.MachineID, &q.ProjectID, &q.Name, &q.Status, &q.CreatedAt, &q.UpdatedAt, &waiting, &afterRun, &started, &ended, &scheduled, &afterSession)
 	if waiting.Valid {
 		t := waiting.Time.UTC()
 		q.WaitingSince = &t
 	}
 	if afterRun.Valid {
 		q.AfterRunID = &afterRun.String
+	}
+	if afterSession.Valid {
+		q.AfterSession = &afterSession.String
 	}
 	if started.Valid {
 		t := started.Time.UTC()
@@ -466,19 +480,40 @@ func ValidateItemExecution(x ItemExecution) error {
 	return nil
 }
 
-// CreateQueue creates an idle queue for a saved project.
+// CreateQueue creates an idle queue for a saved project, optionally after
+// an active tracked run's goal.
 func (s *Store) CreateQueue(ctx context.Context, projectID, name string, afterRunIDs ...string) (Queue, error) {
+	var link QueueLink
+	if len(afterRunIDs) > 0 {
+		link.RunID = afterRunIDs[0]
+	}
+	return s.CreateQueueLinked(ctx, projectID, name, link)
+}
+
+// CreateQueueLinked creates an idle queue for a saved project that waits for
+// link (at most one of its fields).
+func (s *Store) CreateQueueLinked(ctx context.Context, projectID, name string, link QueueLink) (Queue, error) {
 	name, err := validQueueName(name)
 	if err != nil {
 		return Queue{}, err
+	}
+	if link.RunID != "" && link.Session != "" {
+		return Queue{}, errors.New("link the queue to a goal or a session, not both")
+	}
+	var afterSession any
+	if link.Session != "" {
+		if !queueSessionNameRE.MatchString(link.Session) {
+			return Queue{}, errors.New("choose a valid existing session")
+		}
+		afterSession = link.Session
 	}
 	p, err := s.Project(ctx, projectID)
 	if err != nil {
 		return Queue{}, err
 	}
 	var afterRunID any
-	if len(afterRunIDs) > 0 && afterRunIDs[0] != "" {
-		run, runErr := s.Run(ctx, afterRunIDs[0])
+	if link.RunID != "" {
+		run, runErr := s.Run(ctx, link.RunID)
 		if runErr != nil {
 			return Queue{}, runErr
 		}
@@ -493,9 +528,9 @@ func (s *Store) CreateQueue(ctx context.Context, projectID, name string, afterRu
 	}
 	now := s.now()
 	q, err := scanQueue(s.db.QueryRowContext(ctx, `
-		INSERT INTO queues (id, machine_id, project_id, name, status, created_at, updated_at, after_run_id)
-		VALUES ($1, $2, $3, $4, 'idle', $5, $5, $6) RETURNING `+queueCols,
-		id, p.MachineID, p.ID, name, now, afterRunID))
+		INSERT INTO queues (id, machine_id, project_id, name, status, created_at, updated_at, after_run_id, after_session)
+		VALUES ($1, $2, $3, $4, 'idle', $5, $5, $6, $7) RETURNING `+queueCols,
+		id, p.MachineID, p.ID, name, now, afterRunID, afterSession))
 	return q, duplicateName(err)
 }
 

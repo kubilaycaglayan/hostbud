@@ -140,6 +140,8 @@ export interface Queue {
   /** V2-M6: selected active run whose achieved goal releases this queue. */
   afterRunId?: string
   afterRunStatus?: string
+  /** Any existing session (tracked or not) the first item waits for to be idle. */
+  afterSession?: string
 }
 
 /** GET /api/queues. */

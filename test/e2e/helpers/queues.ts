@@ -71,6 +71,7 @@ export interface Queue {
   warnings?: QueueWarning[]
   afterRunId?: string
   afterRunStatus?: string
+  afterSession?: string
 }
 
 /** GET /api/queues. */
@@ -90,8 +91,8 @@ export async function newProject(request: APIRequestContext, target: Target, pre
   return { id: (await res.json() as { id: string }).id, name, path }
 }
 
-export async function createQueue(request: APIRequestContext, projectId: string, name = 'Milestones', afterRunId = ''): Promise<Queue> {
-  const res = await mutate(request, 'POST', '/api/queues', { projectId, name, afterRunId })
+export async function createQueue(request: APIRequestContext, projectId: string, name = 'Milestones', afterRunId = '', afterSession = ''): Promise<Queue> {
+  const res = await mutate(request, 'POST', '/api/queues', { projectId, name, afterRunId, afterSession })
   expect(res.status(), await res.text()).toBe(201)
   return await res.json() as Queue
 }

@@ -177,6 +177,39 @@ func TestIntegrationQueueAfterActiveRun(t *testing.T) {
 	}
 }
 
+func TestIntegrationQueueAfterExistingSession(t *testing.T) {
+	ctx := context.Background()
+	repo, err := Open(ctx, testConfig(t.TempDir()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = repo.Close() }()
+	if _, err := repo.EnsureHostMachine(ctx, "Host machine"); err != nil {
+		t.Fatal(err)
+	}
+	project, err := repo.CreateProject(ctx, HostMachineID, "/home/dev/after-session", "after-session")
+	if err != nil {
+		t.Fatal(err)
+	}
+	q, err := repo.CreateQueueLinked(ctx, project.ID, "Follow-up", QueueLink{Session: "manual-work"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := repo.Queue(ctx, q.ID)
+	if err != nil || got.AfterSession == nil || *got.AfterSession != "manual-work" || got.AfterRunID != nil {
+		t.Fatalf("persisted link = %+v, %v", got, err)
+	}
+	for _, link := range []QueueLink{{Session: "bad name;"}, {Session: "x", RunID: "run_x"}} {
+		if _, err := repo.CreateQueueLinked(ctx, project.ID, "Invalid", link); err == nil {
+			t.Fatalf("link %+v accepted", link)
+		}
+	}
+	plain, err := repo.CreateQueue(ctx, project.ID, "Plain")
+	if err != nil || plain.AfterSession != nil {
+		t.Fatalf("plain queue = %+v, %v", plain, err)
+	}
+}
+
 func TestIntegrationQueueScheduleAndExecutionModePersist(t *testing.T) {
 	ctx := context.Background()
 	repo, err := Open(ctx, testConfig(t.TempDir()))

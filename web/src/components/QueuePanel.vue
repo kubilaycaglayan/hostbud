@@ -153,11 +153,17 @@ watch(open, (isOpen) => { if (isOpen && !store.loaded) void store.load() })
 // ---- creating, renaming and deleting queues ----
 const newProjectId = ref('')
 const newName = ref('Milestones')
-const afterRunId = ref('')
+// '' starts normally; 'run:<id>' waits for a tracked goal, 'session:<name>'
+// for any existing session (a queue run or not) to be idle.
+const afterLink = ref('')
 const activeGoalRuns = computed(() => store.queues.flatMap((q) => q.items
   .filter((it) => it.run && ['starting', 'running', 'stale'].includes(it.run.status)
     && (it.agent === 'codex' || it.instruction.startsWith('/goal ')))
   .map((it) => ({ id: it.run!.id, session: it.run!.sessionName, queue: q.name, goal: it.instruction.replace(/^\/goal\s+/, '') }))))
+const linkableSessions = computed(() => {
+  const goalSessions = new Set(activeGoalRuns.value.map((run) => run.session))
+  return sessions.list(props.machine).filter((s) => !goalSessions.has(s.name))
+})
 watch(() => projects.items, (list) => { if (!newProjectId.value && list.length) newProjectId.value = list[0].id }, { immediate: true })
 // With queues present, "New queue" opens the form; it needs the switch.
 const addingQueue = ref(false)
@@ -165,13 +171,14 @@ const showCreate = computed(() => store.loaded && (!store.queues.length || addin
 function newQueue() {
   addingQueue.value = true
   newName.value = ''
-  afterRunId.value = ''
+  afterLink.value = ''
 }
 function createQueue() {
   // An unnamed queue: "Milestones" for the first, else the server's "Queue n".
   const name = newName.value.trim() || (store.queues.length ? '' : 'Milestones')
   void act("Couldn't create the queue", async () => {
-    const created = await queuesApi.create(newProjectId.value, name, afterRunId.value)
+    const [kind, target] = afterLink.value.split(/:(.*)/s)
+    const created = await queuesApi.create(newProjectId.value, name, kind === 'run' ? target : '', kind === 'session' ? target : '')
     selectedId.value = created.id
     addingQueue.value = false
     return created
@@ -500,12 +507,20 @@ const badge: Record<QueueItem['status'], string> = {
             <label class="block">Queue name
               <input v-model="newName" autocomplete="off" class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 text-base">
             </label>
-            <label v-if="activeGoalRuns.length" class="block">Start after active goal (optional)
-              <select v-model="afterRunId" autocomplete="off" class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 text-base">
+            <label v-if="activeGoalRuns.length || linkableSessions.length" class="block">Start after (optional)
+              <select v-model="afterLink" autocomplete="off" class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 text-base">
                 <option value="">Start normally</option>
-                <option v-for="run in activeGoalRuns" :key="run.id" :value="run.id">{{ run.session }} · {{ run.goal }} ({{ run.queue }})</option>
+                <optgroup v-if="activeGoalRuns.length" label="Active goal is achieved">
+                  <option v-for="run in activeGoalRuns" :key="run.id" :value="`run:${run.id}`">{{ run.session }} · {{ run.goal }} ({{ run.queue }})</option>
+                </optgroup>
+                <optgroup v-if="linkableSessions.length" label="Existing session is idle">
+                  <option v-for="s in linkableSessions" :key="s.name" :value="`session:${s.name}`">{{ s.name }} · {{ s.path }}</option>
+                </optgroup>
               </select>
             </label>
+            <p v-if="afterLink.startsWith('session:')" class="text-sm text-muted">
+              The first item waits until that session's agent finishes its turn or exits, or the session closes. Without agent status hooks, an open agent counts as busy until it exits.
+            </p>
             <div class="flex gap-2">
               <button type="submit" :disabled="busy || !newProjectId" class="touch-target min-h-11 rounded bg-accent px-3 font-bold text-bg">
                 Create queue
@@ -517,6 +532,10 @@ const badge: Record<QueueItem['status'], string> = {
           </form>
 
           <template v-if="queue && !addingQueue">
+            <p v-if="queue.afterSession" class="mt-2 text-sm text-muted" data-testid="queue-dependency">
+              <template v-if="queue.items.some((it) => it.status !== 'queued')">Started after session <span class="font-mono">{{ queue.afterSession }}</span> was idle.</template>
+              <template v-else>Waits for session <span class="font-mono">{{ queue.afterSession }}</span> to be idle before its first item.</template>
+            </p>
             <p v-if="queue.afterRunId" class="mt-2 text-sm text-muted" data-testid="queue-dependency">
               <template v-if="queue.afterRunStatus === 'achieved'">Started after its linked goal was achieved.</template>
               <template v-else-if="['starting', 'running', 'stale'].includes(queue.afterRunStatus || '')">Waiting for the linked session's goal to be achieved.</template>

@@ -383,7 +383,15 @@ func (m *memStore) Queue(_ context.Context, id string) (store.Queue, error) {
 	return q, nil
 }
 
-func (m *memStore) CreateQueue(_ context.Context, projectID, name string, afterRunIDs ...string) (store.Queue, error) {
+func (m *memStore) CreateQueue(ctx context.Context, projectID, name string, afterRunIDs ...string) (store.Queue, error) {
+	var link store.QueueLink
+	if len(afterRunIDs) > 0 {
+		link.RunID = afterRunIDs[0]
+	}
+	return m.CreateQueueLinked(ctx, projectID, name, link)
+}
+
+func (m *memStore) CreateQueueLinked(_ context.Context, projectID, name string, link store.QueueLink) (store.Queue, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	p, ok := m.q().projects[projectID]
@@ -395,8 +403,11 @@ func (m *memStore) CreateQueue(_ context.Context, projectID, name string, afterR
 	}
 	m.q().seq++
 	q := store.Queue{ID: fmt.Sprintf("queue_%02d", m.q().seq), MachineID: p.MachineID, ProjectID: p.ID, Name: name, Status: store.QueueIdle}
-	if len(afterRunIDs) > 0 && afterRunIDs[0] != "" {
-		q.AfterRunID = &afterRunIDs[0]
+	if link.RunID != "" {
+		q.AfterRunID = &link.RunID
+	}
+	if link.Session != "" {
+		q.AfterSession = &link.Session
 	}
 	m.q().queues[q.ID] = q
 	return q, nil

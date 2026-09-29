@@ -9,6 +9,7 @@ Goal: let queue items use ordinary instructions while preserving evidence-based 
 | T1 Plain instruction and completion lifecycle | Done |
 | T2 Docs, acceptance, verification and deploy | Done: `make lint test`, E2E type-check, `make gitleaks`, deploy and health check passed |
 | T3 Safe Docker cleanup | Done: skipped because hostbud toolbox containers and warm test targets were active |
+| T4 Attach a new queue to an existing session | Done: `make lint test`, E2E type-check and gitleaks passed; browser run remains on demand |
 
 ## Tasks
 
@@ -20,3 +21,6 @@ Update README and v2 architecture, complete acceptance, run `make lint test`, ch
 
 ### T3 — Safe Docker cleanup
 Follow v2 Rules and V1 M7 T15 after deploy. Skip and record if anything is in use. Tests/E2E: n/a (operations only).
+
+### T4 — Attach a new queue to an existing session
+Let *Start after* name any existing tmux session, not only an active queue run. Persist it in `queues.after_session` (append-only migration 0014). The first item waits until the session is idle per the inventory snapshot (v2 ARCHITECTURE §3 decision 12); only the first item is gated. Tests: U: store link validation (integration), dispatcher readiness rules and first-item-only gating, API body passthrough, Vitest form option and dependency text; I: PostgreSQL persistence and invalid links. E2E: API-level *Queue attached to an existing non-queue session starts once that session is idle* and desktop *Attach a new queue to an existing non-queue session*.
