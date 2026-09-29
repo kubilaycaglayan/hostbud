@@ -18,3 +18,12 @@
 - **Detailed report:** [2026-09-29-v1-m8-pass-02.md](../e2e-triage/2026-09-29-v1-m8-pass-02.md).
 - **Findings:** the pass 01 batch cleared 124 failures. Remaining: queue-history strict-mode locator (2 profiles), tree.custom client-pid checks in T4/T5, renamed-session expanded state after restart (T6), and the phone "Project tree" dialog timeout in mobile-layout T16 (2 profiles). All open.
 - **Next:** fix the 7 failures as a batch; no further full run unless the owner asks.
+
+## Pass 03 — requested full suite
+
+- **Commit under test:** `1c14bda` (clean working tree).
+- **Result:** 463 passed, 6 failed, 79 skipped, 0 flaky (548 total).
+- **Playwright duration:** 40.9 minutes; 41.5 minutes wall time.
+- **Detailed report:** [2026-09-29-v1-m8-pass-03.md](../e2e-triage/2026-09-29-v1-m8-pass-03.md).
+- **Findings:** the pass 02 batch cleared A, B and C. Still failing: mobile-layout T16, which now hits a strict-mode palette option match (2 phone profiles). New: caret T5 Option-click is one column off (desktop), the push Expired subscription queue never finished (desktop), the queue Loop checkbox won't check (desktop), and the palette T8 phone shortcut doesn't focus the tree row (iPhone). All open.
+- **Next:** fix the 6 failures as a batch; no further full run unless the owner asks.
