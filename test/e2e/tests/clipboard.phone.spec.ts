@@ -22,5 +22,8 @@ test('(T2) Touch long press selects terminal text for copying', async ({ page, u
   })
   await page.waitForTimeout(500)
   await expect.poll(() => termSelection(page)).toBe(marker)
+  // Close the long-press context menu but keep the selected text; otherwise
+  // its modal layer overlaps the toolbar menu used by this scenario.
+  await page.keyboard.press('Escape')
   await ui.terminalAction(session, 'Copy selected text', true)
 })
