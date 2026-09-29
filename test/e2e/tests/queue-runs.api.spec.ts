@@ -49,6 +49,23 @@ async function achievedRecordWritten(target: Target, cwd: string, session: strin
 test.describe('queue runs', () => {
   test.describe.configure({ timeout: 120_000 })
 
+  test('(V2-M7 T2) Queue lifecycle timestamps', async ({ request, target }) => {
+    const { queue, items } = await queueWith(request, target, [
+      { condition: 'e2e lifecycle timestamps', behavior: 'achieve:1' },
+    ])
+    expect((await control(request, queue.id, 'start')).status()).toBe(200)
+    const started = await waitItem(request, queue.id, items[0].id, 'running')
+    expect(started.startedAt).toBeTruthy()
+    expect(started.endedAt).toBeFalsy()
+    expect((await getQueue(request, queue.id)).startedAt).toBeTruthy()
+    const done = await waitItem(request, queue.id, items[0].id, 'done')
+    expect(done.endedAt).toBeTruthy()
+    await expect.poll(async () => (await getQueue(request, queue.id)).status).toBe('finished')
+    const finished = await getQueue(request, queue.id)
+    expect(finished.startedAt).toBeTruthy()
+    expect(finished.endedAt).toBeTruthy()
+  })
+
   test('(V2-M1 T9) Three items in order', async ({ request, target }) => {
     const { project, queue, items } = await queueWith(request, target, [
       { condition: 'e2e order m1', behavior: 'achieve:2' },

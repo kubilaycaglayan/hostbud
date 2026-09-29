@@ -50,6 +50,16 @@ describe('QueuePanel', () => {
     for (const input of $$('input, select')) expect(input.getAttribute('autocomplete')).toBe('off')
   })
 
+  it('shows queue and item lifecycle timestamps', async () => {
+    const startedAt = '2026-09-29T10:00:00Z'
+    const endedAt = '2026-09-29T10:05:00Z'
+    await mountPanel({ ...queue([{ ...queued, startedAt, endedAt }], 'finished'), startedAt, endedAt })
+    const times = $$('time').map((el) => el.getAttribute('datetime'))
+    expect(times).toEqual([startedAt, endedAt, startedAt, endedAt])
+    expect(document.body.textContent).toContain('Finished')
+    expect(document.body.textContent).toContain('Ended')
+  })
+
   it('shows supervisor flags as text and explains completed as advisory', async () => {
     const flagged = {
       ...attention,

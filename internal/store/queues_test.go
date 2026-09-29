@@ -115,6 +115,56 @@ func TestQueueSchemaChecksRejectBadValues(t *testing.T) {
 	}
 }
 
+func TestQueueAndItemLifecycleTimes(t *testing.T) {
+	ctx := context.Background()
+	s, p := queueFixture(t)
+	q, err := s.CreateQueue(ctx, p.ID, "Lifecycle")
+	if err != nil {
+		t.Fatal(err)
+	}
+	it, err := s.AddQueueItem(ctx, q.ID, "claude", "", "/goal lifecycle")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if q.StartedAt != nil || q.EndedAt != nil || it.StartedAt != nil || it.EndedAt != nil {
+		t.Fatal("new queue/item has lifecycle timestamps")
+	}
+	q, err = s.TransitionQueue(ctx, q.ID, []string{QueueIdle}, QueueRunning)
+	if err != nil || q.StartedAt == nil || q.EndedAt != nil {
+		t.Fatalf("queue start: %+v, %v", q, err)
+	}
+	firstStart := *q.StartedAt
+	it, err = s.TransitionQueueItem(ctx, it.ID, []string{ItemQueued}, ItemRunning)
+	if err != nil || it.StartedAt == nil || it.EndedAt != nil {
+		t.Fatalf("item start: %+v, %v", it, err)
+	}
+	itemStart := *it.StartedAt
+	it, err = s.TransitionQueueItem(ctx, it.ID, []string{ItemRunning}, ItemNeedsAttention)
+	if err != nil || it.EndedAt == nil {
+		t.Fatalf("item end: %+v, %v", it, err)
+	}
+	it, err = s.TransitionQueueItem(ctx, it.ID, []string{ItemNeedsAttention}, ItemQueued)
+	if err != nil || it.StartedAt == nil || it.EndedAt != nil {
+		t.Fatalf("item retry resets end and preserves start: %+v, %v", it, err)
+	}
+	it, err = s.TransitionQueueItem(ctx, it.ID, []string{ItemQueued}, ItemRunning)
+	if err != nil || it.StartedAt == nil || !it.StartedAt.Equal(itemStart) {
+		t.Fatalf("item retry start: %+v, %v", it, err)
+	}
+	_, err = s.TransitionQueueItem(ctx, it.ID, []string{ItemRunning}, ItemDone)
+	if err != nil {
+		t.Fatal(err)
+	}
+	q, err = s.TransitionQueue(ctx, q.ID, []string{QueueRunning}, QueueFinished)
+	if err != nil || q.StartedAt == nil || q.EndedAt == nil {
+		t.Fatalf("queue finish: %+v, %v", q, err)
+	}
+	q, err = s.TransitionQueue(ctx, q.ID, []string{QueueFinished}, QueueRunning)
+	if err != nil || q.StartedAt == nil || !q.StartedAt.Equal(firstStart) || q.EndedAt != nil {
+		t.Fatalf("queue restart: %+v, %v", q, err)
+	}
+}
+
 func TestQueueSchemaHasMachineIDsAndIndexes(t *testing.T) {
 	ctx := context.Background()
 	s, _ := queueFixture(t)

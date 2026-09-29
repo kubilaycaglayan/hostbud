@@ -314,6 +314,10 @@ const badge: Record<QueueItem['status'], string> = {
             <DialogDescription class="text-sm text-muted">
               Items run one after another in their own session. The next starts only when the agent's /goal is achieved.
             </DialogDescription>
+            <p v-if="queue?.startedAt" class="mt-1 text-xs text-muted">
+              Started <time :datetime="queue.startedAt">{{ new Date(queue.startedAt).toLocaleString() }}</time>
+              <template v-if="queue.endedAt"> · Finished <time :datetime="queue.endedAt">{{ new Date(queue.endedAt).toLocaleString() }}</time></template>
+            </p>
           </div>
           <DialogClose aria-label="Close queue panel" title="Close" class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border">
             ×
@@ -514,6 +518,12 @@ const badge: Record<QueueItem['status'], string> = {
                       </p>
                       <p class="mt-1 flex flex-wrap items-center gap-2">
                         <span data-testid="item-status" :class="badge[item.status]" class="rounded border px-2 text-sm">{{ statusLabel(item) }}</span>
+                        <time v-if="item.startedAt" class="text-xs text-muted" :datetime="item.startedAt">
+                          Started {{ new Date(item.startedAt).toLocaleString() }}
+                        </time>
+                        <time v-if="item.endedAt" class="text-xs text-muted" :datetime="item.endedAt">
+                          Ended {{ new Date(item.endedAt).toLocaleString() }}
+                        </time>
                       </p>
                       <p v-if="item.run?.detail && (item.status === 'needs_attention' || item.run.status === 'failed')" role="status" class="mt-1 break-words text-sm text-danger">
                         {{ item.run.detail }}

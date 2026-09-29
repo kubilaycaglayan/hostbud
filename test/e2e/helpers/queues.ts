@@ -36,6 +36,8 @@ export interface QueueItem {
   flags: string
   instruction: string
   status: 'queued' | 'running' | 'verifying' | 'awaiting_approval' | 'done' | 'needs_attention' | 'skipped'
+  startedAt?: string
+  endedAt?: string
   /** V2-M4 completion gates ("" = no verify command). */
   verifyCommand: string
   requiresApproval: boolean
@@ -56,6 +58,8 @@ export interface Queue {
   projectId: string
   name: string
   status: 'idle' | 'running' | 'paused' | 'finished'
+  startedAt?: string
+  endedAt?: string
   projectName: string
   projectPath: string
   items: QueueItem[]

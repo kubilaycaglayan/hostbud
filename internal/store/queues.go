@@ -15,8 +15,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// v2 queue schema (migrations/0005_queues.sql, 0006_parallel_queues.sql and
-// 0009_completion_gates.sql, docs/roadmap-v2/ARCHITECTURE.md §6).
+// v2 queue schema (migrations/0005_queues.sql–0011_queue_lifecycle_times.sql,
+// docs/roadmap-v2/ARCHITECTURE.md §6).
 
 // Queue statuses.
 const (
@@ -111,22 +111,26 @@ type Queue struct {
 	// WaitingSince is when the queue last started waiting for a run slot
 	// (start, resume, or its previous run ending; V2-M2 FIFO order).
 	WaitingSince *time.Time `json:"waitingSince,omitempty"`
+	StartedAt    *time.Time `json:"startedAt,omitempty"`
+	EndedAt      *time.Time `json:"endedAt,omitempty"`
 	// AfterRunID gates this queue until an already active tracked run achieves its goal.
 	AfterRunID *string `json:"afterRunId,omitempty"`
 }
 
 // QueueItem is one agent run request: agent, flags and instruction.
 type QueueItem struct {
-	ID          string    `json:"id"`
-	QueueID     string    `json:"queueId"`
-	MachineID   string    `json:"machineId"`
-	Position    int       `json:"position"`
-	Agent       string    `json:"agent"`
-	Flags       string    `json:"flags"`
-	Instruction string    `json:"instruction"`
-	Status      string    `json:"status"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+	ID          string     `json:"id"`
+	QueueID     string     `json:"queueId"`
+	MachineID   string     `json:"machineId"`
+	Position    int        `json:"position"`
+	Agent       string     `json:"agent"`
+	Flags       string     `json:"flags"`
+	Instruction string     `json:"instruction"`
+	Status      string     `json:"status"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	UpdatedAt   time.Time  `json:"updatedAt"`
+	StartedAt   *time.Time `json:"startedAt,omitempty"`
+	EndedAt     *time.Time `json:"endedAt,omitempty"`
 	// V2-M4 gates: the verify command ("" = none; NULL in the store) and
 	// whether the owner must approve before the item is done.
 	VerifyCommand    string `json:"verifyCommand"`
@@ -199,9 +203,9 @@ type RunUpdate struct {
 }
 
 const (
-	queueCols = `id, machine_id, project_id, name, status, created_at, updated_at, waiting_since, after_run_id`
+	queueCols = `id, machine_id, project_id, name, status, created_at, updated_at, waiting_since, after_run_id, started_at, ended_at`
 	itemCols  = `id, queue_id, machine_id, position, agent, flags, instruction, status, created_at, updated_at,
-		verify_command, requires_approval`
+		verify_command, requires_approval, started_at, ended_at`
 	runCols = `id, item_id, machine_id, session_name, agent_session_id, transcript_path, transcript_offset,
 		client_version, token_hash, status, started_at, ended_at, last_signal_at, detail`
 	eventCols = `id, run_id, machine_id, source, kind, payload_json, created_at`
@@ -211,9 +215,9 @@ type scanner interface{ Scan(...any) error }
 
 func scanQueue(row scanner) (Queue, error) {
 	var q Queue
-	var waiting sql.NullTime
+	var waiting, started, ended sql.NullTime
 	var afterRun sql.NullString
-	err := row.Scan(&q.ID, &q.MachineID, &q.ProjectID, &q.Name, &q.Status, &q.CreatedAt, &q.UpdatedAt, &waiting, &afterRun)
+	err := row.Scan(&q.ID, &q.MachineID, &q.ProjectID, &q.Name, &q.Status, &q.CreatedAt, &q.UpdatedAt, &waiting, &afterRun, &started, &ended)
 	if waiting.Valid {
 		t := waiting.Time.UTC()
 		q.WaitingSince = &t
@@ -221,15 +225,32 @@ func scanQueue(row scanner) (Queue, error) {
 	if afterRun.Valid {
 		q.AfterRunID = &afterRun.String
 	}
+	if started.Valid {
+		t := started.Time.UTC()
+		q.StartedAt = &t
+	}
+	if ended.Valid {
+		t := ended.Time.UTC()
+		q.EndedAt = &t
+	}
 	return q, err
 }
 
 func scanItem(row scanner) (QueueItem, error) {
 	var it QueueItem
 	var verify sql.NullString
+	var started, ended sql.NullTime
 	err := row.Scan(&it.ID, &it.QueueID, &it.MachineID, &it.Position, &it.Agent, &it.Flags, &it.Instruction, &it.Status, &it.CreatedAt, &it.UpdatedAt,
-		&verify, &it.RequiresApproval)
+		&verify, &it.RequiresApproval, &started, &ended)
 	it.VerifyCommand = verify.String
+	if started.Valid {
+		t := started.Time.UTC()
+		it.StartedAt = &t
+	}
+	if ended.Valid {
+		t := ended.Time.UTC()
+		it.EndedAt = &t
+	}
 	return it, err
 }
 

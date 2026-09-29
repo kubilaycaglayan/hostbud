@@ -100,6 +100,9 @@ export interface QueueItem {
   flags: string
   instruction: string
   status: QueueItemStatus
+  /** V2-M7: first run start and latest terminal completion time. */
+  startedAt?: string
+  endedAt?: string
   /** V2-M4 completion gates ("" = no verify command). */
   verifyCommand?: string
   requiresApproval?: boolean
@@ -121,6 +124,9 @@ export interface Queue {
   projectId: string
   name: string
   status: QueueStatus
+  /** V2-M7: first start and finish time. */
+  startedAt?: string
+  endedAt?: string
   projectName: string
   projectPath: string
   items: QueueItem[]
