@@ -110,7 +110,7 @@ llmTest('(V2-M5 T5) Flag notifies once per run and label with the allowlisted pa
 })
 
 llmTest('(V2-M5 T2) Hourly classification budget is respected', async ({ llm, target }) => {
-  test.setTimeout(60_000)
+  llmTest.setTimeout(60_000)
   await target.resetTmux(); await stubs.reset(); await llm.post('http://hostbud-e2e-llmfake:8080/ctl/reset')
   const project = await newProject(llm,target,'e2e-llm-budget'); const queue=await createQueue(llm,project.id)
   await stubs.setBehavior('e2e llm budget','quiet-print',0.1)

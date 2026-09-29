@@ -68,7 +68,7 @@ test.describe('Queues panel on iPhone 13 Pro (parallel queues)', () => {
     // The phone switcher is a select; no desktop button list.
     await expect(panel(page)).toBeVisible()
     await expect(panel(page).getByRole('navigation', { name: 'Queues' })).toHaveCount(0)
-    const betaId = await switcher(page).inputValue()
+    const betaId = await switcher(page).locator('option:checked').getAttribute('value')
     const alphaId = await switcher(page).locator('option').first().getAttribute('value')
 
     await setCap(page, '1')
