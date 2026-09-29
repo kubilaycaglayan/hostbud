@@ -76,6 +76,7 @@ describe('SessionTree', () => {
     pinAction!.click()
     await flushPromises()
     expect(tree.order.pinned).toEqual(['b'])
+    expect(document.body.querySelector('[role="menu"]')).toBeNull()
     expect(wrapper.get('[role="group"][aria-label="Pinned projects"]').text()).toContain('Pinned')
     expect(wrapper.get('[data-tree-key="project:b"] button[aria-label="Unpin b"]').classes()).toContain('touch-target')
     expect([...wrapper.findAll('[data-tree-kind="project"]')].map((row) => row.attributes('data-tree-key'))).toEqual(['project:b', 'project:a'])

@@ -195,6 +195,14 @@ function hideProject(id: string) {
   else focusAfterHide(index)
 }
 
+function toggleProjectPin(id: string) {
+  // Pinning moves the row to another v-for section. Clear the controlled menu
+  // before that move so its portal cannot remain open on the remounted row.
+  projectMenuId.value = ''
+  if (tree.order.pinned.includes(id)) tree.unpinProject(id)
+  else tree.pinProject(id)
+}
+
 function hideSession(name: string, hidden: boolean) {
   const key = 'session:' + name
   const index = visibleKeys.value.indexOf(key)
@@ -330,8 +338,7 @@ function onTreeKeydown(event: KeyboardEvent) {
   if (matchingTreeShortcut(event, 'tree-pin') && kind === 'project') {
     event.preventDefault()
     const id = key.slice('project:'.length)
-    if (tree.order.pinned.includes(id)) tree.unpinProject(id)
-    else tree.pinProject(id)
+    toggleProjectPin(id)
     focusKey(key)
     return
   }
@@ -491,13 +498,13 @@ async function saveAsProject(session: Session) {
     <section v-if="pinnedProjectRows.length" role="group" aria-label="Pinned projects">
       <h3 class="px-1.5 pt-1 pb-0.5 text-[11px] font-semibold tracking-wider text-muted uppercase">Pinned</h3>
       <VueDraggable v-model="pinnedProjectRows" tag="ul" role="group" aria-label="Pinned projects list" data-project-section="pinned" item-key="id" handle=".project-drag-handle" class="flex flex-col gap-1" :animation="150" :delay-on-touch-only="true" :touch-start-threshold="3" :group="{ name: 'project-sections', pull: true, put: true }" :on-move="canMoveProject">
-        <ProjectTreeRow v-for="group in pinnedProjectRows" :key="group.id" :group="group" :selected="props.selected" :focused-key="activeFocusKey" :editing-key="editingKey" :edit-error="editError" :menu-open="projectMenuId === group.id" :hidden="tree.order.hidden.projects.includes(group.id)" :pinned="true" :collapsed="tree.order.collapsed.includes(group.id)" :home="home" :rename-project="renameProject" :rename-session="renameSession" @header-click="projectHeaderClick" @long-press-start="startProjectLongPress" @long-press-move="moveProjectLongPress" @long-press-end="endProjectLongPress" @menu-open="(open, id) => projectMenuId = open ? id : ''" @start-rename="startRename" @cancel-rename="cancelRename" @hide-project="hideProject" @remove-project="emit('removeProject', $event)" @toggle-pin="tree.unpinProject" @select="emit('select', $event)" @select-window="(name, window, pane) => emit('selectWindow', name, window, pane)" @split="(name, dir) => emit('split', name, dir)" @hide-session="hideSession" @kill="emit('kill', $event)" @session-in-project="emit('sessionInProject', $event)" @reorder-sessions="tree.reorderSessions" />
+        <ProjectTreeRow v-for="group in pinnedProjectRows" :key="group.id" :group="group" :selected="props.selected" :focused-key="activeFocusKey" :editing-key="editingKey" :edit-error="editError" :menu-open="projectMenuId === group.id" :hidden="tree.order.hidden.projects.includes(group.id)" :pinned="true" :collapsed="tree.order.collapsed.includes(group.id)" :home="home" :rename-project="renameProject" :rename-session="renameSession" @header-click="projectHeaderClick" @long-press-start="startProjectLongPress" @long-press-move="moveProjectLongPress" @long-press-end="endProjectLongPress" @menu-open="(open, id) => projectMenuId = open ? id : ''" @start-rename="startRename" @cancel-rename="cancelRename" @hide-project="hideProject" @remove-project="emit('removeProject', $event)" @toggle-pin="toggleProjectPin" @select="emit('select', $event)" @select-window="(name, window, pane) => emit('selectWindow', name, window, pane)" @split="(name, dir) => emit('split', name, dir)" @hide-session="hideSession" @kill="emit('kill', $event)" @session-in-project="emit('sessionInProject', $event)" @reorder-sessions="tree.reorderSessions" />
       </VueDraggable>
     </section>
     <section v-if="unpinnedProjectRows.length" role="group" aria-label="Projects">
       <h3 v-if="pinnedProjectRows.length" class="px-1.5 pt-1 pb-0.5 text-[11px] font-semibold tracking-wider text-muted uppercase">Projects</h3>
       <VueDraggable v-model="unpinnedProjectRows" tag="ul" role="group" aria-label="Projects list" data-project-section="unpinned" item-key="id" handle=".project-drag-handle" class="flex flex-col gap-1" :animation="150" :delay-on-touch-only="true" :touch-start-threshold="3" :group="{ name: 'project-sections', pull: true, put: true }" :on-move="canMoveProject">
-        <ProjectTreeRow v-for="group in unpinnedProjectRows" :key="group.id" :group="group" :selected="props.selected" :focused-key="activeFocusKey" :editing-key="editingKey" :edit-error="editError" :menu-open="projectMenuId === group.id" :hidden="tree.order.hidden.projects.includes(group.id)" :pinned="false" :collapsed="tree.order.collapsed.includes(group.id)" :home="home" :rename-project="renameProject" :rename-session="renameSession" @header-click="projectHeaderClick" @long-press-start="startProjectLongPress" @long-press-move="moveProjectLongPress" @long-press-end="endProjectLongPress" @menu-open="(open, id) => projectMenuId = open ? id : ''" @start-rename="startRename" @cancel-rename="cancelRename" @hide-project="hideProject" @remove-project="emit('removeProject', $event)" @toggle-pin="tree.pinProject" @select="emit('select', $event)" @select-window="(name, window, pane) => emit('selectWindow', name, window, pane)" @split="(name, dir) => emit('split', name, dir)" @hide-session="hideSession" @kill="emit('kill', $event)" @session-in-project="emit('sessionInProject', $event)" @reorder-sessions="tree.reorderSessions" />
+        <ProjectTreeRow v-for="group in unpinnedProjectRows" :key="group.id" :group="group" :selected="props.selected" :focused-key="activeFocusKey" :editing-key="editingKey" :edit-error="editError" :menu-open="projectMenuId === group.id" :hidden="tree.order.hidden.projects.includes(group.id)" :pinned="false" :collapsed="tree.order.collapsed.includes(group.id)" :home="home" :rename-project="renameProject" :rename-session="renameSession" @header-click="projectHeaderClick" @long-press-start="startProjectLongPress" @long-press-move="moveProjectLongPress" @long-press-end="endProjectLongPress" @menu-open="(open, id) => projectMenuId = open ? id : ''" @start-rename="startRename" @cancel-rename="cancelRename" @hide-project="hideProject" @remove-project="emit('removeProject', $event)" @toggle-pin="toggleProjectPin" @select="emit('select', $event)" @select-window="(name, window, pane) => emit('selectWindow', name, window, pane)" @split="(name, dir) => emit('split', name, dir)" @hide-session="hideSession" @kill="emit('kill', $event)" @session-in-project="emit('sessionInProject', $event)" @reorder-sessions="tree.reorderSessions" />
       </VueDraggable>
     </section>
     <li
