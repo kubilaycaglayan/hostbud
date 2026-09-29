@@ -197,6 +197,30 @@ type RunEvent struct {
 	CreatedAt time.Time       `json:"createdAt"`
 }
 
+// QueueItemHistory is a metadata-only snapshot of an item lifecycle event.
+// It is intentionally independent of live queues and runs.
+type QueueItemHistory struct {
+	ID               int64     `json:"id"`
+	MachineID        string    `json:"machineId"`
+	QueueID          string    `json:"queueId"`
+	QueueName        string    `json:"queueName"`
+	ProjectName      string    `json:"projectName"`
+	ItemID           string    `json:"itemId"`
+	Position         int       `json:"position"`
+	ExecutionMode    string    `json:"executionMode"`
+	TargetSession    string    `json:"targetSession,omitempty"`
+	Agent            string    `json:"agent"`
+	Flags            string    `json:"flags"`
+	Instruction      string    `json:"instruction"`
+	Command          string    `json:"command"`
+	VerifyCommand    string    `json:"verifyCommand,omitempty"`
+	RequiresApproval bool      `json:"requiresApproval,omitempty"`
+	Status           string    `json:"status"`
+	Action           string    `json:"action"`
+	Detail           string    `json:"detail,omitempty"`
+	OccurredAt       time.Time `json:"occurredAt"`
+}
+
 // QueueItemUpdate lists the item fields to change; nil fields stay.
 type QueueItemUpdate struct {
 	Agent       *string
@@ -498,6 +522,33 @@ func (s *Store) Queues(ctx context.Context, machineID string) ([]Queue, error) {
 			return nil, err
 		}
 		out = append(out, q)
+	}
+	return out, rows.Err()
+}
+
+// QueueItemHistory returns bounded newest-first metadata history for a machine.
+func (s *Store) QueueItemHistory(ctx context.Context, machineID string, limit, offset int) ([]QueueItemHistory, error) {
+	if limit < 1 || limit > 200 {
+		limit = 100
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT id, machine_id, queue_id, queue_name, project_name, item_id,
+		position, execution_mode, target_session, agent, flags, instruction, command, verify_command, requires_approval, item_status, action, detail, occurred_at
+		FROM queue_item_history WHERE machine_id = $1 ORDER BY occurred_at DESC, id DESC LIMIT $2 OFFSET $3`, machineID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	out := make([]QueueItemHistory, 0)
+	for rows.Next() {
+		var h QueueItemHistory
+		if err := rows.Scan(&h.ID, &h.MachineID, &h.QueueID, &h.QueueName, &h.ProjectName, &h.ItemID,
+			&h.Position, &h.ExecutionMode, &h.TargetSession, &h.Agent, &h.Flags, &h.Instruction, &h.Command, &h.VerifyCommand, &h.RequiresApproval, &h.Status, &h.Action, &h.Detail, &h.OccurredAt); err != nil {
+			return nil, err
+		}
+		out = append(out, h)
 	}
 	return out, rows.Err()
 }

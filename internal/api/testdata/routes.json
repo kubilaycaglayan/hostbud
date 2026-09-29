@@ -36,6 +36,7 @@
   {"method":"POST","path":"/api/projects/{id}/sessions","stateChanging":true,"authRequired":true,"websocket":false,"jsonBody":true},
   {"method":"POST","path":"/api/hooks/{run}/{event}","stateChanging":true,"authRequired":false,"websocket":false,"jsonBody":false,"token_auth":true},
   {"method":"GET","path":"/api/queues","stateChanging":false,"authRequired":true,"websocket":false,"jsonBody":false},
+  {"method":"GET","path":"/api/queue-history","stateChanging":false,"authRequired":true,"websocket":false,"jsonBody":false},
   {"method":"POST","path":"/api/queues","stateChanging":true,"authRequired":true,"websocket":false,"jsonBody":true},
   {"method":"GET","path":"/api/queues/{id}","stateChanging":false,"authRequired":true,"websocket":false,"jsonBody":false},
   {"method":"PATCH","path":"/api/queues/{id}","stateChanging":true,"authRequired":true,"websocket":false,"jsonBody":true},

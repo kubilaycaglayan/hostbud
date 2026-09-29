@@ -207,6 +207,17 @@ func NewService(st Store, validator ItemValidator, bus *events.Bus) *Service {
 	return &Service{store: st, validator: validator, bus: bus, machine: store.HostMachineID, now: time.Now}
 }
 
+// History returns the durable, metadata-only queue history feed.
+func (s *Service) History(ctx context.Context, limit, offset int) ([]store.QueueItemHistory, error) {
+	historyStore, ok := s.store.(interface {
+		QueueItemHistory(context.Context, string, int, int) ([]store.QueueItemHistory, error)
+	})
+	if !ok {
+		return nil, errors.New("queue history is unavailable")
+	}
+	return historyStore.QueueItemHistory(ctx, s.machine, limit, offset)
+}
+
 // SetDispatcher connects the dispatcher (T9).
 func (s *Service) SetDispatcher(d Control) { s.dispatch = d }
 

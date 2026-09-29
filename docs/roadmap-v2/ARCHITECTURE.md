@@ -1,6 +1,6 @@
 # hostbud v2 — Agent task queue (architecture decision)
 
-Status: **V2-M1–V2-M8 implemented** (M2–M8 opt-in; full browser suites run on demand). See the per-milestone acceptance checklists for verification status and the open owner checks. This document superseded the v2 sketch in the v1 [ARCHITECTURE.md §10](../ARCHITECTURE.md#10-v2--agent-task-queue) and the *v2* section of the v1 [ROADMAP.md](../ROADMAP.md), which now point here. The v1 obligations in v1 §10 still apply. The V2-M1 spike results are in §12.
+Status: **V2-M1–V2-M9 implemented** (M2–M8 opt-in additions; M9 is the owner-requested always-on metadata audit history; full browser suites run on demand and owner checks remain open). See the per-milestone acceptance checklists for verification status and the open owner checks. This document superseded the v2 sketch in the v1 [ARCHITECTURE.md §10](../ARCHITECTURE.md#10-v2--agent-task-queue) and the *v2* section of the v1 [ROADMAP.md](../ROADMAP.md), which now point here. The v1 obligations in v1 §10 still apply. The V2-M1 spike results are in §12.
 
 ---
 
@@ -232,6 +232,7 @@ run_events(id, run_id FK, source CHECK(source IN ('hook','poller','timer','user'
 - Implemented as `internal/store/migrations/0005_queues.sql` (V2-M1 T2). Design additions: `runs.transcript_path` (the bound transcript) and `runs.transcript_offset` (bytes read so far, for incremental reads, §7); `token_hash` is the 32-byte SHA-256; `run_events.payload_json` has a 64 KiB CHECK; `UNIQUE(queue_id, position)`; indexes on `runs(item_id)`, `runs(status)` and `run_events(run_id, created_at)`.
 - Nothing cascades: deleting a queue deletes its events, runs, items and row in one explicit transaction, and is refused while a run is active. A project with a queue can't be deleted (409) until its queue is.
 - `run_events` stores the forwarded hook JSON with a size cap and with `transcript_path` kept. These are the audit trail for "why did the queue advance?".
+- **Queue history (V2-M9).** `queue_item_history` is a standalone append-only metadata log, with no foreign keys to live queue rows so it survives deleting a queue or item. It snapshots queue/project labels, item position, agent/mode, flags, instruction or command, item status, transition kind, latest actionable run detail, and occurrence time. It never stores transcripts, hook payloads, terminal output, tokens, or agent session identifiers. A `queue_history` API and History view expose these records newest first; the history is descriptive and cannot be used to resume or control a queue. Queue deletion leaves its history intact.
 - This replaces the `tasks`/`runs`/`machine_capacity` sketch in ARCHITECTURE §10.
 - V2-M2 adds `internal/store/migrations/0006_parallel_queues.sql` (additions only): `machine_capacity(machine_id PK FK, max_concurrent_runs INT NULL CHECK 1–32, updated_at)`, `queues.waiting_since TIMESTAMPTZ NULL` and the unique index `queues_project_name` on `(project_id, lower(name))` (§5.5).
 - V2-M4 adds `internal/store/migrations/0009_completion_gates.sql`: `queue_items.verify_command TEXT NULL` (1–4096 bytes; NULL = none) and `requires_approval BOOLEAN NOT NULL DEFAULT false`, and it widens `queue_items.status` (+ `verifying`, `awaiting_approval`) and `run_events.source` (+ `verify`), each CHECK replaced in one `DROP CONSTRAINT … ADD CONSTRAINT` statement. The new sets are strict supersets: existing rows stay valid and nothing is updated (§5.6).
@@ -372,6 +373,8 @@ Fallback for clients without a readable goal state: an explicit `session_end` / 
 **V2-M4 — Completion gates** (opt-in, per item): a verify command run by hostbud in the project directory (exit 0 required), and/or manual approval, before advancing.
 
 **V2-M5 — LLM stale-run supervisor** (opt-in): classifies `capture-pane` output for runs without a signal. It can flag a run, never advance it. The provider is pluggable, as in ARCHITECTURE §10.
+
+**V2-M9 — Durable queue history**: append-only metadata snapshots of item creation, edits, status transitions and deletion, plus a read-only History view that remains available after live queue deletion. No terminal or transcript content is stored in this history.
 
 ---
 

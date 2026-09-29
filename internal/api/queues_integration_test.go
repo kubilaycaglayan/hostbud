@@ -114,6 +114,31 @@ func TestIntegrationQueueRoutesUsePostgres(t *testing.T) {
 	want(200, status, body, "edit")
 	status, body = call("DELETE", "/api/queue-items/"+ids[1], "", origin)
 	want(204, status, body, "delete item")
+	status, body = call("GET", "/api/queue-history?limit=200&offset=0", "", "")
+	want(200, status, body, "queue history")
+	var history struct {
+		Items []struct {
+			QueueID     string `json:"queueId"`
+			Instruction string `json:"instruction"`
+			Action      string `json:"action"`
+			Status      string `json:"status"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(body, &history); err != nil {
+		t.Fatal(err)
+	}
+	seenEdited, seenDeleted := false, false
+	for _, row := range history.Items {
+		if row.QueueID == q.ID && row.Instruction == "/goal m1 and docs" && row.Action == "edited" {
+			seenEdited = true
+		}
+		if row.QueueID == q.ID && row.Action == "deleted" && row.Status == "queued" {
+			seenDeleted = true
+		}
+	}
+	if !seenEdited || !seenDeleted {
+		t.Fatalf("history missing edit/delete snapshots: %s", body)
+	}
 	status, body = call("GET", "/api/queues", "", "")
 	want(200, status, body, "list")
 	var list struct{ Queues []queue.View }

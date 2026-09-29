@@ -26,7 +26,7 @@ It is reachable two ways:
 - File editing / previews, git integration.
 - Multi-user authorization beyond the single-user v1 account model. v1 still has one trusted host machine, but the web app requires an account; reachability is not sufficient by itself.
 
-**v2** — see §10 and [roadmap-v2/ARCHITECTURE.md](roadmap-v2/ARCHITECTURE.md): task queue, per-machine capacity, hook-based session status, and an optional LLM supervisor. V2-M1–V2-M5 are implemented; the full V2-M5 browser suite runs on demand. The LLM supervisor is off unless explicitly configured.
+**v2** — see §10 and [roadmap-v2/ARCHITECTURE.md](roadmap-v2/ARCHITECTURE.md): task queue, per-machine capacity, hook-based session status, an optional LLM supervisor, and durable metadata-only queue history. Later browser suites run on demand. The LLM supervisor is off unless explicitly configured.
 
 ---
 
@@ -342,6 +342,7 @@ GET    /api/supervisor              authenticated V2-M5 status; enabled/provider
 
 # v2 agent queue (V2-M1, V2-M2, V2-M4; docs/roadmap-v2)
 GET    /api/queues                    {queues: [queue], parallelQueues} — each queue with its project, items (each with its latest run summary and, V2-M2, waitingForSlot) and warnings (shared_directory)
+GET    /api/queue-history?limit=100&offset=0  V2-M9: newest-first metadata snapshots; limit 1–200; survives queue/item deletion; excludes session content
 POST   /api/queues                    {projectId, name} — 201; with parallel queues off one queue (a second → 409 naming V2-M2), on: several, names unique per project (409)
 GET    /api/queues/:id
 PATCH  /api/queues/:id                {name}

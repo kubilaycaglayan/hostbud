@@ -820,3 +820,54 @@ func TestDeleteQueueRemovesOnlyItsRows(t *testing.T) {
 		t.Fatalf("delete project after its queue: %v", err)
 	}
 }
+
+func TestQueueItemHistorySurvivesDeleteAndStoresOnlyMetadata(t *testing.T) {
+	ctx := context.Background()
+	s, p := queueFixture(t)
+	q, err := s.CreateQueue(ctx, p.ID, "History queue")
+	if err != nil {
+		t.Fatal(err)
+	}
+	it, err := s.AddQueueItem(ctx, q.ID, "claude", "--safe", "/goal keep the metadata")
+	if err != nil {
+		t.Fatal(err)
+	}
+	run, err := s.CreateRun(ctx, it.ID, tokenHash("history-token"), time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.TransitionRun(ctx, run.ID, []string{RunStarting}, RunFailed, "", nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.AppendRunEvent(ctx, run.ID, SourceVerify, KindVerifyResult, []byte(`{"detail":"verify failed (exit 1)","output":"OUTPUT_SECRET"}`)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.TransitionQueueItem(ctx, it.ID, []string{ItemQueued}, ItemNeedsAttention); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := s.QueueItemHistory(ctx, HostMachineID, 100, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) < 2 {
+		t.Fatalf("history rows = %d; want create and status snapshots", len(rows))
+	}
+	if rows[0].Status != ItemNeedsAttention || rows[0].Detail != "verify failed (exit 1)" || rows[0].Instruction != "/goal keep the metadata" {
+		t.Fatalf("latest snapshot = %+v", rows[0])
+	}
+	if err := s.DeleteQueue(ctx, q.ID); err != nil {
+		t.Fatal(err)
+	}
+	rows, err = s.QueueItemHistory(ctx, HostMachineID, 100, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rows[0].QueueID != q.ID || rows[0].QueueName != q.Name || rows[0].Command != "" || rows[0].Detail != "verify failed (exit 1)" {
+		t.Fatalf("history lost on queue delete: %+v", rows[0])
+	}
+	for _, row := range rows {
+		if strings.Contains(row.Detail, "history-token") || strings.Contains(row.Detail, "OUTPUT_SECRET") || strings.Contains(row.Instruction, "transcript") {
+			t.Fatalf("history stored sensitive run data: %+v", row)
+		}
+	}
+}

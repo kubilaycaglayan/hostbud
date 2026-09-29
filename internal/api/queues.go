@@ -35,10 +35,12 @@ type QueueService interface {
 	Capacity(ctx context.Context) (*int, error)
 	SetCapacity(ctx context.Context, maxRuns *int) (*int, error)
 	SetParallel(ctx context.Context, on bool) (bool, error)
+	History(ctx context.Context, limit, offset int) ([]store.QueueItemHistory, error)
 }
 
 func mountQueueRoutes(s *server, addFunc func(string, http.HandlerFunc)) {
 	addFunc("GET /api/queues", s.listQueues)
+	addFunc("GET /api/queue-history", s.queueHistory)
 	addFunc("POST /api/queues", s.createQueue)
 	addFunc("GET /api/queues/{id}", s.getQueue)
 	addFunc("PATCH /api/queues/{id}", s.renameQueue)
@@ -62,6 +64,35 @@ func mountQueueRoutes(s *server, addFunc func(string, http.HandlerFunc)) {
 	addFunc("PUT /api/machines/{machine}/capacity", s.putCapacity)
 	// The parallel-queues switch (Queue panel), over HOSTBUD_PARALLEL_QUEUES.
 	addFunc("PUT /api/machines/{machine}/parallel-queues", s.putParallelQueues)
+}
+
+func (s *server) queueHistory(w http.ResponseWriter, r *http.Request) {
+	limit := 100
+	offset := 0
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 1 || n > 200 {
+			writeError(w, http.StatusBadRequest, "limit must be from 1 to 200", "Choose a page size between 1 and 200.")
+			return
+		}
+		limit = n
+	}
+	if raw := r.URL.Query().Get("offset"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 0 || n > 1_000_000 {
+			writeError(w, http.StatusBadRequest, "offset must be between zero and 1000000", "Use a non-negative whole number.")
+			return
+		}
+		offset = n
+	}
+	items, err := s.cfg.Queues.History(r.Context(), limit, offset)
+	if err != nil {
+		s.queueError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, struct {
+		Items []store.QueueItemHistory `json:"items"`
+	}{Items: items})
 }
 
 func (s *server) queueError(w http.ResponseWriter, err error) {

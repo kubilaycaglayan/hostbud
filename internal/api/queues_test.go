@@ -101,6 +101,10 @@ func (f *fakeQueues) Override(_ context.Context, id, action string) (queue.View,
 }
 
 func (f *fakeQueues) ParallelQueues() bool { return f.parallel }
+func (f *fakeQueues) History(_ context.Context, limit, offset int) ([]store.QueueItemHistory, error) {
+	f.rec(fmt.Sprintf("history %d %d", limit, offset))
+	return []store.QueueItemHistory{}, f.err
+}
 func (f *fakeQueues) Capacity(context.Context) (*int, error) {
 	f.rec("capacity")
 	return f.capacity, f.err
@@ -159,6 +163,7 @@ func TestQueueRoutesCallTheService(t *testing.T) {
 		call               string
 	}{
 		{"GET", "/api/queues", "", 200, "list"},
+		{"GET", "/api/queue-history?limit=25&offset=10", "", 200, "history 25 10"},
 		{"POST", "/api/queues", `{"projectId":"project_a","name":"Milestones"}`, 201, "create project_a Milestones"},
 		{"GET", "/api/queues/queue_a", "", 200, "get queue_a"},
 		{"PATCH", "/api/queues/queue_a", `{"name":"M"}`, 200, "rename queue_a M"},
@@ -198,11 +203,23 @@ func TestQueueRoutesCallTheService(t *testing.T) {
 			t.Errorf("delay %q status = %d", value, rec.Code)
 		}
 	}
+	for _, path := range []string{"/api/queue-history?limit=0", "/api/queue-history?limit=201", "/api/queue-history?offset=-1"} {
+		if rec := queueRequest(t, h, "GET", path, "", nil); rec.Code != http.StatusBadRequest {
+			t.Errorf("history query %q status = %d", path, rec.Code)
+		}
+	}
 }
 
 func TestQueueRoutesMapErrorsAndRefuseForeignOrigins(t *testing.T) {
 	q := &fakeQueues{err: &queue.Error{Status: http.StatusConflict, Message: "V2-M1 supports one queue; several queues arrive with V2-M2", Hint: "Add more items."}}
 	h := queueEnv(t, q)
+	unauthenticated := httptest.NewRequestWithContext(t.Context(), "GET", "/api/queue-history", nil)
+	unauthenticated.Header.Set("Origin", "https://attacker.example")
+	unauthenticatedRec := httptest.NewRecorder()
+	h.ServeHTTP(unauthenticatedRec, unauthenticated)
+	if unauthenticatedRec.Code != http.StatusUnauthorized {
+		t.Errorf("unauthenticated queue history status = %d", unauthenticatedRec.Code)
+	}
 	rec := queueRequest(t, h, "POST", "/api/queues", `{"projectId":"p","name":"n"}`, nil)
 	body := decodeBody[errorBody](t, rec)
 	if rec.Code != http.StatusConflict || body.Error != "V2-M1 supports one queue; several queues arrive with V2-M2" || body.Hint != "Add more items." {

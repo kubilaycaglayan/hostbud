@@ -149,6 +149,31 @@ export interface QueueList {
   parallelQueues: boolean
 }
 
+/** Metadata-only historical snapshot for a queue item lifecycle event (V2-M9). */
+export interface QueueItemHistory {
+  id: number
+  machineId: string
+  queueId: string
+  queueName: string
+  projectName: string
+  itemId: string
+  position: number
+  executionMode: 'agent' | 'session'
+  targetSession?: string
+  agent: 'claude' | 'codex'
+  flags: string
+  instruction: string
+  command: string
+  verifyCommand?: string
+  requiresApproval?: boolean
+  status: QueueItemStatus
+  action: 'created' | 'edited' | 'status' | 'deleted'
+  detail?: string
+  occurredAt: string
+}
+
+export interface QueueHistoryPage { items: QueueItemHistory[] }
+
 /** PUT /api/machines/:id/parallel-queues. */
 export interface ParallelQueues {
   parallelQueues: boolean

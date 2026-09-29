@@ -7,7 +7,7 @@ import {
 import { VueDraggable } from 'vue-draggable-plus'
 import { ArrowDown, ArrowUp, GripVertical, Pencil, Plus, Trash2, TriangleAlert } from 'lucide-vue-next'
 import { queuesApi } from '@/api/client'
-import type { QueueItem } from '@/api/types'
+import type { QueueItem, QueueItemHistory } from '@/api/types'
 import FormError from './FormError.vue'
 import { AGENTS, type Agent, flagsError, INSTRUCTION_PREFIX, instructionError, itemActions, moveQueued, queueControls, statusLabel, verifyCommandError, verifyLine } from '@/lib/queue'
 import { useQueuesStore } from '@/stores/queues'
@@ -59,6 +59,44 @@ const controls = computed(() => queue.value ? queueControls(queue.value.status, 
 
 const error = ref<{ title: string; message: string; hint?: string } | null>(null)
 const busy = ref(false)
+const historyOpen = ref(false)
+const history = ref<QueueItemHistory[]>([])
+const historyGroups = computed(() => {
+  const groups = new Map<string, { id: string; name: string; project: string; entries: QueueItemHistory[] }>()
+  for (const entry of history.value) {
+    const group = groups.get(entry.queueId) ?? { id: entry.queueId, name: entry.queueName, project: entry.projectName, entries: [] }
+    group.entries.push(entry)
+    groups.set(entry.queueId, group)
+  }
+  return [...groups.values()]
+})
+const historyOffset = ref(0)
+const historyHasMore = ref(false)
+const historyLoading = ref(false)
+const historyError = ref('')
+async function loadHistory(reset = false) {
+  if (historyLoading.value) return
+  historyLoading.value = true
+  historyError.value = ''
+  try {
+    const offset = reset ? 0 : historyOffset.value
+    const page = await queuesApi.history(100, offset)
+    history.value = reset ? page.items : [...history.value, ...page.items]
+    historyOffset.value = offset + page.items.length
+    historyHasMore.value = page.items.length === 100
+  } catch (e) {
+    historyError.value = describeError(e).message
+  } finally {
+    historyLoading.value = false
+  }
+}
+function showHistory() {
+  historyOpen.value = true
+  void loadHistory(true)
+}
+function actionLabel(action: QueueItemHistory['action']) {
+  return ({ created: 'Added', edited: 'Edited', status: 'Status', deleted: 'Deleted' })[action]
+}
 
 async function act(title: string, fn: () => Promise<unknown>) {
   busy.value = true
@@ -333,11 +371,43 @@ const badge: Record<QueueItem['status'], string> = {
               <template v-if="queue.endedAt"> · Finished <time :datetime="queue.endedAt">{{ new Date(queue.endedAt).toLocaleString() }}</time></template>
             </p>
           </div>
+          <button v-if="!historyOpen" type="button" class="touch-target min-h-11 rounded border border-border px-3" @click="showHistory">History</button>
+          <button v-else type="button" class="touch-target min-h-11 rounded border border-border px-3" @click="historyOpen = false">Queue</button>
           <DialogClose aria-label="Close queue panel" title="Close" class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border">
             ×
           </DialogClose>
         </div>
         <div class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-3">
+          <section v-if="historyOpen" aria-label="Queue history" data-testid="queue-history">
+            <h2 class="text-lg font-bold">Queue history</h2>
+            <p class="mt-1 text-sm text-muted">Status changes and item metadata. Terminal output and session transcripts are not stored here.</p>
+            <p v-if="historyError" role="alert" class="mt-2 text-danger">Couldn't load queue history: {{ historyError }}</p>
+            <p v-if="!history.length && !historyLoading && !historyError" class="mt-4 text-muted">No queue history yet.</p>
+            <ol class="mt-3 space-y-4">
+              <li v-for="group in historyGroups" :key="group.id" class="min-w-0">
+                <h3 class="font-bold">{{ group.name }} <span class="font-normal text-muted">· {{ group.project }}</span></h3>
+                <ol class="mt-2 space-y-2">
+                  <li v-for="entry in group.entries" :key="entry.id" class="min-w-0 rounded border border-border p-3" :data-history-id="entry.id">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                      <p class="font-semibold">Item {{ entry.position }} — {{ actionLabel(entry.action) }}: {{ entry.status.replace('_', ' ') }}</p>
+                      <time class="text-xs text-muted" :datetime="entry.occurredAt">{{ new Date(entry.occurredAt).toLocaleString() }}</time>
+                    </div>
+                    <p class="mt-1 break-words font-mono text-sm">{{ entry.executionMode === 'session' ? entry.command : entry.instruction }}</p>
+                    <p class="mt-1 text-sm text-muted">{{ entry.executionMode === 'session' ? `Command in ${entry.targetSession || 'existing session'}` : `${entry.agent}${entry.flags ? ` · ${entry.flags}` : ''}` }}</p>
+                    <p v-if="entry.verifyCommand || entry.requiresApproval" class="mt-1 break-words text-sm text-muted">
+                      <template v-if="entry.verifyCommand">Verify: <span class="font-mono">{{ entry.verifyCommand }}</span></template>
+                      <template v-if="entry.verifyCommand && entry.requiresApproval"> · </template>
+                      <template v-if="entry.requiresApproval">Requires approval</template>
+                    </p>
+                    <p v-if="entry.detail" class="mt-1 break-words text-sm text-danger">{{ entry.detail }}</p>
+                  </li>
+                </ol>
+              </li>
+            </ol>
+            <button v-if="historyHasMore" type="button" class="touch-target mt-3 min-h-11 rounded border border-border px-3" :disabled="historyLoading" @click="loadHistory()">{{ historyLoading ? 'Loading…' : 'Load older' }}</button>
+            <p v-else-if="historyLoading" class="mt-3 text-sm text-muted">Loading…</p>
+          </section>
+          <template v-else>
           <FormError v-if="error" id="queue-error" :title="error.title" :message="error.message" :hint="error.hint" />
           <p v-if="store.loadError" role="alert" class="mt-2 text-danger">
             Couldn't load the queue: {{ store.loadError }}
@@ -668,6 +738,7 @@ const badge: Record<QueueItem['status'], string> = {
                 <button type="submit" :disabled="busy" class="touch-target min-h-8 rounded bg-accent px-2 font-bold text-bg">Add item</button>
               </div>
             </form>
+          </template>
           </template>
         </div>
       </DialogContent>

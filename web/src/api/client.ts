@@ -247,6 +247,7 @@ const q = (id: string) => encodeURIComponent(id)
 /** The v2 queue API (/api/queues, /api/queue-items; V2-M2 the run cap). */
 export const queuesApi = {
   list: () => request<QueueList>('GET', '/api/queues'),
+  history: (limit = 100, offset = 0) => request<import('./types').QueueHistoryPage>('GET', `/api/queue-history?limit=${limit}&offset=${offset}`),
   capacity: (machine: string) => request<Capacity>('GET', `/api/machines/${q(machine)}/capacity`),
   setCapacity: (machine: string, maxConcurrentRuns: number | null) =>
     request<Capacity>('PUT', `/api/machines/${q(machine)}/capacity`, { maxConcurrentRuns }),
