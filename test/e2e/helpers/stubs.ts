@@ -16,6 +16,7 @@ export type StubBehavior =
   | `silent-then-achieve:${number}`
   | 'clear'
   | 'pending'
+  | 'codex-wire-limits'
   | `slow:${number}`
 
 export interface StubLog {

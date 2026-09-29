@@ -132,6 +132,17 @@ test.describe('queue runs', () => {
     expect(await target.sessions()).toContain(item.run!.sessionName)
   })
 
+  test('(V2-M1 T9) Codex camelCase goal limits keep the queue running', async ({ request, target }) => {
+    const { queue, items } = await queueWith(request, target, [
+      { agent: 'codex', condition: 'e2e codex wire limits', behavior: 'codex-wire-limits' },
+      { agent: 'codex', condition: 'e2e codex wire limits next', behavior: 'achieve:1' },
+    ])
+    expect((await control(request, queue.id, 'start')).status()).toBe(200)
+    await waitItem(request, queue.id, items[0].id, 'done', 45_000)
+    await waitItem(request, queue.id, items[1].id, 'done', 45_000)
+    await expect.poll(async () => (await getQueue(request, queue.id)).status).toBe('finished')
+  })
+
   for (const [behavior, runStatus, detail] of [
     ['fail', 'failed', "can't be achieved"],
     ['exit', 'exited', 'ended without achieving'],

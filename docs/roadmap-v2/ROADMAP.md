@@ -181,7 +181,7 @@ Run each check with **both** real clients, in a scratch directory the owner does
 - `ReadGoalState` uses the reader chosen in S7:
   - `status=='complete'` with `updated_at_ms` after start and `objective` equal ⇒ `achieved`;
   - `blocked` ⇒ `failed`;
-  - `active`, `paused`, `usage_limited`, `budget_limited` ⇒ `pending`;
+  - `active`, `paused`, and Codex's `usageLimited` / `budgetLimited` wire statuses (or legacy underscore spellings) ⇒ `pending`;
   - anything else ⇒ `unknown`.
 - If S7 chose a host tool (`sqlite3`/`python3`): the query opens the database read-only, is built from argv through `sshx`, and is timeout-bounded. A missing tool is an actionable error (e.g. "sqlite3 not found on the host — install with `sudo apt install sqlite3`").
 - Version check and `client_version` as in T5.

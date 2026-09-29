@@ -22,6 +22,7 @@ behavior file holds one line, e.g. "achieve:2 delay=0.5":
   silent-then-achieve:S    writes an achieved record after S seconds, no hook
   clear                    after one turn, a new session id (/clear)
   pending                  keeps answering not met (Claude) / active (Codex)
+  codex-wire-limits         exercises Codex camelCase limited statuses, then achieves
   slow:S                   one long turn of S seconds, then achieved (with its Stop hook)
 Options after the behavior: delay=<s per turn>, verdict_delay=<s>, and
 stops=N (Claude achieve: the last Stop hook fires N times, once more after
@@ -370,6 +371,16 @@ def codex(argv):
         for n in range(1, 10_000):
             turn(n, "still working")
             time.sleep(max(delay, 2.0))
+    elif name == "codex-wire-limits":
+        armed()
+        set_status("budgetLimited")
+        turn(1, "goal reached its token budget status")
+        set_status("usageLimited")
+        turn(2, "goal reached its usage limit status")
+        set_status("active")
+        turn(3, "goal resumed")
+        set_status("complete")
+        turn(4, "goal complete")
     wait_for_stdin_eof()
     fire("SessionEnd", {"reason": "exit"})
     return 0

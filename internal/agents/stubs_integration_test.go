@@ -234,6 +234,7 @@ func TestIntegrationStubsAgainstAdapters(t *testing.T) {
 			"fail":                  {"fail", func(c []sinkCall) bool { return count(c, EventTurnEnd) >= 1 }, Failed},
 			"decoy":                 {"decoy", func(c []sinkCall) bool { return count(c, EventTurnEnd) >= 1 }, Pending},
 			"pending":               {"pending", func(c []sinkCall) bool { return count(c, EventTurnEnd) >= 1 }, Pending},
+			"codex-wire-limits":     {"codex-wire-limits", func(c []sinkCall) bool { return count(c, EventTurnEnd) >= 1 }, Pending},
 			"silent-then-achieve:1": {"silent-then-achieve:1", func(c []sinkCall) bool { return count(c, EventSessionStart) >= 1 }, Achieved},
 			"slow:1":                {"slow:1", func(c []sinkCall) bool { return count(c, EventTurnEnd) >= 1 }, Achieved},
 		}

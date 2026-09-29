@@ -109,8 +109,8 @@ func (c *Codex) Arm(ctx context.Context, machine string, b Binding, _ store.Run,
 
 // ReadGoalState reads the bound thread's goal (thread/goal/get, read-only)
 // and maps it (v2 §5.3): complete, set during this run, with the queued
-// objective ⇒ achieved; blocked ⇒ failed; active, paused, usage_limited,
-// budget_limited ⇒ pending; no goal, another objective, a goal from before
+// objective ⇒ achieved; blocked ⇒ failed; active, paused, usageLimited,
+// budgetLimited (and older underscore spellings) ⇒ pending; no goal, another objective, a goal from before
 // the run or an unknown status ⇒ unknown.
 func (c *Codex) ReadGoalState(ctx context.Context, machine string, b Binding, run store.Run, condition string) (GoalState, error) {
 	var res struct {
@@ -145,7 +145,8 @@ func codexGoalState(g *codexGoal, run store.Run, condition string) GoalState {
 		state.Status = Achieved
 	case g.Status == "blocked":
 		state.Status, state.Reason = Failed, "Codex marked the goal blocked"
-	case g.Status == "active", g.Status == "paused", g.Status == "usage_limited", g.Status == "budget_limited":
+	case g.Status == "active", g.Status == "paused", g.Status == "usage_limited", g.Status == "budget_limited",
+		g.Status == "usageLimited", g.Status == "budgetLimited":
 		state.Status = Pending
 	default:
 		state.Status, state.Reason = Unknown, fmt.Sprintf("unrecognised Codex goal status %q", g.Status)

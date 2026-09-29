@@ -67,7 +67,7 @@ Links: tasks in [V2-M1-tasks.md](V2-M1-tasks.md); criteria R1–R17, their base 
   - The Codex reader is read-only, uses a bound parameter, and gives an actionable error if a tool is missing.
   - Too old or missing clients are refused. `client_version` is recorded.
   - An unknown agent kind is refused.
-  - U: T5, T6 (fixture matrices for each version) · I: T5, T6 (against `test/sshd`), T7 (drift test), T9 · E: T9 *Three items in order*, *Mixed clients*.
+  - U: T5, T6 (fixture matrices for each version, including camelCase `usageLimited` / `budgetLimited`) · I: T5, T6 (against `test/sshd`), T7 (drift test), T9 · E: T9 *Three items in order*, *Mixed clients*, *Codex camelCase goal limits keep the queue running*.
 - [x] **R8 Decoy text never advances the queue.** Every line is parsed as JSON; text is never searched.
   - U: T5, T6 (decoy fixtures) · I: T7 (drift test with `decoy`) · E: T9 *Decoy text does not advance*.
 - [x] **R9 Fail closed.** Each of these sets the item to `needs_attention` with a `detail` and pauses the queue, while the session keeps running:

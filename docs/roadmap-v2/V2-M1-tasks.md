@@ -233,7 +233,8 @@ Scope: R T6. Additions:
 - **If S7 chose the rollout file:** T5's path checks (the file must be under `~/.codex/`), read-only SFTP, the incremental offset, and structured records only.
 - **Fixtures:** `internal/agents/testdata/codex/<version>/`. Cover every status, complete-before-start, a different objective, and decoy text in the objective or messages.
 - **Tests (added to R T6):** I checks that the database checksum is unchanged after reads, and that a variant with the tool missing from `PATH` gives the actionable error.
-- **E2E:** covered by T9's *Mixed clients*.
+- **Tests:** U covers both Codex wire spellings for limited statuses; I exercises `budgetLimited` and `usageLimited` through the T7 app-server stub.
+- **E2E:** T9 *Codex camelCase goal limits keep the queue running* checks that limited statuses do not stop the run or prevent the next queued item from starting.
 
 ## T7 — Stub clients on the throwaway target
 

@@ -154,7 +154,7 @@ A native goal record is accepted only if **all** of these hold:
   - `attachment.condition` equals the queued condition (the instruction text after `/goal `, whitespace-normalized).
 - **Codex:** the goal of the bound thread, read with `thread/goal/get`, has `status == 'complete'`, `createdAt` (seconds) not before `run.started_at` (hostbud set it in this run), and `objective` equal to the queued condition.
 - Claude writes `{"met":false,"sentinel":true,…}` when a goal is set; that is `pending`.
-- `failed` means Claude's `{"met":false,"failed":true,…}` "impossible" record, or Codex's `blocked`. `paused`, `usage_limited` and `budget_limited` stay `pending`. Codex usage limits resume on their own; a long pause then surfaces as `stale`.
+- `failed` means Claude's `{"met":false,"failed":true,…}` "impossible" record, or Codex's `blocked`. `paused`, `usage_limited` / `usageLimited` and `budget_limited` / `budgetLimited` stay `pending` (Codex's JSON-RPC wire enum uses camelCase for these two values). Codex usage limits resume on their own; a long pause then surfaces as `stale`.
 - A plain Claude prompt has no trusted goal record. Its first turn-end signal means only that the turn stopped; hostbud asks the owner to review it, and it cannot be selected as a queue dependency predecessor.
 
 ### 5.4 State machines

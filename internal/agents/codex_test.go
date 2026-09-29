@@ -273,6 +273,8 @@ func TestCodexGoalStateMatrix(t *testing.T) {
 		{"paused", with(func(x *codexGoal) { x.Status = "paused" }), run, g.Objective, Pending},
 		{"usage_limited", with(func(x *codexGoal) { x.Status = "usage_limited" }), run, g.Objective, Pending},
 		{"budget_limited", with(func(x *codexGoal) { x.Status = "budget_limited" }), run, g.Objective, Pending},
+		{"usageLimited wire status", with(func(x *codexGoal) { x.Status = "usageLimited" }), run, g.Objective, Pending},
+		{"budgetLimited wire status", with(func(x *codexGoal) { x.Status = "budgetLimited" }), run, g.Objective, Pending},
 		{"blocked", with(func(x *codexGoal) { x.Status = "blocked" }), run, g.Objective, Failed},
 		{"new status", with(func(x *codexGoal) { x.Status = "archived" }), run, g.Objective, Unknown},
 		{"no goal", nil, run, g.Objective, Unknown},
