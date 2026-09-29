@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -262,5 +263,42 @@ func TestClaudeTranscriptPathValidation(t *testing.T) {
 	got, err := c.ReadGoalState(ctx, "host", Binding{SessionID: "s", TranscriptPath: "/etc/passwd"}, store.Run{}, condDone)
 	if err != nil || got.Status != Unknown || files.reads != 0 {
 		t.Fatalf("bad path: %+v, %v, %d reads", got, err, files.reads)
+	}
+}
+
+func usageLine(session, at, id string, in, cacheWrite, cacheRead, out int) string {
+	return fmt.Sprintf(`{"type":"assistant","timestamp":%q,"sessionId":%q,"message":{"id":%q,"usage":{"input_tokens":%d,"cache_creation_input_tokens":%d,"cache_read_input_tokens":%d,"output_tokens":%d}}}`+"\n",
+		at, session, id, in, cacheWrite, cacheRead, out)
+}
+
+// Usage counts each message once (its last line), only from the bound
+// session after the run started, and reads on from the stored offset.
+func TestClaudeReadUsage(t *testing.T) {
+	after, before := "2026-09-27T21:41:00.000Z", "2026-09-27T21:39:00.000Z"
+	first := usageLine(fixSession, after, "msg_1", 3, 100, 1000, 10) +
+		usageLine(fixSession, after, "msg_1", 3, 100, 1000, 25) + // same message, final output count
+		`{"type":"user","sessionId":"` + fixSession + `"}` + "\n" +
+		usageLine(fixDecoySess, after, "msg_x", 1, 1, 1, 1) + // another session
+		usageLine(fixSession, before, "msg_0", 9, 9, 9, 9) + // before the run
+		"not json\n"
+	second := usageLine(fixSession, after, "msg_2", 2, 0, 1103, 40)
+	files := &fakeFiles{data: map[string][]byte{transcript: []byte(first + second[:20])}}
+	c := claudeWith(files)
+	run := store.Run{StartedAt: beforeFixtures, InputTokens: 7, OutputTokens: 1}
+	b := Binding{SessionID: fixSession, TranscriptPath: transcript}
+	ctx := context.Background()
+
+	u, err := c.ReadUsage(ctx, "host", b, run)
+	if err != nil || u.InputTokens != 7+1103 || u.OutputTokens != 1+25 || u.Offset != int64(len(first)) {
+		t.Fatalf("first read: %+v, %v", u, err)
+	}
+	files.data[transcript] = []byte(first + second)
+	run.InputTokens, run.OutputTokens, run.UsageOffset = u.InputTokens, u.OutputTokens, u.Offset
+	u, err = c.ReadUsage(ctx, "host", b, run)
+	if err != nil || u.InputTokens != 7+1103+1105 || u.OutputTokens != 1+25+40 || u.Offset != int64(len(first+second)) {
+		t.Fatalf("second read: %+v, %v", u, err)
+	}
+	if _, err := c.ReadUsage(ctx, "host", Binding{SessionID: fixSession, TranscriptPath: "/etc/passwd"}, run); err == nil {
+		t.Fatal("a transcript outside ~/.claude/projects was read")
 	}
 }

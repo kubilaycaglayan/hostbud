@@ -203,3 +203,40 @@ export function loopRuntimeError(text: string): string | null {
   if (seconds < 1 || seconds > 30 * 24 * 3600) return 'The limit must be from 1s to 30 days (720h).'
   return null
 }
+
+const LIVE_ITEM_STATUSES = new Set<QueueItem['status']>(['running', 'verifying', 'awaiting_approval'])
+
+/** Whether an item's elapsed time still counts up. */
+export function itemLive(item: QueueItem): boolean {
+  return Boolean(item.startedAt) && !item.endedAt && LIVE_ITEM_STATUSES.has(item.status)
+}
+
+/** An item's total elapsed time, from its first start to its end (or now
+ * while it runs): "45s", "12m 05s", "2h 03m". Empty when it hasn't started,
+ * or was requeued and waits to run again. */
+export function elapsedText(item: QueueItem, now: number): string {
+  if (!item.startedAt) return ''
+  const end = item.endedAt ? Date.parse(item.endedAt) : itemLive(item) ? now : NaN
+  const start = Date.parse(item.startedAt)
+  if (Number.isNaN(start) || Number.isNaN(end)) return ''
+  const s = Math.max(0, Math.floor((end - start) / 1000))
+  const pad = (n: number) => String(n).padStart(2, '0')
+  if (s < 60) return `${s}s`
+  if (s < 3600) return `${Math.floor(s / 60)}m ${pad(s % 60)}s`
+  return `${Math.floor(s / 3600)}h ${pad(Math.floor((s % 3600) / 60))}m`
+}
+
+function compactCount(n: number): string {
+  if (n < 1000) return String(n)
+  if (n < 1_000_000) return `${+(n / 1000).toFixed(n < 10_000 ? 1 : 0)}k`
+  return `${+(n / 1_000_000).toFixed(n < 10_000_000 ? 2 : 1)}M`
+}
+
+/** A run's token usage: "1.24M in · 45k out"; empty when not known (Codex,
+ * command items, or no turn has ended yet). Input counts cache reads. */
+export function tokensText(run: QueueItem['run']): string {
+  const input = run?.inputTokens ?? 0
+  const output = run?.outputTokens ?? 0
+  if (!input && !output) return ''
+  return `${compactCount(input)} in · ${compactCount(output)} out`
+}

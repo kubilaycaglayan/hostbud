@@ -157,7 +157,7 @@ test.describe('Queue panel (desktop)', { tag: '@desktop' }, () => {
     await expect(dialog.getByTestId('queue-dependency')).toContainText('Started after session attach-ui-manual was idle')
   })
 
-  test('(V2-M10 T1) Plain Claude prompt waits for manual completion', async ({ page, ui, request, target }) => {
+  test('(V2-M10 T1) Plain Claude prompt waits for manual completion, with its elapsed time and tokens', async ({ page, ui, request, target }) => {
     const project = await newProject(request, target, 'e2e-plain-prompt')
     await stubs.setBehavior('implement the small change', 'achieve:1')
     await stubs.setBehavior('complete the second item', 'achieve:1')
@@ -178,6 +178,10 @@ test.describe('Queue panel (desktop)', { tag: '@desktop' }, () => {
     await panel(page).getByRole('button', { name: 'Start' }).click()
     await expect(item.getByTestId('item-status')).toHaveText(/^Needs attention · exited/, { timeout: 30_000 })
     await expect(item).toContainText('Claude finished its turn')
+    // The item's total elapsed time and its session's tokens (the stub's
+    // one turn: 1,200 input, 34 output).
+    await expect(item.getByTestId('item-elapsed')).toHaveText(/^\d+s$|^\d+m \d\ds$/)
+    await expect(item.getByTestId('item-tokens')).toHaveText('1.2k in · 34 out tokens')
     await item.getByRole('button', { name: /^Mark item .* done$/ }).click()
     await page.getByRole('alertdialog').getByRole('button', { name: 'Mark done' }).click()
     await expect(item.getByTestId('item-status')).toHaveText(/^Done/)

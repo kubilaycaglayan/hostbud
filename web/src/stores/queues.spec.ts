@@ -37,6 +37,13 @@ describe('queue event reducers', () => {
     const [cleared] = applyRunChanged([flagged], { runId: 'r1', itemId: 'i1', queueId: 'q1', status: 'running', flag: null })
     expect(cleared.items[0].run?.flag).toBeNull()
   })
+
+  it('keeps the latest token totals from run.changed', () => {
+    const [counted] = applyRunChanged([q1], { runId: 'r1', itemId: 'i1', queueId: 'q1', status: 'running', inputTokens: 1200, outputTokens: 40 })
+    expect(counted.items[0].run).toMatchObject({ inputTokens: 1200, outputTokens: 40 })
+    const [ended] = applyRunChanged([counted], { runId: 'r1', itemId: 'i1', queueId: 'q1', status: 'exited' })
+    expect(ended.items[0].run).toMatchObject({ status: 'exited', inputTokens: 1200, outputTokens: 40 })
+  })
 })
 
 describe('queues store', () => {

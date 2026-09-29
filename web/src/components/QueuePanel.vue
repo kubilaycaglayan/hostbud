@@ -1,16 +1,16 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onScopeDispose, ref, watch } from 'vue'
 import {
   DialogClose, DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle,
 } from 'reka-ui'
 import { VueDraggable } from 'vue-draggable-plus'
-import { ArrowDown, ArrowUp, Check, ChevronsDown, CircleCheck, GripVertical, History, ListOrdered, ListX, Pause, Pencil, Play, Plus, PowerOff, RotateCcw, RotateCw, Save, ShieldCheck, SkipForward, SquareTerminal, ThumbsDown, ThumbsUp, Trash2, TriangleAlert, X } from 'lucide-vue-next'
+import { ArrowDown, ArrowUp, Check, ChevronsDown, CircleCheck, GripVertical, History, ListOrdered, ListX, Pause, Pencil, Play, Plus, PowerOff, RotateCcw, RotateCw, Save, ShieldCheck, SkipForward, SquareTerminal, ThumbsDown, Timer, ThumbsUp, Trash2, TriangleAlert, X } from 'lucide-vue-next'
 import { queuesApi, sessionsApi } from '@/api/client'
 import type { QueueItem, QueueItemHistory } from '@/api/types'
 import ConfirmDialog from './ConfirmDialog.vue'
 import DurationPicker from './DurationPicker.vue'
 import FormError from './FormError.vue'
-import { AGENTS, type Agent, completedSessions, DEFAULT_LOOP_RUNTIME_SECONDS, flagsError, loopRuntimeError, loopRuntimeText, INSTRUCTION_PREFIX, instructionError, itemActions, moveQueued, progressCount, queueControls, queueRunning, statusLabel, verifyCommandError, verifyLine } from '@/lib/queue'
+import { AGENTS, type Agent, completedSessions, DEFAULT_LOOP_RUNTIME_SECONDS, elapsedText, flagsError, loopRuntimeError, loopRuntimeText, INSTRUCTION_PREFIX, instructionError, itemActions, itemLive, moveQueued, progressCount, queueControls, queueRunning, statusLabel, tokensText, verifyCommandError, verifyLine } from '@/lib/queue'
 import { useQueuesStore } from '@/stores/queues'
 import { useProjectsStore } from '@/stores/projects'
 import { useSessionsStore } from '@/stores/sessions'
@@ -56,6 +56,18 @@ watch(() => store.focus, async (f) => {
 })
 const items = ref<QueueItem[]>([])
 watch(() => queue.value?.items, (next) => { items.value = [...(next ?? [])] }, { immediate: true })
+
+// A running item's elapsed time ticks every second; the clock stops when
+// nothing runs.
+const now = ref(Date.now())
+let tick: ReturnType<typeof setInterval> | undefined
+watch(() => items.value.some(itemLive), (live) => {
+  clearInterval(tick)
+  tick = undefined
+  now.value = Date.now()
+  if (live) tick = setInterval(() => { now.value = Date.now() }, 1000)
+}, { immediate: true })
+onScopeDispose(() => clearInterval(tick))
 const hasQueued = computed(() => items.value.some((i) => i.status === 'queued'))
 const controls = computed(() => queue.value ? queueControls(queue.value.status, hasQueued.value, !!queue.value.loop?.enabled && items.value.length > 0) : null)
 // Parallel queues off: queues can still be created to organize work, but
@@ -795,6 +807,8 @@ const badge: Record<QueueItem['status'], string> = {
                       </p>
                       <p class="mt-1 flex flex-wrap items-center gap-2">
                         <span data-testid="item-status" :class="badge[item.status]" class="rounded border px-2 text-sm">{{ statusLabel(item) }}</span>
+                        <span v-if="elapsedText(item, now)" data-testid="item-elapsed" class="inline-flex items-center gap-1 font-mono text-sm font-semibold tabular-nums" :title="itemLive(item) ? 'Elapsed so far' : 'Total elapsed time'"><Timer :size="14" aria-hidden="true" />{{ elapsedText(item, now) }}</span>
+                        <span v-if="tokensText(item.run)" data-testid="item-tokens" class="text-xs text-muted" title="Tokens used in this run's session (input includes cache reads)">{{ tokensText(item.run) }} tokens</span>
                         <time v-if="item.startedAt" class="text-xs text-muted" :datetime="item.startedAt">
                           Started {{ new Date(item.startedAt).toLocaleString() }}
                         </time>

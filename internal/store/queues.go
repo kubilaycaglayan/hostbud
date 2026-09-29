@@ -210,6 +210,9 @@ type Run struct {
 	AgentSessionID   string     `json:"agentSessionId,omitempty"`
 	TranscriptPath   string     `json:"-"`
 	TranscriptOffset int64      `json:"-"`
+	UsageOffset      int64      `json:"-"`
+	InputTokens      int64      `json:"inputTokens"`
+	OutputTokens     int64      `json:"outputTokens"`
 	ClientVersion    string     `json:"clientVersion,omitempty"`
 	TokenHash        []byte     `json:"-"`
 	Status           string     `json:"status"`
@@ -271,16 +274,25 @@ type QueueItemUpdate struct {
 	Command          *string
 }
 
+// RunUsage is a run's token totals and how far its transcript was read.
+type RunUsage struct {
+	InputTokens  int64
+	OutputTokens int64
+	Offset       int64
+}
+
 // RunUpdate lists the run fields to set; nil fields stay.
 type RunUpdate struct {
 	SessionName      *string
 	AgentSessionID   *string
 	TranscriptPath   *string
 	TranscriptOffset *int64
-	ClientVersion    *string
-	Detail           *string
-	LastSignalAt     *time.Time
-	EndedAt          *time.Time
+	// Usage sets the token totals and the transcript offset read so far.
+	Usage         *RunUsage
+	ClientVersion *string
+	Detail        *string
+	LastSignalAt  *time.Time
+	EndedAt       *time.Time
 }
 
 const (
@@ -289,7 +301,8 @@ const (
 	itemCols = `id, queue_id, machine_id, position, agent, flags, instruction, status, created_at, updated_at,
 		verify_command, requires_approval, started_at, ended_at, execution_mode, target_session, command`
 	runCols = `id, item_id, machine_id, session_name, agent_session_id, transcript_path, transcript_offset,
-		client_version, token_hash, status, started_at, ended_at, last_signal_at, detail`
+		client_version, token_hash, status, started_at, ended_at, last_signal_at, detail,
+		input_tokens, output_tokens, usage_offset`
 	eventCols = `id, run_id, machine_id, source, kind, payload_json, created_at`
 )
 
@@ -358,7 +371,8 @@ func scanRun(row scanner) (Run, error) {
 	var offset sql.NullInt64
 	var ended, signal sql.NullTime
 	err := row.Scan(&r.ID, &r.ItemID, &r.MachineID, &r.SessionName, &agentSession, &transcript, &offset,
-		&version, &r.TokenHash, &r.Status, &r.StartedAt, &ended, &signal, &detail)
+		&version, &r.TokenHash, &r.Status, &r.StartedAt, &ended, &signal, &detail,
+		&r.InputTokens, &r.OutputTokens, &r.UsageOffset)
 	if err != nil {
 		return r, err
 	}
@@ -383,7 +397,8 @@ func scanRunAndQueue(row scanner) (Run, string, error) {
 	var offset sql.NullInt64
 	var ended, signal sql.NullTime
 	err := row.Scan(&r.ID, &r.ItemID, &r.MachineID, &r.SessionName, &agentSession, &transcript, &offset,
-		&version, &r.TokenHash, &r.Status, &r.StartedAt, &ended, &signal, &detail, &q)
+		&version, &r.TokenHash, &r.Status, &r.StartedAt, &ended, &signal, &detail,
+		&r.InputTokens, &r.OutputTokens, &r.UsageOffset, &q)
 	if err != nil {
 		return r, q, err
 	}
@@ -1211,6 +1226,11 @@ func (s *Store) UpdateRun(ctx context.Context, id string, u RunUpdate) (Run, err
 	}
 	if u.TranscriptOffset != nil {
 		add("transcript_offset", *u.TranscriptOffset)
+	}
+	if u.Usage != nil {
+		add("input_tokens", u.Usage.InputTokens)
+		add("output_tokens", u.Usage.OutputTokens)
+		add("usage_offset", u.Usage.Offset)
 	}
 	if u.ClientVersion != nil {
 		add("client_version", *u.ClientVersion)

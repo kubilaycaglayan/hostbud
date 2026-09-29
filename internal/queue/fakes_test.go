@@ -215,6 +215,9 @@ func (m *memStore) UpdateRun(_ context.Context, id string, u store.RunUpdate) (s
 	if u.TranscriptOffset != nil {
 		r.TranscriptOffset = *u.TranscriptOffset
 	}
+	if u.Usage != nil {
+		r.InputTokens, r.OutputTokens, r.UsageOffset = u.Usage.InputTokens, u.Usage.OutputTokens, u.Usage.Offset
+	}
 	if u.LastSignalAt != nil {
 		t := *u.LastSignalAt
 		r.LastSignalAt = &t

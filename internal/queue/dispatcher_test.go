@@ -99,7 +99,8 @@ type scriptAdapter struct {
 	verErr  error
 	reads   int
 	armed   []string
-	def     string // the state of sessions without a script (default pending)
+	def     string        // the state of sessions without a script (default pending)
+	usage   *agents.Usage // added to a run's totals on each usage read
 }
 
 func newScriptAdapter(kind string) *scriptAdapter {
@@ -146,6 +147,17 @@ func (a *scriptAdapter) ReadGoalState(_ context.Context, _ string, b agents.Bind
 		return agents.GoalState{Status: agents.Pending, Offset: run.TranscriptOffset}, nil
 	}
 	return st, nil
+}
+func (a *scriptAdapter) ReadUsage(_ context.Context, _ string, _ agents.Binding, run store.Run) (agents.Usage, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	u := agents.Usage{InputTokens: run.InputTokens, OutputTokens: run.OutputTokens, Offset: run.UsageOffset}
+	if a.usage != nil {
+		u.InputTokens += a.usage.InputTokens
+		u.OutputTokens += a.usage.OutputTokens
+		u.Offset += a.usage.Offset
+	}
+	return u, nil
 }
 func (a *scriptAdapter) set(session, status string) {
 	a.mu.Lock()
@@ -364,6 +376,55 @@ func TestPlainClaudePromptPausesForManualCompletion(t *testing.T) {
 	}
 	if got := e.itemStatuses(); !slices.Equal(got, []string{store.ItemNeedsAttention}) || e.queueStatus() != store.QueuePaused || e.activeRuns() != 0 {
 		t.Fatalf("plain Claude result: items %v, queue %s, active runs %d", got, e.queueStatus(), e.activeRuns())
+	}
+}
+
+// Each turn end records the run's token usage and publishes it, before a
+// plain prompt's run ends; the queue view carries the totals.
+func TestDispatcherRecordsTokenUsage(t *testing.T) {
+	e := newDispEnv(t, "m1")
+	if _, err := e.svc.AddItem(context.Background(), e.queue.ID, "claude", "", "implement the requested change"); err != nil {
+		t.Fatal(err)
+	}
+	e.claude.usage = &agents.Usage{InputTokens: 1000, OutputTokens: 50, Offset: 10}
+	e.startQueue()
+	r := e.run(1)
+	e.hook(r, EventSessionStart, "s1")
+	e.runChanged()
+	e.hook(r, EventTurnEnd, "s1") // pending goal: usage only
+	if got := e.run(1); got.Status != store.RunRunning || got.InputTokens != 1000 || got.OutputTokens != 50 || got.UsageOffset != 10 {
+		t.Fatalf("after one turn: %+v", got)
+	}
+	var last RunChanged
+	for {
+		select {
+		case ev := <-e.runEvts:
+			if ev.Type == events.RunChanged {
+				last = ev.Payload.(RunChanged)
+			}
+			continue
+		default:
+		}
+		break
+	}
+	if last.InputTokens != 1000 || last.OutputTokens != 50 {
+		t.Fatalf("run.changed = %+v", last)
+	}
+	e.claude.set("s1", agents.Achieved)
+	e.hook(r, EventTurnEnd, "s1")
+	if got := e.run(1); got.Status != store.RunAchieved || got.InputTokens != 2000 || got.OutputTokens != 100 {
+		t.Fatalf("after achieved: %+v", got)
+	}
+	r2 := e.run(2)
+	e.hook(r2, EventSessionStart, "s2")
+	e.hook(r2, EventTurnEnd, "s2") // a plain prompt ends its run
+	views, err := e.svc.List(e.ctx())
+	if err != nil {
+		t.Fatal(err)
+	}
+	run := views[0].Items[1].Run
+	if run == nil || run.Status != store.RunExited || run.InputTokens != 1000 || run.OutputTokens != 50 {
+		t.Fatalf("plain run summary: %+v", run)
 	}
 }
 

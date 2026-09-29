@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { QueueItem } from '@/api/types'
-import { capacityError, capacityValue, completedSessions, flagsError, instructionError, loopRuntimeError, loopRuntimeText, itemActions, moveQueued, progressCount, queueControls, queueRunning, statusLabel, verifyCommandError, verifyLine } from './queue'
+import { capacityError, capacityValue, completedSessions, elapsedText, flagsError, instructionError, loopRuntimeError, loopRuntimeText, itemActions, moveQueued, progressCount, queueControls, queueRunning, statusLabel, tokensText, verifyCommandError, verifyLine } from './queue'
 
 const item = (id: string, status: QueueItem['status'], run?: Partial<QueueItem['run']>): QueueItem => ({
   id, queueId: 'q', position: 1, agent: 'claude', flags: '', instruction: '/goal x', status,
@@ -146,5 +146,27 @@ describe('queue progress count', () => {
     expect(progressCount([item('a', 'done'), item('b', 'running'), item('c', 'queued')])).toBe('1 in progress | 1 left')
     expect(progressCount([item('a', 'done'), item('b', 'awaiting_approval')])).toBe('Last in progress')
     expect(progressCount([item('a', 'done'), item('b', 'needs_attention')])).toBe('0 left')
+  })
+})
+
+describe('item elapsed time and tokens', () => {
+  const t0 = Date.parse('2026-09-29T10:00:00Z')
+  const at = (s: number) => new Date(t0 + s * 1000).toISOString()
+  it('counts from the first start to the end, or to now while it runs', () => {
+    expect(elapsedText({ ...item('a', 'done'), startedAt: at(0), endedAt: at(45) }, t0)).toBe('45s')
+    expect(elapsedText({ ...item('a', 'needs_attention'), startedAt: at(0), endedAt: at(725) }, t0)).toBe('12m 05s')
+    expect(elapsedText({ ...item('a', 'running'), startedAt: at(0) }, t0 + 7380_000)).toBe('2h 03m')
+    expect(elapsedText({ ...item('a', 'awaiting_approval'), startedAt: at(0) }, t0 + 60_000)).toBe('1m 00s')
+  })
+  it('is empty before the first start and while a requeued item waits', () => {
+    expect(elapsedText(item('a', 'queued'), t0)).toBe('')
+    expect(elapsedText({ ...item('a', 'queued'), startedAt: at(0) }, t0 + 60_000)).toBe('')
+  })
+  it('formats token totals compactly and hides unknown usage', () => {
+    expect(tokensText(undefined)).toBe('')
+    expect(tokensText(item('a', 'running', {}).run)).toBe('')
+    expect(tokensText(item('a', 'done', { inputTokens: 1_236_000, outputTokens: 45_120 }).run)).toBe('1.24M in · 45k out')
+    expect(tokensText(item('a', 'done', { inputTokens: 8_460, outputTokens: 312 }).run)).toBe('8.5k in · 312 out')
+    expect(tokensText(item('a', 'done', { inputTokens: 25_000_000, outputTokens: 1_000 }).run)).toBe('25M in · 1k out')
   })
 })

@@ -155,7 +155,11 @@ def claude(argv):
     def turn(n, text):
         time.sleep(delay)
         say("● turn %d: %s" % (n, text))
-        record({"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": text}]}})
+        # Fixed usage per turn so hostbud's token totals are predictable:
+        # 1,000 fresh + 200 cache-read input, 34 output tokens.
+        record({"type": "assistant", "message": {"id": "msg_stub_%s_%d" % (state["sid"][:8], n), "role": "assistant",
+                "content": [{"type": "text", "text": text}],
+                "usage": {"input_tokens": 1000, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 200, "output_tokens": 34}}})
 
     say("✻ Claude Code (hostbud stub) — %s" % (prompt or "no prompt"))
     new_session("startup")

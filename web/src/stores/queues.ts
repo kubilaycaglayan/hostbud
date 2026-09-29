@@ -23,7 +23,8 @@ export function applyRunChanged(queues: Queue[], change: RunChanged): Queue[] {
     items: q.items.map((item) => {
       if (item.id !== change.itemId) return item
       const base = item.run?.id === change.runId ? item.run : { id: change.runId, sessionName: '', startedAt: '' }
-      return { ...item, run: { ...base, status: change.status, detail: change.detail, ...(Object.hasOwn(change, 'flag') ? { flag: change.flag } : {}) } }
+      const tokens = change.inputTokens || change.outputTokens ? { inputTokens: change.inputTokens ?? 0, outputTokens: change.outputTokens ?? 0 } : {}
+      return { ...item, run: { ...base, status: change.status, detail: change.detail, ...(Object.hasOwn(change, 'flag') ? { flag: change.flag } : {}), ...tokens } }
     }),
   })
 }

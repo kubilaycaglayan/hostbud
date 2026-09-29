@@ -102,6 +102,7 @@ func TestIntegrationNotificationsMigrationKeepsV2M2Data(t *testing.T) {
 	}
 	tables["queues"] = v2m5QueueCols
 	tables["queue_items"] = v2m1ItemCols
+	tables["runs"] = v2m1RunCols
 	before := columnChecksums(t, db, tables)
 
 	if err := migrate(ctx, db); err != nil {

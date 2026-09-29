@@ -70,6 +70,9 @@ type RunChanged struct {
 	Status  string          `json:"status"`
 	Detail  string          `json:"detail,omitempty"`
 	Flag    json.RawMessage `json:"flag,omitempty"`
+	// Token totals so far (Claude Code runs; absent until read).
+	InputTokens  int64 `json:"inputTokens,omitempty"`
+	OutputTokens int64 `json:"outputTokens,omitempty"`
 }
 
 // Dispatcher runs the v2 state machines (§5): it starts items, reacts to
@@ -765,12 +768,14 @@ func (d *Dispatcher) signal(ctx context.Context, s Signal) {
 			}
 			rc, _ = d.load(ctx, s.RunID)
 		}
+		d.readUsage(ctx, &rc)
 		if rc.item.Agent == "claude" && !agents.HasGoalCommand(rc.item.Instruction) {
 			d.manualReview(ctx, rc, store.SourceHook, "Claude finished its turn. Review the work, then mark the item done or retry it.")
 			return
 		}
 		d.read(ctx, rc.run, store.SourceHook, true)
 	case EventSessionEnd:
+		d.readUsage(ctx, &rc)
 		if rc.item.Agent == "claude" && !agents.HasGoalCommand(rc.item.Instruction) {
 			d.manualReview(ctx, rc, store.SourceHook, "The Claude session ended. Review its work, then mark the item done or retry it.")
 			return
@@ -781,6 +786,29 @@ func (d *Dispatcher) signal(ctx context.Context, s Signal) {
 		}
 		d.ended(ctx, rc, store.SourceHook, detail)
 	}
+}
+
+// readUsage records the run's token usage so far, when the adapter can read
+// it (Claude Code). Usage never moves a run: a failed read is only logged,
+// and the next turn end reads on from the stored offset.
+func (d *Dispatcher) readUsage(ctx context.Context, rc *runCtx) {
+	reader, ok := rc.adapter.(agents.UsageReader)
+	if !ok || rc.run.AgentSessionID == "" || rc.run.TranscriptPath == "" {
+		return
+	}
+	u, err := reader.ReadUsage(ctx, rc.run.MachineID, bindingOf(rc.run), rc.run)
+	if err != nil {
+		d.log.Debug("token usage read failed", "run", rc.run.ID, "err", err)
+	}
+	if u.Offset == rc.run.UsageOffset {
+		return
+	}
+	run, err := d.store.UpdateRun(ctx, rc.run.ID, store.RunUpdate{Usage: &store.RunUsage{InputTokens: u.InputTokens, OutputTokens: u.OutputTokens, Offset: u.Offset}})
+	if err != nil {
+		return
+	}
+	rc.run = run
+	d.publishRun(ctx, run, rc.queueID)
 }
 
 // manualReview ends hostbud's tracking run after an ordinary Claude prompt
@@ -1226,6 +1254,7 @@ func (d *Dispatcher) publishRun(_ context.Context, run store.Run, queueID string
 	}
 	change := RunChanged{
 		RunID: run.ID, ItemID: run.ItemID, QueueID: queueID, Status: run.Status, Detail: run.Detail,
+		InputTokens: run.InputTokens, OutputTokens: run.OutputTokens,
 	}
 	if d.llmFlags {
 		change.Flag = json.RawMessage("null")

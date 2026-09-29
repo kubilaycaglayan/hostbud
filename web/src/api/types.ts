@@ -77,6 +77,9 @@ export interface RunSummary {
   startedAt: string
   endedAt?: string
   flag?: RunFlag | null
+  /** Token totals read from the transcript (Claude Code); absent until known. Input counts cache reads. */
+  inputTokens?: number
+  outputTokens?: number
 }
 
 /** V2-M4: the latest verify attempt of an item's latest run. */
@@ -241,6 +244,8 @@ export interface RunChanged {
   status: RunStatus
   detail?: string
   flag?: RunFlag | null
+  inputTokens?: number
+  outputTokens?: number
   notification?: NotificationPayload
 }
 

@@ -397,6 +397,10 @@ func TestRunLookupsUpdatesAndEvents(t *testing.T) {
 		got.ClientVersion != version || got.Detail != detail || got.LastSignalAt == nil || !got.LastSignalAt.Equal(at) {
 		t.Fatalf("update: %+v, %v", got, err)
 	}
+	got, err = s.UpdateRun(ctx, run.ID, RunUpdate{Usage: &RunUsage{InputTokens: 120000, OutputTokens: 3400, Offset: 9876}})
+	if err != nil || got.InputTokens != 120000 || got.OutputTokens != 3400 || got.UsageOffset != 9876 || got.TranscriptOffset != offset {
+		t.Fatalf("usage update: %+v, %v", got, err)
+	}
 
 	for i, kind := range []string{"session_start", "turn_end"} {
 		if _, err := s.AppendRunEvent(ctx, run.ID, SourceHook, kind, []byte(`{"n":`+string(rune('0'+i))+`}`)); err != nil {

@@ -255,6 +255,9 @@ func TestIntegrationQueueScheduleAndExecutionModePersist(t *testing.T) {
 // v2m1ItemCols are queue_items' columns before V2-M4 (0009 adds the gate
 // columns, whose defaults would change a "*" checksum).
 const v2m1ItemCols = "id, queue_id, machine_id, position, agent, flags, instruction, status, created_at, updated_at"
+
+// v2m1RunCols are the runs columns before 0016 added the token totals.
+const v2m1RunCols = "id, item_id, machine_id, session_name, agent_session_id, transcript_path, transcript_offset, client_version, token_hash, status, started_at, ended_at, last_signal_at, detail"
 const v2m5QueueCols = "id, machine_id, project_id, name, status, created_at, updated_at, waiting_since"
 
 func columnChecksums(t *testing.T, db *sql.DB, tables map[string]string) map[string]string {
@@ -362,7 +365,7 @@ func TestIntegrationParallelQueuesMigrationKeepsV2M1Data(t *testing.T) {
 		"projects":    "*",
 		"queues":      "id, machine_id, project_id, name, status, created_at, updated_at",
 		"queue_items": v2m1ItemCols,
-		"runs":        "*",
+		"runs":        v2m1RunCols,
 		"run_events":  "*",
 	}
 	before := columnChecksums(t, db, tables)

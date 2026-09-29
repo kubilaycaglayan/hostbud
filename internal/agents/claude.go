@@ -218,3 +218,101 @@ func scanClaudeTranscript(data []byte, offset int64, sessionID string, startedAt
 		}
 	}
 }
+
+// maxUsageReads bounds the transcript chunks one usage read takes; the rest
+// is read on the next signal.
+const maxUsageReads = 8
+
+// Usage is a run's token totals and how far its transcript was read.
+type Usage struct {
+	InputTokens  int64
+	OutputTokens int64
+	Offset       int64
+}
+
+// UsageReader reads a run's token usage (optional; Claude Code only).
+type UsageReader interface {
+	// ReadUsage returns the run's new totals: its stored totals plus the
+	// usage in the transcript after run.UsageOffset.
+	ReadUsage(ctx context.Context, machine string, b Binding, run store.Run) (Usage, error)
+}
+
+// ReadUsage sums the assistant messages' usage in the bound transcript,
+// read-only, from the run's usage offset: fresh, cache-write and cache-read
+// input tokens as input, and output tokens.
+func (c *Claude) ReadUsage(ctx context.Context, machine string, b Binding, run store.Run) (Usage, error) {
+	u := Usage{InputTokens: run.InputTokens, OutputTokens: run.OutputTokens, Offset: run.UsageOffset}
+	home := strings.TrimSuffix(c.home(machine), "/")
+	if home == "" {
+		return u, errors.New("the host's home directory isn't known yet")
+	}
+	files := c.files(machine)
+	if err := ValidTranscriptPath(ctx, files, b.TranscriptPath, home+"/.claude/projects"); err != nil {
+		return u, err
+	}
+	for range maxUsageReads {
+		data, err := files.ReadRange(ctx, b.TranscriptPath, u.Offset, maxTranscriptRead)
+		if err != nil {
+			return u, err
+		}
+		n := scanClaudeUsage(data, b.SessionID, run.StartedAt, &u)
+		if n == 0 || len(data) < maxTranscriptRead {
+			return u, nil
+		}
+	}
+	return u, nil
+}
+
+type claudeUsageRecord struct {
+	Type      string `json:"type"`
+	Timestamp string `json:"timestamp"`
+	SessionID string `json:"sessionId"`
+	Message   struct {
+		ID    string `json:"id"`
+		Usage *struct {
+			InputTokens         int64 `json:"input_tokens"`
+			CacheCreationTokens int64 `json:"cache_creation_input_tokens"`
+			CacheReadTokens     int64 `json:"cache_read_input_tokens"`
+			OutputTokens        int64 `json:"output_tokens"`
+		} `json:"usage"`
+	} `json:"message"`
+}
+
+// scanClaudeUsage adds the usage of the complete lines of data to u and
+// moves u.Offset past them; it returns the bytes consumed. Claude Code
+// writes one line per content block, each repeating its message's usage,
+// so a message counts once (its last line, which has the final output
+// count). Other sessions, lines from before the run and unparseable lines
+// are skipped.
+func scanClaudeUsage(data []byte, sessionID string, startedAt time.Time, u *Usage) int {
+	type msg struct{ in, out int64 }
+	msgs := map[string]msg{}
+	consumed := 0
+	for {
+		nl := bytes.IndexByte(data[consumed:], '\n')
+		if nl < 0 {
+			break
+		}
+		line := data[consumed : consumed+nl]
+		consumed += nl + 1
+		var rec claudeUsageRecord
+		if json.Unmarshal(line, &rec) != nil || rec.Type != "assistant" || rec.Message.Usage == nil || rec.SessionID != sessionID {
+			continue
+		}
+		if at, err := time.Parse(time.RFC3339Nano, rec.Timestamp); err != nil || at.Before(startedAt) {
+			continue
+		}
+		usage := rec.Message.Usage
+		id := rec.Message.ID
+		if id == "" {
+			id = fmt.Sprintf("line@%d", consumed)
+		}
+		msgs[id] = msg{usage.InputTokens + usage.CacheCreationTokens + usage.CacheReadTokens, usage.OutputTokens}
+	}
+	for _, m := range msgs {
+		u.InputTokens += m.in
+		u.OutputTokens += m.out
+	}
+	u.Offset += int64(consumed)
+	return consumed
+}

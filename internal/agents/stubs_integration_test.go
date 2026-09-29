@@ -188,6 +188,14 @@ func TestIntegrationStubsAgainstAdapters(t *testing.T) {
 				for {
 					st, err := claude.ReadGoalState(ctx, sshx.HostMachineID, b, store.Run{StartedAt: started}, condition)
 					if err == nil && st.Status == tc.want && (tc.want != Pending || time.Now().After(deadline.Add(-8*time.Second))) {
+						if tc.want == Achieved {
+							// Each stub turn uses 1,200 input and 34 output tokens
+							// (silent-then-achieve writes no turn).
+							u, err := claude.ReadUsage(ctx, sshx.HostMachineID, b, store.Run{StartedAt: started})
+							if err != nil || (u.InputTokens == 0) != strings.HasPrefix(name, "silent") || u.InputTokens%1200 != 0 || u.OutputTokens != u.InputTokens/1200*34 || u.Offset == 0 {
+								t.Errorf("%s: usage %+v, %v", name, u, err)
+							}
+						}
 						return
 					}
 					if time.Now().After(deadline) {

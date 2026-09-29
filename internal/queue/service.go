@@ -111,6 +111,9 @@ type RunSummary struct {
 	StartedAt     time.Time  `json:"startedAt"`
 	EndedAt       *time.Time `json:"endedAt,omitempty"`
 	Flag          *RunFlag   `json:"flag,omitempty"`
+	// Token totals read from the transcript (Claude Code; 0 = not known).
+	InputTokens  int64 `json:"inputTokens,omitempty"`
+	OutputTokens int64 `json:"outputTokens,omitempty"`
 }
 
 type RunFlag struct {
@@ -456,7 +459,8 @@ func (s *Service) view(ctx context.Context, q store.Queue) (View, error) {
 	for _, it := range items {
 		iv := ItemView{QueueItem: it}
 		if r, ok := runs[it.ID]; ok {
-			iv.Run = &RunSummary{ID: r.ID, Status: r.Status, SessionName: r.SessionName, Detail: r.Detail, ClientVersion: r.ClientVersion, StartedAt: r.StartedAt, EndedAt: r.EndedAt}
+			iv.Run = &RunSummary{ID: r.ID, Status: r.Status, SessionName: r.SessionName, Detail: r.Detail, ClientVersion: r.ClientVersion, StartedAt: r.StartedAt, EndedAt: r.EndedAt,
+				InputTokens: r.InputTokens, OutputTokens: r.OutputTokens}
 			if r.Status == store.RunRunning || r.Status == store.RunStale {
 				if flag, err := s.latestFlag(ctx, r.ID); err != nil {
 					return v, err
