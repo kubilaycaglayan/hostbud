@@ -19,7 +19,7 @@ Append `queues.after_run_id` (nullable) and store validation for an active same-
 
 ## T2 — Queue service and dispatcher
 
-Accept an optional active `afterRunId` when creating a queue. A running dependent queue does not start until that run reaches `achieved`; achievement wakes it. Failed/exited/cancelled predecessors pause the dependent queue with an actionable reason. Stale predecessors remain eligible for a late achievement. Restart re-evaluates dependencies. Tests: U UI and service behavior; I dispatcher with stub goal runs and restart. E2E: *Queue waits for active goal* and *Unsuccessful predecessor pauses dependent queue* (API-level).
+Accept an optional active `afterRunId` when creating a queue. A running dependent queue does not start until that run reaches `achieved`; achievement wakes it. Failed/exited/cancelled predecessors pause the dependent queue with an actionable reason. Stale predecessors remain eligible for a late achievement. Restart re-evaluates dependencies. Tests: U UI and service behavior; I dispatcher with stub goal runs and restart. E2E: *Queue waits for active goal*, *Dependency survives restart and late achievement after stale*, and *Unsuccessful predecessor pauses dependent queue* (API-level).
 
 ## T3 — API and UI
 

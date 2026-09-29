@@ -1,6 +1,6 @@
 # hostbud v2 — Agent task queue (architecture decision)
 
-Status: **V2-M1–V2-M5 implemented; V2-M6 in progress** (M2–M6 opt-in; the full browser suite runs on demand). See the per-milestone acceptance checklists for verification status and the open owner checks. This document superseded the v2 sketch in the v1 [ARCHITECTURE.md §10](../ARCHITECTURE.md#10-v2--agent-task-queue) and the *v2* section of the v1 [ROADMAP.md](../ROADMAP.md), which now point here. The v1 obligations in v1 §10 still apply. The V2-M1 spike results are in §12.
+Status: **V2-M1–V2-M6 implemented** (M2–M6 opt-in; full browser suites run on demand). See the per-milestone acceptance checklists for verification status and the open owner checks. This document superseded the v2 sketch in the v1 [ARCHITECTURE.md §10](../ARCHITECTURE.md#10-v2--agent-task-queue) and the *v2* section of the v1 [ROADMAP.md](../ROADMAP.md), which now point here. The v1 obligations in v1 §10 still apply. The V2-M1 spike results are in §12.
 
 ---
 

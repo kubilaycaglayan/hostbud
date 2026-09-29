@@ -11,6 +11,7 @@
 ## E2E scenarios
 
 - [x] (T2) Queue waits for active goal — written/type-checked; run pending on demand.
+- [x] (T2) Dependency survives restart and late achievement after stale — written/type-checked; run pending on demand.
 - [x] (T2) Unsuccessful predecessor pauses dependent queue — written/type-checked; run pending on demand.
 - [x] (T3) No dependency by default — written/type-checked; run pending on demand.
 - [ ] (on demand) Full suite green on every e2e app and both profiles — open until requested, not a blocker.

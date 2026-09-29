@@ -5,6 +5,7 @@ import { Stubs, type StubBehavior } from '../helpers/stubs.ts'
 import type { APIRequestContext } from '@playwright/test'
 import { shq, type Target } from '../helpers/target.ts'
 import { MULTI_URL, mutate } from '../helpers/api.ts'
+import { ctl } from '../helpers/ctl.ts'
 
 // V2-M2: several queues and parallel runs on hostbud-e2e-app-multi
 // (HOSTBUD_PARALLEL_QUEUES=true), with the stub clients on the shared
@@ -94,6 +95,25 @@ test.describe('parallel queues', () => {
     await new Promise((resolve) => setTimeout(resolve, 1_000))
     expect((await itemOf(multi, next.id, nextItem.id)).status).toBe('queued')
     await waitItem(multi, next.id, nextItem.id, 'running', 30_000)
+    expect((await itemOf(multi, prior.queue.id, prior.items[0].id)).run!.status).toBe('achieved')
+    await expect.poll(async () => (await getQueue(multi, next.id)).status).toBe('finished')
+  })
+
+  test('(V2-M6 T2) Dependency survives restart and late achievement after stale', async ({ multi, target }) => {
+    const p = await project(multi, target, 'e2e-after-restart')
+    const prior = await queueOn(multi, p.id, 'Prior', [{ condition: 'e2e predecessor restart late', behavior: 'slow:16' }])
+    expect((await control(multi, prior.queue.id, 'start')).status()).toBe(200)
+    await waitItem(multi, prior.queue.id, prior.items[0].id, 'running')
+    const runId = (await itemOf(multi, prior.queue.id, prior.items[0].id)).run!.id
+    const next = await createQueue(multi, p.id, 'After restart late goal', runId)
+    const nextItem = await addItem(multi, next.id, { instruction: '/goal e2e dependent after restart' })
+    await stubs.setBehavior('e2e dependent after restart', 'achieve:1', 0.5)
+    expect((await control(multi, next.id, 'start')).status()).toBe(200)
+    await expect.poll(async () => (await itemOf(multi, next.id, nextItem.id)).status).toBe('queued')
+    await ctl.multiRestart()
+    await expect.poll(async () => (await itemOf(multi, prior.queue.id, prior.items[0].id)).run?.status, { timeout: 30_000 }).toBe('stale')
+    expect((await itemOf(multi, next.id, nextItem.id)).status).toBe('queued')
+    await waitItem(multi, next.id, nextItem.id, 'running', 45_000)
     expect((await itemOf(multi, prior.queue.id, prior.items[0].id)).run!.status).toBe('achieved')
     await expect.poll(async () => (await getQueue(multi, next.id)).status).toBe('finished')
   })
