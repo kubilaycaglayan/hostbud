@@ -139,8 +139,8 @@ test.describe('Notification settings (desktop)', () => {
 
   test('(V2-M3 T4) Test notification', async ({ page, ui, request, context }) => {
     // In the page (no push subscription on this browser): shown right here.
-    await context.grantPermissions(['notifications'])
     await ui.open()
+    await context.grantPermissions(['notifications'], { origin: new URL(page.url()).origin })
     const dialog = await openSettings(page)
     await dialog.getByTestId('notifications-toggle').click()
     await expect(dialog.getByTestId('notifications-toggle')).toBeChecked()

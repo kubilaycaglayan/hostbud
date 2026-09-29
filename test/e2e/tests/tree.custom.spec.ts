@@ -503,6 +503,8 @@ test('(T6) Customizations are per account', async ({ page, browser, ui, target }
   await addProject(api, path, projectName)
   await addProject(api, secondPath, secondProjectName)
   await createSession(target, sessionName, path)
+  await expect.poll(async () => (await listSessions(api)).map((session) => session.name), { timeout: 3 * POLL_INTERVAL_MS })
+    .toContain(sessionName)
   await page.reload()
   await ui.showList()
   await ui.treeItem(secondProjectName).getByRole('button', { name: `More actions for ${secondProjectName}` }).click()
