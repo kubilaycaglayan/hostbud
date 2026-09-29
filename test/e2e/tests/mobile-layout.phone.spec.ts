@@ -74,12 +74,25 @@ test('(T16) Dialogs stay above the reopened tree gutter', async ({ page, target,
   await page.keyboard.press('Control+Shift+k')
   const palette = page.getByRole('dialog', { name: 'Command palette' })
   await expect(palette).toBeVisible()
-  const [drawerLayer, dialogLayer] = await Promise.all([
-    drawer.evaluate((element) => Number(getComputedStyle(element).zIndex)),
-    palette.evaluate((element) => Number(getComputedStyle(element).zIndex)),
-  ])
-  expect(dialogLayer).toBeGreaterThan(drawerLayer)
-  await expect(palette.getByRole('combobox', { name: 'Command palette' })).toBeVisible()
+  // The drawer may be dismissed when focus moves into the palette; if it
+  // stays open, it must sit on a lower layer.
+  if (await drawer.count()) {
+    const [drawerLayer, dialogLayer] = await Promise.all([
+      drawer.evaluate((element) => Number(getComputedStyle(element).zIndex)),
+      palette.evaluate((element) => Number(getComputedStyle(element).zIndex)),
+    ])
+    expect(dialogLayer).toBeGreaterThan(drawerLayer)
+  }
+  const search = palette.getByRole('combobox', { name: 'Command palette' })
+  await expect(search).toBeVisible()
+  // Nothing covers the search input: the topmost element at its center is in the palette.
+  expect(await search.evaluate((element) => {
+    const box = element.getBoundingClientRect()
+    const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
+    return !!hit && !!element.closest('[role="dialog"]')?.contains(hit)
+  })).toBe(true)
+  await search.fill(name)
+  await expect(palette.getByRole('option', { name })).toBeVisible()
 })
 
 test('(T2) Drawer keeps the terminal attached', async ({ page, target, ui }) => {
