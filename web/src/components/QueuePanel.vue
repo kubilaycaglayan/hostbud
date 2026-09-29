@@ -901,7 +901,7 @@ const badge: Record<QueueItem['status'], string> = {
               </li>
             </VueDraggable>
 
-            <form class="mt-3 flex flex-col gap-2 border-t border-border pt-2" aria-label="Add item" @submit.prevent="addItem">
+            <form class="mt-3 flex flex-col gap-2 border-t border-border pt-2" aria-label="Add item" @submit.prevent="addItem" @keydown.enter.meta.prevent="!busy && addItem()" @keydown.enter.ctrl.prevent="!busy && addItem()">
               <h4 class="font-bold">Add item</h4>
               <label class="block">Execution
                 <select v-model="draft.executionMode" autocomplete="off" class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 text-base">

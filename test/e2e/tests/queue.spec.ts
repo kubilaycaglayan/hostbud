@@ -61,6 +61,20 @@ test.describe('Queue panel (desktop)', { tag: '@desktop' }, () => {
     expect(style.features).toContain('"calt" 0')
   })
 
+  test('Cmd/Ctrl+Enter in the Add item form adds the item, like the + button', async ({ page, ui, request, target }) => {
+    const project = await newProject(request, target, 'e2e-queue-cmd-enter')
+    await ui.open()
+    await page.getByRole('banner').getByRole('button', { name: 'Queue', exact: true }).click()
+    const dialog = panel(page)
+    await dialog.getByLabel('Project').selectOption(project.id)
+    await dialog.getByRole('button', { name: 'Create queue' }).click()
+    const instruction = dialog.getByRole('form', { name: 'Add item' }).getByLabel('Instruction')
+    await instruction.fill('/goal cmd-enter')
+    await instruction.press('ControlOrMeta+Enter')
+    await expect(row(page, 'cmd-enter')).toBeVisible()
+    await expect(instruction).toHaveValue('')
+  })
+
   test('(V2-M8 T3) Schedule a command for an existing session', async ({ page, ui, request, target }) => {
     const project = await newProject(request, target, 'e2e-scheduled-ui')
     await target.run(`tmux new-session -d -s schedule-ui-target -c ${shq(project.path)}`)
