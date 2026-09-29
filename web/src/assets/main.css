@@ -231,3 +231,24 @@ input[type='radio'].theme-radio:focus-visible {
     display: none;
   }
 }
+
+/* A running queue's tab: mostly green, flicking fast through neon "cyborg" colors. */
+@keyframes hostbud-queue-running {
+  0%, 45%, 100% { border-color: var(--hb-ok); box-shadow: 0 0 0 1px var(--hb-ok), 0 0 6px var(--hb-ok); }
+  55% { border-color: #00f0ff; box-shadow: 0 0 0 1px #00f0ff, 0 0 8px #00f0ff; }
+  65% { border-color: #39ff14; box-shadow: 0 0 0 1px #39ff14, 0 0 8px #39ff14; }
+  75% { border-color: #ff2bd6; box-shadow: 0 0 0 1px #ff2bd6, 0 0 8px #ff2bd6; }
+  85% { border-color: #00ff9c; box-shadow: 0 0 0 1px #00ff9c, 0 0 8px #00ff9c; }
+}
+
+.queue-tab-running {
+  border-color: var(--hb-ok);
+  box-shadow: 0 0 0 1px var(--hb-ok);
+  animation: hostbud-queue-running 1.6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .queue-tab-running {
+    animation: none;
+  }
+}

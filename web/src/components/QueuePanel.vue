@@ -571,8 +571,9 @@ const badge: Record<QueueItem['status'], string> = {
             Couldn't load the queue: {{ store.loadError }}
           </p>
 
-          <!-- V2-M2 queue switcher: buttons on desktop (not a list: the items are), a select on the phone. -->
-          <div v-if="store.queues.length" class="mt-1 flex flex-wrap items-center gap-2">
+          <!-- V2-M2 queue switcher: buttons on desktop (not a list: the items are), a select on the phone.
+               Sticky so it stays reachable while the items scroll. -->
+          <div v-if="store.queues.length" data-testid="queue-switcher" class="sticky -top-3 z-10 -mx-3 flex flex-wrap items-center gap-2 bg-surface px-3 py-1">
             <label v-if="props.compact" class="block min-w-0 flex-1">Queue
               <select v-model="selectModel" autocomplete="off" class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 text-base">
                 <option v-for="q in store.queues" :key="q.id" :value="q.id">{{ q.name }} · {{ q.projectName }} ({{ q.status }})</option>
@@ -588,7 +589,7 @@ const badge: Record<QueueItem['status'], string> = {
                 :title="`${q.name} · ${q.projectName} (${q.status})`"
                 :data-running="queueRunning(q) ? 'true' : undefined"
                 class="touch-target inline-flex min-h-8 max-w-56 items-center gap-1 rounded border px-2 text-sm"
-                :class="[q.id === queue?.id ? 'text-accent' : '', queueRunning(q) ? 'border-ok ring-1 ring-ok' : q.id === queue?.id ? 'border-accent' : 'border-border']"
+                :class="[q.id === queue?.id ? 'text-accent' : '', queueRunning(q) ? 'queue-tab-running' : q.id === queue?.id ? 'border-accent' : 'border-border']"
                 @click="select(q.id)"
               >
                 <TriangleAlert v-if="q.warnings?.length" :size="14" aria-hidden="true" class="shrink-0 text-danger" />

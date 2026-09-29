@@ -76,6 +76,9 @@ test.describe('Queues panel (desktop, parallel queues)', { tag: '@desktop' }, ()
     // The running queue's tab has a green border; the idle one doesn't.
     await expect(panel(page).getByRole('button', { name: 'Show queue Alpha' })).toHaveAttribute('data-running', 'true')
     await expect(panel(page).getByRole('button', { name: 'Show queue Beta' })).not.toHaveAttribute('data-running', 'true')
+    // The running border animates through neon colors; the switcher stays pinned while items scroll.
+    await expect(panel(page).getByRole('button', { name: 'Show queue Alpha' })).toHaveClass(/queue-tab-running/)
+    await expect(panel(page).getByTestId('queue-switcher')).toHaveCSS('position', 'sticky')
     await panel(page).getByRole('button', { name: 'Show queue Beta' }).click()
     await panel(page).getByRole('button', { name: 'Start' }).click()
     await expect(row(page, 'e2e multi beta').getByTestId('item-status')).toHaveText('Queued · waiting for a free slot')
