@@ -34,7 +34,21 @@ test.describe('In-app notifications (desktop)', () => {
   test('(V2-M3 T1) In-app notification', async ({ page, ui, request, target }) => {
     await putNotificationSettings(request, { enabled: true })
     const { project, queue, item } = await runOneItem(request, target, 'e2e notify in-app')
+    const settingsLoaded = page.waitForResponse(response =>
+      response.request().method() === 'GET' && new URL(response.url()).pathname === '/api/notifications/settings',
+    )
+    const liveSnapshot = new Promise<void>((resolve) => {
+      page.on('websocket', socket => {
+        if (new URL(socket.url()).pathname !== '/ws/events') return
+        socket.on('framereceived', data => {
+          try {
+            if ((JSON.parse(String(data)) as { type?: string }).type === 'snapshot') resolve()
+          } catch { /* ignore non-JSON websocket frames */ }
+        })
+      })
+    })
     await ui.open()
+    await Promise.all([settingsLoaded, liveSnapshot])
     expect((await control(request, queue.id, 'start')).status()).toBe(200)
     await expect.poll(async () => (await getQueue(request, queue.id)).status, { timeout: 30_000 }).toBe('finished')
     const run = (await getQueue(request, queue.id)).items[0].run!
