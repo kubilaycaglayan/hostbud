@@ -258,6 +258,10 @@ async function renameSession(from: string, raw: string) {
   layout.expectRename('host', from, to)
   sessions.beginRename('host', from, to)
   tree.renameSession('host', from, to, renameState)
+  // The row keeps its place under the new key. Left on the old key, the
+  // vanished-row fallback would pull focus from the selected terminal.
+  if (focusedKey.value === 'session:' + from) focusedKey.value = 'session:' + to
+  if (deferredFocusKey.value === 'session:' + from) deferredFocusKey.value = ''
   if (windows.bySession[`host/${from}`]) {
     windows.bySession[`host/${to}`] = windows.bySession[`host/${from}`]
     delete windows.bySession[`host/${from}`]
@@ -272,6 +276,7 @@ async function renameSession(from: string, raw: string) {
   } catch (e) {
     sessions.finishRename('host', from, to, false)
     tree.renameSession('host', to, from)
+    if (focusedKey.value === 'session:' + to) focusedKey.value = 'session:' + from
     if (windows.bySession[`host/${to}`]) {
       windows.bySession[`host/${from}`] = windows.bySession[`host/${to}`]
       delete windows.bySession[`host/${to}`]
