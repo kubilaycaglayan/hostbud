@@ -190,10 +190,10 @@ describe('App shell', () => {
       expect(button.find('svg').exists()).toBe(true)
     }
     await header.get('button[aria-label="New session"]').trigger('click')
-    await flushPromises()
-    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
-    expect(document.activeElement?.classList.contains('xterm-helper-textarea')).toBe(true)
-    let dialog: HTMLElement | null
+    let dialog = document.body.querySelector<HTMLElement>('[role="dialog"]')
+    expect(dialog?.getAttribute('aria-labelledby')).not.toBeNull()
+    expect(dialog?.textContent).toContain('New session')
+    ;[...(dialog?.querySelectorAll<HTMLButtonElement>('button') ?? [])].find((button) => button.textContent?.trim() === 'Cancel')?.click()
     await flushPromises()
     await header.get('button[aria-label="Browse files"]').trigger('click')
     dialog = document.body.querySelector<HTMLElement>('[role="dialog"]')
@@ -202,7 +202,7 @@ describe('App shell', () => {
     wrapper.unmount()
   })
 
-  it("opens only the new-session dialog from a project row's plus button", async () => {
+  it("creates and opens a default project session from its plus button", async () => {
     const project = { id: 'p1', machineId: 'host', path: '/home/dev/work', name: 'work', sortOrder: 0, pinned: false, createdAt: '', updatedAt: '' }
     stubFetch((method, path) =>
       path === '/api/auth/me'
@@ -215,7 +215,9 @@ describe('App shell', () => {
               ? { status: 200, body: { commands: [] } }
               : path === '/api/machines/host/fs/home'
                 ? { status: 200, body: { path: '/home/dev' } }
-                : path.startsWith('/api/machines/host/fs/list')
+              : path === '/api/projects/p1/sessions' && method === 'POST'
+                ? { status: 201, body: { name: 'work' } }
+              : path.startsWith('/api/machines/host/fs/list')
                   ? { status: 200, body: { path: '/home/dev', entries: [] } }
                   : { status: method === 'POST' ? 204 : 200 },
     )
@@ -225,14 +227,13 @@ describe('App shell', () => {
     await flushPromises()
     await wrapper.get('button[aria-label="New session in work"]').trigger('click')
     await flushPromises()
-    const dialogs = [...document.body.querySelectorAll('[role="dialog"]')]
-    expect(dialogs.map((d) => d.getAttribute('aria-label') ?? d.querySelector('h2')?.textContent?.trim())).toEqual(['New session here'])
-    expect(dialogs[0].textContent).toContain('New session in work')
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+    expect(document.activeElement?.classList.contains('xterm-helper-textarea')).toBe(true)
+    expect(wrapper.find('terminal-view-stub').attributes('session')).toBe('work')
 
     useProjectsStore().apply({ type: 'projects.changed', machine: 'host', payload: { action: 'deleted', project } })
     await flushPromises()
-    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
-    expect(document.body.textContent).toContain('The New session here dialog closed because its project was removed.')
+    expect(wrapper.find('terminal-view-stub').attributes('session')).toBe('work')
     wrapper.unmount()
   })
 
@@ -528,7 +529,7 @@ describe('tabs', () => {
     await wrapper.get('header button[aria-label="New session"]').trigger('click')
     await flushPromises()
     const sheet = [...document.body.querySelectorAll('[role="dialog"]')].find((element) => element.textContent?.includes('New session'))
-    expect(sheet).toBeUndefined()
+    expect(sheet?.className).toContain('bottom-0')
     wrapper.unmount()
   })
 })

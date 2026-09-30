@@ -13,6 +13,7 @@ const emit = defineEmits<{
   removeProject: [id: string]
   killProjectSessions: [id: string]
   sessionInProject: [project: Project]
+  createSessionInProject: [project: Project]
   create: []
 }>()
 const tree = ref<InstanceType<typeof SessionTree>>()
@@ -39,6 +40,7 @@ defineExpose({
         @remove-project="emit('removeProject', $event)"
         @kill-project-sessions="emit('killProjectSessions', $event)"
         @session-in-project="emit('sessionInProject', $event)"
+        @create-session-in-project="emit('createSessionInProject', $event)"
         @create="emit('create')"
       />
     </div>

@@ -42,9 +42,8 @@ import { isEditableTarget, isTerminalTarget, isTreeTarget, matchingShortcut, sho
 import { projectTree, sessionKey, windowKey } from '@/lib/tree'
 import { dispatchPaletteAction } from '@/lib/paletteActions'
 import { buildPaletteItems } from '@/lib/palette'
-import { sessionsApi } from '@/api/client'
+import { projectsApi } from '@/api/client'
 import { directorySessionName, uniqueSessionName } from '@/lib/names'
-import { describeError } from '@/stores/toasts'
 
 const app = useAppStore()
 const auth = useAuthStore()
@@ -203,21 +202,18 @@ provide(NEW_SESSION_FOR_SPLIT, (pane, dir) => {
 function newSession() {
   drawerOpen.value = false
   splitTarget.value = null
-  const path = '~'
-  const name = uniqueSessionName(
-    directorySessionName(path, host.value?.home),
-    sessions.list(MACHINE).map((session) => session.name),
-  )
-  void sessionsApi.create(MACHINE, { name, path }).then((result) => {
-    onCreated(result.name)
-  }).catch((error) => {
-    const failure = describeError(error)
-    toasts.push({ title: "Couldn't create the session", message: failure.message, tone: 'error' })
-  })
+  creating.value = true
 }
 function newProjectSession(project: Project) {
   drawerOpen.value = false
   sessionProject.value = project
+}
+function createProjectSession(project: Project) {
+  drawerOpen.value = false
+  const name = uniqueSessionName(directorySessionName(project.path), sessions.list(project.machineId).map((session) => session.name))
+  void projectsApi.createSession(project.id, { name }).then((result) => {
+    onCreated(result.name)
+  }).catch((error) => toasts.error("Couldn't create the session", error))
 }
 
 function browseFiles() {
@@ -676,10 +672,10 @@ onUnmounted(() => {
         aria-label="Sessions"
         class="flex w-64 shrink-0 flex-col border-r border-border bg-surface p-2"
       >
-        <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @remove-project="askRemoveProject" @kill-project-sessions="askKillProjectSessions" @session-in-project="newProjectSession" @create="newSession" />
+        <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @remove-project="askRemoveProject" @kill-project-sessions="askKillProjectSessions" @session-in-project="newProjectSession" @create-session-in-project="createProjectSession" @create="newSession" />
       </aside>
       <main v-if="compact && !hasTabs" id="sessions-sidebar" class="min-h-0 min-w-0 flex-1 overflow-y-auto bg-surface p-2">
-        <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @remove-project="askRemoveProject" @kill-project-sessions="askKillProjectSessions" @session-in-project="newProjectSession" @create="newSession" />
+        <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @remove-project="askRemoveProject" @kill-project-sessions="askKillProjectSessions" @session-in-project="newProjectSession" @create-session-in-project="createProjectSession" @create="newSession" />
       </main>
       <main
         v-else
@@ -745,7 +741,7 @@ onUnmounted(() => {
             </DialogClose>
           </div>
           <DialogDescription class="sr-only">Choose a project or session.</DialogDescription>
-          <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @remove-project="askRemoveProject" @kill-project-sessions="askKillProjectSessions" @session-in-project="newProjectSession" @create="newSession" />
+          <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @remove-project="askRemoveProject" @kill-project-sessions="askKillProjectSessions" @session-in-project="newProjectSession" @create-session-in-project="createProjectSession" @create="newSession" />
         </DialogContent>
       </DialogPortal>
     </DialogRoot>

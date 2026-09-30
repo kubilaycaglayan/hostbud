@@ -51,6 +51,8 @@ describe('SessionTree', () => {
     expect(wrapper.emitted('sessionInProject')?.at(-1)?.[0]).toMatchObject({ id: 'a' })
     await wrapper.get('[data-tree-key="other"]').trigger('keydown', { key: 'n' })
     expect(wrapper.emitted('create')).toHaveLength(1)
+    await wrapper.get('button[aria-label="New session in a"]').trigger('click')
+    expect(wrapper.emitted('createSessionInProject')?.at(-1)?.[0]).toMatchObject({ id: 'a' })
     wrapper.unmount()
   })
 

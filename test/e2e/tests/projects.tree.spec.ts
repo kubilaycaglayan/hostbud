@@ -26,7 +26,10 @@ async function createAccount(ui: import('../helpers/ui.ts').UI) {
 
 async function openProjectSession(page: import('@playwright/test').Page, name: string) {
   await returnToTree(page)
-  await page.getByRole('button', { name: `New session in ${name}` }).click()
+  await page.keyboard.press('Control+Shift+k')
+  const palette = page.getByRole('dialog', { name: 'Command palette' })
+  await palette.getByRole('combobox', { name: 'Command palette' }).fill(`New session in ${name}`)
+  await palette.getByRole('option', { name: `New session in ${name}` }).click()
   const dialog = page.getByRole('dialog', { name: 'New session here' })
   await expect(dialog).toBeVisible()
   // (fix) Only that dialog opens, not the file browser behind it.
@@ -79,7 +82,7 @@ test('(T5) Longest-prefix project mapping', async ({ page, target, request }) =>
   await expect(page.getByRole('group', { name: 'Other sessions' }).getByRole('button', { name: otherSession, exact: true })).toBeVisible()
 })
 
-test('New session here prefills an unused name, focused and selected, and Enter creates it', async ({ page, target, request }) => {
+test('(T13) Project plus directly creates and focuses a default named session', async ({ page, target, request }) => {
   const dir = uniqueName('e2e-prefill')
   const root = `/home/dev/${dir}`
   const projectName = uniqueName('prefill-project')
@@ -89,13 +92,10 @@ test('New session here prefills an unused name, focused and selected, and Enter 
   await page.goto('/')
   await expect(page.getByRole('group', { name: `Sessions in ${projectName}` }).getByRole('button', { name: dir, exact: true })).toBeVisible()
   await page.getByRole('button', { name: `New session in ${projectName}` }).click()
-  const create = page.getByRole('dialog', { name: 'New session here' })
-  const name = create.getByLabel('Name', { exact: true })
-  await expect(name).toBeFocused()
-  await expect(name).toHaveValue(`${dir}-1`)
-  expect(await name.evaluate((el: HTMLInputElement) => [el.selectionStart, el.selectionEnd])).toEqual([0, `${dir}-1`.length])
-  await page.keyboard.press('Enter')
+  await expect(page.getByRole('dialog', { name: 'New session here' })).toHaveCount(0)
   await expect(page.getByRole('region', { name: `Terminal: ${dir}-1` })).toBeVisible()
+  await expect(page.getByRole('group', { name: `Sessions in ${projectName}` }).getByRole('button', { name: `${dir}-1`, exact: true })).toBeVisible()
+  await expect.poll(() => page.evaluate(() => document.activeElement?.classList.contains('xterm-helper-textarea'))).toBe(true)
   await expect(page.locator('section[aria-label="Notifications"] [role="status"]')).toHaveCount(0)
 })
 
@@ -107,10 +107,7 @@ test('(T5) Linked session rename and cleanup', async ({ page, target, request, u
   await target.run(`mkdir -p ${shq(root)} ${shq(outside)}`)
   await addProject(request, root, projectName)
   await page.goto('/')
-  await page.getByRole('button', { name: `New session in ${projectName}` }).click()
-  await expect(page.getByRole('dialog', { name: 'New session here' })).toBeVisible()
-  await expect(page.getByRole('dialog', { name: 'Browse files' })).toHaveCount(0)
-  const create = page.getByRole('dialog', { name: 'New session here' })
+  const create = await openProjectSession(page, projectName)
   await create.getByLabel('Name', { exact: true }).fill(sessionName)
   await create.getByLabel('Start command').fill('sleep 6')
   await create.getByRole('button', { name: 'Create session' }).click()
@@ -147,8 +144,7 @@ for (const profile of ['desktop', 'phone'] as const) {
       await target.run(`mkdir -p ${shq(folder)}`)
       const originalProject = await addProject(request, folder, projectName)
       await page.reload()
-      await page.getByRole('button', { name: `New session in ${projectName}` }).click()
-      const create = page.getByRole('dialog', { name: 'New session here' })
+      const create = await openProjectSession(page, projectName)
       await create.getByLabel('Name').fill(sessionName)
       await create.getByLabel('Start command').fill('sleep 3600')
       await create.getByRole('button', { name: 'Create session' }).click()

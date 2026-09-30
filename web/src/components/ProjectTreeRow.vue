@@ -43,7 +43,7 @@ const emit = defineEmits<{
   split: [name: string, dir: SplitDir]
   hideSession: [name: string, hidden: boolean]
   kill: [name: string]
-  sessionInProject: [project: Project]
+  createSessionInProject: [project: Project]
   reorderSessions: [group: string, names: string[]]
 }>()
 

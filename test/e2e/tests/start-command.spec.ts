@@ -21,7 +21,10 @@ test('(V2-M1 T0) Session with start command', async ({ page, ui, target, request
   await ui.open()
 
   await ui.showList()
-  await page.getByRole('button', { name: `New session in ${projectName}` }).click()
+  await page.getByRole('button', { name: 'Command palette' }).click()
+  const palette = page.getByRole('dialog', { name: 'Command palette' })
+  await palette.getByRole('combobox', { name: 'Command palette' }).fill(`New session in ${projectName}`)
+  await palette.getByRole('option', { name: `New session in ${projectName}` }).click()
   const dialog = page.getByRole('dialog', { name: 'New session here' })
   await dialog.getByLabel('Name', { exact: true }).fill(name)
   await dialog.getByLabel('Start command').fill(START_COMMAND)
