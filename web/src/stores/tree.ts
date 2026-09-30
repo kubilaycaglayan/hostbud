@@ -250,7 +250,14 @@ export const useTreeStore = defineStore('tree', () => {
   }
   function deleteProjectSection(id: string) {
     order.value.sections = order.value.sections.filter((item) => item.id !== id)
+    order.value.collapsedSections = order.value.collapsedSections.filter((item) => item !== id)
     for (const [project, section] of Object.entries(order.value.projectSections)) if (section === id) delete order.value.projectSections[project]
+  }
+  function toggleProjectSectionCollapsed(id: string) {
+    if (!order.value.sections.some((section) => section.id === id)) return
+    order.value.collapsedSections = order.value.collapsedSections.includes(id)
+      ? order.value.collapsedSections.filter((item) => item !== id)
+      : [...order.value.collapsedSections, id]
   }
   function assignProjectSection(projectId: string, sectionId: string | null) {
     if (sectionId && !order.value.sections.some((item) => item.id === sectionId)) return
@@ -348,5 +355,5 @@ export const useTreeStore = defineStore('tree', () => {
       : order.value.expanded.filter((item) => item !== key)
   }
 
-  return { order, groups, loaded, load, refresh, sync, flush, reorderProjects, reorderProjectSection, reorderProjectSections, pinProject, unpinProject, createProjectSection, updateProjectSection, deleteProjectSection, assignProjectSection, reorderSessions, renameSession, hideProject, unhideProject, hideSession, unhideSession, setShowHidden, toggleShowHidden, hiddenCount, setCollapsed, toggleCollapsed, setExpanded, reset }
+  return { order, groups, loaded, load, refresh, sync, flush, reorderProjects, reorderProjectSection, reorderProjectSections, pinProject, unpinProject, createProjectSection, updateProjectSection, deleteProjectSection, toggleProjectSectionCollapsed, assignProjectSection, reorderSessions, renameSession, hideProject, unhideProject, hideSession, unhideSession, setShowHidden, toggleShowHidden, hiddenCount, setCollapsed, toggleCollapsed, setExpanded, reset }
 })

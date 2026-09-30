@@ -5,12 +5,13 @@ export const SECTION_COLORS = ['red', 'green', 'blue', 'yellow', 'orange', 'purp
 export type SectionColor = typeof SECTION_COLORS[number]
 export interface ProjectSection { id: string; name: string; color: SectionColor }
 export interface TreeState {
-  version: 3
+  version: 4
   projects: string[]
   sessions: Record<string, string[]>
   pinned: string[]
   hidden: { projects: string[]; sessions: string[] }
   collapsed: string[]
+  collapsedSections: string[]
   expanded: string[]
   showHidden: boolean
   sections: ProjectSection[]
@@ -21,7 +22,7 @@ export interface ProjectGroup { project: Project; sessions: Session[] }
 export interface TreeProjection { groups: ProjectGroup[]; pinned: ProjectGroup[]; unpinned: ProjectGroup[]; other: Session[] }
 
 export function emptyTreeState(): TreeState {
-  return { version: 3, projects: [], sessions: {}, pinned: [], hidden: { projects: [], sessions: [] }, collapsed: [], expanded: [], showHidden: false, sections: [], projectSections: {} }
+  return { version: 4, projects: [], sessions: {}, pinned: [], hidden: { projects: [], sessions: [] }, collapsed: [], collapsedSections: [], expanded: [], showHidden: false, sections: [], projectSections: {} }
 }
 export const emptyTreeOrder = emptyTreeState
 
@@ -47,7 +48,7 @@ function validExpandedKey(value: string): boolean {
 export function validateTreeState(value: unknown): TreeState | null {
   if (!value || typeof value !== 'object') return null
   const v = value as Record<string, unknown>
-  if (v.version !== 1 && v.version !== 2 && v.version !== 3) return null
+  if (v.version !== 1 && v.version !== 2 && v.version !== 3 && v.version !== 4) return null
   if (!Array.isArray(v.projects) || !v.sessions || typeof v.sessions !== 'object' || Array.isArray(v.sessions)) return null
   const projects = cleanList(v.projects)
   if (!projects || projects.some((id) => id.includes('/'))) return null
@@ -89,7 +90,9 @@ export function validateTreeState(value: unknown): TreeState | null {
     if (!project || project.length > 512 || project === '__proto__' || project === 'constructor' || typeof section !== 'string' || !sectionIDs.has(section)) return null
     Object.defineProperty(projectSections, project, { value: section, writable: true, enumerable: true, configurable: true })
   }
-  return { version: 3, projects, sessions, pinned, hidden: { projects: hiddenProjects, sessions: hiddenSessions }, collapsed, expanded, showHidden: v.showHidden, sections, projectSections }
+  const collapsedSections = v.version === 4 ? cleanList(v.collapsedSections) : []
+  if (!collapsedSections || collapsedSections.some((id) => !sectionIDs.has(id))) return null
+  return { version: 4, projects, sessions, pinned, hidden: { projects: hiddenProjects, sessions: hiddenSessions }, collapsed, collapsedSections, expanded, showHidden: v.showHidden, sections, projectSections }
 }
 export const validateTreeOrder = validateTreeState
 

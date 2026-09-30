@@ -177,13 +177,13 @@ T8 verification: native reader checked at 390px in Chromium and WebKit (358px co
 - [ ] When the selected session belongs to a collapsed project, its parent project row visibly and accessibly shows the selection; changing selected sessions moves that marker without expanding the project or changing the selected session.
   - U: T19 `SessionTree.spec.ts` covers selection following across collapsed parent projects and accessible selected state.
   - I: n/a: this is derived from the existing selected-session prop and saved collapsed state; no server contract changes.
-  - E: T19 *Collapsed project marks its selected session* in `tree.selection.spec.ts` (desktop and iPhone 13 Pro) checks the visible/accessibility marker as selection changes and projects collapse.
-  - Status: queued for implementation.
+  - E: T19 *Selected content stays marked when its project or section collapses* in `tree.sections.spec.ts` (desktop and iPhone 13 Pro) checks the visible and accessible project marker as selection changes and projects collapse.
+  - Status: U passes; E written and type-checked (`tree.sections.spec.ts`); browser run pending on demand.
 
 ## Collapsible project sections
 
 - [ ] Clicking a section's color dot collapses or expands its projects. Collapse state persists per account through reload/restart with a safe tree-state migration. If the selected session belongs to a collapsed section, the section shell visibly and accessibly shows the selection without expanding or changing the selected session.
   - U: T20 `tree.spec.ts` covers state migration; `SessionTree.spec.ts` covers color-dot toggle, hidden project rows and the collapsed-section selection marker.
   - I: n/a: this uses the existing per-account tree UI-state endpoint and selected-session prop; no server behavior changes.
-  - E: T20 *Collapse section and indicate selected content* in `tree.sections.spec.ts` (desktop and iPhone 13 Pro) verifies toggle behavior, selected marking and persistence after reload/restart.
-  - Status: queued for implementation.
+  - E: T20 *Selected content stays marked when its project or section collapses* in `tree.sections.spec.ts` (desktop and iPhone 13 Pro) verifies section toggle behavior, selected marking and persistence after reload/restart.
+  - Status: U passes; E written and type-checked (`tree.sections.spec.ts`); browser run pending on demand.

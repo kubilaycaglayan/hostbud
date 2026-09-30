@@ -77,7 +77,15 @@ describe('project session tree', () => {
       version: 2, projects: ['b', 'a'], sessions: { a: ['second', 'first'] }, pinned: ['b'],
       hidden: { projects: ['a'], sessions: ['host/hidden'] }, collapsed: ['b', '__other__'], expanded: ['host/first/@2'], showHidden: true,
     }
-    expect(validateTreeState(value)).toEqual({ ...emptyTreeState(), ...value, version: 3 })
+    expect(validateTreeState(value)).toEqual({ ...emptyTreeState(), ...value, version: 4 })
+  })
+
+  it('upgrades v3 sections without losing order or assignments', () => {
+    const value = {
+      version: 3, projects: ['a'], sessions: {}, pinned: [], hidden: { projects: [], sessions: [] }, collapsed: ['a'], expanded: [], showHidden: false,
+      sections: [{ id: 'research', name: 'Research', color: 'blue' }], projectSections: { a: 'research' },
+    }
+    expect(validateTreeState(value)).toEqual({ ...emptyTreeState(), ...value, version: 4, collapsedSections: [] })
   })
 
   it('round-trips valid v2 state and dedupes saved lists', () => {
@@ -95,12 +103,13 @@ describe('project session tree', () => {
 
   it('round-trips user project sections and rejects unsafe section values', () => {
     const sections = SECTION_COLORS.map((color, index) => ({ id: `color-${index}`, name: `Section ${index}`, color }))
-    const state = { ...emptyTreeState(), sections, projectSections: Object.fromEntries(sections.map((section, index) => [`project-${index}`, section.id])) }
+    const state = { ...emptyTreeState(), sections, collapsedSections: ['color-2'], projectSections: Object.fromEntries(sections.map((section, index) => [`project-${index}`, section.id])) }
     expect(validateTreeState(state)).toEqual(state)
     expect(validateTreeState({ ...state, projectSections: { a: 'missing' } })).toBeNull()
     expect(validateTreeState({ ...state, sections: [{ id: '__proto__', name: 'Bad', color: 'red' }] })).toBeNull()
     expect(validateTreeState({ ...state, sections: [{ id: 'x', name: 'Bad', color: 'pink' }] })).toBeNull()
     expect(validateTreeState({ ...state, sections: [{ id: 'x', name: ' ', color: 'red' }] })).toBeNull()
+    expect(validateTreeState({ ...state, collapsedSections: ['missing'] })).toBeNull()
   })
 
   it.each([

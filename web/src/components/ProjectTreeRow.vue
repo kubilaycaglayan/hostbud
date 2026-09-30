@@ -11,6 +11,7 @@ import InlineRename from './InlineRename.vue'
 const props = defineProps<{
   group: ProjectGroup & { id: string }
   selected?: string
+  selectionProxy: boolean
   focusedKey: string
   editingKey: string
   editError: string
@@ -87,6 +88,7 @@ function onMenuCloseAutoFocus(event: Event) {
     :role="'treeitem'"
     :aria-level="1"
     :aria-expanded="!props.collapsed"
+    :aria-selected="props.selectionProxy ? 'true' : undefined"
     :tabindex="props.focusedKey === ('project:' + props.group.project.id) ? 0 : -1"
     :aria-label="props.group.project.name + (props.hidden ? ', hidden' : '')"
     :data-tree-key="'project:' + props.group.project.id"
@@ -96,6 +98,7 @@ function onMenuCloseAutoFocus(event: Event) {
   >
     <div
       class="tree-row flex min-h-8 items-center gap-1 rounded px-0.5"
+      :class="props.selectionProxy ? 'bg-selected text-selected-fg' : ''"
       @click="emit('headerClick', props.group.project.id)"
       @pointerdown="emit('longPressStart', $event, props.group.project.id)"
       @pointermove="emit('longPressMove', $event)"

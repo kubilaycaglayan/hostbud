@@ -26,8 +26,8 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 | T16 Dialog and compact gutter stacking | Implemented; U passes, E written and type-checked, browser run pending (on demand) |
 | T17 Colored project sections | Implemented; U passes; E written and type-checked, browser run pending on demand |
 | T18 Reorderable project sections and anchored gutter action | Implemented; U passes; E written and type-checked, browser run pending on demand |
-| T19 Selected session highlights its collapsed parent project | Queued |
-| T20 Collapsible sections and selected-content marker | Queued |
+| T19 Selected session highlights its collapsed parent project | Implemented; U passes; E written and type-checked, browser run pending on demand |
+| T20 Collapsible sections and selected-content marker | Implemented; U passes; E written and type-checked, browser run pending on demand |
 
 **Progress note (T2–T4, 2026-09-27):** Vitest (447 tests), eslint, `vue-tsc` and the e2e `tsc` passed; deployed to the host from a clean checkout of `f664bb8` (a pre-deploy `pg_dump` is in `backups/`), and the stack came up healthy. Still open for these tasks:
 - **E2E runs:** the scenarios *(T2) Compact tree*, *(T3) Compact file browser*, *(T3) No browser autocomplete outside login password* and *(T4) Custom tab order* type-check but haven't run: e2e runs only on demand. The T2 commit also updated two M6 scenarios that expanded single-window sessions (*(T4) Inline rename a session*, *(T3) Window rows follow the real terminal*).
@@ -243,18 +243,18 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 
 - When the selected session belongs to a collapsed project, show the selected treatment on that parent project row and expose the proxy selection accessibly. Keep the session selected in the layout; do not expand or otherwise change the project tree just to show the marker.
 
-**Tests:** U: T19 `SessionTree.spec.ts` verifies the parent project marker follows the selected session when collapsed, and clears/moves when selection changes; I: n/a because this derives from the existing selected-session prop and tree state; E: T19 *Collapsed project marks its selected session* (desktop and iPhone 13 Pro) selects sessions across projects, collapses their parent, and checks visible and accessible selection.
+**Tests:** U: T19 `SessionTree.spec.ts` verifies the parent project marker follows the selected session when collapsed, and clears/moves when selection changes; I: n/a because this derives from the existing selected-session prop and tree state; E: T19 *Selected content stays marked when its project or section collapses* (desktop and iPhone 13 Pro) selects sessions across projects, collapses their parent, and checks visible and accessible selection.
 
-**E2E:** Add T19 *Collapsed project marks its selected session* to `test/e2e/tests/tree.selection.spec.ts`; type-check only and leave browser execution on demand.
+**E2E:** Add T19 *Selected content stays marked when its project or section collapses* to `test/e2e/tests/tree.sections.spec.ts`; type-check only and leave browser execution on demand.
 
 ## T20 — Collapsible sections and selected-content marker
 
 - Let users click a section's color dot to collapse or expand that section's projects. Persist the collapsed state per account through reload/restart, including a safe tree-state version upgrade that preserves earlier saved order and section membership.
 - If a selected session is inside a collapsed section, show the selection treatment on the section shell and expose it accessibly, without changing the selected session or automatically expanding the section.
 
-**Tests:** U: T20 `tree.spec.ts` covers the state migration and `SessionTree.spec.ts` covers color-dot toggle and the selected marker; I: n/a because collapse and selection derive from per-account tree UI state and the selected-session prop; E: T20 *Collapse section and indicate selected content* (desktop and iPhone 13 Pro) toggles a section, verifies hidden rows and selected marker, then verifies collapse state after reload/restart.
+**Tests:** U: T20 `tree.spec.ts` covers v3-to-v4 migration and `SessionTree.spec.ts` covers color-dot toggle and the selected marker; I: n/a because collapse and selection derive from per-account tree UI state and the selected-session prop; E: T20 *Selected content stays marked when its project or section collapses* (desktop and iPhone 13 Pro) toggles a section, verifies hidden rows and selected marker, then verifies collapse state after reload/restart.
 
-**E2E:** Add T20 *Collapse section and indicate selected content* to `test/e2e/tests/tree.sections.spec.ts`; type-check only and leave browser execution on demand.
+**E2E:** Add T20 assertions to *Selected content stays marked when its project or section collapses* in `test/e2e/tests/tree.sections.spec.ts`; type-check only and leave browser execution on demand.
 
 ## Done
 

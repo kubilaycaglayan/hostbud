@@ -72,6 +72,18 @@ describe('tree order store', () => {
     expect(tree.order.projectSections.a).toBe(first.id)
   })
 
+  it('persists section collapse state and prunes it when the section is deleted', () => {
+    const tree = useTreeStore()
+    const section = tree.createProjectSection('Research', 'blue')
+    tree.toggleProjectSectionCollapsed(section.id)
+    expect(tree.order.collapsedSections).toEqual([section.id])
+    tree.toggleProjectSectionCollapsed(section.id)
+    expect(tree.order.collapsedSections).toEqual([])
+    tree.toggleProjectSectionCollapsed(section.id)
+    tree.deleteProjectSection(section.id)
+    expect(tree.order.collapsedSections).toEqual([])
+  })
+
   it('re-keys session ordering, hidden state, expansion and window keys in one update', () => {
     const tree = useTreeStore()
     tree.order.sessions = { group: ['before', 'old', 'after'], __other__: ['old'] }
