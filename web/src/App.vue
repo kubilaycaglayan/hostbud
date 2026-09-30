@@ -42,6 +42,9 @@ import { isEditableTarget, isTerminalTarget, isTreeTarget, matchingShortcut, sho
 import { projectTree, sessionKey, windowKey } from '@/lib/tree'
 import { dispatchPaletteAction } from '@/lib/paletteActions'
 import { buildPaletteItems } from '@/lib/palette'
+import { sessionsApi } from '@/api/client'
+import { directorySessionName, uniqueSessionName } from '@/lib/names'
+import { describeError } from '@/stores/toasts'
 
 const app = useAppStore()
 const auth = useAuthStore()
@@ -200,7 +203,17 @@ provide(NEW_SESSION_FOR_SPLIT, (pane, dir) => {
 function newSession() {
   drawerOpen.value = false
   splitTarget.value = null
-  creating.value = true
+  const path = '~'
+  const name = uniqueSessionName(
+    directorySessionName(path, host.value?.home),
+    sessions.list(MACHINE).map((session) => session.name),
+  )
+  void sessionsApi.create(MACHINE, { name, path }).then((result) => {
+    onCreated(result.name)
+  }).catch((error) => {
+    const failure = describeError(error)
+    toasts.push({ title: "Couldn't create the session", message: failure.message, tone: 'error' })
+  })
 }
 function newProjectSession(project: Project) {
   drawerOpen.value = false

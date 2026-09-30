@@ -62,8 +62,10 @@ const signedIn = () =>
           ? { status: 404, body: { error: 'nothing saved yet' } }
           : path === '/api/ui-state/theme'
             ? { status: 404, body: { error: 'nothing saved yet' } }
-          : path === '/api/projects?machine=host'
+      : path === '/api/projects?machine=host'
             ? { status: 200, body: { projects: [] } }
+            : method === 'POST' && path === '/api/machines/host/sessions'
+              ? { status: 201, body: { name: 'dev' } }
             : { status: method === 'POST' ? 204 : 200 },
   )
 
@@ -188,10 +190,10 @@ describe('App shell', () => {
       expect(button.find('svg').exists()).toBe(true)
     }
     await header.get('button[aria-label="New session"]').trigger('click')
-    let dialog = document.body.querySelector<HTMLElement>('[role="dialog"]')
-    expect(dialog?.getAttribute('aria-labelledby')).not.toBeNull()
-    expect(dialog?.textContent).toContain('New session')
-    ;[...(dialog?.querySelectorAll<HTMLButtonElement>('button') ?? [])].find((button) => button.textContent?.trim() === 'Cancel')?.click()
+    await flushPromises()
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+    expect(document.activeElement?.classList.contains('xterm-helper-textarea')).toBe(true)
+    let dialog: HTMLElement | null
     await flushPromises()
     await header.get('button[aria-label="Browse files"]').trigger('click')
     dialog = document.body.querySelector<HTMLElement>('[role="dialog"]')
@@ -526,7 +528,7 @@ describe('tabs', () => {
     await wrapper.get('header button[aria-label="New session"]').trigger('click')
     await flushPromises()
     const sheet = [...document.body.querySelectorAll('[role="dialog"]')].find((element) => element.textContent?.includes('New session'))
-    expect(sheet?.className).toContain('bottom-0')
+    expect(sheet).toBeUndefined()
     wrapper.unmount()
   })
 })
