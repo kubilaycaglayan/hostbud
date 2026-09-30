@@ -2,7 +2,7 @@
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { VueDraggable } from 'vue-draggable-plus'
 import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
-import { ChevronRight, Folder, Plus } from 'lucide-vue-next'
+import { ChevronRight, Folder, GripVertical, Plus } from 'lucide-vue-next'
 import type { Project, Session } from '@/api/types'
 import { projectsApi, sessionsApi } from '@/api/client'
 import { useMachinesStore } from '@/stores/machines'
@@ -68,11 +68,15 @@ const unpinnedProjectRows = computed({
   get: () => projectRows.value.filter((group) => !tree.order.pinned.includes(group.project.id) && !tree.order.projectSections[group.project.id]),
   set: (groups: (ProjectGroup & { id: string })[]) => tree.reorderProjectSection(groups.map((group) => group.project.id), false),
 })
-const projectSectionRows = computed(() => tree.order.sections.map((section) => ({
-  section,
-  pinned: projectRows.value.filter((group) => tree.order.pinned.includes(group.project.id) && tree.order.projectSections[group.project.id] === section.id),
-  unpinned: projectRows.value.filter((group) => !tree.order.pinned.includes(group.project.id) && tree.order.projectSections[group.project.id] === section.id),
-})))
+const projectSectionRows = computed({
+  get: () => tree.order.sections.map((section) => ({
+    id: section.id,
+    section,
+    pinned: projectRows.value.filter((group) => tree.order.pinned.includes(group.project.id) && tree.order.projectSections[group.project.id] === section.id),
+    unpinned: projectRows.value.filter((group) => !tree.order.pinned.includes(group.project.id) && tree.order.projectSections[group.project.id] === section.id),
+  })),
+  set: (rows: { id: string }[]) => tree.reorderProjectSections(rows.map((row) => row.id)),
+})
 const sectionColorValues: Record<SectionColor, string> = { red: 'var(--hb-section-red)', green: 'var(--hb-section-green)', blue: 'var(--hb-section-blue)', yellow: 'var(--hb-section-yellow)', orange: 'var(--hb-section-orange)', purple: 'var(--hb-section-purple)' }
 function sectionStyle(section: ProjectSection) { return { '--section-accent': sectionColorValues[section.color] } }
 const otherRows = computed(() => tree.order.showHidden
@@ -564,8 +568,10 @@ async function saveAsProject(session: Session) {
         <ProjectTreeRow v-for="group in pinnedProjectRows" :key="group.id" :group="group" :selected="props.selected" :focused-key="activeFocusKey" :editing-key="editingKey" :edit-error="editError" :menu-open="projectMenuId === group.id" :hidden="tree.order.hidden.projects.includes(group.id)" :pinned="true" :sections="tree.order.sections" :collapsed="tree.order.collapsed.includes(group.id)" :home="home" :rename-project="renameProject" :rename-session="renameSession" @header-click="projectHeaderClick" @long-press-start="startProjectLongPress" @long-press-move="moveProjectLongPress" @long-press-end="endProjectLongPress" @menu-open="(open, id) => projectMenuId = open ? id : ''" @start-rename="startRename" @cancel-rename="cancelRename" @hide-project="hideProject" @remove-project="emit('removeProject', $event)" @kill-project-sessions="emit('killProjectSessions', $event)" @toggle-pin="toggleProjectPin" @assign-section="tree.assignProjectSection" @select="emit('select', $event)" @select-window="(name, window, pane) => emit('selectWindow', name, window, pane)" @split="(name, dir) => emit('split', name, dir)" @hide-session="hideSession" @kill="emit('kill', $event)" @session-in-project="emit('sessionInProject', $event)" @reorder-sessions="tree.reorderSessions" />
       </VueDraggable>
     </section>
-    <section v-for="bucket in projectSectionRows" :key="bucket.section.id" role="group" :aria-label="bucket.section.name + ' section'" class="project-section-shell my-1 rounded-md border-l-2 border-r border-t border-b px-1 pb-1" :style="sectionStyle(bucket.section)" :data-project-section-id="bucket.section.id">
+    <VueDraggable v-model="projectSectionRows" tag="div" role="group" aria-label="Project sections" data-section-order-list class="flex flex-col gap-0.5" item-key="id" handle=".section-drag-handle" :animation="150" :force-fallback="true" :fallback-on-body="true" :fallback-tolerance="4" :delay="250" :delay-on-touch-only="true" :touch-start-threshold="4" :group="{ name: 'project-section-order' }">
+    <section v-for="bucket in projectSectionRows" :key="bucket.section.id" role="group" :aria-label="bucket.section.name + ' section'" class="project-section-shell mx-px rounded-md border-l-2 border-r border-t border-b pb-1 pl-0 pr-0" :style="sectionStyle(bucket.section)" :data-project-section-id="bucket.section.id">
       <header class="flex min-h-7 items-center gap-1 px-1">
+        <button type="button" class="section-drag-handle touch-target inline-flex min-h-7 w-5 shrink-0 cursor-grab items-center justify-center rounded text-muted hover:bg-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" :aria-label="'Drag to reorder section ' + bucket.section.name" title="Drag to reorder sections"><GripVertical :size="14" aria-hidden="true" /></button>
         <span class="h-2 w-2 shrink-0 rounded-full" style="background-color:var(--section-accent)" aria-hidden="true"></span>
         <span class="min-w-0 flex-1 truncate text-[11px] font-semibold tracking-wide uppercase">{{ bucket.section.name }}</span>
         <button type="button" class="touch-target rounded px-1 text-muted hover:bg-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" :aria-label="'Edit section ' + bucket.section.name" title="Edit section" @click="editSection(bucket.section)">···</button>
@@ -580,6 +586,7 @@ async function saveAsProject(session: Session) {
       </VueDraggable>
       <p v-if="!bucket.pinned.length && !bucket.unpinned.length" class="px-1 py-1 text-[11px] text-muted">Empty section</p>
     </section>
+    </VueDraggable>
     <section v-if="unpinnedProjectRows.length" role="group" aria-label="Projects">
       <h3 v-if="pinnedProjectRows.length" class="px-1.5 pt-1 pb-0.5 text-[11px] font-semibold tracking-wider text-muted uppercase">Projects</h3>
       <VueDraggable v-model="unpinnedProjectRows" tag="ul" role="group" aria-label="Projects list" data-project-section="unpinned" data-project-section-id="__unsectioned-unpinned" item-key="id" handle=".project-drag-handle" class="flex flex-col gap-1" :animation="150" :force-fallback="true" :fallback-on-body="true" :fallback-tolerance="4" :delay="250" :delay-on-touch-only="true" :touch-start-threshold="4" :group="{ name: 'project-sections', pull: true, put: true }" :on-move="canMoveProject">
@@ -642,7 +649,7 @@ async function saveAsProject(session: Session) {
       {{ totalRows > 0 && !tree.order.showHidden ? 'Everything is hidden.' : 'No tmux sessions yet.' }}
     </p>
     </div>
-    <div class="sticky bottom-0 mt-auto border-t border-border bg-surface/95 pt-1">
+    <div class="sticky bottom-0 mt-auto shrink-0 border-t border-border bg-surface/95 pt-1">
       <button type="button" class="touch-target flex min-h-8 w-full items-center gap-2 rounded px-1.5 text-left text-sm text-muted hover:bg-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" aria-label="Create a new section" title="Create a new section" @click="editSection()"><Plus :size="16" aria-hidden="true" /><span>Create a new section</span></button>
     </div>
     <DialogRoot v-model:open="sectionDialogOpen">

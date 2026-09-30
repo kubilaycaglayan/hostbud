@@ -71,6 +71,10 @@ function startProjectRename() {
   restoringMenuFocus = false
   emit('startRename', 'project:' + props.group.project.id)
 }
+function assignProjectSection(sectionId: string | null) {
+  emit('menuOpen', false, props.group.project.id)
+  emit('assignSection', props.group.project.id, sectionId)
+}
 function onMenuCloseAutoFocus(event: Event) {
   if (restoringMenuFocus) return
   restoringMenuFocus = true
@@ -116,8 +120,8 @@ function onMenuCloseAutoFocus(event: Event) {
             <DropdownMenuItem class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 outline-none data-highlighted:bg-bg" @select="startProjectRename">Rename</DropdownMenuItem>
             <DropdownMenuItem class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 outline-none data-highlighted:bg-bg" @select="emit('hideProject', props.group.project.id)">{{ props.hidden ? 'Unhide' : 'Hide' }}</DropdownMenuItem>
             <DropdownMenuItem class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 outline-none data-highlighted:bg-bg" @select="emit('togglePin', props.group.project.id)">{{ props.pinned ? 'Unpin' : 'Pin' }}</DropdownMenuItem>
-            <DropdownMenuItem v-if="props.sectionId" class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 outline-none data-highlighted:bg-bg" @select="emit('assignSection', props.group.project.id, null)">Remove from section</DropdownMenuItem>
-            <DropdownMenuItem v-for="section in props.sections.filter((item) => item.id !== props.sectionId)" :key="section.id" class="touch-target flex min-h-11 cursor-pointer items-center gap-2 rounded px-2 py-1 outline-none data-highlighted:bg-bg" @select="emit('assignSection', props.group.project.id, section.id)">
+            <DropdownMenuItem v-if="props.sectionId" class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 outline-none data-highlighted:bg-bg" @select="assignProjectSection(null)">Remove from section</DropdownMenuItem>
+            <DropdownMenuItem v-for="section in props.sections.filter((item) => item.id !== props.sectionId)" :key="section.id" class="touch-target flex min-h-11 cursor-pointer items-center gap-2 rounded px-2 py-1 outline-none data-highlighted:bg-bg" @select="assignProjectSection(section.id)">
               <span class="h-2.5 w-2.5 rounded-full" :style="{ backgroundColor: sectionColorValues[section.color] }" aria-hidden="true"></span>Move to {{ section.name }}
             </DropdownMenuItem>
             <DropdownMenuItem class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 text-danger outline-none data-highlighted:bg-bg data-disabled:cursor-default data-disabled:opacity-50" :disabled="!props.group.sessions.length" @select="emit('killProjectSessions', props.group.project.id)">Kill all sessions of this project…</DropdownMenuItem>

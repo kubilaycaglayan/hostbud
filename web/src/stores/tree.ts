@@ -1,7 +1,7 @@
 import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { getUIState, putUIState } from '@/api/client'
-import { emptyTreeState, OTHER_GROUP, ordered, projectTree, validateTreeState, type ProjectSection, type SectionColor, type TreeState } from '@/lib/tree'
+import { emptyTreeState, OTHER_GROUP, ordered, orderedProjectSections, projectTree, validateTreeState, type ProjectSection, type SectionColor, type TreeState } from '@/lib/tree'
 import { useProjectsStore } from './projects'
 import { useSessionsStore } from './sessions'
 import { useMachinesStore } from './machines'
@@ -214,6 +214,10 @@ export const useTreeStore = defineStore('tree', () => {
     order.value.projects = [...pinnedRows, ...unpinnedRows]
     sync()
   }
+  function reorderProjectSections(ids: string[]) {
+    order.value.sections = orderedProjectSections(order.value.sections, ids)
+    sync()
+  }
   function pinProject(id: string) {
     if (order.value.pinned.includes(id)) return
     const rest = order.value.projects.filter((item) => item !== id)
@@ -344,5 +348,5 @@ export const useTreeStore = defineStore('tree', () => {
       : order.value.expanded.filter((item) => item !== key)
   }
 
-  return { order, groups, loaded, load, refresh, sync, flush, reorderProjects, reorderProjectSection, pinProject, unpinProject, createProjectSection, updateProjectSection, deleteProjectSection, assignProjectSection, reorderSessions, renameSession, hideProject, unhideProject, hideSession, unhideSession, setShowHidden, toggleShowHidden, hiddenCount, setCollapsed, toggleCollapsed, setExpanded, reset }
+  return { order, groups, loaded, load, refresh, sync, flush, reorderProjects, reorderProjectSection, reorderProjectSections, pinProject, unpinProject, createProjectSection, updateProjectSection, deleteProjectSection, assignProjectSection, reorderSessions, renameSession, hideProject, unhideProject, hideSession, unhideSession, setShowHidden, toggleShowHidden, hiddenCount, setCollapsed, toggleCollapsed, setExpanded, reset }
 })

@@ -164,6 +164,12 @@ Tasks: [roadmap/M8-tasks.md](roadmap/M8-tasks.md) · Checklist: [roadmap/M8-acce
 
 **Accept (T17):** per-account project sections can be created empty, named, assigned one of six accent colors, edited, and deleted; project membership persists through reload/restart; section borders visually enclose projects without adding hierarchy or widening the gutter.
 
+**Accept (T18):** users can drag sections into a saved order; the create-section control stays at the bottom of the gutter outside the scrolling tree; section spacing remains compact and project rows stay aligned with the existing tree level.
+
+**Queued (T19):** when a selected session's project is collapsed, show the selection on that project row without expanding it or changing the selected session.
+
+**Queued (T20):** clicking a section's color dot collapses or expands its projects; a collapsed section containing the selected session shows an accessible selection marker. Collapse state persists per account.
+
 ---
 
 ## Later (not scheduled)

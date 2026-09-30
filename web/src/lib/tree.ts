@@ -115,6 +115,10 @@ export function canReorderProjectSections(from: string, to: string): boolean {
   return from === to
 }
 
+export function orderedProjectSections(sections: ProjectSection[], ids: string[]): ProjectSection[] {
+  return ordered(sections, ids, (section) => section.id)
+}
+
 function belongs(sessionPath: string, projectPath: string): boolean {
   const root = projectPath === '/' ? '/' : projectPath.replace(/\/+$/, '')
   return root === '/' ? sessionPath.startsWith('/') : sessionPath === root || sessionPath.startsWith(`${root}/`)

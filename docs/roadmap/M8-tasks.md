@@ -25,6 +25,9 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 | T15 Selected-session clarity and list decluttering | Implemented; U/contrast pass, E written and type-checked, screenshots inspected; browser run pending (on demand) |
 | T16 Dialog and compact gutter stacking | Implemented; U passes, E written and type-checked, browser run pending (on demand) |
 | T17 Colored project sections | Implemented; U passes; E written and type-checked, browser run pending on demand |
+| T18 Reorderable project sections and anchored gutter action | Implemented; U passes; E written and type-checked, browser run pending on demand |
+| T19 Selected session highlights its collapsed parent project | Queued |
+| T20 Collapsible sections and selected-content marker | Queued |
 
 **Progress note (T2–T4, 2026-09-27):** Vitest (447 tests), eslint, `vue-tsc` and the e2e `tsc` passed; deployed to the host from a clean checkout of `f664bb8` (a pre-deploy `pg_dump` is in `backups/`), and the stack came up healthy. Still open for these tasks:
 - **E2E runs:** the scenarios *(T2) Compact tree*, *(T3) Compact file browser*, *(T3) No browser autocomplete outside login password* and *(T4) Custom tab order* type-check but haven't run: e2e runs only on demand. The T2 commit also updated two M6 scenarios that expanded single-window sessions (*(T4) Inline rename a session*, *(T3) Window rows follow the real terminal*).
@@ -225,6 +228,33 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 **Tests:** U: T17 `tree.spec.ts` validates/migrates section state and colors; `SessionTree.spec.ts` covers empty creation, color/name edits, assignment, deletion/unassignment, and the unchanged project-row indentation. I: n/a because the feature uses the existing authenticated `ui_state/tree` endpoint; M3 UI-state integration coverage verifies that persistence contract. E: T17 *Project sections* on desktop and iPhone 13 Pro verifies creation, color/name edits, assignment, gutter bounds/indentation, and persistence after reload/restart.
 
 **E2E:** Add T17 *Project sections* to `test/e2e/tests/tree.sections.spec.ts`; type-check only and leave browser execution on demand.
+
+## T18 — Reorderable project sections and anchored gutter action
+
+- Let users drag sections into a custom order with a dedicated, accessible touch-sized handle; save their order with the existing per-account tree state.
+- Keep the create-section action at the bottom of the left gutter while the project tree scrolls. Keep only a 2px vertical gap between sections, a 1px horizontal gap to the enclosing tree, and no inner right padding; project rows stay aligned with the existing tree level.
+- Close the project actions menu immediately after moving a project into or out of a section.
+
+**Tests:** U: T18 `tree.spec.ts` and `stores/tree.spec.ts` verify section ordering and retained membership; `SessionTree.spec.ts` verifies the sortable list, handle, footer anchoring classes, and menu dismissal after assignment. I: n/a because this uses the existing per-account tree UI-state endpoint and browser layout. E: T18 updates *Project sections and ordering* in `test/e2e/tests/tree.sections.spec.ts` to drag sections, check persisted order, and check the create action is outside the scrolling tree at the gutter bottom.
+
+**E2E:** Add T18 ordering and anchored-footer assertions to `test/e2e/tests/tree.sections.spec.ts`; type-check only and leave browser execution on demand.
+
+## T19 — Selected session highlights its collapsed parent project
+
+- When the selected session belongs to a collapsed project, show the selected treatment on that parent project row and expose the proxy selection accessibly. Keep the session selected in the layout; do not expand or otherwise change the project tree just to show the marker.
+
+**Tests:** U: T19 `SessionTree.spec.ts` verifies the parent project marker follows the selected session when collapsed, and clears/moves when selection changes; I: n/a because this derives from the existing selected-session prop and tree state; E: T19 *Collapsed project marks its selected session* (desktop and iPhone 13 Pro) selects sessions across projects, collapses their parent, and checks visible and accessible selection.
+
+**E2E:** Add T19 *Collapsed project marks its selected session* to `test/e2e/tests/tree.selection.spec.ts`; type-check only and leave browser execution on demand.
+
+## T20 — Collapsible sections and selected-content marker
+
+- Let users click a section's color dot to collapse or expand that section's projects. Persist the collapsed state per account through reload/restart, including a safe tree-state version upgrade that preserves earlier saved order and section membership.
+- If a selected session is inside a collapsed section, show the selection treatment on the section shell and expose it accessibly, without changing the selected session or automatically expanding the section.
+
+**Tests:** U: T20 `tree.spec.ts` covers the state migration and `SessionTree.spec.ts` covers color-dot toggle and the selected marker; I: n/a because collapse and selection derive from per-account tree UI state and the selected-session prop; E: T20 *Collapse section and indicate selected content* (desktop and iPhone 13 Pro) toggles a section, verifies hidden rows and selected marker, then verifies collapse state after reload/restart.
+
+**E2E:** Add T20 *Collapse section and indicate selected content* to `test/e2e/tests/tree.sections.spec.ts`; type-check only and leave browser execution on demand.
 
 ## Done
 

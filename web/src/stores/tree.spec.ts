@@ -62,6 +62,16 @@ describe('tree order store', () => {
     expect(tree.order.projects).toEqual(['a', 'b', 'c'])
   })
 
+  it('reorders project sections without changing their projects', () => {
+    const tree = useTreeStore()
+    const first = tree.createProjectSection('First', 'red')
+    const second = tree.createProjectSection('Second', 'blue')
+    tree.assignProjectSection('a', first.id)
+    tree.reorderProjectSections([second.id, first.id])
+    expect(tree.order.sections.map((section) => section.id)).toEqual([second.id, first.id])
+    expect(tree.order.projectSections.a).toBe(first.id)
+  })
+
   it('re-keys session ordering, hidden state, expansion and window keys in one update', () => {
     const tree = useTreeStore()
     tree.order.sessions = { group: ['before', 'old', 'after'], __other__: ['old'] }

@@ -103,6 +103,7 @@ describe('SessionTree', () => {
     expect(moveAction).toBeTruthy()
     moveAction!.click()
     await nextTick()
+    expect(document.body.querySelector('[role="menu"]')).toBeNull()
     expect(tree.order.projectSections.a).toBe(tree.order.sections[0].id)
     expect(wrapper.get('[role="group"][aria-label="Research section"]').attributes('data-project-section-id')).toBe(tree.order.sections[0].id)
 
@@ -131,6 +132,21 @@ describe('SessionTree', () => {
     deleteButton!.click()
     expect(tree.order.sections).toEqual([])
     expect(tree.order.projectSections).toEqual({})
+    wrapper.unmount()
+  })
+
+  it('reorders sections from their drag list and keeps section creation in the gutter footer', async () => {
+    const tree = useTreeStore()
+    const first = tree.createProjectSection('First', 'blue')
+    const second = tree.createProjectSection('Second', 'green')
+    const wrapper = mount(SessionTree)
+    const sorter = wrapper.findAllComponents(VueDraggable).find((list) => list.attributes('data-section-order-list') !== undefined)
+    expect(sorter).toBeTruthy()
+    expect(wrapper.get('button[aria-label="Drag to reorder section First"]').classes()).toContain('section-drag-handle')
+    await sorter!.vm.$emit('update:modelValue', [{ id: second.id }, { id: first.id }])
+    expect(tree.order.sections.map((section) => section.id)).toEqual([second.id, first.id])
+    expect(wrapper.get('nav > div.sticky').classes()).toContain('bottom-0')
+    expect(wrapper.get('nav > div.sticky').classes()).toContain('shrink-0')
     wrapper.unmount()
   })
 

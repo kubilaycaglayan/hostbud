@@ -165,3 +165,25 @@ T8 verification: native reader checked at 390px in Chromium and WebKit (358px co
   - I: n/a: sections use the existing authenticated `ui_state/tree` persistence endpoint and introduce no new server behavior; its persistence integration is covered by M3.
   - E: T17 *Project sections* (desktop and iPhone 13 Pro), including section creation, color/name changes, project assignment, gutter geometry, and state after reload and app restart.
   - Status: U passes (`tree.spec.ts`, `SessionTree.spec.ts`); E written and type-checked (`tree.sections.spec.ts`), browser run pending on demand.
+
+- [ ] Users can drag sections into a custom saved order with a dedicated touch-sized handle. The create-section action stays at the bottom of the gutter while its tree scrolls. Section gaps are 2px vertically and 1px horizontally to the enclosing tree, with no inner right padding and no additional project indentation.
+  - U: T18 `tree.spec.ts` and `stores/tree.spec.ts` cover section ordering and membership retention; `SessionTree.spec.ts` covers the drag list, handle, sticky footer placement and action-menu dismissal after project assignment.
+  - I: n/a: sorting and gutter placement use existing tree UI-state persistence and browser layout; no server contract changes.
+  - E: T18 *Project sections and ordering* in `tree.sections.spec.ts` (desktop and iPhone 13 Pro) drags sections, checks persisted order, gutter-bottom placement and that the create action remains outside the scrolling tree.
+  - Status: U passes; E written and type-checked, browser run pending on demand.
+
+## Selected session in a collapsed project
+
+- [ ] When the selected session belongs to a collapsed project, its parent project row visibly and accessibly shows the selection; changing selected sessions moves that marker without expanding the project or changing the selected session.
+  - U: T19 `SessionTree.spec.ts` covers selection following across collapsed parent projects and accessible selected state.
+  - I: n/a: this is derived from the existing selected-session prop and saved collapsed state; no server contract changes.
+  - E: T19 *Collapsed project marks its selected session* in `tree.selection.spec.ts` (desktop and iPhone 13 Pro) checks the visible/accessibility marker as selection changes and projects collapse.
+  - Status: queued for implementation.
+
+## Collapsible project sections
+
+- [ ] Clicking a section's color dot collapses or expands its projects. Collapse state persists per account through reload/restart with a safe tree-state migration. If the selected session belongs to a collapsed section, the section shell visibly and accessibly shows the selection without expanding or changing the selected session.
+  - U: T20 `tree.spec.ts` covers state migration; `SessionTree.spec.ts` covers color-dot toggle, hidden project rows and the collapsed-section selection marker.
+  - I: n/a: this uses the existing per-account tree UI-state endpoint and selected-session prop; no server behavior changes.
+  - E: T20 *Collapse section and indicate selected content* in `tree.sections.spec.ts` (desktop and iPhone 13 Pro) verifies toggle behavior, selected marking and persistence after reload/restart.
+  - Status: queued for implementation.

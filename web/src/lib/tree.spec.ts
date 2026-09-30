@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Project, Session } from '@/api/types'
-import { canReorderProjectSections, emptyTreeState, move, projectForSession, projectTree, SECTION_COLORS, validateTreeState } from './tree'
+import { canReorderProjectSections, emptyTreeState, move, orderedProjectSections, projectForSession, projectTree, SECTION_COLORS, validateTreeState } from './tree'
 
 const project = (id: string, path: string, name = id): Project => ({ id, machineId: 'host', path, name, sortOrder: 0, pinned: false, createdAt: '', updatedAt: '' })
 const session = (name: string, path: string): Session => ({ id: `$${name}`, name, path, attached: 0, windows: 1, created: '', activity: '' })
@@ -40,6 +40,15 @@ describe('project session tree', () => {
     expect(canReorderProjectSections('pinned', 'pinned')).toBe(true)
     expect(canReorderProjectSections('unpinned', 'unpinned')).toBe(true)
     expect(canReorderProjectSections('pinned', 'unpinned')).toBe(false)
+  })
+
+  it('orders project sections by saved ids while retaining unlisted sections', () => {
+    const sections = [
+      { id: 'first', name: 'First', color: 'blue' as const },
+      { id: 'second', name: 'Second', color: 'green' as const },
+      { id: 'third', name: 'Third', color: 'purple' as const },
+    ]
+    expect(orderedProjectSections(sections, ['third', 'first']).map((section) => section.id)).toEqual(['third', 'first', 'second'])
   })
 
   it('keeps nested projects with equal display names as distinct groups', () => {
