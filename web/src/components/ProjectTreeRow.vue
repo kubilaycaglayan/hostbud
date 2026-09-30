@@ -132,7 +132,7 @@ function onMenuCloseAutoFocus(event: Event) {
           </DropdownMenuContent>
         </DropdownMenuPortal>
       </DropdownMenuRoot>
-      <button type="button" class="row-action touch-target inline-flex min-h-7 min-w-6 items-center justify-center rounded text-muted hover:bg-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" :aria-label="'New session in ' + props.group.project.name" :title="'New session in ' + props.group.project.name" tabindex="-1" @click.stop="emit('sessionInProject', props.group.project)"><Plus :size="16" aria-hidden="true" /></button>
+      <button type="button" class="row-action touch-target inline-flex min-h-7 min-w-6 items-center justify-center rounded text-muted hover:bg-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" :aria-label="'New session in ' + props.group.project.name" :title="'New session in ' + props.group.project.name" tabindex="-1" @click.stop="emit('createSessionInProject', props.group.project)"><Plus :size="16" aria-hidden="true" /></button>
       <button type="button" class="row-action touch-target project-drag-handle min-h-7 min-w-4 cursor-grab rounded text-muted" :aria-label="'Drag to reorder project ' + props.group.project.name" title="Drag to reorder projects" tabindex="-1" @click.stop>⠿</button>
     </div>
     <div v-if="!props.collapsed" role="group" class="ml-2 border-l border-border/40 pb-1 pl-1.5">
