@@ -1,8 +1,11 @@
 import type { Project, Session } from '@/api/types'
 
 export const OTHER_GROUP = '__other__'
+export const SECTION_COLORS = ['red', 'green', 'blue', 'yellow', 'orange', 'purple'] as const
+export type SectionColor = typeof SECTION_COLORS[number]
+export interface ProjectSection { id: string; name: string; color: SectionColor }
 export interface TreeState {
-  version: 2
+  version: 3
   projects: string[]
   sessions: Record<string, string[]>
   pinned: string[]
@@ -10,13 +13,15 @@ export interface TreeState {
   collapsed: string[]
   expanded: string[]
   showHidden: boolean
+  sections: ProjectSection[]
+  projectSections: Record<string, string>
 }
 export type TreeOrder = TreeState
 export interface ProjectGroup { project: Project; sessions: Session[] }
 export interface TreeProjection { groups: ProjectGroup[]; pinned: ProjectGroup[]; unpinned: ProjectGroup[]; other: Session[] }
 
 export function emptyTreeState(): TreeState {
-  return { version: 2, projects: [], sessions: {}, pinned: [], hidden: { projects: [], sessions: [] }, collapsed: [], expanded: [], showHidden: false }
+  return { version: 3, projects: [], sessions: {}, pinned: [], hidden: { projects: [], sessions: [] }, collapsed: [], expanded: [], showHidden: false, sections: [], projectSections: {} }
 }
 export const emptyTreeOrder = emptyTreeState
 
@@ -42,7 +47,7 @@ function validExpandedKey(value: string): boolean {
 export function validateTreeState(value: unknown): TreeState | null {
   if (!value || typeof value !== 'object') return null
   const v = value as Record<string, unknown>
-  if (v.version !== 1 && v.version !== 2) return null
+  if (v.version !== 1 && v.version !== 2 && v.version !== 3) return null
   if (!Array.isArray(v.projects) || !v.sessions || typeof v.sessions !== 'object' || Array.isArray(v.sessions)) return null
   const projects = cleanList(v.projects)
   if (!projects || projects.some((id) => id.includes('/'))) return null
@@ -66,7 +71,25 @@ export function validateTreeState(value: unknown): TreeState | null {
   if (hiddenSessions.some((key) => !validSessionKey(key)) ||
     expanded.some((key) => !validExpandedKey(key)) ||
     [...pinned, ...hiddenProjects, ...collapsed.filter((key) => key !== OTHER_GROUP)].some((id) => id.includes('/'))) return null
-  return { version: 2, projects, sessions, pinned, hidden: { projects: hiddenProjects, sessions: hiddenSessions }, collapsed, expanded, showHidden: v.showHidden }
+  if (v.version === 2) return { ...emptyTreeState(), projects, sessions, pinned, hidden: { projects: hiddenProjects, sessions: hiddenSessions }, collapsed, expanded, showHidden: v.showHidden }
+  if (!Array.isArray(v.sections) || v.sections.length > 500 || !v.projectSections || typeof v.projectSections !== 'object' || Array.isArray(v.projectSections)) return null
+  const sectionIDs = new Set<string>()
+  const sections: ProjectSection[] = []
+  for (const raw of v.sections) {
+    if (!raw || typeof raw !== 'object') return null
+    const section = raw as Record<string, unknown>
+    if (typeof section.id !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/u.test(section.id) || sectionIDs.has(section.id) ||
+      typeof section.name !== 'string' || !section.name.trim() || section.name.length > 80 || /[\u0000-\u001f\u007f]/u.test(section.name) ||
+      typeof section.color !== 'string' || !(SECTION_COLORS as readonly string[]).includes(section.color)) return null
+    sectionIDs.add(section.id)
+    sections.push({ id: section.id, name: section.name.trim(), color: section.color as SectionColor })
+  }
+  const projectSections: Record<string, string> = {}
+  for (const [project, section] of Object.entries(v.projectSections as Record<string, unknown>)) {
+    if (!project || project.length > 512 || project === '__proto__' || project === 'constructor' || typeof section !== 'string' || !sectionIDs.has(section)) return null
+    Object.defineProperty(projectSections, project, { value: section, writable: true, enumerable: true, configurable: true })
+  }
+  return { version: 3, projects, sessions, pinned, hidden: { projects: hiddenProjects, sessions: hiddenSessions }, collapsed, expanded, showHidden: v.showHidden, sections, projectSections }
 }
 export const validateTreeOrder = validateTreeState
 

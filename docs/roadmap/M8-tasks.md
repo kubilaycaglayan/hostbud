@@ -24,6 +24,7 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 | T14 Solarized and Dimmed theme levels | Implemented; E2E written and type-checked, run pending (on demand) |
 | T15 Selected-session clarity and list decluttering | Implemented; U/contrast pass, E written and type-checked, screenshots inspected; browser run pending (on demand) |
 | T16 Dialog and compact gutter stacking | Implemented; U passes, E written and type-checked, browser run pending (on demand) |
+| T17 Colored project sections | Implemented; U passes; E written and type-checked, browser run pending on demand |
 
 **Progress note (T2–T4, 2026-09-27):** Vitest (447 tests), eslint, `vue-tsc` and the e2e `tsc` passed; deployed to the host from a clean checkout of `f664bb8` (a pre-deploy `pg_dump` is in `backups/`), and the stack came up healthy. Still open for these tasks:
 - **E2E runs:** the scenarios *(T2) Compact tree*, *(T3) Compact file browser*, *(T3) No browser autocomplete outside login password* and *(T4) Custom tab order* type-check but haven't run: e2e runs only on demand. The T2 commit also updated two M6 scenarios that expanded single-window sessions (*(T4) Inline rename a session*, *(T3) Window rows follow the real terminal*).
@@ -213,6 +214,17 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 **Tests:** U: `App.spec.ts` asserts the compact drawer backdrop and panel layers remain below application dialogs; I: n/a (frontend stacking only); E: T16 *Dialogs stay above the reopened tree gutter* opens the Command palette while the drawer is present on iPhone 13 Pro and verifies the dialog's computed layer and search input usability.
 
 **E2E:** Add T16 *Dialogs stay above the reopened tree gutter* (iPhone 13 Pro): open the drawer, invoke the Command palette through its keyboard shortcut, and assert the dialog stays above the drawer and its search input is usable. Type-check only; run on demand.
+
+## T17 — Colored project sections
+
+- Add per-account named project sections, stored with the existing tree UI state. Each section is created empty and has one of six lightly accented colors: red, green, blue, yellow, orange or purple.
+- Add a compact create-section button at the bottom of the left gutter. The editor can name, recolor, rename and delete a section. Deleting a section returns its projects to the regular project list without deleting projects or sessions.
+- Let users assign or move a project through its existing more-actions menu. Draw a thin tinted border around each section's projects with no added tree indentation or gutter width. Keep project/session interactions, pinning, ordering, hidden rows and touch targets usable.
+- Persist section definitions and project membership in the per-account `tree` UI state, upgrading versions 1 and 2 without changing the saved project/session order. No backend, migration or environment change.
+
+**Tests:** U: T17 `tree.spec.ts` validates/migrates section state and colors; `SessionTree.spec.ts` covers empty creation, color/name edits, assignment, deletion/unassignment, and the unchanged project-row indentation. I: n/a because the feature uses the existing authenticated `ui_state/tree` endpoint; M3 UI-state integration coverage verifies that persistence contract. E: T17 *Project sections* on desktop and iPhone 13 Pro verifies creation, color/name edits, assignment, gutter bounds/indentation, and persistence after reload/restart.
+
+**E2E:** Add T17 *Project sections* to `test/e2e/tests/tree.sections.spec.ts`; type-check only and leave browser execution on demand.
 
 ## Done
 

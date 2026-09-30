@@ -1,7 +1,7 @@
 import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { getUIState, putUIState } from '@/api/client'
-import { emptyTreeState, OTHER_GROUP, ordered, projectTree, validateTreeState, type TreeState } from '@/lib/tree'
+import { emptyTreeState, OTHER_GROUP, ordered, projectTree, validateTreeState, type ProjectSection, type SectionColor, type TreeState } from '@/lib/tree'
 import { useProjectsStore } from './projects'
 import { useSessionsStore } from './sessions'
 import { useMachinesStore } from './machines'
@@ -150,6 +150,7 @@ export const useTreeStore = defineStore('tree', () => {
       state.projects = state.projects.filter((id) => projectIds.has(id))
       state.pinned = state.pinned.filter((id) => projectIds.has(id))
       state.hidden.projects = state.hidden.projects.filter((id) => projectIds.has(id))
+      state.projectSections = Object.fromEntries(Object.entries(state.projectSections).filter(([id]) => projectIds.has(id)))
       state.collapsed = state.collapsed.filter((id) => id === OTHER_GROUP || projectIds.has(id))
     }
     const pinnedIds = new Set(state.pinned)
@@ -229,6 +230,28 @@ export const useTreeStore = defineStore('tree', () => {
       ...order.value.projects.filter((item) => !order.value.pinned.includes(item) && item !== id),
       id,
     ]
+  }
+  function createProjectSection(name: string, color: SectionColor) {
+    const cleanName = name.trim()
+    if (!cleanName || cleanName.length > 80) throw new Error('Section names must be 1–80 characters.')
+    const section: ProjectSection = { id: crypto.randomUUID(), name: cleanName, color }
+    order.value.sections.push(section)
+    return section
+  }
+  function updateProjectSection(id: string, name: string, color: SectionColor) {
+    const cleanName = name.trim()
+    if (!cleanName || cleanName.length > 80) throw new Error('Section names must be 1–80 characters.')
+    const section = order.value.sections.find((item) => item.id === id)
+    if (section) { section.name = cleanName; section.color = color }
+  }
+  function deleteProjectSection(id: string) {
+    order.value.sections = order.value.sections.filter((item) => item.id !== id)
+    for (const [project, section] of Object.entries(order.value.projectSections)) if (section === id) delete order.value.projectSections[project]
+  }
+  function assignProjectSection(projectId: string, sectionId: string | null) {
+    if (sectionId && !order.value.sections.some((item) => item.id === sectionId)) return
+    if (sectionId) order.value.projectSections[projectId] = sectionId
+    else delete order.value.projectSections[projectId]
   }
   function reorderSessions(group: string, names: string[]) {
     const rows = group === '__other__' ? groups.value.other : groups.value.groups.find((g) => g.project.id === group)?.sessions ?? []
@@ -321,5 +344,5 @@ export const useTreeStore = defineStore('tree', () => {
       : order.value.expanded.filter((item) => item !== key)
   }
 
-  return { order, groups, loaded, load, refresh, sync, flush, reorderProjects, reorderProjectSection, pinProject, unpinProject, reorderSessions, renameSession, hideProject, unhideProject, hideSession, unhideSession, setShowHidden, toggleShowHidden, hiddenCount, setCollapsed, toggleCollapsed, setExpanded, reset }
+  return { order, groups, loaded, load, refresh, sync, flush, reorderProjects, reorderProjectSection, pinProject, unpinProject, createProjectSection, updateProjectSection, deleteProjectSection, assignProjectSection, reorderSessions, renameSession, hideProject, unhideProject, hideSession, unhideSession, setShowHidden, toggleShowHidden, hiddenCount, setCollapsed, toggleCollapsed, setExpanded, reset }
 })

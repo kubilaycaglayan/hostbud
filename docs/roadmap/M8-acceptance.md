@@ -157,3 +157,11 @@ T10 (open): on an iPhone 13 Pro PWA, choose a known photo from Photos and compar
 T10 (open): on macOS, copy an image from Preview or Finder and Cmd-V in the terminal; confirm it appears in the active repo and text-only Cmd-V still pastes into the terminal. Clipboard image exposure can vary by browser and source application.
 
 T8 verification: native reader checked at 390px in Chromium and WebKit (358px content width and scroll width; full text selection; 6,220px vertical history). Capture integration passed. Full Go suite encountered the existing `TestIntegrationSlowTerminalClientDropped` timeout on two runs; tracked separately from the reader fix.
+
+## Colored project sections
+
+- [ ] Users can create empty, named project sections, choose among six lightly accented colors, rename/recolor/delete them, and assign or move projects from project row actions. Membership and section settings persist per account through reload and restart; deleting a section unassigns projects without removing them. Thin colored borders enclose each section's projects without adding a tree level, extra project indentation, or gutter width. Existing project ordering, pinning, actions, keyboard operation and phone targets continue to work.
+  - U: T17 `tree.spec.ts` covers version 1/2 migration, section validation and six color values; `SessionTree.spec.ts` covers create/edit/assign/delete flows, empty section rendering and indentation/width constraints.
+  - I: n/a: sections use the existing authenticated `ui_state/tree` persistence endpoint and introduce no new server behavior; its persistence integration is covered by M3.
+  - E: T17 *Project sections* (desktop and iPhone 13 Pro), including section creation, color/name changes, project assignment, gutter geometry, and state after reload and app restart.
+  - Status: U passes (`tree.spec.ts`, `SessionTree.spec.ts`); E written and type-checked (`tree.sections.spec.ts`), browser run pending on demand.

@@ -3,7 +3,7 @@ import { DropdownMenuContent, DropdownMenuItem, DropdownMenuPortal, DropdownMenu
 import { ChevronRight, Folder, MoreHorizontal, Pin, Plus } from 'lucide-vue-next'
 import type { Project } from '@/api/types'
 import type { SplitDir } from '@/lib/layout'
-import type { ProjectGroup } from '@/lib/tree'
+import type { ProjectGroup, ProjectSection } from '@/lib/tree'
 import { computed } from 'vue'
 import SessionList from './SessionList.vue'
 import InlineRename from './InlineRename.vue'
@@ -17,6 +17,8 @@ const props = defineProps<{
   menuOpen: boolean
   hidden: boolean
   pinned: boolean
+  sections: ProjectSection[]
+  sectionId?: string
   collapsed: boolean
   home: string
   renameProject: (id: string, name: string) => Promise<void>
@@ -34,6 +36,7 @@ const emit = defineEmits<{
   removeProject: [id: string]
   killProjectSessions: [id: string]
   togglePin: [id: string]
+  assignSection: [projectId: string, sectionId: string | null]
   select: [name: string]
   selectWindow: [name: string, window: string, pane?: string]
   split: [name: string, dir: SplitDir]
@@ -45,6 +48,7 @@ const emit = defineEmits<{
 
 /** A project with a working (🟢) session shows its name in green. */
 const hasWorkingSession = computed(() => props.group.sessions.some((s) => s.status === 'working'))
+const sectionColorValues = { red: 'var(--hb-section-red)', green: 'var(--hb-section-green)', blue: 'var(--hb-section-blue)', yellow: 'var(--hb-section-yellow)', orange: 'var(--hb-section-orange)', purple: 'var(--hb-section-purple)' }
 
 function renameSessionCommit(from: string, to: string) {
   return props.renameSession(from, to)
@@ -112,6 +116,10 @@ function onMenuCloseAutoFocus(event: Event) {
             <DropdownMenuItem class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 outline-none data-highlighted:bg-bg" @select="startProjectRename">Rename</DropdownMenuItem>
             <DropdownMenuItem class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 outline-none data-highlighted:bg-bg" @select="emit('hideProject', props.group.project.id)">{{ props.hidden ? 'Unhide' : 'Hide' }}</DropdownMenuItem>
             <DropdownMenuItem class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 outline-none data-highlighted:bg-bg" @select="emit('togglePin', props.group.project.id)">{{ props.pinned ? 'Unpin' : 'Pin' }}</DropdownMenuItem>
+            <DropdownMenuItem v-if="props.sectionId" class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 outline-none data-highlighted:bg-bg" @select="emit('assignSection', props.group.project.id, null)">Remove from section</DropdownMenuItem>
+            <DropdownMenuItem v-for="section in props.sections.filter((item) => item.id !== props.sectionId)" :key="section.id" class="touch-target flex min-h-11 cursor-pointer items-center gap-2 rounded px-2 py-1 outline-none data-highlighted:bg-bg" @select="emit('assignSection', props.group.project.id, section.id)">
+              <span class="h-2.5 w-2.5 rounded-full" :style="{ backgroundColor: sectionColorValues[section.color] }" aria-hidden="true"></span>Move to {{ section.name }}
+            </DropdownMenuItem>
             <DropdownMenuItem class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 text-danger outline-none data-highlighted:bg-bg data-disabled:cursor-default data-disabled:opacity-50" :disabled="!props.group.sessions.length" @select="emit('killProjectSessions', props.group.project.id)">Kill all sessions of this project…</DropdownMenuItem>
             <DropdownMenuItem class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 text-danger outline-none data-highlighted:bg-bg" @select="emit('removeProject', props.group.project.id)">Remove project…</DropdownMenuItem>
           </DropdownMenuContent>

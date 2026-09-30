@@ -80,6 +80,60 @@ describe('SessionTree', () => {
     expect(useTreeStore().groups.groups.find((g) => g.project.id === 'a')?.sessions.map((s) => s.name)).toEqual(['two', 'one'])
   })
 
+  it('creates, colors, renames, assigns and deletes a persistent project section', async () => {
+    const tree = useTreeStore()
+    const wrapper = mount(SessionTree, { attachTo: document.body })
+    expect(wrapper.get('button[aria-label="Create a new section"]').classes()).toContain('touch-target')
+    await wrapper.get('button[aria-label="Create a new section"]').trigger('click')
+    await nextTick()
+    const editor = document.body.querySelector<HTMLElement>('[role="dialog"]')!
+    const input = editor.querySelector<HTMLInputElement>('input')!
+    input.value = 'Research'
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    editor.querySelector<HTMLButtonElement>('button[aria-label="orange"]')!.click()
+    editor.querySelector<HTMLButtonElement>('button[type="submit"]')!.click()
+    await flushPromises()
+    expect(tree.order.sections).toHaveLength(1)
+    expect(tree.order.sections[0]).toMatchObject({ name: 'Research', color: 'orange' })
+    expect(wrapper.get('[role="group"][aria-label="Research section"]').text()).toContain('Empty section')
+
+    await wrapper.get('[data-tree-key="project:a"] button[aria-label="More actions for a"]').trigger('click')
+    await nextTick()
+    const moveAction = [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((node) => node.textContent?.trim() === 'Move to Research')
+    expect(moveAction).toBeTruthy()
+    moveAction!.click()
+    await nextTick()
+    expect(tree.order.projectSections.a).toBe(tree.order.sections[0].id)
+    expect(wrapper.get('[role="group"][aria-label="Research section"]').attributes('data-project-section-id')).toBe(tree.order.sections[0].id)
+
+    await wrapper.get('[data-tree-key="project:a"]').trigger('keydown', { key: 'p' })
+    await flushPromises()
+    await nextTick()
+    expect(tree.order.pinned).toContain('a')
+    expect(wrapper.find('[data-tree-key="project:a"] button[aria-label="Unpin a"]').exists()).toBe(true)
+    expect(wrapper.get('[role="group"][aria-label="Research section"]').text()).toContain('Pinned')
+
+    await wrapper.get('button[aria-label="Edit section Research"]').trigger('click')
+    await nextTick()
+    const edit = document.body.querySelector<HTMLElement>('[role="dialog"]')!
+    const editInput = edit.querySelector<HTMLInputElement>('input')!
+    editInput.value = 'Planning'
+    editInput.dispatchEvent(new Event('input', { bubbles: true }))
+    edit.querySelector<HTMLButtonElement>('button[aria-label="purple"]')!.click()
+    edit.querySelector<HTMLButtonElement>('button[type="submit"]')!.click()
+    await flushPromises()
+    expect(tree.order.sections[0]).toMatchObject({ name: 'Planning', color: 'purple' })
+    expect(tree.order.projectSections.a).toBe(tree.order.sections[0].id)
+
+    await wrapper.get('button[aria-label="Edit section Planning"]').trigger('click')
+    const deleteButton = [...document.body.querySelectorAll('button')].find((button) => button.closest('[role="dialog"]') && button.textContent?.includes('Delete section'))
+    expect(deleteButton).toBeTruthy()
+    deleteButton!.click()
+    expect(tree.order.sections).toEqual([])
+    expect(tree.order.projectSections).toEqual({})
+    wrapper.unmount()
+  })
+
   it('preserves saved row order until the first host session snapshot arrives', async () => {
     const sessions = useSessionsStore()
     const machines = useMachinesStore()
