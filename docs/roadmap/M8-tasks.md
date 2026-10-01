@@ -137,11 +137,11 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 ## T8 — Dictation editor, focus return and terminal text view
 
 - Replace the ineffective xterm composition cleanup with a native text editor that supports dictation, Send and Cancel. Send the reviewed text once through xterm's `paste` method, preserving bracketed-paste handling.
-- Blur active text fields when the PWA backgrounds. Switching tabs or panes never opens the keyboard; an explicit terminal tap or Show keyboard action focuses it.
+- Blur active text fields when the PWA backgrounds. Returning to the browser tab restores focus to the active terminal cursor; switching hostbud's internal tabs or panes does not open the keyboard. An explicit terminal tap or Show keyboard action focuses it.
 - Replace the per-terminal toolbar action buttons with one three-dot menu, retaining the existing actions and adding View terminal text.
 - View terminal text reads the active pane’s full retained tmux history through an authenticated, uncached read-only endpoint, including output before browser attachment and, under a full-screen (alternate-screen) app, the shell history and saved screen before the app's screen. Trim row padding and trailing blank rows. Render SGR styles as native selectable text, join soft wraps, wrap long lines within the view, and support free vertical scrolling/copy without changing tmux. Show loading and retryable errors; discard output when closed.
 
-**Tests:** U: T8 Vitest covers dictation Send/Cancel and exactly-once paste, hidden-page blur, no automatic focus on tab switch, toolbar action dispatch, and frozen wrapped scrollback text; I: T8 `TestIntegrationOutputIncludesHistoryWithoutAttaching` captures styled pre-attachment history and joined long rows against `test/sshd`, without attaching or entering copy mode; E: T8 *Dictation editor sends reviewed text once*, *Returning from background does not automatically refocus the terminal*, *Switching tabs does not automatically open the terminal keyboard*, *Terminal text snapshot scrolls, selects, and closes*, and *Terminal text includes shell history under a full-screen app*. Real iPhone system dictation remains an owner manual check.
+**Tests:** U: T8 Vitest covers dictation Send/Cancel and exactly-once paste, hidden-page blur, internal tab/pane no-focus behavior, toolbar action dispatch, and frozen wrapped scrollback text; I: T8 `TestIntegrationOutputIncludesHistoryWithoutAttaching` captures styled pre-attachment history and joined long rows against `test/sshd`, without attaching or entering copy mode; E: T8 *Dictation editor sends reviewed text once*, *Switching tabs does not automatically open the terminal keyboard*, *Terminal text snapshot scrolls, selects, and closes*, and *Terminal text includes shell history under a full-screen app*; T27 owns browser visibility-return focus coverage. Real iPhone system dictation remains an owner manual check.
 
 **E2E:** Add the four T8 scenarios above, including explicit Show keyboard after the hidden/visible transition and tab switch, plus pre-attachment history, styling, no horizontal overflow at phone width, native scroll/selection/close,. Type-check only; runs on demand.
 
@@ -277,7 +277,7 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 
 **Tests:** U: T27 `TerminalView.spec.ts` verifies focus is restored only when the page becomes visible and the pane is active/focused, while active/inactive changes during a hidden page do not focus. I: n/a because this is browser focus behavior. E: T27 extends *Background window detaches its terminal until it is visible* to assert the active terminal input is focused after return.
 
-**E2E:** Update T21 *Background window detaches its terminal until it is visible* in `test/e2e/tests/terminal.spec.ts` with T27's active-input focus assertion; type-check only.
+**E2E:** Update T21 *Background window detaches its terminal until it is visible* in `test/e2e/tests/terminal.spec.ts` with T27's active-input focus assertion; remove the obsolete T8 no-refocus scenario from `test/e2e/tests/dictation.spec.ts`. Type-check only.
 
 ## T22 — Session switching without tab strips
 

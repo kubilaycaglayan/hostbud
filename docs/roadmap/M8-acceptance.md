@@ -116,11 +116,11 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
   - I: n/a: browser input handling only; no server state or integration contract changes.
   - E: T8 *Dictation editor sends reviewed text once* (desktop Chromium), verified in the throwaway shell.
   - Status (2026-09-27): U coverage is written and passing (`TerminalView.spec.ts`); E `test/e2e/tests/dictation.spec.ts` is written and type-checked, run pending (on demand). The iPhone system dictation check remains open owner backlog.
-- [ ] Backgrounding blurs the active text field; returning and switching tabs or panes do not automatically focus the terminal or reopen the keyboard. An explicit Show keyboard action still focuses it.
-  - U: T8 hidden-page blur, tab/pane switching focus guard, and Show keyboard coverage (Vitest).
+- [ ] Backgrounding blurs the active text field; returning to the browser tab focuses the active terminal cursor. Switching hostbud's internal tabs or panes does not automatically focus a terminal. An explicit Show keyboard action still focuses it.
+  - U: T8 hidden-page blur and internal tab/pane switching focus guard plus Show keyboard coverage (Vitest); T27 browser-page return focus coverage.
   - I: n/a: browser visibility and focus behavior only.
-  - E: T8 *Returning from background does not automatically refocus the terminal* (desktop Chromium).
-  - Status (2026-09-27): U coverage is written and passing (`pageFocus.spec.ts`, `TerminalView.spec.ts`); E `test/e2e/tests/dictation.spec.ts` is written and type-checked, run pending (on demand).
+  - E: T8 *Switching tabs does not automatically open the terminal keyboard* (`dictation.spec.ts`); T27 *Background window detaches its terminal until it is visible* (`terminal.spec.ts`) verifies browser-tab return focuses the active terminal after refitting and reconnecting.
+  - Status (2026-10-01): U coverage passes (`pageFocus.spec.ts`, `TerminalView.spec.ts`); E is written and type-checked, browser execution pending on demand.
 - [ ] Per-terminal actions are consolidated in one three-dot menu, and View terminal text opens a frozen, full-screen, scrollable and selectable copyable snapshot of all history retained by the active tmux pane, including before browser attachment, with tmux colors and styles, wrapped long lines and native selection/copy/vertical scrolling, no visible title or text box frame, and a close button.
   - U: T8 capture command validation, service errors, authenticated uncached API, ANSI styling and safe text rendering, native reader and toolbar actions (Go/Vitest).
   - I: T8 `TestIntegrationOutputIncludesHistoryWithoutAttaching` captures styled historical output and joined rows without attaching or entering copy mode; `TestIntegrationOutputIncludesHistoryUnderFullScreenApp` captures shell history, the saved normal screen and the full-screen app's screen in order, with row padding trimmed (`test/sshd`).

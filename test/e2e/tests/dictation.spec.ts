@@ -18,26 +18,6 @@ test('(T8) Dictation editor sends reviewed text once through terminal paste', as
   await expect(dialog).toBeHidden()
 })
 
-test('(T8) Returning from background does not automatically refocus the terminal', async ({ ui, target }) => {
-  const name = await openShell(ui, target, 'e2e-focus-return')
-  const input = ui.page.getByRole('textbox', { name: 'Terminal input' })
-  await input.focus()
-  await ui.page.evaluate(() => {
-    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' })
-    document.dispatchEvent(new Event('visibilitychange'))
-  })
-  await expect(input).not.toBeFocused()
-  await ui.page.evaluate(() => {
-    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
-    document.dispatchEvent(new Event('visibilitychange'))
-  })
-  await expect(input).not.toBeFocused()
-  await ui.page.getByRole('button', { name: 'Terminal actions' }).click()
-  await ui.page.getByRole('menuitem', { name: 'Show keyboard' }).click()
-  await expect(input).toBeFocused()
-  expect(await target.sessions()).toContain(name)
-})
-
 test('(T8) Switching tabs does not automatically open the terminal keyboard', async ({ ui, target }) => {
   const first = await openShell(ui, target, 'e2e-focus-a')
   const second = await openShell(ui, target, 'e2e-focus-b')
