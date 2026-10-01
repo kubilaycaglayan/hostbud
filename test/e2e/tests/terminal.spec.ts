@@ -99,7 +99,7 @@ test('resize: a viewport change resizes the tmux window', async ({ page, ui, tar
 })
 
 // Background browser windows must not compete to resize a shared tmux session.
-test('background window waits to refit its terminal until it is visible', async ({ page, ui, target }) => {
+test('background window detaches its terminal until it is visible', async ({ page, ui, target }) => {
   const name = await newSession(target, 'e2e-background-size')
   await ui.open()
   await ui.openTerminal(name)
@@ -114,6 +114,7 @@ test('background window waits to refit its terminal until it is visible', async 
 
   await secondPage.bringToFront()
   await expect.poll(() => page.evaluate(() => document.visibilityState)).toBe('hidden')
+  await expect.poll(() => attached(target, name)).toBe('1')
   const before = await firstSize()
   const viewport = page.viewportSize()!
   await page.setViewportSize({ width: Math.max(480, viewport.width - 300), height: Math.max(400, viewport.height - 200) })
@@ -122,6 +123,7 @@ test('background window waits to refit its terminal until it is visible', async 
 
   await page.bringToFront()
   await expect.poll(async () => firstSize()).not.toEqual(before)
+  await expect.poll(() => attached(target, name)).toBe('2')
   await secondPage.close()
 })
 

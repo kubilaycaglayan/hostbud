@@ -323,23 +323,28 @@ describe('TerminalView', () => {
     expect(ws.sent).toEqual(['{"type":"resize","cols":132,"rows":40}'])
   })
 
-  it('ignores hidden-page resizes and refits when the page becomes visible', async () => {
+  it('detaches while hidden and refits before reattaching when visible', async () => {
     const original = Object.getOwnPropertyDescriptor(document, 'visibilityState')
     try {
       const w = await mountTerm()
       const ws = FakeWS.all[0]
       ws.onopen?.({} as Event)
-      ws.sent = []
       Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' })
+      document.dispatchEvent(new Event('visibilitychange'))
+      expect(ws.closed).toBe(true)
+
       h.fitSize = { cols: 80, rows: 24 }
       resizeCallback()
-      expect(ws.sent).toEqual([])
+      expect(FakeWS.all).toHaveLength(1)
 
+      const beforeReattach = FakeWS.all.length
       Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
       document.dispatchEvent(new Event('visibilitychange'))
-      expect(ws.sent).toEqual(['{"type":"resize","cols":80,"rows":24}'])
+      expect(FakeWS.all.length).toBeGreaterThan(beforeReattach)
+      expect(FakeWS.all.slice(beforeReattach).every((socket) => socket.url.includes('&cols=80&rows=24'))).toBe(true)
+      const afterReattach = FakeWS.all.length
       document.dispatchEvent(new Event('visibilitychange'))
-      expect(ws.sent).toHaveLength(1)
+      expect(FakeWS.all).toHaveLength(afterReattach)
       w.unmount()
     } finally {
       if (original) Object.defineProperty(document, 'visibilityState', original)
@@ -382,23 +387,27 @@ describe('TerminalView', () => {
     expect(w.get('[role=status] button').text()).toBe('Reconnect')
   })
 
-  it('switching to an attached tab does not open the keyboard, and refits when shown', async () => {
-    const w = await mountTerm({ active: false })
+  it('detaches inactive tabs and refits on return without opening the keyboard', async () => {
+    const w = await mountTerm()
     const t = h.terms[0]
     const ws = FakeWS.all[0]
     ws.onopen?.({} as Event)
     await flushPromises()
     expect(t.focused).toBe(0)
+
+    await w.setProps({ active: false })
+    expect(ws.closed).toBe(true)
     h.fitSize = { cols: 5, rows: 2 } // what a hidden box would fit
     resizeCallback()
     expect(ws.sent).toEqual([])
-    // Shown: it refits, but focus stays closed until an explicit action.
+
+    // Shown: it refits and reattaches, but focus stays closed until an explicit action.
     h.fitSize = { cols: 120, rows: 35 }
     await w.setProps({ active: true })
     await flushPromises()
     expect(t.focused).toBe(0)
-    resizeCallback()
-    expect(ws.sent).toEqual(['{"type":"resize","cols":120,"rows":35}'])
+    expect(FakeWS.all).toHaveLength(2)
+    expect(FakeWS.all[1].url).toContain('&cols=120&rows=35')
     w.unmount()
   })
 

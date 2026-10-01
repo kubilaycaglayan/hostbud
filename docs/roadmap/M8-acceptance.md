@@ -190,8 +190,8 @@ T8 verification: native reader checked at 390px in Chromium and WebKit (358px co
 
 ## Terminal resizing across browser windows
 
-- [ ] A terminal stays attached while its page is hidden, but hidden-page layout changes do not resize its tmux client. When the page becomes visible, the active terminal refits to its current container and sends a resize only if its dimensions changed.
-  - U: T21 `TerminalView.spec.ts` covers ignored hidden-page resize events, refit on visibility restoration, and duplicate-size suppression.
+- [ ] A terminal detaches while its hostbud tab is inactive or its browser page is hidden, so its stale tmux client size cannot constrain a visible terminal. On activation/return, it refits and reconnects at the current size without automatically focusing the terminal.
+  - U: T21 `TerminalView.spec.ts` covers detach on hidden/inactive state, refit and reattach at current dimensions, and no automatic focus.
   - I: n/a: resize eligibility is frontend-only; M1 T13 covers PTY-to-tmux resize integration.
-  - E: T21 *Background window waits to refit its terminal until it is visible* (`terminal.spec.ts`, desktop Chromium) attaches two pages to the same throwaway tmux session, changes the hidden page's viewport, and checks the terminal remains unchanged until that page returns.
-  - Status (2026-10-01): U passes (`TerminalView.spec.ts`); E written and type-checked (`terminal.spec.ts`), browser run pending on demand. The full Vitest suite has one unrelated `App.spec.ts` failure because the test environment lacks `window.matchMedia`.
+  - E: T21 *Background window detaches its terminal until it is visible* (`terminal.spec.ts`, desktop Chromium) attaches two pages to the same throwaway tmux session, verifies the hidden client detaches and cannot affect the visible terminal, then checks it reattaches at the new size on return.
+  - Status (2026-10-01): Updated after the reported issue persisted: U and E coverage verify detach/reconnect lifecycle. E browser run is pending on demand. The full Vitest suite has one unrelated `App.spec.ts` failure because the test environment lacks `window.matchMedia`.

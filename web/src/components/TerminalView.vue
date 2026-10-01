@@ -97,6 +97,8 @@ let disposeBackgroundBlur = () => {}
 let disposeVisibilityListener = () => {}
 let disposeTouchScroll = () => {}
 let disposeClipboardImagePaste = () => {}
+let attachmentSuspended = false
+let disposed = false
 let touchSelectTimer: ReturnType<typeof setTimeout> | null = null
 let last = { cols: 0, rows: 0 }
 const auth = useAuthStore()
@@ -280,6 +282,25 @@ function refit() {
   }
 }
 
+/** A connected tmux client participates in the session's shared size
+ * calculation even when its page is hidden. Detach inactive views so their
+ * stale PTY dimensions cannot constrain another visible terminal. */
+function syncAttachment() {
+  const shouldAttach = props.active && document.visibilityState === 'visible'
+  if (!shouldAttach) {
+    if (conn) {
+      conn.close()
+      conn = null
+    }
+    attachmentSuspended = true
+    return
+  }
+  if (!attachmentSuspended && conn) return
+  attachmentSuspended = false
+  refit()
+  connect()
+}
+
 /** Sets up the terminal's hidden input for on-screen keyboards: no
  * autocorrect, capitalization or suggestions rewriting what's typed. */
 function prepareInput(input: HTMLTextAreaElement | undefined) {
@@ -400,6 +421,7 @@ function reconnect() {
 onMounted(async () => {
   disposeBackgroundBlur = blurActiveFieldOnHide(document)
   await document.fonts?.ready
+  if (disposed) return
   const t = new Terminal({
     allowProposedApi: true, // unicode11
     cursorBlink: true,
@@ -489,17 +511,14 @@ onMounted(async () => {
     }
     return false
   })
-  refit()
-  connect()
   observer = new ResizeObserver(() => refit())
   observer.observe(el.value!)
-  // Other browser windows can remain active hostbud tabs while hidden. Their
-  // ResizeObservers must not send stale sizes to the shared tmux session.
-  const onVisibilityChange = () => {
-    if (document.visibilityState === 'visible') refit()
-  }
+  // An attached tmux client can constrain the shared session size even when
+  // no resize frames are sent, so hidden pages detach and reattach on return.
+  const onVisibilityChange = () => syncAttachment()
   document.addEventListener('visibilitychange', onVisibilityChange)
   disposeVisibilityListener = () => document.removeEventListener('visibilitychange', onVisibilityChange)
+  syncAttachment()
   window.addEventListener('mouseup', finishAltClick, true)
   // Test hook, e2e builds only (a constant condition: dropped otherwise).
   if (import.meta.env.VITE_E2E === '1')
@@ -544,6 +563,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  disposed = true
   clearTouchSelectTimer()
   disposeBackgroundBlur()
   disposeVisibilityListener()
@@ -563,6 +583,7 @@ onBeforeUnmount(() => {
 watch(() => [props.active, props.focused, props.session, props.paneId] as const, ([active, focused]) => {
   if (!active || !focused) copyMode.reset()
 })
+watch(() => props.active, syncAttachment)
 watch(state, (current) => {
   if (current !== 'open') copyMode.reset()
 })

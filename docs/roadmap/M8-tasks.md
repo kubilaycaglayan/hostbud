@@ -259,11 +259,11 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 
 ## T21 — Background terminal resize isolation
 
-- Keep a terminal attached while its browser page is hidden, but ignore its container resize events. Refit it to the current container when the page becomes visible again; do not send duplicate sizes.
+- Detach a terminal while its hostbud tab is inactive or its browser page is hidden, so stale tmux clients cannot constrain the shared session size. Refit before reattaching when active/visible; preserve the tmux session and running process.
 
-**Tests:** U: T21 `TerminalView.spec.ts` verifies hidden-page resizes are ignored and visibility restoration refits only when dimensions changed. I: n/a because this is browser-side resize eligibility; existing M1 PTY-to-tmux resize integration coverage remains applicable. E: T21 two-page same-session scenario verifies a background viewport change does not alter that page's terminal size and that it refits on return.
+**Tests:** U: T21 `TerminalView.spec.ts` verifies hidden-page and inactive-tab clients detach, then refit and reconnect at the current dimensions without focusing xterm. I: n/a because this is frontend attachment lifecycle; existing M1 PTY-to-tmux resize integration coverage remains applicable. E: T21 two-page same-session scenario verifies the background client detaches, cannot constrain the visible client, and reattaches at its current size on return.
 
-**E2E:** Add T21 *Background window waits to refit its terminal until it is visible* to `test/e2e/tests/terminal.spec.ts`; type-check only and leave browser execution on demand.
+**E2E:** Add T21 *Background window detaches its terminal until it is visible* to `test/e2e/tests/terminal.spec.ts`; type-check only and leave browser execution on demand.
 
 ## Done
 
