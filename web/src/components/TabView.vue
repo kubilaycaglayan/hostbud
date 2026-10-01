@@ -8,7 +8,8 @@ import { useLayoutStore } from '@/stores/layout'
 // One terminal layout. Wide screens show its split tree; narrow ones show only
 // the focused pane, full size, with a "Pane n of m" switcher (the layout
 // itself is unchanged, so a wide screen shows the split again).
-const props = defineProps<{ tab: Tab; active: boolean; narrow: boolean }>()
+const props = defineProps<{ tab: Tab; active: boolean; narrow: boolean; focusInitialTerminal?: boolean }>()
+const emit = defineEmits<{ initialFocus: [] }>()
 
 const layout = useLayoutStore()
 const panes = computed(() => panesOf(props.tab.root))
@@ -20,6 +21,8 @@ const panes = computed(() => panesOf(props.tab.root))
     :node="props.tab.root"
     :tab="props.tab"
     :active="props.active"
+    :focus-initial-terminal="props.focusInitialTerminal"
+    @initial-focus="emit('initialFocus')"
   />
   <template v-else>
     <div
@@ -34,10 +37,12 @@ const panes = computed(() => panesOf(props.tab.root))
         :session="p.session"
         :active="props.active && p.id === props.tab.focusedPane"
         :focused="p.id === props.tab.focusedPane"
+        :focus-initial-terminal="props.focusInitialTerminal"
         :pane-index="i + 1"
         :pane-count="panes.length"
         narrow
         @focus="layout.focusPane(props.tab.id, p.id)"
+        @initial-focus="emit('initialFocus')"
         @close="layout.closePane(p.id)"
         @cycle-pane="layout.cycleFocus(props.tab.id)"
       />

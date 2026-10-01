@@ -180,7 +180,7 @@ beforeEach(() => {
 })
 afterEach(() => vi.unstubAllGlobals())
 
-async function mountTerm(props: { active?: boolean; focused?: boolean } = {}) {
+async function mountTerm(props: { active?: boolean; focused?: boolean; focusInitialTerminal?: boolean } = {}) {
   const w = mount(TerminalView, { props: { machine: 'host', session: 'acc-a', ...props }, attachTo: document.body })
   await flushPromises()
   return w
@@ -194,6 +194,33 @@ async function clickMenuItem(text: string) {
 }
 
 describe('TerminalView', () => {
+  it('focuses the active pane once when loading the saved page layout', async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(document, 'visibilityState')
+    try {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+      const active = await mountTerm({ focusInitialTerminal: true })
+      expect(h.terms[0].focused).toBe(1)
+      expect(active.emitted('initialFocus')).toHaveLength(1)
+      active.unmount()
+
+      const inactive = await mountTerm({ focused: false, focusInitialTerminal: true })
+      expect(h.terms[1].focused).toBe(0)
+      inactive.unmount()
+
+      Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' })
+      const background = await mountTerm({ focusInitialTerminal: true })
+      expect(h.terms[2].focused).toBe(0)
+      Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+      document.dispatchEvent(new Event('visibilitychange'))
+      expect(h.terms[2].focused).toBe(1)
+      expect(background.emitted('initialFocus')).toHaveLength(1)
+      background.unmount()
+    } finally {
+      if (descriptor) Object.defineProperty(document, 'visibilityState', descriptor)
+      else Reflect.deleteProperty(document, 'visibilityState')
+    }
+  })
+
   it('colors the focused session header by section and shows its directory in the same text color', async () => {
     useProjectsStore().remember({ id: 'project-a', machineId: 'host', path: '/home/dev/bright-work', name: 'Bright work', sortOrder: 0, pinned: false, createdAt: '', updatedAt: '' })
     useSessionsStore().$patch({ byMachine: { host: [{ id: '$1', name: 'acc-a', path: '/home/dev/bright-work', attached: 0, windows: 1, created: '', activity: '' }] } })

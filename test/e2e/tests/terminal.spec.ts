@@ -126,6 +126,11 @@ test('background window detaches its terminal until it is visible', async ({ pag
   await expect.poll(() => attached(target, name)).toBe('2')
   await expect(page.locator('[data-focused="true"] .xterm-helper-textarea')).toBeFocused()
   await secondPage.close()
+
+  // A fresh page load restores the saved layout and focuses its active cursor.
+  await page.reload()
+  await ui.waitForTerminal(name)
+  await expect(page.locator('[data-focused="true"] .xterm-helper-textarea')).toBeFocused()
 })
 
 // Leave without killing (T17)

@@ -48,6 +48,8 @@ const props = withDefaults(
     active?: boolean
     /** It's the focused pane of its tab: keyboard input goes here. */
     focused?: boolean
+    /** Focus this pane once when hostbud first loads its saved terminal layout. */
+    focusInitialTerminal?: boolean
     /** Its place among its tab's panes (1-based) and their number. */
     paneIndex?: number
     paneCount?: number
@@ -56,10 +58,11 @@ const props = withDefaults(
     /** Narrow layout: one pane at a time, with a pane switcher. */
     narrow?: boolean
   }>(),
-  { paneId: 'pane', active: true, focused: true, paneIndex: 1, paneCount: 1, canSplit: false, narrow: false },
+  { paneId: 'pane', active: true, focused: true, focusInitialTerminal: false, paneIndex: 1, paneCount: 1, canSplit: false, narrow: false },
 )
 const emit = defineEmits<{
   focus: []
+  initialFocus: []
   /** Open a session (null: a new one) in a new pane beside this one. */
   split: [dir: SplitDir, session: string | null]
   close: []
@@ -323,6 +326,13 @@ function showKeyboard() {
   term.value?.focus()
 }
 
+/** Applies the one-time focus requested by App after restoring a saved layout. */
+function applyInitialTerminalFocus() {
+  if (!props.focusInitialTerminal || !takesInput() || document.visibilityState !== 'visible' || !term.value) return
+  term.value.focus()
+  emit('initialFocus')
+}
+
 /** Opens the search bar (or refocuses it), pre-filled with the selection's
  * first line. */
 function openSearch() {
@@ -526,11 +536,15 @@ onMounted(async () => {
     syncAttachment()
     // Returning to hostbud restores keyboard input to the active pane. Only
     // this pane has takesInput=true, so inactive split panes remain unfocused.
-    if (document.visibilityState === 'visible' && takesInput()) term.value?.focus()
+    if (document.visibilityState === 'visible' && takesInput()) {
+      if (props.focusInitialTerminal) applyInitialTerminalFocus()
+      else term.value?.focus()
+    }
   }
   document.addEventListener('visibilitychange', onVisibilityChange)
   disposeVisibilityListener = () => document.removeEventListener('visibilitychange', onVisibilityChange)
   syncAttachment()
+  applyInitialTerminalFocus()
   window.addEventListener('mouseup', finishAltClick, true)
   // Test hook, e2e builds only (a constant condition: dropped otherwise).
   if (import.meta.env.VITE_E2E === '1')

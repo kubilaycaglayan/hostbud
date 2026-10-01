@@ -564,6 +564,7 @@ function closeTab(id: string) {
 }
 
 const selectedSession = computed(() => layout.focused?.session)
+const focusInitialTerminal = ref(true)
 
 // Signed in: the saved layout first (before any terminal mounts), then live
 // state; the server pushes every change.
@@ -578,6 +579,7 @@ watch(
       app.showList()
       return
     }
+    focusInitialTerminal.value = true
     await Promise.all([
       layout.load(),
       tree.load(),
@@ -733,6 +735,8 @@ onUnmounted(() => {
               :tab="t"
               :active="t.id === layout.layout.activeTab"
               :narrow="compact"
+              :focus-initial-terminal="focusInitialTerminal"
+              @initial-focus="focusInitialTerminal = false"
             />
           </div>
         </template>

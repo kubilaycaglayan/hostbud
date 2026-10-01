@@ -9,7 +9,8 @@ import { NEW_SESSION_FOR_SPLIT } from './layoutKeys'
 
 // One node of a tab's layout tree (M3 T8): a terminal pane, or a split
 // rendered with splitpanes whose children are rendered recursively.
-const props = defineProps<{ node: LayoutNode; tab: Tab; active: boolean }>()
+const props = defineProps<{ node: LayoutNode; tab: Tab; active: boolean; focusInitialTerminal?: boolean }>()
+const emit = defineEmits<{ initialFocus: [] }>()
 
 const layout = useLayoutStore()
 const newSessionFor = inject(NEW_SESSION_FOR_SPLIT, () => {})
@@ -36,11 +37,13 @@ function resized(splitId: string, e: SplitpanesResizedPayload) {
     :machine="props.node.machine"
     :session="props.node.session"
     :active="props.active"
+    :focus-initial-terminal="props.focusInitialTerminal"
     :focused="props.tab.focusedPane === props.node.id"
     :pane-index="panes.findIndex((p) => p.id === props.node.id) + 1"
     :pane-count="panes.length"
     :can-split="panes.length < MAX_TAB_PANES"
     @focus="layout.focusPane(props.tab.id, props.node.id)"
+    @initial-focus="emit('initialFocus')"
     @split="(dir, s) => split(props.node.id, dir, s)"
     @close="layout.closePane(props.node.id)"
   />
@@ -62,6 +65,8 @@ function resized(splitId: string, e: SplitpanesResizedPayload) {
         :node="child"
         :tab="props.tab"
         :active="props.active"
+        :focus-initial-terminal="props.focusInitialTerminal"
+        @initial-focus="emit('initialFocus')"
       />
     </SplitPane>
   </Splitpanes>
