@@ -151,6 +151,7 @@ describe('SessionTree', () => {
       'Edit section First',
       'Drag to reorder section First',
     ])
+    expect(wrapper.get('button[aria-label="Collapse section First"]').classes()).toContain('-ml-2')
     await sorter!.vm.$emit('update:modelValue', [{ id: second.id }, { id: first.id }])
     expect(tree.order.sections.map((section) => section.id)).toEqual([second.id, first.id])
     expect(wrapper.get('nav > div.sticky').classes()).toContain('bottom-0')
