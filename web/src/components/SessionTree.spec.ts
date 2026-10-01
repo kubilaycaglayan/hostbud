@@ -168,7 +168,8 @@ describe('SessionTree', () => {
       'Edit section First',
       'Drag to reorder section First',
     ])
-    expect(wrapper.get('button[aria-label="Collapse section First"]').classes()).toContain('-ml-2')
+    expect(wrapper.get('button[aria-label="Collapse section First"]').classes()).toContain('section-color-button')
+    expect(wrapper.get('[aria-label="First section"] [data-section-title]').classes()).toContain('section-title-label')
     await sorter!.vm.$emit('update:modelValue', [{ id: second.id }, { id: first.id }])
     expect(tree.order.sections.map((section) => section.id)).toEqual([second.id, first.id])
     expect(wrapper.get('nav > div.sticky').classes()).toContain('bottom-0')
@@ -205,6 +206,9 @@ describe('SessionTree', () => {
     const sectionRow = () => wrapper.get(`[data-project-section-id="${section.id}"]`)
     expect(sectionRow().attributes('data-selected-session')).toBeUndefined()
     await sectionRow().get('button[aria-label="Collapse section Research"]').trigger('click')
+    expect(sectionRow().get('[data-section-title]').text()).toBe('Research')
+    expect(sectionRow().get('[data-section-project-count]').text()).toBe('(1)')
+    expect(sectionRow().find('p').exists()).toBe(false)
     expect(tree.order.collapsedSections).toEqual([section.id])
     expect(sectionRow().attributes('data-selected-session')).toBe('true')
     expect(sectionRow().attributes('aria-label')).toContain('contains selected session')

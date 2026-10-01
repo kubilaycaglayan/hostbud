@@ -242,7 +242,7 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 - Keep the create-section action at the bottom of the left gutter while the project tree scrolls. Keep a 4px vertical gap between sections, a 1px horizontal gap to the enclosing tree, and no inner right padding; project rows stay aligned with the existing tree level.
 - Close the project actions menu immediately after moving a project into or out of a section.
 
-**Tests:** U: T18 `tree.spec.ts` and `stores/tree.spec.ts` verify section ordering and retained membership; `SessionTree.spec.ts` verifies the sortable list, 4px section gap, the far-right drag handle after the three-dot menu, color-dot alignment with project expanders, a bounded flex scroll region with the footer outside it, and menu dismissal after assignment. I: n/a because this uses the existing per-account tree UI-state endpoint and browser layout. E: T18 updates *Project sections and ordering* in `test/e2e/tests/tree.sections.spec.ts` to check menu/handle order, align the section color dot with project expanders, drag sections, verify the 4px gap and persisted order, and check the create action aligns with the gutter bottom outside the scrolling tree.
+**Tests:** U: T18 `tree.spec.ts` and `stores/tree.spec.ts` verify section ordering and retained membership; `SessionTree.spec.ts` verifies the sortable list, 4px section gap, the far-right drag handle after the three-dot menu, color-dot alignment with project expanders, title alignment with project folder icons, collapsed project count beside the title without a second line, a bounded flex scroll region with the footer outside it, and menu dismissal after assignment. I: n/a because this uses the existing per-account tree UI-state endpoint and browser layout. E: T18 updates *Project sections and ordering* in `test/e2e/tests/tree.sections.spec.ts` to check menu/handle order, align the section color dot with project expanders and title with project folder icons, verify collapsed counts sit beside the title, drag sections, verify the 4px gap and persisted order, and check the create action aligns with the gutter bottom outside the scrolling tree.
 
 **E2E:** Add T18 ordering and anchored-footer assertions to `test/e2e/tests/tree.sections.spec.ts`; type-check only and leave browser execution on demand.
 
@@ -321,11 +321,11 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 
 ## T26 — Remove project counts and navigate a three-column command palette
 
-- Remove the session total shown on project rows, whether expanded or collapsed.
+- Remove the session total shown on project rows, whether expanded or collapsed; section project counts remain in the collapsed section header.
 - Lay out command palette result groups in three columns on desktop, responsively reducing columns on narrower screens; retain semantic group colors and readable focus treatment.
 - Show each visible group's result count beside its heading. Left/right arrows move the highlighted result to the adjacent group while up/down continue moving through results; Enter still activates the highlighted result.
 
-**Tests:** U: T26 `SessionTree.spec.ts` covers no project counts in either state; `CommandPalette.spec.ts` covers per-group counts, responsive grid markers, horizontal group navigation and Enter activation; I: n/a (presentation and client keyboard behavior only); E: T26 *Command palette groups commands and navigates across columns with counts* checks responsive columns, session count and left/right movement.
+**Tests:** U: T26 `SessionTree.spec.ts` covers no per-project session totals in either state; `CommandPalette.spec.ts` covers per-group counts, responsive grid markers, horizontal group navigation and Enter activation; I: n/a (presentation and client keyboard behavior only); E: T26 *Command palette groups commands and navigates across columns with counts* checks responsive columns, session count and left/right movement.
 
 **E2E:** Update `test/e2e/tests/palette.spec.ts` with T26 *Command palette groups commands and navigates across columns with counts*; update tree hierarchy E2E assertions in desktop and phone specs to confirm project counts stay absent. Type-check only; browser execution remains on demand.
 

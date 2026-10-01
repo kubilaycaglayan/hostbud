@@ -11,6 +11,13 @@
   }
 }
 
+.section-color-button { margin-left: -0.5rem; }
+.section-title-label { margin-left: -0.125rem; }
+@media (pointer: coarse) {
+  .section-color-button { margin-left: -1rem; }
+  .section-title-label { margin-left: -0.875rem; }
+}
+
 /* The app sets data-theme to the resolved mode before CSS paints. */
 :root {
   --hb-bg: #0f1115;

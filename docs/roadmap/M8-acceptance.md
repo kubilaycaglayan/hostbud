@@ -24,9 +24,9 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
   - E: T2 *Compact tree* (desktop and phone), including actual reorder/collapse/open behavior.
   - Status (2026-09-27): U written and passing (`web/src/components/SessionList.spec.ts`, `SessionTree.spec.ts`; e2e `tests/tree.compact.spec.ts`); E written and type-checked, run pending (on demand). Not ticked until the e2e run passes.
 - [ ] Session lists stay decluttered: no relative activity-age labels, green attachment dots or project session counts. Clicking any non-control area of a session row selects it, while row action buttons, drag handles and double-click rename keep their existing behavior. The selected row has a distinctive, readable background in Dark, Light, Solarized and Dimmed themes.
-  - U: T15 `SessionList.spec.ts` non-control row selection, interactive-control isolation, removed ages/dots and selected row; T26 `SessionTree.spec.ts` confirms project counts remain absent in both states; `check-theme-contrast.test.mjs` selected foreground/background contrast for all themes.
+  - U: T15 `SessionList.spec.ts` non-control row selection, interactive-control isolation, removed ages/dots and selected row; T26 `SessionTree.spec.ts` confirms per-project session totals remain absent in both states; `check-theme-contrast.test.mjs` selected foreground/background contrast for all themes.
   - I: n/a: frontend presentation and click handling only; no server contract changes.
-  - E: T15 *Selected session stands out across themes* (desktop) and *Whole session row selects on touch* (iPhone 13 Pro), including button isolation, no project counts, no age/dot indicators, and selected styling in all four themes; T26 hierarchy scenarios keep project counts absent in either state.
+  - E: T15 *Selected session stands out across themes* (desktop) and *Whole session row selects on touch* (iPhone 13 Pro), including button isolation, no per-project session totals, no age/dot indicators, and selected styling in all four themes; T26 hierarchy scenarios keep per-project session totals absent in either state.
 
 ## File browser and browser autocomplete
 
@@ -183,9 +183,9 @@ T8 verification: native reader checked at 390px in Chromium and WebKit (358px co
   - Status: U passes (`tree.spec.ts`, `SessionTree.spec.ts`); E written and type-checked (`tree.sections.spec.ts`), browser run pending on demand.
 
 - [ ] Users can drag sections into a custom saved order with a dedicated touch-sized handle. The create-section action stays at the bottom of the gutter while its tree scrolls. Section gaps are 4px vertically and 1px horizontally to the enclosing tree, with no inner right padding and no additional project indentation.
-  - U: T18 `tree.spec.ts` and `stores/tree.spec.ts` cover section ordering and membership retention; `SessionTree.spec.ts` covers the drag list, 4px gap, handle positioned after the three-dot menu at the row's right edge, section color dot alignment with project expanders, a bounded flex scroll region with the footer outside it, and action-menu dismissal after project assignment.
+  - U: T18 `tree.spec.ts` and `stores/tree.spec.ts` cover section ordering and membership retention; `SessionTree.spec.ts` covers the drag list, 4px gap, handle positioned after the three-dot menu at the row's right edge, section color dot and title alignment with project expanders/folder icons, collapsed section project count beside the title without a second line, a bounded flex scroll region with the footer outside it, and action-menu dismissal after project assignment.
   - I: n/a: sorting and gutter placement use existing tree UI-state persistence and browser layout; no server contract changes.
-  - E: T18 *Project sections and ordering* in `tree.sections.spec.ts` (desktop and iPhone 13 Pro) checks the three-dot menu precedes the far-right drag handle, aligns the section color dot with project expanders, drags sections, checks the 4px gap and persisted order, gutter-bottom placement and that the create action remains outside the scrolling tree.
+  - E: T18 *Project sections and ordering* in `tree.sections.spec.ts` (desktop and iPhone 13 Pro) checks the three-dot menu precedes the far-right drag handle, aligns the section color dot/title with project expanders/folder icons, checks collapsed counts beside the title without a second line, drags sections, checks the 4px gap and persisted order, gutter-bottom placement and that the create action remains outside the scrolling tree.
   - Status: U passes; E written and type-checked, browser run pending on demand.
 
 ## Selected session in a collapsed project
