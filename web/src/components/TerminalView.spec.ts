@@ -194,7 +194,7 @@ async function clickMenuItem(text: string) {
 }
 
 describe('TerminalView', () => {
-  it('emphasizes the focused session and shows its directory beside the name', async () => {
+  it('colors the focused session header by section and shows its directory in the same text color', async () => {
     useProjectsStore().remember({ id: 'project-a', machineId: 'host', path: '/home/dev/bright-work', name: 'Bright work', sortOrder: 0, pinned: false, createdAt: '', updatedAt: '' })
     useSessionsStore().$patch({ byMachine: { host: [{ id: '$1', name: 'acc-a', path: '/home/dev/bright-work', attached: 0, windows: 1, created: '', activity: '' }] } })
     const tree = useTreeStore()
@@ -206,8 +206,10 @@ describe('TerminalView', () => {
     const directory = w.get('[data-terminal-directory]')
     const icon = w.get('[data-terminal-directory-icon]')
     expect(name.text()).toBe('acc-a')
-    expect(name.classes()).toContain('text-accent')
-    expect(name.attributes('style')).toContain('var(--hb-section-purple)')
+    expect(name.classes()).toContain('text-fg')
+    expect(w.get('[data-terminal-header]').attributes('style')).toContain('var(--hb-section-purple)')
+    expect(directory.classes()).toContain('text-fg')
+    expect(directory.classes()).not.toContain('text-accent')
     expect(directory.text()).toBe('bright-work')
     expect(directory.attributes('title')).toBe('/home/dev/bright-work')
     expect(icon.element.nextElementSibling).toBe(name.element)

@@ -303,10 +303,10 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 ## T25 — Full-width project names and terminal session context
 
 - Give project names the full row width on desktop, with project actions floating at the trailing edge and appearing on hover. Keep the current inline controls on phones.
-- Place a directory icon first in the terminal header, followed by the focused session name and that session's directory on the same row. Emphasize the name; when its project belongs to a colored section, derive the name color from that section. Keep the full directory available as a tooltip and accessible label.
+- Place a directory icon first in the terminal header, followed by the focused session name and that session's directory on the same row. When its project belongs to a colored section, fill the focused header with that section color. Keep the name and directory in the same foreground color, and keep the full directory available as a tooltip and accessible label.
 - Keep pin state, keyboard focus, menus and touch targets usable.
 
-**Tests:** U: T25 `SessionTree.spec.ts` covers project action grouping and full-width row structure; `TerminalView.spec.ts` covers icon/name/directory order, focused session emphasis and section-derived color; I: n/a (presentation-only); E: T25 *Project names use the row width and terminal header shows session context* checks desktop hover, phone inline controls, and the focused terminal's icon/session/directory context and section color.
+**Tests:** U: T25 `SessionTree.spec.ts` covers project action grouping and full-width row structure; `TerminalView.spec.ts` covers icon/name/directory order, focused header section fill, matching name/directory foreground color and full-path access; I: n/a (presentation-only); E: T25 *Project names use the row width and terminal header shows session context* checks desktop hover, phone inline controls, and the focused terminal's icon/session/directory context, section-colored header and matching name/directory foreground color.
 
 **E2E:** Add T25 *Project names use the row width and terminal header shows session context* to `test/e2e/tests/tree.custom.spec.ts`; type-check only and leave browser execution on demand.
 
