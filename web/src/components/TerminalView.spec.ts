@@ -323,6 +323,30 @@ describe('TerminalView', () => {
     expect(ws.sent).toEqual(['{"type":"resize","cols":132,"rows":40}'])
   })
 
+  it('ignores hidden-page resizes and refits when the page becomes visible', async () => {
+    const original = Object.getOwnPropertyDescriptor(document, 'visibilityState')
+    try {
+      const w = await mountTerm()
+      const ws = FakeWS.all[0]
+      ws.onopen?.({} as Event)
+      ws.sent = []
+      Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' })
+      h.fitSize = { cols: 80, rows: 24 }
+      resizeCallback()
+      expect(ws.sent).toEqual([])
+
+      Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+      document.dispatchEvent(new Event('visibilitychange'))
+      expect(ws.sent).toEqual(['{"type":"resize","cols":80,"rows":24}'])
+      document.dispatchEvent(new Event('visibilitychange'))
+      expect(ws.sent).toHaveLength(1)
+      w.unmount()
+    } finally {
+      if (original) Object.defineProperty(document, 'visibilityState', original)
+      else Reflect.deleteProperty(document, 'visibilityState')
+    }
+  })
+
   it('exit ⇒ exit state with Reconnect, which re-attaches', async () => {
     const w = await mountTerm()
     FakeWS.all[0].onopen?.({} as Event)

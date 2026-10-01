@@ -1,6 +1,7 @@
 import { expect, test } from '../helpers/fixtures.ts'
 import { forbidInLogs } from '../helpers/api.ts'
 import { uniqueName, type Target } from '../helpers/target.ts'
+import { UI } from '../helpers/ui.ts'
 
 test.beforeEach(async ({ target }) => {
   await target.resetTmux()
@@ -95,6 +96,33 @@ test('resize: a viewport change resizes the tmux window', async ({ page, ui, tar
   await expect.poll(window).not.toBe(windowBefore)
   const [w] = (await size()).trim().split('x')
   expect(Number(w)).toBeGreaterThan(Number(before.split('x')[0]))
+})
+
+// Background browser windows must not compete to resize a shared tmux session.
+test('background window waits to refit its terminal until it is visible', async ({ page, ui, target }) => {
+  const name = await newSession(target, 'e2e-background-size')
+  await ui.open()
+  await ui.openTerminal(name)
+  await expect.poll(() => attached(target, name)).toBe('1')
+  const firstSize = () => page.evaluate(() => window.__hostbud!.termSize())
+
+  const secondPage = await page.context().newPage()
+  const secondUI = new UI(secondPage)
+  await secondUI.open()
+  await secondUI.waitForTerminal(name)
+  await expect.poll(() => attached(target, name)).toBe('2')
+
+  await secondPage.bringToFront()
+  await expect.poll(() => page.evaluate(() => document.visibilityState)).toBe('hidden')
+  const before = await firstSize()
+  const viewport = page.viewportSize()!
+  await page.setViewportSize({ width: Math.max(480, viewport.width - 300), height: Math.max(400, viewport.height - 200) })
+  await page.waitForTimeout(300)
+  expect(await firstSize()).toEqual(before)
+
+  await page.bringToFront()
+  await expect.poll(async () => firstSize()).not.toEqual(before)
+  await secondPage.close()
 })
 
 // Leave without killing (T17)

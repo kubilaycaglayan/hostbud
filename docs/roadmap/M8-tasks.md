@@ -28,6 +28,7 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 | T18 Reorderable project sections and anchored gutter action | Implemented; U passes; E written and type-checked, browser run pending on demand |
 | T19 Selected session highlights its collapsed parent project | Implemented; U passes; E written and type-checked, browser run pending on demand |
 | T20 Collapsible sections and selected-content marker | Implemented; U passes; E written and type-checked, browser run pending on demand |
+| T21 Background terminal resize isolation | Implemented; U passes; E written and type-checked, browser run pending on demand |
 
 **Progress note (T2–T4, 2026-09-27):** Vitest (447 tests), eslint, `vue-tsc` and the e2e `tsc` passed; deployed to the host from a clean checkout of `f664bb8` (a pre-deploy `pg_dump` is in `backups/`), and the stack came up healthy. Still open for these tasks:
 - **E2E runs:** the scenarios *(T2) Compact tree*, *(T3) Compact file browser*, *(T3) No browser autocomplete outside login password* and *(T4) Custom tab order* type-check but haven't run: e2e runs only on demand. The T2 commit also updated two M6 scenarios that expanded single-window sessions (*(T4) Inline rename a session*, *(T3) Window rows follow the real terminal*).
@@ -255,6 +256,14 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 **Tests:** U: T20 `tree.spec.ts` covers v3-to-v4 migration and `SessionTree.spec.ts` covers color-dot toggle and the selected marker; I: n/a because collapse and selection derive from per-account tree UI state and the selected-session prop; E: T20 *Selected content stays marked when its project or section collapses* (desktop and iPhone 13 Pro) toggles a section, verifies hidden rows and selected marker, then verifies collapse state after reload/restart.
 
 **E2E:** Add T20 assertions to *Selected content stays marked when its project or section collapses* in `test/e2e/tests/tree.sections.spec.ts`; type-check only and leave browser execution on demand.
+
+## T21 — Background terminal resize isolation
+
+- Keep a terminal attached while its browser page is hidden, but ignore its container resize events. Refit it to the current container when the page becomes visible again; do not send duplicate sizes.
+
+**Tests:** U: T21 `TerminalView.spec.ts` verifies hidden-page resizes are ignored and visibility restoration refits only when dimensions changed. I: n/a because this is browser-side resize eligibility; existing M1 PTY-to-tmux resize integration coverage remains applicable. E: T21 two-page same-session scenario verifies a background viewport change does not alter that page's terminal size and that it refits on return.
+
+**E2E:** Add T21 *Background window waits to refit its terminal until it is visible* to `test/e2e/tests/terminal.spec.ts`; type-check only and leave browser execution on demand.
 
 ## Done
 

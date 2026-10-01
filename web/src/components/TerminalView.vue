@@ -94,6 +94,7 @@ let conn: TermSession | null = null
 let observer: ResizeObserver | null = null
 let selectionChange: { dispose: () => void } | null = null
 let disposeBackgroundBlur = () => {}
+let disposeVisibilityListener = () => {}
 let disposeTouchScroll = () => {}
 let disposeClipboardImagePaste = () => {}
 let touchSelectTimer: ReturnType<typeof setTimeout> | null = null
@@ -267,7 +268,7 @@ function connect() {
 function refit() {
   const t = term.value
   // A hidden tab has no size: keep tmux at its last one until it's shown.
-  if (!t || !fit || !props.active) return
+  if (!t || !fit || !props.active || document.visibilityState !== 'visible') return
   try {
     fit.fit()
   } catch {
@@ -492,6 +493,13 @@ onMounted(async () => {
   connect()
   observer = new ResizeObserver(() => refit())
   observer.observe(el.value!)
+  // Other browser windows can remain active hostbud tabs while hidden. Their
+  // ResizeObservers must not send stale sizes to the shared tmux session.
+  const onVisibilityChange = () => {
+    if (document.visibilityState === 'visible') refit()
+  }
+  document.addEventListener('visibilitychange', onVisibilityChange)
+  disposeVisibilityListener = () => document.removeEventListener('visibilitychange', onVisibilityChange)
   window.addEventListener('mouseup', finishAltClick, true)
   // Test hook, e2e builds only (a constant condition: dropped otherwise).
   if (import.meta.env.VITE_E2E === '1')
@@ -538,6 +546,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   clearTouchSelectTimer()
   disposeBackgroundBlur()
+  disposeVisibilityListener()
   disposeTouchScroll()
   disposeClipboardImagePaste()
   snapshotRequest++

@@ -187,3 +187,11 @@ T8 verification: native reader checked at 390px in Chromium and WebKit (358px co
   - I: n/a: this uses the existing per-account tree UI-state endpoint and selected-session prop; no server behavior changes.
   - E: T20 *Selected content stays marked when its project or section collapses* in `tree.sections.spec.ts` (desktop and iPhone 13 Pro) verifies section toggle behavior, selected marking and persistence after reload/restart.
   - Status: U passes; E written and type-checked (`tree.sections.spec.ts`); browser run pending on demand.
+
+## Terminal resizing across browser windows
+
+- [ ] A terminal stays attached while its page is hidden, but hidden-page layout changes do not resize its tmux client. When the page becomes visible, the active terminal refits to its current container and sends a resize only if its dimensions changed.
+  - U: T21 `TerminalView.spec.ts` covers ignored hidden-page resize events, refit on visibility restoration, and duplicate-size suppression.
+  - I: n/a: resize eligibility is frontend-only; M1 T13 covers PTY-to-tmux resize integration.
+  - E: T21 *Background window waits to refit its terminal until it is visible* (`terminal.spec.ts`, desktop Chromium) attaches two pages to the same throwaway tmux session, changes the hidden page's viewport, and checks the terminal remains unchanged until that page returns.
+  - Status (2026-10-01): U passes (`TerminalView.spec.ts`); E written and type-checked (`terminal.spec.ts`), browser run pending on demand. The full Vitest suite has one unrelated `App.spec.ts` failure because the test environment lacks `window.matchMedia`.
