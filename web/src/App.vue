@@ -713,7 +713,7 @@ onUnmounted(() => {
       >
         <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @remove-project="askRemoveProject" @kill-project-sessions="askKillProjectSessions" @session-in-project="newProjectSession" @create-session-in-project="createProjectSession" @create="newSession" />
       </aside>
-      <main v-if="compact && !hasTabs" id="sessions-sidebar" class="min-h-0 min-w-0 flex-1 overflow-y-auto bg-surface p-2">
+      <main v-if="compact && !hasTabs" id="sessions-sidebar" class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface p-2">
         <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @remove-project="askRemoveProject" @kill-project-sessions="askKillProjectSessions" @session-in-project="newProjectSession" @create-session-in-project="createProjectSession" @create="newSession" />
       </main>
       <main

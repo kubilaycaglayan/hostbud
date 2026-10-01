@@ -24,11 +24,11 @@ test('(T17, T18) Project sections and ordering', async ({ page, ui, isMobile }) 
   if (isMobile) await ui.showList()
   const gutter = page.getByRole('tree', { name: 'Projects and sessions' })
   const gutterWidth = (await gutter.boundingBox())!.width
-  const gutterNav = page.getByRole('navigation', { name: 'Project and session tree' })
+  const gutterPanel = page.locator('section[aria-label="Sessions"]')
   const createSection = page.getByRole('button', { name: 'Create a new section' })
   const footerBox = (await createSection.boundingBox())!
-  const navBox = (await gutterNav.boundingBox())!
-  expect(Math.abs(footerBox.y + footerBox.height - navBox.y - navBox.height)).toBeLessThanOrEqual(3)
+  const panelBox = (await gutterPanel.boundingBox())!
+  expect(Math.abs(footerBox.y + footerBox.height - panelBox.y - panelBox.height)).toBeLessThanOrEqual(3)
   expect(await createSection.evaluate((element) => element.closest('[role="tree"]'))).toBeNull()
   const originalRow = ui.treeItem(names[0])
   const originalX = (await originalRow.boundingBox())!.x

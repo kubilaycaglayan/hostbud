@@ -11,6 +11,7 @@ import { useTreeStore } from '@/stores/tree'
 import { useWindowsStore } from '@/stores/windows'
 import { ApiError, windowsApi } from '@/api/client'
 import SessionTree from './SessionTree.vue'
+import TreePanel from './TreePanel.vue'
 
 const fetchMock = vi.fn()
 vi.stubGlobal('fetch', fetchMock)
@@ -43,6 +44,22 @@ afterEach(() => {
 })
 
 describe('SessionTree', () => {
+  it('keeps the project tree as the scroll area and anchors the section action outside it', () => {
+    const wrapper = mount(TreePanel, { props: { connectionState: 'connected' } })
+    const panel = wrapper.get('section[aria-label="Sessions"]')
+    const viewport = panel.get('div')
+    expect(viewport.classes()).toEqual(expect.arrayContaining(['flex', 'flex-col', 'overflow-hidden', 'flex-1']))
+    const nav = viewport.get('nav[aria-label="Project and session tree"]')
+    expect(nav.classes()).toContain('flex-1')
+    const scroller = nav.get('[role="tree"]')
+    expect(scroller.classes()).toContain('overflow-y-auto')
+    const footer = nav.get('button[aria-label="Create a new section"]').element.parentElement!
+    expect(footer.classList.contains('mt-auto')).toBe(true)
+    expect(footer.previousElementSibling).toBe(scroller.element)
+    expect(footer.querySelector('[role="tree"]')).toBeNull()
+    wrapper.unmount()
+  })
+
   it('starts a new session for the focused project, session, or Other group with N', async () => {
     const wrapper = mount(SessionTree)
     await wrapper.get('[data-tree-key="project:a"]').trigger('keydown', { key: 'N', shiftKey: true })
@@ -155,6 +172,7 @@ describe('SessionTree', () => {
     await sorter!.vm.$emit('update:modelValue', [{ id: second.id }, { id: first.id }])
     expect(tree.order.sections.map((section) => section.id)).toEqual([second.id, first.id])
     expect(wrapper.get('nav > div.sticky').classes()).toContain('bottom-0')
+    expect(wrapper.get('nav > div.sticky').classes()).toContain('mt-auto')
     expect(wrapper.get('nav > div.sticky').classes()).toContain('shrink-0')
     wrapper.unmount()
   })

@@ -29,7 +29,7 @@ defineExpose({
     <p v-if="connectionState === 'reconnecting' || connectionState === 'connecting'" role="status" class="mb-1 text-muted">
       {{ connectionState === 'connecting' ? 'Connecting…' : 'Reconnecting…' }}
     </p>
-    <div class="min-h-0 flex-1 overflow-y-auto">
+    <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
       <SessionTree
         ref="tree"
         :selected="selected"
