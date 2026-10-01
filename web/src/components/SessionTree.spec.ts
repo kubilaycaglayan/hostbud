@@ -146,6 +146,11 @@ describe('SessionTree', () => {
     expect(sorter).toBeTruthy()
     expect(sorter!.classes()).toContain('gap-1')
     expect(wrapper.get('button[aria-label="Drag to reorder section First"]').classes()).toContain('section-drag-handle')
+    expect(wrapper.get('[aria-label="First section"] header').findAll('button').map((button) => button.attributes('aria-label'))).toEqual([
+      'Collapse section First',
+      'Edit section First',
+      'Drag to reorder section First',
+    ])
     await sorter!.vm.$emit('update:modelValue', [{ id: second.id }, { id: first.id }])
     expect(tree.order.sections.map((section) => section.id)).toEqual([second.id, first.id])
     expect(wrapper.get('nav > div.sticky').classes()).toContain('bottom-0')

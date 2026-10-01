@@ -40,6 +40,11 @@ test('(T17, T18) Project sections and ordering', async ({ page, ui, isMobile }) 
   await dialog.getByRole('button', { name: 'Save' }).click()
   const section = page.getByRole('group', { name: 'Research section' })
   await expect(section).toContainText('Empty section')
+  expect(await section.locator('header button').evaluateAll((buttons) => buttons.map((button) => button.getAttribute('aria-label')))).toEqual([
+    'Collapse section Research',
+    'Edit section Research',
+    'Drag to reorder section Research',
+  ])
 
   await createSection.click()
   const secondDialog = page.getByRole('dialog', { name: 'Create a new section' })
