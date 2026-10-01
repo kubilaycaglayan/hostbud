@@ -127,7 +127,7 @@ function onMenuCloseAutoFocus(event: Event) {
             <DropdownMenuItem v-for="section in props.sections.filter((item) => item.id !== props.sectionId)" :key="section.id" class="touch-target flex min-h-11 cursor-pointer items-center gap-2 rounded px-2 py-1 outline-none data-highlighted:bg-bg" @select="assignProjectSection(section.id)">
               <span class="h-2.5 w-2.5 rounded-full" :style="{ backgroundColor: sectionColorValues[section.color] }" aria-hidden="true"></span>Move to {{ section.name }}
             </DropdownMenuItem>
-            <DropdownMenuItem class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 text-danger outline-none data-highlighted:bg-bg data-disabled:cursor-default data-disabled:opacity-50" :disabled="!props.group.sessions.length" @select="emit('killProjectSessions', props.group.project.id)">Kill all sessions of this project…</DropdownMenuItem>
+            <DropdownMenuItem class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 text-danger outline-none data-highlighted:bg-bg data-disabled:cursor-default data-disabled:opacity-50" :disabled="!props.group.sessions.length" @select="emit('killProjectSessions', props.group.project.id)">Kill all…</DropdownMenuItem>
             <DropdownMenuItem class="touch-target flex min-h-11 cursor-pointer items-center rounded px-2 py-1 text-danger outline-none data-highlighted:bg-bg" @select="emit('removeProject', props.group.project.id)">Remove project…</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenuPortal>
