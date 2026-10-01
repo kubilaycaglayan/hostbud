@@ -137,7 +137,9 @@ test('(T25) Project names use the row width and terminal header shows session co
   await expect(sessionTitle).toHaveText(sessionName)
   await expect(terminalHeader.locator('[data-terminal-header]')).toHaveAttribute('style', /hb-section-purple/)
   await expect(terminalHeader.locator('[data-terminal-directory]')).toHaveText(path.split('/').at(-1)!)
-  await expect(terminalHeader.locator('[data-terminal-directory]')).not.toHaveClass(/text-accent/)
+  await expect(terminalHeader.locator('[data-terminal-header]')).toHaveClass(/text-section-fg/)
+  await expect(sessionTitle).toHaveCSS('color', 'rgb(23, 26, 33)')
+  await expect(terminalHeader.locator('[data-terminal-directory]')).toHaveCSS('color', 'rgb(23, 26, 33)')
   await expect(terminalHeader.locator('[data-terminal-directory]')).toHaveAttribute('title', path)
 })
 

@@ -606,9 +606,9 @@ defineExpose({ refit, reconnect, showKeyboard })
     :data-focused="takesInput() ? 'true' : undefined"
     @focusin="emit('focus')"
   >
-    <div data-terminal-header class="flex min-w-0 items-center gap-2 border-b border-border px-2 py-1.5" :style="takesInput() && sessionSectionColor ? { backgroundColor: sessionSectionColor } : undefined">
-      <Folder data-terminal-directory-icon :size="16" class="shrink-0 text-fg" aria-hidden="true" />
-      <h2 data-terminal-session-name class="min-w-0 flex-1 truncate text-base font-bold tracking-tight text-fg">
+    <div data-terminal-header class="flex min-w-0 items-center gap-2 border-b border-border px-2 py-1.5" :class="takesInput() && sessionSectionColor ? 'text-section-fg' : 'text-fg'" :style="takesInput() && sessionSectionColor ? { backgroundColor: sessionSectionColor } : undefined">
+      <Folder data-terminal-directory-icon :size="16" class="shrink-0" aria-hidden="true" />
+      <h2 data-terminal-session-name class="min-w-0 flex-1 truncate text-base font-bold tracking-tight">
         {{ props.session }}
       </h2>
       <span
@@ -616,7 +616,7 @@ defineExpose({ refit, reconnect, showKeyboard })
         data-terminal-directory
         :aria-label="`Directory: ${sessionDirectory}`"
         :title="sessionDirectory"
-        class="min-w-0 max-w-[40%] shrink truncate text-xs font-medium text-fg"
+        class="min-w-0 max-w-[40%] shrink truncate text-xs font-medium"
       >{{ sessionDirectoryName }}</span>
       <!-- Narrow screens show one pane of a split at a time. -->
       <button

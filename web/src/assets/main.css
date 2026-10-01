@@ -32,6 +32,7 @@
   --hb-section-yellow: #c8a43c;
   --hb-section-orange: #d98a4a;
   --hb-section-purple: #9b7acb;
+  --hb-section-fg: #171a21;
   color-scheme: dark;
 }
 
@@ -100,6 +101,7 @@
   --color-danger: var(--hb-danger);
   --color-ok: var(--hb-ok);
   --color-overlay: var(--hb-overlay);
+  --color-section-fg: var(--hb-section-fg);
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 }
 
