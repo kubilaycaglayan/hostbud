@@ -211,3 +211,11 @@ T8 verification: native reader checked at 390px in Chromium and WebKit (358px co
   - I: n/a: row layout and hover visibility are frontend-only.
   - E: T24 *Session names use the row width and actions reveal on desktop hover* (`tree.custom.spec.ts`) checks desktop name width, hidden/revealed action state, and phone inline action visibility.
   - Status: E written; type-check and browser execution pending on demand.
+
+## Project row width and terminal session context
+
+- [ ] Project names use the available row width on desktop, with actions at the trailing edge revealed on hover; phones retain visible inline controls. The focused terminal header emphasizes its session name and shows that session's directory beside it in a contrasting style, with the full path available accessibly.
+  - U: T25 `SessionTree.spec.ts` covers project action grouping and row structure; `TerminalView.spec.ts` covers focused session emphasis, directory label and full-path tooltip.
+  - I: n/a: these are frontend presentation changes.
+  - E: T25 *Project names use the row width and terminal header shows session context* (`tree.custom.spec.ts`, desktop and iPhone 13 Pro) checks project action reveal/phone visibility and terminal session/directory labels.
+  - Status: E written; type-check and browser execution pending on demand.

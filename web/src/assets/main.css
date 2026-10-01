@@ -142,7 +142,7 @@ button {
 @media (hover: hover) and (pointer: fine) {
   /* Keep the session name at full row width; controls float over its trailing
      edge and appear on hover. Touch layouts retain their inline action space. */
-  .tree-row [data-session-actions] {
+  .tree-row :is([data-session-actions], [data-project-actions]) {
     position: absolute;
     top: 50%;
     right: 0.25rem;

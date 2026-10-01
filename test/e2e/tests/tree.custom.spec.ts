@@ -87,6 +87,36 @@ test('(T24) Session names use the row width and actions reveal on desktop hover'
   }
 })
 
+test('(T25) Project names use the row width and terminal header shows session context', async ({ page, ui, target, request }) => {
+  const path = `/home/dev/${uniqueName('header-directory')}`
+  const projectName = uniqueName('header-project')
+  const sessionName = uniqueName('header-session')
+  await addProject(request, path, projectName)
+  await createSession(target, sessionName, path)
+  await page.reload()
+  const projectRow = ui.treeItem(projectName)
+  const projectHeader = projectRow.locator(':scope > .tree-row')
+  const title = projectHeader.locator('span.font-semibold')
+  const actions = projectHeader.locator('[data-project-actions]')
+  const more = projectRow.getByRole('button', { name: `More actions for ${projectName}` })
+  const hover = await page.evaluate(() => matchMedia('(hover: hover) and (pointer: fine)').matches)
+  expect((await actions.evaluate((el) => getComputedStyle(el))).position).toBe(hover ? 'absolute' : 'static')
+  expect(await more.evaluate((el) => getComputedStyle(el).opacity)).toBe(hover ? '0' : '1')
+  if (hover) {
+    const rowBox = await projectHeader.boundingBox()
+    const titleBox = await title.boundingBox()
+    expect(rowBox && titleBox && titleBox.width).toBeGreaterThan((rowBox?.width ?? 0) * 0.65)
+    await projectHeader.hover()
+    await expect(more).toHaveCSS('opacity', '1')
+  }
+
+  await ui.openTerminal(sessionName)
+  const terminalHeader = page.getByRole('region', { name: `Terminal: ${sessionName}` })
+  await expect(terminalHeader.locator('[data-terminal-session-name]')).toHaveText(sessionName)
+  await expect(terminalHeader.locator('[data-terminal-directory]')).toHaveText(path.split('/').at(-1)!)
+  await expect(terminalHeader.locator('[data-terminal-directory]')).toHaveAttribute('title', path)
+})
+
 test('(T2) Tree state survives an app restart', async ({ page, ui, target, request }) => {
   await account(ui)
   const path = `/home/dev/${uniqueName('tree-restart')}`

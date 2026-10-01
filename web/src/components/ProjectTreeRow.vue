@@ -97,7 +97,7 @@ function onMenuCloseAutoFocus(event: Event) {
     :class="props.hidden ? 'opacity-50' : ''"
   >
     <div
-      class="tree-row flex min-h-8 items-center gap-1 rounded px-0.5"
+      class="tree-row relative flex min-h-8 items-center gap-1 rounded px-0.5"
       :class="props.selectionProxy ? 'bg-selected text-selected-fg' : ''"
       @click="emit('headerClick', props.group.project.id)"
       @pointerdown="emit('longPressStart', $event, props.group.project.id)"
@@ -112,6 +112,7 @@ function onMenuCloseAutoFocus(event: Event) {
       <Folder :size="16" class="shrink-0 text-muted" aria-hidden="true" />
       <InlineRename v-if="props.editingKey === 'project:' + props.group.project.id" :name="props.group.project.name" :error="props.editError" :commit="(value) => props.renameProject(props.group.project.id, value)" @cancel="emit('cancelRename', 'project:' + props.group.project.id)" />
       <span v-else class="min-w-0 flex-1 truncate font-semibold" :class="{ 'text-ok': hasWorkingSession }" :data-working="hasWorkingSession || undefined" @dblclick.stop="renameOnFinePointer">{{ props.group.project.name }}</span>
+      <div data-project-actions class="flex shrink-0 items-center">
       <span v-if="props.collapsed" data-project-count :title="props.group.sessions.length + (props.group.sessions.length === 1 ? ' session' : ' sessions')" class="shrink-0 rounded bg-tree-header px-1.5 text-xs leading-5 text-muted tabular-nums">{{ props.group.sessions.length }}</span>
       <button v-if="props.pinned" type="button" class="row-action touch-target inline-flex min-h-7 min-w-6 items-center justify-center rounded text-muted" :aria-label="'Unpin ' + props.group.project.name" title="Pinned" tabindex="-1" @click.stop="emit('togglePin', props.group.project.id)">
         <Pin :size="16" aria-hidden="true" />
@@ -134,6 +135,7 @@ function onMenuCloseAutoFocus(event: Event) {
       </DropdownMenuRoot>
       <button type="button" class="row-action touch-target inline-flex min-h-7 min-w-6 items-center justify-center rounded text-muted hover:bg-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" :aria-label="'New session in ' + props.group.project.name" :title="'New session in ' + props.group.project.name" tabindex="-1" @click.stop="emit('createSessionInProject', props.group.project)"><Plus :size="16" aria-hidden="true" /></button>
       <button type="button" class="row-action touch-target project-drag-handle min-h-7 min-w-4 cursor-grab rounded text-muted" :aria-label="'Drag to reorder project ' + props.group.project.name" title="Drag to reorder projects" tabindex="-1" @click.stop>⠿</button>
+      </div>
     </div>
     <div v-if="!props.collapsed" role="group" class="ml-2 border-l border-border/40 pb-1 pl-1.5">
       <p class="-mt-2 truncate px-1.5 pb-1 text-[10px] leading-3 text-muted" :title="props.group.project.path">{{ shortPath(props.group.project.path) }}</p>

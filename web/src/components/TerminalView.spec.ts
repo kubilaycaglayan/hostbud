@@ -193,6 +193,19 @@ async function clickMenuItem(text: string) {
 }
 
 describe('TerminalView', () => {
+  it('emphasizes the focused session and shows its directory beside the name', async () => {
+    useSessionsStore().$patch({ byMachine: { host: [{ id: '$1', name: 'acc-a', path: '/home/dev/bright-work', attached: 0, windows: 1, created: '', activity: '' }] } })
+    const w = await mountTerm({ focused: true })
+    const name = w.get('[data-terminal-session-name]')
+    const directory = w.get('[data-terminal-directory]')
+    expect(name.text()).toBe('acc-a')
+    expect(name.classes()).toContain('text-accent')
+    expect(directory.text()).toBe('bright-work')
+    expect(directory.attributes('title')).toBe('/home/dev/bright-work')
+    expect(name.element.parentElement?.contains(directory.element)).toBe(true)
+    w.unmount()
+  })
+
   it('updates a mounted xterm palette without reconnecting', async () => {
     const w = await mountTerm()
     const terminal = h.terms[0]

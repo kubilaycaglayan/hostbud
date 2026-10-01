@@ -100,6 +100,8 @@ const theme = useThemeStore()
 const projects = useProjectsStore()
 const sessions = useSessionsStore()
 const splitTargets = computed(() => sessions.list(props.machine).map((x) => x.name))
+const sessionDirectory = computed(() => sessions.list(props.machine).find((x) => x.name === props.session)?.path ?? '')
+const sessionDirectoryName = computed(() => sessionDirectory.value.split('/').filter(Boolean).at(-1) ?? '/')
 const uploadDirectory = computed(() => {
   const session = sessions.list(props.machine).find((x) => x.name === props.session)
   if (!session) return ''
@@ -594,9 +596,16 @@ defineExpose({ refit, reconnect, showKeyboard })
     @focusin="emit('focus')"
   >
     <div class="flex min-w-0 items-center gap-2 border-b border-border px-2 py-1.5">
-      <h2 class="max-w-[22vw] shrink truncate font-bold">
+      <h2 data-terminal-session-name class="min-w-0 flex-1 truncate text-base font-bold tracking-tight" :class="takesInput() ? 'text-accent' : 'text-fg'">
         {{ props.session }}
       </h2>
+      <span
+        v-if="sessionDirectory"
+        data-terminal-directory
+        :aria-label="`Directory: ${sessionDirectory}`"
+        :title="sessionDirectory"
+        class="min-w-0 max-w-[40%] shrink truncate rounded border border-accent/20 bg-accent/10 px-2 py-1 text-xs font-medium text-accent"
+      >{{ sessionDirectoryName }}</span>
       <!-- Narrow screens show one pane of a split at a time. -->
       <button
         v-if="props.narrow && props.paneCount > 1"
