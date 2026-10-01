@@ -53,13 +53,16 @@ describe('SessionList', () => {
     expect(first.className).toContain('flex-1')
     expect(row.find('[data-session-age]').exists()).toBe(false)
     const actions = first.nextElementSibling
-    expect(actions?.tagName).toBe('SPAN')
+    expect(actions?.tagName).toBe('DIV')
     expect([...actions!.querySelectorAll('button')].map((button) => button.getAttribute('aria-label'))).toEqual([
       'More actions for a',
     ])
     expect(w.find('button[aria-label="Kill a"]').exists()).toBe(false)
     expect(w.find('button[aria-label="Rename a"]').exists()).toBe(false)
-    expect(row.element.lastElementChild?.getAttribute('aria-label')).toBe('Drag to reorder session a')
+    expect(row.get('[data-session-actions]').element.lastElementChild?.getAttribute('aria-label')).toBe('Drag to reorder session a')
+    expect(row.classes()).toContain('relative')
+    expect(row.get('[data-session-actions]').element.contains(row.get('button[aria-label="More actions for a"]').element)).toBe(true)
+    expect(row.get('[data-session-actions]').element.contains(row.get('button[aria-label="Drag to reorder session a"]').element)).toBe(true)
   })
 
   it('shows compact agent logos before left-gutter session names without changing the accessible row label', () => {

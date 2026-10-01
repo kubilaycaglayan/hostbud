@@ -31,6 +31,7 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 | T21 Background terminal resize isolation | Implemented; U passes; E written and type-checked, browser run pending on demand |
 | T22 Session switching without tab strips | Implemented; U written; E written and type-checked, browser run pending on demand |
 | T23 Semantic command palette groups | Implemented; U written; E written and type-checked, browser run pending on demand |
+| T24 Full-width session names with hover actions | Implemented; U written; E written and type-checked, browser run pending on demand |
 
 **Progress note (T2–T4, 2026-09-27):** Vitest (447 tests), eslint, `vue-tsc` and the e2e `tsc` passed; deployed to the host from a clean checkout of `f664bb8` (a pre-deploy `pg_dump` is in `backups/`), and the stack came up healthy. Still open for these tasks:
 - **E2E runs:** the scenarios *(T2) Compact tree*, *(T3) Compact file browser* and *(T3) No browser autocomplete outside login password* type-check but haven't run: e2e runs only on demand. The T2 commit also updated two M6 scenarios that expanded single-window sessions (*(T4) Inline rename a session*, *(T3) Window rows follow the real terminal*). T22 replaces the former M8 *(T4) Custom tab order* scenario.
@@ -286,6 +287,16 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 **Tests:** U: T23 `palette.spec.ts` covers command-to-group assignments and `CommandPalette.spec.ts` covers rendered group membership and destructive styling; I: n/a because grouping and styling are frontend-only; E: T23 *Command palette groups commands by purpose and color* checks representative commands and semantic group colors with a live session.
 
 **E2E:** Add T23 *Command palette groups commands by purpose and color* to `test/e2e/tests/palette.spec.ts`; type-check only and leave browser execution on demand.
+
+## T24 — Full-width session names with hover actions
+
+- Let session names use the full available row width on desktop; place row actions over the trailing edge instead of reserving their width.
+- Reveal session actions on mouse hover (and keyboard focus/open state), retaining visible inline actions and the current touch layout on phones.
+- Keep action hit targets, accessible names, selection, expansion and drag behavior intact.
+
+**Tests:** U: T24 `SessionList.spec.ts` covers full-width row/action grouping and existing accessible action controls; I: n/a (presentation-only); E: T24 *Session names use the row width and actions reveal on desktop hover* checks desktop hover and phone inline visibility.
+
+**E2E:** Add T24 *Session names use the row width and actions reveal on desktop hover* to `test/e2e/tests/tree.custom.spec.ts`; type-check only and leave browser execution on demand.
 
 ## Done
 

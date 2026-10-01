@@ -203,3 +203,11 @@ T8 verification: native reader checked at 390px in Chromium and WebKit (358px co
   - I: n/a: resize eligibility is frontend-only; M1 T13 covers PTY-to-tmux resize integration.
   - E: T21 *Background window detaches its terminal until it is visible* (`terminal.spec.ts`, desktop Chromium) attaches two pages to the same throwaway tmux session, verifies the hidden client detaches and cannot affect the visible terminal, then checks it reattaches at the new size on return.
   - Status (2026-10-01): Updated after the reported issue persisted: U and E coverage verify detach/reconnect lifecycle. E browser run is pending on demand. The full Vitest suite has one unrelated `App.spec.ts` failure because the test environment lacks `window.matchMedia`.
+
+## Session row name width and hover actions
+
+- [ ] Desktop session names use the available row width, with row actions positioned over the trailing edge and revealed by mouse hover. Phone layouts retain inline visible actions and current touch behavior; keyboard focus and an open menu keep actions available.
+  - U: T24 `SessionList.spec.ts` covers action grouping, full-width row structure and accessible controls.
+  - I: n/a: row layout and hover visibility are frontend-only.
+  - E: T24 *Session names use the row width and actions reveal on desktop hover* (`tree.custom.spec.ts`) checks desktop name width, hidden/revealed action state, and phone inline action visibility.
+  - Status: E written; type-check and browser execution pending on demand.

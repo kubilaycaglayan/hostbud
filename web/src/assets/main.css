@@ -140,6 +140,14 @@ button {
 /* Tree row actions (drag, more, new session) stay out of the way until the
    row is hovered on a mouse; touch devices always show them. */
 @media (hover: hover) and (pointer: fine) {
+  /* Keep the session name at full row width; controls float over its trailing
+     edge and appear on hover. Touch layouts retain their inline action space. */
+  .tree-row [data-session-actions] {
+    position: absolute;
+    top: 50%;
+    right: 0.25rem;
+    transform: translateY(-50%);
+  }
   .row-action {
     opacity: 0;
     transition: opacity 100ms;

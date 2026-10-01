@@ -209,7 +209,7 @@ const sortableSessions = computed({
       :data-tree-key="props.treeView ? 'session:' + s.name : undefined"
       :data-tree-kind="props.treeView ? 'session' : undefined"
       :data-tree-group="props.treeView ? props.groupKey : undefined"
-      class="tree-row flex cursor-pointer flex-wrap items-center gap-x-1.5 rounded-r border-l-[3px] py-0.5 pr-1 pl-1 hover:bg-tree-header"
+      class="tree-row relative flex cursor-pointer flex-wrap items-center gap-x-1.5 rounded-r border-l-[3px] py-0.5 pr-1 pl-1 hover:bg-tree-header"
       :class="[s.name === props.selected ? 'border-accent bg-selected' : 'border-transparent', isHidden(s.name) ? 'opacity-50' : '']"
       @click="selectRowClick($event, s.name)"
     >
@@ -271,19 +271,20 @@ const sortableSessions = computed({
       >
         {{ s.name }}
       </button>
-      <button
-        v-if="canExpand(s)"
-        type="button"
-        class="touch-target inline-flex min-h-7 min-w-6 shrink-0 items-center justify-center rounded text-muted"
-        :aria-label="(isExpanded(sessionKey('host', s.name)) ? 'Collapse ' : 'Expand ') + s.name"
-        :aria-expanded="isExpanded(sessionKey('host', s.name))"
-        :title="(isExpanded(sessionKey('host', s.name)) ? 'Collapse ' : 'Expand ') + s.name"
-        :tabindex="-1"
-        @click.stop="toggleSession(s.name)"
-      >
-        <ChevronRight :size="16" class="transition-transform" :class="isExpanded(sessionKey('host', s.name)) ? 'rotate-90' : ''" aria-hidden="true" />
-      </button>
-      <span class="flex shrink-0 items-center">
+      <div data-session-actions class="flex shrink-0 items-center">
+        <button
+          v-if="canExpand(s)"
+          type="button"
+          class="row-action touch-target inline-flex min-h-7 min-w-6 shrink-0 items-center justify-center rounded text-muted"
+          :aria-label="(isExpanded(sessionKey('host', s.name)) ? 'Collapse ' : 'Expand ') + s.name"
+          :aria-expanded="isExpanded(sessionKey('host', s.name))"
+          :title="(isExpanded(sessionKey('host', s.name)) ? 'Collapse ' : 'Expand ') + s.name"
+          :tabindex="-1"
+          @click.stop="toggleSession(s.name)"
+        >
+          <ChevronRight :size="16" class="transition-transform" :class="isExpanded(sessionKey('host', s.name)) ? 'rotate-90' : ''" aria-hidden="true" />
+        </button>
+        <span class="flex shrink-0 items-center">
         <DropdownMenuRoot :open="openMenuName === s.name" @update:open="(open) => openMenuName = open ? s.name : ''">
           <DropdownMenuTrigger
             :aria-label="`More actions for ${s.name}`"
@@ -341,17 +342,18 @@ const sortableSessions = computed({
             </DropdownMenuContent>
           </DropdownMenuPortal>
         </DropdownMenuRoot>
-      </span>
-      <button
-        v-if="props.sortable"
-        type="button"
-        class="row-action session-drag-handle touch-target inline-flex min-h-6 min-w-4 shrink-0 items-center justify-center cursor-grab rounded text-muted"
-        :aria-label="`Drag to reorder session ${s.name}`"
-        title="Drag to reorder sessions"
-        :tabindex="props.treeView ? -1 : undefined"
-      >
-        ⠿
-      </button>
+        </span>
+        <button
+          v-if="props.sortable"
+          type="button"
+          class="row-action session-drag-handle touch-target inline-flex min-h-6 min-w-4 shrink-0 items-center justify-center cursor-grab rounded text-muted"
+          :aria-label="`Drag to reorder session ${s.name}`"
+          title="Drag to reorder sessions"
+          :tabindex="props.treeView ? -1 : undefined"
+        >
+          ⠿
+        </button>
+      </div>
       <span
         v-if="props.treeView && sessionSubtitle(s.title)"
         data-session-subtitle

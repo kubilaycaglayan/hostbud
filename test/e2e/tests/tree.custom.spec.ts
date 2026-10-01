@@ -61,6 +61,32 @@ test('(T2) Tree state upgrades from M4', async ({ page, ui, target, request }) =
   expect(await getUIState(page.request, 'tree')).toMatchObject({ version: 2, projects: [project.id], sessions: { [project.id]: [first, second] } })
 })
 
+test('(T24) Session names use the row width and actions reveal on desktop hover', async ({ page, ui, target }) => {
+  const name = uniqueName('row-hover')
+  await createSession(target, name, '/home/dev')
+  await page.reload()
+  const row = ui.treeItem(name)
+  const title = row.locator('[data-session-row]')
+  const actions = row.locator('[data-session-actions]')
+  const trigger = row.getByRole('button', { name: `More actions for ${name}` })
+  await expect(title).toBeVisible()
+  const layout = await page.evaluate(() => ({ hover: matchMedia('(hover: hover) and (pointer: fine)').matches }))
+  const actionStyle = await actions.evaluate((el) => getComputedStyle(el))
+  const buttonStyle = await trigger.evaluate((el) => getComputedStyle(el))
+  if (layout.hover) {
+    expect(actionStyle.position).toBe('absolute')
+    expect(buttonStyle.opacity).toBe('0')
+    const rowBox = await row.boundingBox()
+    const titleBox = await title.boundingBox()
+    expect(rowBox && titleBox && titleBox.width).toBeGreaterThan((rowBox?.width ?? 0) * 0.8)
+    await row.hover()
+    await expect(trigger).toHaveCSS('opacity', '1')
+  } else {
+    expect(actionStyle.position).toBe('static')
+    expect(buttonStyle.opacity).toBe('1')
+  }
+})
+
 test('(T2) Tree state survives an app restart', async ({ page, ui, target, request }) => {
   await account(ui)
   const path = `/home/dev/${uniqueName('tree-restart')}`
