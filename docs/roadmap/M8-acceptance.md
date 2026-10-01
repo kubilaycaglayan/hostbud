@@ -23,10 +23,10 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
   - I: n/a: presentation-only; tree data and APIs are unchanged.
   - E: T2 *Compact tree* (desktop and phone), including actual reorder/collapse/open behavior.
   - Status (2026-09-27): U written and passing (`web/src/components/SessionList.spec.ts`, `SessionTree.spec.ts`; e2e `tests/tree.compact.spec.ts`); E written and type-checked, run pending (on demand). Not ticked until the e2e run passes.
-- [ ] Session lists stay decluttered: no relative activity-age labels or green attachment dots on project/session rows; project session counts appear only while collapsed. Clicking any non-control area of a session row selects it, while row action buttons, drag handles and double-click rename keep their existing behavior. The selected row and active terminal tab have a distinctive, readable background in Dark, Light, Solarized and Dimmed themes.
-  - U: T15 `SessionList.spec.ts` non-control row selection, interactive-control isolation, removed ages/dots and selected row; `SessionTree.spec.ts` collapsed-only count and removed project attachment dot; `TabBar.spec.ts` active-tab styling; `check-theme-contrast.test.mjs` selected foreground/background contrast for all themes.
+- [ ] Session lists stay decluttered: no relative activity-age labels or green attachment dots on project/session rows; project session counts appear only while collapsed. Clicking any non-control area of a session row selects it, while row action buttons, drag handles and double-click rename keep their existing behavior. The selected row has a distinctive, readable background in Dark, Light, Solarized and Dimmed themes.
+  - U: T15 `SessionList.spec.ts` non-control row selection, interactive-control isolation, removed ages/dots and selected row; `SessionTree.spec.ts` collapsed-only count and removed project attachment dot; `check-theme-contrast.test.mjs` selected foreground/background contrast for all themes.
   - I: n/a: frontend presentation and click handling only; no server contract changes.
-  - E: T15 *Selected session and active tab stand out across themes* (desktop) and *Whole session row selects on touch* (iPhone 13 Pro), including button isolation, collapsed-only counts, no age/dot indicators, and selected styling in all four themes.
+  - E: T15 *Selected session stands out across themes* (desktop) and *Whole session row selects on touch* (iPhone 13 Pro), including button isolation, collapsed-only counts, no age/dot indicators, and selected styling in all four themes.
 
 ## File browser and browser autocomplete
 
@@ -41,13 +41,13 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
   - E: T3 *No browser autocomplete outside login password* (desktop): inspect all application form controls and preserve login password behavior.
   - Status (2026-09-27): U written and passing (`web/src/components/FileBrowserDialog.spec.ts`, `web/src/lib/autocomplete.spec.ts`; e2e `tests/files.compact.spec.ts`); E written and type-checked, run pending (on demand). Not ticked until the e2e run passes.
 
-## Open tab ordering
+## Session switching without tab strips (T22)
 
-- [ ] Users can drag tabs directly to choose their order. Keep the existing tab appearance unchanged and add no drag handle. New tabs append to the end. The chosen order is saved in the existing per-account layout and survives reload and app restart; reordering does not activate another tab, remount terminals or detach tmux clients. The compact phone tab switcher reflects the same order.
-  - U: T4 layout-store reorder/restore/append behavior and active/pane invariants (Vitest); drag/drop interaction updates order without changing the active tab or mounting terminals (component test).
-  - I: n/a: this uses the existing `ui_state/layout` persistence route with no server changes; M3 covers its authenticated persistence integration.
-  - E: T4 *Custom tab order* (desktop and phone), including persistence after reload and restart and unchanged appearance.
-  - Status (2026-09-27): U written and passing (`web/src/lib/layout.spec.ts`, `stores/layout.spec.ts`, `components/TabBar.spec.ts`, `App.spec.ts`; e2e `tests/tabs.order.spec.ts`); E written and type-checked, run pending (on demand). Not ticked until the e2e run passes.
+- [ ] Desktop and phone terminal layouts show no tab strip. Open terminal views remain in the saved layout and can be selected from the left tree. Ctrl+Shift+] / Ctrl+Shift+[ cycle only open sessions whose rows are visible, in tree order, wrapping at either end; collapsed or hidden rows and unopened sessions are skipped. Closing the active terminal view from the command palette removes its view while leaving the tmux session running. Inactive views detach and reconnect on activation.
+  - U: T22 tree-order helper covers pinned, sectioned, unsectioned and Other sessions, open-only filtering, hidden rows, and collapsed projects/sections; palette action labels cover close view and session cycling.
+  - I: n/a: this is frontend layout and keyboard behavior; saved layout and terminal attach APIs do not change.
+  - E: T22 *Visible open-session shortcuts replace tab strips on desktop* and *Phone terminal has no tab strip and session cycling still works*; desktop scenario also checks collapsed rows, unopened sessions and palette close preserving tmux.
+  - Status: U written; E written and type-checked, full run pending on demand.
 
 ## Text input caret placement
 
@@ -105,7 +105,7 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
   - I: n/a: browser visibility and focus behavior only.
   - E: T8 *Returning from background does not automatically refocus the terminal* (desktop Chromium).
   - Status (2026-09-27): U coverage is written and passing (`pageFocus.spec.ts`, `TerminalView.spec.ts`); E `test/e2e/tests/dictation.spec.ts` is written and type-checked, run pending (on demand).
-- [ ] Per-terminal actions are consolidated in one three-dot menu, and View terminal text opens a frozen, full-screen, scrollable and selectable copyable snapshot of all history retained by the active tmux pane, including before browser attachment, with tmux colors and styles, wrapped long lines and native selection/copy/vertical scrolling, no visible title or text box frame, and a close button. Tab controls remain unchanged.
+- [ ] Per-terminal actions are consolidated in one three-dot menu, and View terminal text opens a frozen, full-screen, scrollable and selectable copyable snapshot of all history retained by the active tmux pane, including before browser attachment, with tmux colors and styles, wrapped long lines and native selection/copy/vertical scrolling, no visible title or text box frame, and a close button.
   - U: T8 capture command validation, service errors, authenticated uncached API, ANSI styling and safe text rendering, native reader and toolbar actions (Go/Vitest).
   - I: T8 `TestIntegrationOutputIncludesHistoryWithoutAttaching` captures styled historical output and joined rows without attaching or entering copy mode; `TestIntegrationOutputIncludesHistoryUnderFullScreenApp` captures shell history, the saved normal screen and the full-screen app's screen in order, with row padding trimmed (`test/sshd`).
   - E: T8 *Terminal text snapshot scrolls, selects, and closes* and *Terminal text includes shell history under a full-screen app* (desktop Chromium).

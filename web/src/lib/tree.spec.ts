@@ -1,11 +1,26 @@
 import { describe, expect, it } from 'vitest'
 import type { Project, Session } from '@/api/types'
-import { canReorderProjectSections, emptyTreeState, move, orderedProjectSections, projectForSession, projectTree, SECTION_COLORS, validateTreeState } from './tree'
+import { canReorderProjectSections, emptyTreeState, move, orderedProjectSections, projectForSession, projectTree, SECTION_COLORS, validateTreeState, visibleOpenSessionNames } from './tree'
 
 const project = (id: string, path: string, name = id): Project => ({ id, machineId: 'host', path, name, sortOrder: 0, pinned: false, createdAt: '', updatedAt: '' })
 const session = (name: string, path: string): Session => ({ id: `$${name}`, name, path, attached: 0, windows: 1, created: '', activity: '' })
 
 describe('project session tree', () => {
+  it('cycles only open sessions visible in the actual left-tree order', () => {
+    const groups = projectTree(
+      [project('a', '/a'), project('b', '/b'), project('c', '/c')],
+      [session('a1', '/a'), session('a2', '/a'), session('b1', '/b'), session('c1', '/c'), session('other', '/else')],
+      { ...emptyTreeState(), pinned: ['b'], sections: [{ id: 's', name: 'Section', color: 'blue' }], projectSections: { c: 's' } },
+    )
+    const open = new Set(['a1', 'a2', 'b1', 'c1', 'other', 'unopened'].map((name) => `host/${name}`))
+    expect(visibleOpenSessionNames(groups.groups, groups.other, { ...emptyTreeState(), pinned: ['b'], sections: [{ id: 's', name: 'Section', color: 'blue' }], projectSections: { c: 's' } }, open)).toEqual(['b1', 'c1', 'a1', 'a2', 'other'])
+    const collapsed = { ...emptyTreeState(), collapsed: ['a'], collapsedSections: ['s'], pinned: ['b'], sections: [{ id: 's', name: 'Section', color: 'blue' as const }], projectSections: { c: 's' } }
+    expect(visibleOpenSessionNames(groups.groups, groups.other, collapsed, open)).toEqual(['b1', 'other'])
+    const hidden = { ...emptyTreeState(), hidden: { projects: [], sessions: ['host/b1'] }, pinned: ['b'], sections: [{ id: 's', name: 'Section', color: 'blue' as const }], projectSections: { c: 's' } }
+    expect(visibleOpenSessionNames(groups.groups, groups.other, hidden, open)).toEqual(['c1', 'a1', 'a2', 'other'])
+    expect(visibleOpenSessionNames(groups.groups, groups.other, { ...hidden, showHidden: true }, open)).toContain('b1')
+  })
+
   it('matches nested paths by longest component prefix and keeps siblings in Other', () => {
     const projects = [project('root', '/work'), project('nested', '/work/app'), project('sibling', '/work/application')]
     expect(projectForSession(session('exact', '/work/app'), projects)?.id).toBe('nested')

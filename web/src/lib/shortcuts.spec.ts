@@ -51,6 +51,8 @@ describe('shortcut registry', () => {
     expect(matchingShortcut(key('d', { ctrlKey: true, metaKey: true }), 'mac')?.id).toBe('last-tab')
     expect(matchingShortcut(key('d', { ctrlKey: true, metaKey: true }), 'other')).toBeUndefined()
     expect(shortcutLabels(shortcuts.find((candidate) => candidate.id === 'last-tab')!, 'mac')).toEqual(['Ctrl+Shift+D', 'Ctrl+⌘+D'])
+    expect(shortcuts.find((candidate) => candidate.id === 'next-tab')?.label).toBe('Next open visible session')
+    expect(shortcuts.find((candidate) => candidate.id === 'previous-tab')?.label).toBe('Previous open visible session')
   })
 
   it('intercepts global chords but leaves outside-terminal Ctrl+K and Alt+B to the terminal', () => {

@@ -15,12 +15,11 @@ import KillSessionDialog from '@/components/KillSessionDialog.vue'
 import QueuePanel from '@/components/QueuePanel.vue'
 import SettingsDialog from '@/components/SettingsDialog.vue'
 import HostBanner from '@/components/HostBanner.vue'
-import TabBar from '@/components/TabBar.vue'
 import TabView from '@/components/TabView.vue'
 import IconButton from '@/components/IconButton.vue'
 import { NEW_SESSION_FOR_SPLIT } from '@/components/layoutKeys'
 import type { Project } from '@/api/types'
-import { panelOrder, type SplitDir } from '@/lib/layout'
+import { panelOrder, panesOf, type SplitDir } from '@/lib/layout'
 import { useMediaQuery, COMPACT_QUERY } from '@/lib/media'
 import ToastRegion from '@/components/ToastRegion.vue'
 import { useAppStore } from '@/stores/app'
@@ -39,7 +38,7 @@ import { useToastsStore } from '@/stores/toasts'
 import { useSessionsStore } from '@/stores/sessions'
 import { FolderSearch, ListOrdered, PanelLeftClose, PanelLeftOpen, Search, SquareTerminal, UserRound } from 'lucide-vue-next'
 import { isEditableTarget, isTerminalTarget, isTreeTarget, matchingShortcut, shortcutLabels, shortcutPlatform, shortcuts } from '@/lib/shortcuts'
-import { projectTree, sessionKey, windowKey } from '@/lib/tree'
+import { projectTree, sessionKey, visibleOpenSessionNames, windowKey } from '@/lib/tree'
 import { dispatchPaletteAction } from '@/lib/paletteActions'
 import { buildPaletteItems } from '@/lib/palette'
 import { projectsApi } from '@/api/client'
@@ -79,6 +78,7 @@ const killingProject = ref<Project | null>(null) // the project whose sessions t
 const killingProjectSessions = ref<string[]>([])
 const shortcutsOpen = ref(false)
 const paletteOpen = ref(false)
+const recentSessionNames = ref<string[]>([])
 const paletteSplitDir = ref<SplitDir | null>(null)
 let paletteActionSplitDir: SplitDir | null = null
 let shortcutReturnFocus: HTMLElement | null = null
@@ -420,8 +420,8 @@ const paletteActionHandlers = {
   setShowHidden: (show: boolean) => tree.setShowHidden(show),
   split: (dir: SplitDir) => { paletteSplitDir.value = dir },
   closeTab: () => { if (layout.activeTab) closeTab(layout.activeTab.id) },
-  nextTab: () => { layout.cycleTab(1) },
-  previousTab: () => { layout.cycleTab(-1) },
+  nextTab: () => { cycleVisibleOpenSession(1) },
+  previousTab: () => { cycleVisibleOpenSession(-1) },
   setTheme: (mode: 'dark' | 'light' | 'solarized' | 'dimmed' | 'system') => { void theme.setMode(mode) },
   shortcuts: () => {
     shortcutReturnFocus = paletteReturnFocus
@@ -469,10 +469,13 @@ function focusActiveTerminal() {
   document.querySelector<HTMLElement>('[data-focused="true"] .xterm-helper-textarea')?.focus()
 }
 
-// Switching tabs by shortcut, tab bar, palette or session opening all moves
-// input to the newly active pane after Vue reveals its terminal view.
+// Switching layouts or sessions all moves input to the newly active pane
+// after Vue reveals its terminal view.
 watch(() => layout.activeTab?.id, (id, previous) => {
   if (id && previous && auth.status === 'authenticated') void nextTick(focusActiveTerminal)
+})
+watch(() => layout.focused?.session, (session) => {
+  if (session) recentSessionNames.value = [session, ...recentSessionNames.value.filter((name) => name !== session)]
 })
 
 function onDrawerCloseAutoFocus(event: Event) {
@@ -488,9 +491,9 @@ function onShortcutKeydown(event: KeyboardEvent) {
   const global = matchingShortcut(event, platform, 'global')
   if (global) {
     if (global.id === 'help') openShortcuts()
-    else if (global.id === 'next-tab') layout.cycleTab(1)
-    else if (global.id === 'previous-tab') layout.cycleTab(-1)
-    else if (global.id === 'last-tab') layout.toggleLastTab()
+    else if (global.id === 'next-tab') cycleVisibleOpenSession(1)
+    else if (global.id === 'previous-tab') cycleVisibleOpenSession(-1)
+    else if (global.id === 'last-tab') toggleLastSession()
     else if (global.id === 'focus-tree-terminal') void toggleTreeTerminalFocus()
     else if (global.id === 'palette') openPalette()
     else return
@@ -510,10 +513,43 @@ function onShortcutKeydown(event: KeyboardEvent) {
   }
 }
 
+function cycleVisibleOpenSession(offset: 1 | -1) {
+  const openNames = new Set(layout.tabs.flatMap((tab) => panesOf(tab.root).map((pane) => sessionKey(pane.machine, pane.session))))
+  const names = visibleOpenSessionNames(tree.groups.groups, tree.groups.other, tree.order, openNames)
+  if (names.length < 2) return false
+  const current = layout.focused?.session
+  const index = current ? names.indexOf(current) : -1
+  const next = index < 0
+    ? (offset > 0 ? names[0] : names[names.length - 1])
+    : names[(index + offset + names.length) % names.length]
+  return activateOpenSession(next)
+}
+
+function activateOpenSession(session: string) {
+  const candidates = layout.tabs.flatMap((tab) => panesOf(tab.root)
+    .filter((pane) => pane.machine === MACHINE && pane.session === session)
+    .map((pane) => ({ tab, pane })))
+  const target = candidates.find(({ tab }) => tab.id === layout.layout.activeTab) ?? candidates[0]
+  if (!target) return false
+  layout.activate(target.tab.id)
+  layout.focusPane(target.tab.id, target.pane.id)
+  app.showTerminal()
+  drawerOpen.value = false
+  void nextTick(focusActiveTerminal)
+  return true
+}
+
+function toggleLastSession() {
+  const current = layout.focused?.session
+  const openNames = new Set(layout.tabs.flatMap((tab) => panesOf(tab.root).map((pane) => sessionKey(pane.machine, pane.session))))
+  const target = recentSessionNames.value.find((name) => name !== current && openNames.has(sessionKey(MACHINE, name)))
+  return target ? activateOpenSession(target) : false
+}
+
 const compact = useMediaQuery(COMPACT_QUERY)
 const hasTabs = computed(() => layout.loaded && layout.tabs.length > 0)
-// Tab panels stay in the order their tabs opened, so reordering tabs (M8 T4)
-// never moves a mounted terminal's element: it keeps its focus and size.
+// Keep terminal panel elements in their layout order so updating the active
+// layout never moves a mounted terminal in the DOM.
 let panelIds: string[] = []
 const tabPanels = computed(() => {
   panelIds = panelOrder(panelIds, layout.tabs)
@@ -535,6 +571,7 @@ watch(
   () => auth.status,
   async (s) => {
     if (s !== 'authenticated') {
+      recentSessionNames.value = []
       theme.signOut()
       live.stop()
       layout.reset()
@@ -682,34 +719,20 @@ onUnmounted(() => {
         class="flex min-h-0 min-w-0 flex-1 flex-col"
       >
         <template v-if="layout.loaded && layout.tabs.length > 0">
-          <TabBar
-            v-if="!compact"
-            :tabs="layout.tabs"
-            :active="layout.layout.activeTab"
-            @activate="layout.activate"
-            @close="closeTab"
-            @reorder="layout.reorderTabs"
-          />
-          <!-- Inactive tabs stay mounted and attached (instant switching, and
-               their scrollback keeps filling). -->
+          <!-- Open terminal layouts remain mounted; inactive views detach. -->
           <div
             v-for="t in tabPanels"
             v-show="t.id === layout.layout.activeTab"
             :id="`tabpanel-${t.id}`"
             :key="t.id"
-            role="tabpanel"
-            :aria-labelledby="`tab-${t.id}`"
+            role="group"
+            aria-label="Terminal workspace"
             class="min-h-0 flex-1"
           >
             <TabView
               :tab="t"
               :active="t.id === layout.layout.activeTab"
               :narrow="compact"
-              :tabs="layout.tabs"
-              :active-tab="layout.layout.activeTab"
-              @activate-tab="layout.activate"
-              @close-tab="closeTab"
-              @reorder-tabs="layout.reorderTabs"
             />
           </div>
         </template>

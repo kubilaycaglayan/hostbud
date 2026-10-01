@@ -1,152 +1,87 @@
-import type { Locator, Page } from '@playwright/test'
-import { ctl } from '../helpers/ctl.ts'
 import { expect, test } from '../helpers/fixtures.ts'
-import { uniqueName, type Target } from '../helpers/target.ts'
-import { dragSortable, type UI } from '../helpers/ui.ts'
+import { newAccount } from '../helpers/auth.ts'
+import { owner } from '../helpers/db.ts'
+import { forbidInLogs, MACHINE, mutate, ORIGIN } from '../helpers/api.ts'
+import { shq, uniqueName, type Target } from '../helpers/target.ts'
 
-// Custom tab order (M8 T4): tabs drag directly to a new position, with no
-// handle and no restyling. The order is saved in the account's layout.
-
-// Restarting the app drops every terminal's connection for a moment: the
-// browser logs failed reconnects.
-test.use({
-  allowedBrowserErrors:
-    /WebSocket connection to 'ws:\/\/localhost:9055\/ws\/(events|term\?[^']*)' failed|^HTTP 502: (GET|PUT) http:\/\/localhost:9055\/api\/|status of 502/,
-})
-
-test.beforeEach(async ({ target }) => {
-  await target.resetTmux()
-})
-
-const attached = (target: Target, name: string) => target.display(name, '#{session_attached}')
-
-/** The saved layout's sessions in tab order, the active one marked `*`. */
-async function savedTabs(page: Page): Promise<string[]> {
-  const res = await page.request.get('/api/ui-state/layout')
-  if (!res.ok()) return []
-  const l = (await res.json()) as { tabs: { id: string; root: { session: string } }[]; activeTab: string }
-  return l.tabs.map((t) => (t.id === l.activeTab ? '*' : '') + t.root.session)
+async function account(ui: import('../helpers/ui.ts').UI) {
+  const fresh = newAccount('e2e-visible-session-cycle')
+  forbidInLogs(fresh.email, fresh.password)
+  await owner.allow(fresh.email)
+  await ui.createAccount(fresh)
 }
 
-async function center(locator: Locator) {
-  const box = await locator.boundingBox()
-  if (!box) throw new Error('not visible')
-  return { x: box.x + box.width / 2, y: box.y + box.height / 2, box }
+async function sessions(target: Target, path: string, ...prefixes: string[]): Promise<string[]> {
+  const names = prefixes.map((prefix) => uniqueName(prefix))
+  for (const name of names) await target.tmux('new-session', '-d', '-s', name, '-c', path)
+  return names
 }
 
-/** Drags tab `from` onto tab `to`'s far side: a mouse drag on desktop, a
- * touch hold then move on the phone (Sortable listens to touch events in
- * WebKit; Playwright's touchscreen only taps). */
-async function dragTab(ui: UI, from: string, to: string, isMobile: boolean) {
-  const start = await center(ui.tab(from))
-  const end = await center(ui.tab(to))
-  // Past the target's middle, toward its far edge.
-  const endX = end.x + Math.sign(end.x - start.x) * (end.box.width / 2 + (isMobile ? 12 : -2))
-  if (!isMobile) {
-    await ui.page.mouse.move(start.x, start.y)
-    await ui.page.mouse.down()
-    for (let i = 1; i <= 12; i++) {
-      await ui.page.mouse.move(start.x + ((endX - start.x) * i) / 12, start.y)
-      await ui.page.waitForTimeout(60) // Sortable samples the pointer every 50 ms
-    }
-    await ui.page.mouse.up()
-    return
-  }
-  // Touch hold past TabBar's delay, then stepped moves, into the target's
-  // far edge (the shared helper also scrolls the switcher into view).
-  await dragSortable(ui.tab(from), ui.tab(to), { x: end.x > start.x ? end.box.width + 12 : -12, y: end.box.height / 2 })
-}
+test.beforeEach(async ({ target }) => { await target.resetTmux() })
 
-/** Each tab's look: its classes, size and children (label and close only). */
-async function tabLooks(ui: UI) {
-  const items = ui.page.getByRole('tablist', { name: 'Open terminals' }).locator('[data-tab-item]')
-  return items.evaluateAll((els) =>
-    els.map((el) => ({
-      classes: el.className,
-      tab: el.querySelector('[role=tab]')?.className,
-      height: Math.round(el.getBoundingClientRect().height),
-      children: [...el.children].map((c) => c.getAttribute('role') ?? c.getAttribute('aria-label')?.replace(/ .*/, '')),
-    })),
+async function visibleOpenOrder(page: import('@playwright/test').Page, names: string[]) {
+  return page.locator('[data-tree-key^="session:"]').evaluateAll((rows, openNames) =>
+    rows.map((row) => row.getAttribute('data-tree-key')!.slice('session:'.length)).filter((name) => openNames.includes(name)), names,
   )
 }
 
-test('(T4) Custom tab order', async ({ ui, target, isMobile }) => {
-  test.setTimeout(150_000)
-  const [a, b, c] = [uniqueName('e2e-oa'), uniqueName('e2e-ob'), uniqueName('e2e-oc')]
-  for (const n of [a, b, c]) await target.tmux('new-session', '-d', '-s', n, '-c', '/home/dev')
-  await ui.open()
-  for (const n of [a, b, c]) {
-    if (isMobile) {
-      await ui.showList()
-      await ui.page.getByRole('button', { name: n, exact: true }).tap()
-    } else {
-      await ui.openTerminal(n)
-    }
-    await ui.waitForTerminal(n)
-    await expect.poll(() => attached(target, n), { timeout: 15_000 }).toBe('1')
-  }
-  expect(await ui.tabNames()).toEqual([a, b, c])
-  expect(await ui.activeTabName()).toBe(c)
-  const looks = await tabLooks(ui)
-  // No drag handle: each tab is its label and its close button.
-  for (const look of looks) expect(look.children).toEqual(['tab', 'Close'])
-  await expect(ui.page.getByRole('tablist', { name: 'Open terminals' }).getByRole('button', { name: /drag|reorder|move/i })).toHaveCount(0)
+async function activeSession(ui: import('../helpers/ui.ts').UI) {
+  return ui.activeTabName()
+}
 
-  // Drag the first tab past the last: the order changes, nothing else.
-  if (isMobile) {
-    // The phone's scrolling switcher shows two tabs at a time: a past b,
-    // then past c.
-    await dragTab(ui, a, b, isMobile)
-    await expect.poll(() => ui.tabNames()).toEqual([b, a, c])
-    await dragTab(ui, a, c, isMobile)
-  } else {
-    await dragTab(ui, a, c, isMobile)
+test('(T22) Visible open-session shortcuts replace tab strips on desktop', { tag: '@desktop' }, async ({ page, ui, target, request }) => {
+  await account(ui)
+  const root = `/home/dev/${uniqueName('cycle-root')}`
+  const firstProject = uniqueName('cycle-project-a')
+  const secondProject = uniqueName('cycle-project-b')
+  await target.run(`mkdir -p ${shq(`${root}/a`)} ${shq(`${root}/b`)}`)
+  for (const [path, name] of [[`${root}/a`, firstProject], [`${root}/b`, secondProject]]) {
+    const response = await mutate(request, 'POST', '/api/projects', { machineId: MACHINE, path, name }, ORIGIN)
+    expect(response.status(), await response.text()).toBe(201)
   }
-  await expect.poll(() => ui.tabNames()).toEqual([b, c, a])
-  expect(await ui.activeTabName()).toBe(c)
-  // Same looks, moved with their tabs (no drag classes left behind).
-  expect(await tabLooks(ui)).toEqual([looks[1], looks[2], looks[0]])
-  // The terminals stayed attached, and the active one still takes input.
-  for (const n of [a, b, c]) expect(await attached(target, n)).toBe('1')
-  const marker = uniqueName('mark')
-  await ui.type(`echo ${marker}`, true)
-  await expect.poll(() => target.capture(c)).toMatch(new RegExp(`^${marker}$`, 'm'))
-  await expect.poll(() => savedTabs(ui.page)).toEqual([b, '*' + c, a])
+  const [a, b] = await sessions(target, `${root}/a`, 'cycle-a', 'cycle-b')
+  const [c, d, unopened] = await sessions(target, `${root}/b`, 'cycle-c', 'cycle-d', 'cycle-unopened')
+  await page.reload()
+  for (const name of [a, b, c, d]) await ui.openTerminal(name)
 
-  // A newly opened session goes at the end.
-  const d = uniqueName('e2e-od')
-  await target.tmux('new-session', '-d', '-s', d, '-c', '/home/dev')
-  if (isMobile) {
-    await ui.showList()
-    await expect(ui.page.getByRole('button', { name: d, exact: true })).toBeVisible({ timeout: 10_000 })
-    await ui.page.getByRole('button', { name: d, exact: true }).tap()
-  } else {
-    await ui.openTerminal(d)
-  }
-  await ui.waitForTerminal(d)
-  expect(await ui.tabNames()).toEqual([b, c, a, d])
+  await expect(page.getByRole('tablist', { name: 'Open terminals' })).toHaveCount(0)
+  const order = await visibleOpenOrder(page, [a, b, c, d])
+  expect(order).toHaveLength(4)
+  expect(await ui.tabNames()).toEqual([a, b, c, d])
+  const current = await activeSession(ui)
+  const next = order[(order.indexOf(current) + 1) % order.length]
+  await page.keyboard.press('Control+Shift+]')
+  await expect.poll(() => activeSession(ui)).toBe(next)
 
-  // Keyboard navigation follows the custom order (desktop).
-  if (!isMobile) {
-    await ui.tab(b).click()
-    await ui.tab(b).press('ArrowRight')
-    expect(await ui.activeTabName()).toBe(c)
-    await ui.tab(c).press('ArrowRight')
-    expect(await ui.activeTabName()).toBe(a)
-  }
-  const active = await ui.activeTabName()
-  await expect.poll(() => savedTabs(ui.page)).toEqual([b, c, a, d].map((n) => (n === active ? '*' + n : n)))
+  await page.keyboard.press('Control+Shift+[')
+  await expect.poll(() => activeSession(ui)).toBe(current)
+  expect(await target.sessions()).toContain(unopened)
 
-  const check = async () => {
-    await expect.poll(() => ui.tabNames(), { timeout: 30_000 }).toEqual([b, c, a, d])
-    expect(await ui.activeTabName()).toBe(active)
-    for (const n of [a, b, c, d]) await expect.poll(() => attached(target, n), { timeout: 30_000 }).toBe('1')
-  }
-  await ui.page.reload()
-  await check()
+  // Collapsing the first project skips its open sessions and cycles the other project.
+  await ui.showList()
+  await ui.treeItem(firstProject).getByRole('button', { name: `Collapse ${firstProject}` }).click()
+  await page.keyboard.press('Control+Shift+]')
+  await expect.poll(() => activeSession(ui)).toBe(c)
+  expect(await visibleOpenOrder(page, [a, b, c, d])).toEqual([c, d])
+  const closed = await activeSession(ui)
 
-  await ctl.restartApp()
-  await expect.poll(async () => (await ui.page.request.get('/api/health')).status(), { timeout: 60_000 }).toBe(200)
-  await ui.page.reload()
-  await check()
+  await page.keyboard.press('Control+Shift+k')
+  await page.getByRole('combobox', { name: 'Command palette' }).fill('Close terminal view')
+  await page.getByRole('option', { name: 'Close terminal view' }).click()
+  await expect.poll(() => target.display(closed, '#{session_attached}')).toBe('0')
+  expect(await target.sessions()).toContain(closed)
+})
+
+test('(T22) Phone terminal has no tab strip and session cycling still works', { tag: '@phone' }, async ({ page, ui, target }) => {
+  await account(ui)
+  const [a, b] = await sessions(target, '/home/dev', 'cycle-phone-a', 'cycle-phone-b')
+  await page.reload()
+  await ui.openTerminal(a)
+  await ui.openTerminal(b)
+  await expect(page.getByRole('tablist', { name: 'Open terminals' })).toHaveCount(0)
+  await ui.showList()
+  const order = await visibleOpenOrder(page, [a, b])
+  const current = await activeSession(ui)
+  await page.keyboard.press('Control+Shift+[')
+  await expect.poll(() => activeSession(ui)).toBe(order[(order.indexOf(current) - 1 + order.length) % order.length])
 })

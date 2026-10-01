@@ -15,7 +15,6 @@ import TerminalActions from '@/components/TerminalActions.vue'
 import TerminalTextDialog from '@/components/TerminalTextDialog.vue'
 import PhotoUploadDialog from '@/components/PhotoUploadDialog.vue'
 import TerminalSearch from '@/components/TerminalSearch.vue'
-import TabBar from '@/components/TabBar.vue'
 import KeyBar from '@/components/KeyBar.vue'
 import ScrollBar from '@/components/ScrollBar.vue'
 import { copySelection, installOsc52 } from '@/lib/clipboard'
@@ -25,7 +24,7 @@ import { hyperlinkHandler, openLink, type LinkHover } from '@/lib/links'
 import { keepScrollback, WHEEL_SMOOTH_SCROLL_MS } from '@/lib/scrollback'
 import { cellAt, moveCaret, settleAfterWrites } from '@/lib/altClick'
 import { darkTerminalTheme, dimmedTerminalTheme, lightTerminalTheme, solarizedTerminalTheme, TERMINAL_MIN_CONTRAST } from '@/lib/theme'
-import type { SplitDir, Tab } from '@/lib/layout'
+import type { SplitDir } from '@/lib/layout'
 import { clipboardKey, editingKey, searchKey } from '@/lib/terminalKeys'
 import { applyModifiers, createModifiers } from '@/lib/keyBar'
 import { createCopyModeController } from '@/lib/copyMode'
@@ -43,7 +42,7 @@ const props = withDefaults(
     session: string
     /** The layout pane this terminal shows (e2e hooks are keyed by it). */
     paneId?: string
-    /** Its tab is the one shown (inactive tabs stay mounted and attached). */
+    /** Its layout is the one shown; inactive views stay mounted but detached. */
     active?: boolean
     /** It's the focused pane of its tab: keyboard input goes here. */
     focused?: boolean
@@ -54,8 +53,6 @@ const props = withDefaults(
     canSplit?: boolean
     /** Narrow layout: one pane at a time, with a pane switcher. */
     narrow?: boolean
-    tabs?: Tab[]
-    activeTab?: string | null
   }>(),
   { paneId: 'pane', active: true, focused: true, paneIndex: 1, paneCount: 1, canSplit: false, narrow: false },
 )
@@ -65,9 +62,6 @@ const emit = defineEmits<{
   split: [dir: SplitDir, session: string | null]
   close: []
   cyclePane: []
-  activateTab: [id: string]
-  closeTab: [id: string]
-  reorderTabs: [ids: string[]]
 }>()
 const takesInput = () => props.active && props.focused
 
@@ -603,15 +597,6 @@ defineExpose({ refit, reconnect, showKeyboard })
       <h2 class="max-w-[22vw] shrink truncate font-bold">
         {{ props.session }}
       </h2>
-      <TabBar
-        v-if="props.narrow && props.tabs && props.activeTab !== undefined"
-        :tabs="props.tabs"
-        :active="props.activeTab"
-        compact
-        @activate="emit('activateTab', $event)"
-        @close="emit('closeTab', $event)"
-        @reorder="emit('reorderTabs', $event)"
-      />
       <!-- Narrow screens show one pane of a split at a time. -->
       <button
         v-if="props.narrow && props.paneCount > 1"

@@ -224,21 +224,28 @@ export class UI {
     await this.waitForTerminal(to)
   }
 
-  /** The tab bar's tab of a session (exact label). */
+  /** The left-tree row for a session, used to activate its open view. */
   tab(name: string) {
-    return this.page.getByRole('tablist', { name: 'Open terminals' }).getByRole('tab', { name, exact: true })
+    return this.treeItem(name)
   }
 
-  /** The tab labels, in order. */
+  /** Open terminal views in their saved layout order (test diagnostics). */
   async tabNames(): Promise<string[]> {
-    const tabs = this.page.getByRole('tablist', { name: 'Open terminals' }).getByRole('tab')
-    return (await tabs.allTextContents()).map((t) => t.trim())
+    const response = await this.page.request.get('/api/ui-state/layout')
+    if (!response.ok()) return []
+    const layout = await response.json() as { tabs: { root: unknown; focusedPane: string }[] }
+    const session = (node: unknown, paneId?: string): string[] => {
+      if (!node || typeof node !== 'object') return []
+      const value = node as { type?: string; id?: string; session?: string; children?: unknown[] }
+      if (value.type === 'pane') return value.id === paneId && value.session ? [value.session] : []
+      return (value.children ?? []).flatMap((child) => session(child, paneId))
+    }
+    return layout.tabs.map((tab) => session(tab.root, tab.focusedPane)[0] ?? '')
   }
 
-  /** The label of the selected tab. */
+  /** The session in the active focused pane. */
   async activeTabName(): Promise<string> {
-    const tab = this.page.getByRole('tablist', { name: 'Open terminals' }).getByRole('tab', { selected: true })
-    return ((await tab.textContent()) ?? '').trim()
+    return (await this.panes()).find((pane) => pane.active && pane.focused)?.session ?? ''
   }
 
   /** Focuses the focused pane's input, as a click on the terminal does.

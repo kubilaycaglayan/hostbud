@@ -31,7 +31,7 @@ test('(T8) Keyboard shortcuts help opens from both scopes and restores focus', a
   const dialog = page.getByRole('dialog', { name: 'Keyboard shortcuts' })
   await expect(dialog).toBeVisible()
   await expect(dialog.getByRole('term').filter({ hasText: 'Command palette' })).toBeVisible()
-  await expect(dialog.getByRole('term').filter({ hasText: 'Switch to last tab' })).toBeVisible()
+  await expect(dialog.getByRole('term').filter({ hasText: 'Switch to last session' })).toBeVisible()
   await expect(dialog.getByRole('term').filter({ hasText: 'New session here' })).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()
@@ -41,7 +41,7 @@ test('(T8) Keyboard shortcuts help opens from both scopes and restores focus', a
   await page.keyboard.press('Escape')
 })
 
-test('(T8) Switch tabs from the keyboard and wrap in both directions', async ({ page, ui, target }) => {
+test('(T22) Switch visible open sessions from the keyboard and wrap in both directions', async ({ page, ui, target }) => {
   await account(ui, 'e2e-shortcuts-cycle')
   const names = [uniqueName('keys-a'), uniqueName('keys-b'), uniqueName('keys-c')]
   await createSessions(target, names)
@@ -56,17 +56,10 @@ test('(T8) Switch tabs from the keyboard and wrap in both directions', async ({ 
   await ui.type('echo shortcut-next-c', true)
   await expect.poll(() => captured(target, names[2])).toContain('shortcut-next-c')
 
-  await page.getByRole('button', { name: `Close ${names[0]}` }).click()
-  await page.getByRole('button', { name: `Close ${names[1]}` }).click()
-  await expect.poll(() => ui.activeTabName()).toBe(names[2])
-  const before = await captured(target, names[2])
-  await page.keyboard.press('Control+Shift+]')
-  await page.keyboard.press('Control+Shift+[')
-  expect(await ui.activeTabName()).toBe(names[2])
-  expect(await captured(target, names[2])).toBe(before)
+  await expect(page.getByRole('tablist', { name: 'Open terminals' })).toHaveCount(0)
 })
 
-test('(T8) Toggle to the last tab, dropping closed tabs from its history', async ({ page, ui, target }) => {
+test('(T8) Toggle to the most recently selected session', async ({ page, ui, target }) => {
   await account(ui, 'e2e-shortcuts-mru')
   const names = [uniqueName('mru-a'), uniqueName('mru-b'), uniqueName('mru-c')]
   await createSessions(target, names)
@@ -98,13 +91,10 @@ test('(T8) Toggle to the last tab, dropping closed tabs from its history', async
   await expect.poll(() => ui.activeTabName()).toBe(names[2])
   await expect(page.locator('[data-focused="true"] .xterm-helper-textarea')).toBeFocused()
   await ui.tab(names[0]).click()
-  // History a, c, b. Closing the active a selects its neighbour b; the chord
-  // then skips the closed a and goes to c, the most recent open tab.
-  await page.getByRole('button', { name: `Close ${names[0]}` }).click()
-  await expect.poll(() => ui.activeTabName()).toBe(names[1])
-  await ui.focusTerminal()
+  // Selecting b from a updates the two-session history.
+  await ui.tab(names[1]).click()
   await page.keyboard.press('Control+Shift+D')
-  await expect.poll(() => ui.activeTabName()).toBe(names[2])
+  await expect.poll(() => ui.activeTabName()).toBe(names[0])
 })
 
 test('(T8) Global shortcuts do not reach the running program', async ({ page, ui, target }) => {

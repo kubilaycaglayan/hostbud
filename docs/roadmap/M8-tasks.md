@@ -13,7 +13,7 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 | T1 Header action placement and compact controls | Implemented; e2e written, not run yet |
 | T2 Compact, name-first project tree | Implemented; e2e written, not run yet |
 | T3 Compact file browser and autocomplete policy | Implemented; e2e written, not run yet |
-| T4 Drag to reorder open tabs | Implemented; e2e written, not run yet |
+| T4 Drag to reorder open tabs | Superseded by T22 after tab strips were removed |
 | T5 Reliable Option-click caret placement | Implemented; e2e written, not run yet |
 | T6 Readable terminal wheel scrolling | Implemented; e2e written, not run yet |
 | T7 Contrast in long-lived terminal clients | Implemented; e2e written, not run yet |
@@ -29,9 +29,10 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 | T19 Selected session highlights its collapsed parent project | Implemented; U passes; E written and type-checked, browser run pending on demand |
 | T20 Collapsible sections and selected-content marker | Implemented; U passes; E written and type-checked, browser run pending on demand |
 | T21 Background terminal resize isolation | Implemented; U passes; E written and type-checked, browser run pending on demand |
+| T22 Session switching without tab strips | Implemented; U written; E written and type-checked, browser run pending on demand |
 
 **Progress note (T2–T4, 2026-09-27):** Vitest (447 tests), eslint, `vue-tsc` and the e2e `tsc` passed; deployed to the host from a clean checkout of `f664bb8` (a pre-deploy `pg_dump` is in `backups/`), and the stack came up healthy. Still open for these tasks:
-- **E2E runs:** the scenarios *(T2) Compact tree*, *(T3) Compact file browser*, *(T3) No browser autocomplete outside login password* and *(T4) Custom tab order* type-check but haven't run: e2e runs only on demand. The T2 commit also updated two M6 scenarios that expanded single-window sessions (*(T4) Inline rename a session*, *(T3) Window rows follow the real terminal*).
+- **E2E runs:** the scenarios *(T2) Compact tree*, *(T3) Compact file browser* and *(T3) No browser autocomplete outside login password* type-check but haven't run: e2e runs only on demand. The T2 commit also updated two M6 scenarios that expanded single-window sessions (*(T4) Inline rename a session*, *(T3) Window rows follow the real terminal*). T22 replaces the former M8 *(T4) Custom tab order* scenario.
 - **Screenshot inspection:** done 2026-09-27 (with T1) against a scratch build of the SPA served with mocked API responses in headless Chromium, desktop 1280×800 and iPhone 13 Pro, dark and light. The tree is name-first and compact, and the Browse files dialog fits the viewport with tight rows (44 px row actions on the phone, list scrolling inside the sheet). Cosmetic note for a later pass: on the phone the *Show hidden files* checkbox itself is 44 px square. The e2e scenarios still save screenshots for a look at the first real run.
 - **Decisions to review:** the login screen's email field is now `autocomplete="off"` (the literal policy: only the password is exempt), and a single-window session has no chevron until its windows are loaded (the inventory reports window counts, not pane counts).
 
@@ -132,7 +133,7 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 
 - Replace the ineffective xterm composition cleanup with a native text editor that supports dictation, Send and Cancel. Send the reviewed text once through xterm's `paste` method, preserving bracketed-paste handling.
 - Blur active text fields when the PWA backgrounds. Switching tabs or panes never opens the keyboard; an explicit terminal tap or Show keyboard action focuses it.
-- Replace the per-terminal toolbar action buttons with one three-dot menu, retaining the existing actions and adding View terminal text. Keep tab controls unchanged.
+- Replace the per-terminal toolbar action buttons with one three-dot menu, retaining the existing actions and adding View terminal text.
 - View terminal text reads the active pane’s full retained tmux history through an authenticated, uncached read-only endpoint, including output before browser attachment and, under a full-screen (alternate-screen) app, the shell history and saved screen before the app's screen. Trim row padding and trailing blank rows. Render SGR styles as native selectable text, join soft wraps, wrap long lines within the view, and support free vertical scrolling/copy without changing tmux. Show loading and retryable errors; discard output when closed.
 
 **Tests:** U: T8 Vitest covers dictation Send/Cancel and exactly-once paste, hidden-page blur, no automatic focus on tab switch, toolbar action dispatch, and frozen wrapped scrollback text; I: T8 `TestIntegrationOutputIncludesHistoryWithoutAttaching` captures styled pre-attachment history and joined long rows against `test/sshd`, without attaching or entering copy mode; E: T8 *Dictation editor sends reviewed text once*, *Returning from background does not automatically refocus the terminal*, *Switching tabs does not automatically open the terminal keyboard*, *Terminal text snapshot scrolls, selects, and closes*, and *Terminal text includes shell history under a full-screen app*. Real iPhone system dictation remains an owner manual check.
@@ -207,9 +208,9 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 - Remove session activity-age labels and green attachment dots from project headers and session lists.
 - Show project session counts only while the project is collapsed.
 
-**Tests:** U: T15 `SessionList.spec.ts` covers non-control row selection, button isolation, selected-row styling, and absent age/attachment indicators; `SessionTree.spec.ts` covers collapsed-only counts; `TabBar.spec.ts` covers selected styling; `check-theme-contrast.test.mjs` checks selected foreground/background contrast for every theme. I: n/a; presentation and browser click handling only, no server contract changes. E: T15 *Selected session and active tab stand out across themes* (desktop) and *Whole session row selects on touch* (iPhone 13 Pro), including action-button isolation, collapsed-only count, and removed activity/dot indicators.
+**Tests:** U: T15 `SessionList.spec.ts` covers non-control row selection, button isolation, selected-row styling, and absent age/attachment indicators; `SessionTree.spec.ts` covers collapsed-only counts; `check-theme-contrast.test.mjs` checks selected foreground/background contrast for every theme. I: n/a; presentation and browser click handling only, no server contract changes. E: T15 *Selected session stands out across themes* (desktop) and *Whole session row selects on touch* (iPhone 13 Pro), including action-button isolation, collapsed-only count, and removed activity/dot indicators.
 
-**E2E:** Add T15 *Selected session and active tab stand out across themes* to `test/e2e/tests/theme.spec.ts` and *Whole session row selects on touch* to `test/e2e/tests/tree.custom.phone.spec.ts`. Type-check only; runs on demand.
+**E2E:** Add T15 *Selected session stands out across themes* to `test/e2e/tests/theme.spec.ts` and *Whole session row selects on touch* to `test/e2e/tests/tree.custom.phone.spec.ts`. Type-check only; runs on demand.
 
 ## T16 — Dialog and compact gutter stacking
 
@@ -264,6 +265,16 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 **Tests:** U: T21 `TerminalView.spec.ts` verifies hidden-page and inactive-tab clients detach, remain detached if selected while the page stays hidden, then refit and reconnect at the current dimensions without focusing xterm. I: n/a because this is frontend attachment lifecycle; existing M1 PTY-to-tmux resize integration coverage remains applicable. E: T21 two-page same-session scenario verifies the background client detaches, cannot constrain the visible client, and reattaches at its current size on return.
 
 **E2E:** Add T21 *Background window detaches its terminal until it is visible* to `test/e2e/tests/terminal.spec.ts`; type-check only and leave browser execution on demand.
+
+## T22 — Session switching without tab strips
+
+- Remove desktop and compact-phone tab bars while preserving the saved multi-layout and split-pane model. Keep inactive views mounted and detached per T21.
+- Make Ctrl+Shift+] / Ctrl+Shift+[ cycle only open sessions with currently visible tree rows, in rendered tree order. Skip hidden sessions and descendants of collapsed projects or sections; wrap around and focus the matching pane. When fewer than two open sessions are visible, do nothing.
+- Rename the command-palette action to **Close terminal view**. It removes the active layout while the tmux session keeps running. Keep Ctrl+Shift+D as switch to the most recently selected session.
+
+**Tests:** U: T22 `tree.spec.ts` covers rendered grouping order, open-only filtering, hidden sessions and collapsed projects/sections; palette and shortcut specs cover the session-oriented labels. I: n/a because no server behavior or contract changes. E: T22 desktop and phone scenarios verify no tab strip and keyboard switching; desktop also checks collapsed rows, unopened sessions and palette close preserving the tmux session.
+
+**E2E:** Replace the obsolete T4 *Custom tab order* scenario in `test/e2e/tests/tabs.order.spec.ts` with T22 *Visible open-session shortcuts replace tab strips on desktop* and *Phone terminal has no tab strip and session cycling still works*. Type-check only; browser runs remain on demand.
 
 ## Done
 

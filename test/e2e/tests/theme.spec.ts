@@ -81,7 +81,7 @@ test('(T14) Solarized and Dimmed apply at their darkness levels and persist', as
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dimmed')
 })
 
-test('(T15) Selected session and active tab stand out across themes', async ({ page, ui, target }) => {
+test('(T15) Selected session stands out across themes', async ({ page, ui, target }) => {
   await account(ui, 'e2e-theme-selection')
   const first = uniqueName('theme-selection')
   const second = uniqueName('theme-selection')
@@ -95,14 +95,14 @@ test('(T15) Selected session and active tab stand out across themes', async ({ p
   expect(box).not.toBeNull()
   // Hit the row's leading blank/padding area, outside the name and controls.
   await page.mouse.click(box!.x + 2, box!.y + box!.height / 2)
-  await expect(page.getByRole('tab', { name: second, exact: true })).toHaveAttribute('aria-selected', 'true')
+  await expect.poll(() => ui.activeTabName()).toBe(second)
   await ui.showList() // selecting a row closes the compact drawer
   await expect(row).toHaveAttribute('aria-selected', 'true')
   await expect(page.locator('[data-session-age], [data-session-dot]')).toHaveCount(0)
   await expect(page.getByRole('img', { name: 'attached session' })).toHaveCount(0)
   await ui.treeItem(first).getByRole('button', { name: `More actions for ${first}` }).click()
   await page.keyboard.press('Escape')
-  await expect(page.getByRole('tab', { name: second, exact: true, includeHidden: true }).first()).toHaveAttribute('aria-selected', 'true')
+  await expect.poll(() => ui.activeTabName()).toBe(second)
 
   for (const [choice, theme] of [
     ['Dark', 'dark'],
@@ -114,13 +114,11 @@ test('(T15) Selected session and active tab stand out across themes', async ({ p
     await chooseTheme(page, choice)
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
     await ui.showList()
-    const [selected, other, tab] = await Promise.all([
+    const [selected, other] = await Promise.all([
       row.evaluate((el) => getComputedStyle(el).backgroundColor),
       ui.treeItem(first).evaluate((el) => getComputedStyle(el).backgroundColor),
-      page.getByRole('tab', { name: second, exact: true, includeHidden: true }).first().evaluate((el) => getComputedStyle(el.parentElement!).backgroundColor),
     ])
     expect(selected).not.toBe(other)
-    expect(tab).toBe(selected)
     await expect(row.locator('[data-session-age], [data-session-dot]')).toHaveCount(0)
   }
 })

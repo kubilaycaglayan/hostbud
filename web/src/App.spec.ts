@@ -221,7 +221,7 @@ describe('App shell', () => {
                   ? { status: 200, body: { path: '/home/dev', entries: [] } }
                   : { status: method === 'POST' ? 204 : 200 },
     )
-    const wrapper = mount(App, { attachTo: document.body })
+    const wrapper = mount(App, { attachTo: document.body, global: { stubs: { TerminalView: terminalFocusStub } } })
     await flushPromises()
     useTreeStore().sync()
     await flushPromises()
@@ -314,7 +314,7 @@ describe('tabs', () => {
     expect(IdleSocket.instances).toHaveLength(1)
   })
 
-  it('list clicks open tabs; an open session focuses its tab; × closes', async () => {
+  it('tree rows switch among open layouts without rendering a tab strip', async () => {
     const { wrapper, release, feed } = await signedInWith(null, document.body, terminalFocusStub)
     release()
     await flushPromises()
@@ -325,8 +325,7 @@ describe('tabs', () => {
     await wrapper.get('button[aria-label="acc-b"]').trigger('click')
     expect(document.activeElement).toBe(wrapper.get('[data-focused="true"] .xterm-helper-textarea').element)
     expect(terms(wrapper)).toEqual(['acc-a', 'acc-b'])
-    const tabs = () => wrapper.findAll('[role=tab]')
-    expect(tabs().map((t) => t.attributes('aria-selected'))).toEqual(['false', 'true'])
+    expect(wrapper.find('[role=tablist]').exists()).toBe(false)
     // The list marks the focused pane's session.
     expect(wrapper.get('button[aria-label="acc-b"]').attributes('aria-current')).toBe('true')
     // Only the active tab's terminal takes input; the other stays mounted.
@@ -335,15 +334,10 @@ describe('tabs', () => {
 
     await wrapper.get('button[aria-label="acc-a"]').trigger('click')
     expect(terms(wrapper)).toEqual(['acc-a', 'acc-b'])
-    expect(tabs().map((t) => t.attributes('aria-selected'))).toEqual(['true', 'false'])
     expect(useLayoutStore().focused?.session).toBe('acc-a')
-
-    await wrapper.get('button[aria-label="Close acc-a"]').trigger('click')
-    expect(terms(wrapper)).toEqual(['acc-b'])
-    expect(tabs().map((t) => t.attributes('aria-selected'))).toEqual(['true'])
   })
 
-  it('reordering tabs keeps the active tab and every mounted terminal in place (M8 T4)', async () => {
+  it('does not render visible tab controls for saved multi-layout state', async () => {
     const { wrapper, release, feed } = await signedInWith(null)
     release()
     await flushPromises()
@@ -351,18 +345,9 @@ describe('tabs', () => {
     await wrapper.vm.$nextTick()
     await wrapper.get('button[aria-label="acc-a"]').trigger('click')
     await wrapper.get('button[aria-label="acc-b"]').trigger('click')
-    const panels = wrapper.findAll('main [role=tabpanel]').map((p) => p.element)
-    const sockets = IdleSocket.instances.length
-    const layout = useLayoutStore()
-    const ids = layout.tabs.map((t) => t.id)
-    layout.reorderTabs([ids[1], ids[0]])
-    await wrapper.vm.$nextTick()
-    expect(wrapper.findAll('[role=tab]').map((t) => t.text())).toEqual(['acc-b', 'acc-a'])
-    expect(wrapper.findAll('[role=tab]').map((t) => t.attributes('aria-selected'))).toEqual(['true', 'false'])
-    // Same panel elements, same DOM order, no new connections.
-    expect(wrapper.findAll('main [role=tabpanel]').map((p) => p.element)).toEqual(panels)
+    expect(wrapper.find('[role=tablist]').exists()).toBe(false)
+    expect(wrapper.find('[role=group][aria-label="Terminal workspace"]').exists()).toBe(true)
     expect(terms(wrapper)).toEqual(['acc-a', 'acc-b'])
-    expect(IdleSocket.instances).toHaveLength(sockets)
   })
 
   it("a row menu's Open in split puts the session beside the focused pane", async () => {

@@ -5,7 +5,7 @@ import { promptLine } from '../helpers/shell.ts'
 import { uniqueName, type Target } from '../helpers/target.ts'
 import type { UI } from '../helpers/ui.ts'
 
-// Tabs (M3 T7): several sessions open at once, each in its own tab.
+// Open terminal views remain available through the left session tree.
 
 test.beforeEach(async ({ target }) => {
   await target.resetTmux()
@@ -29,7 +29,7 @@ async function openAll(ui: UI, target: Target, names: string[]) {
   }
 }
 
-/** Activates a session's tab, types a fresh marker and checks it reached
+/** Activates a session view, types a fresh marker and checks it reached
  * that session (tmux's own screen). */
 async function typeInTab(ui: UI, target: Target, name: string, tap = false) {
   await (tap ? ui.tab(name).tap() : ui.tab(name).click())
@@ -52,8 +52,8 @@ async function savedTabs(page: Page): Promise<string[]> {
 
 test.describe('desktop', { tag: '@desktop' }, () => {
 
-  // Tabs (T7)
-  test('tabs: three sessions in three tabs; input lands in each; re-picking focuses its tab', async ({ ui, target }) => {
+  // Terminal views (T7, T22)
+  test('terminal views: several sessions stay open and tree rows switch input', async ({ ui, target }) => {
     const [a, b, c] = await newSessions(target, 'e2e-ta', 'e2e-tb', 'e2e-tc')
     await openAll(ui, target, [a, b, c])
     expect(await ui.tabNames()).toEqual([a, b, c])
@@ -64,9 +64,10 @@ test.describe('desktop', { tag: '@desktop' }, () => {
     // Each marker only in its own session.
     for (const n of [a, b, c])
       for (const [other, m] of markers) if (other !== n) expect(await target.capture(n)).not.toContain(m)
-    for (const n of [a, b, c]) expect(await attached(target, n)).toBe('1')
+    for (const n of [a, b]) expect(await attached(target, n)).toBe('0')
+    expect(await attached(target, c)).toBe('1')
 
-    // Picking an open session in the list activates its tab: no fourth tab.
+    // Picking an open session in the tree activates its existing view.
     await ui.page.getByRole('button', { name: a, exact: true }).click()
     await ui.waitForTerminal(a)
     await expect(ui.page.locator('[data-focused="true"] .xterm-helper-textarea')).toBeFocused()
@@ -74,23 +75,26 @@ test.describe('desktop', { tag: '@desktop' }, () => {
     expect(await ui.activeTabName()).toBe(a)
   })
 
-  // Close tab detaches (T7)
-  test('close tab: the view detaches, the session keeps running, no dialog', async ({ ui, target }) => {
+  // Close view from palette (T22); tmux session remains alive.
+  test('close terminal view: the view detaches, the session keeps running', async ({ ui, target }) => {
     const [a, b, c] = await newSessions(target, 'e2e-ca', 'e2e-cb', 'e2e-cc')
     await openAll(ui, target, [a, b, c])
-    await ui.page.getByRole('button', { name: `Close ${b}`, exact: true }).click()
+    await ui.tab(b).click()
+    await ui.page.keyboard.press('Control+Shift+k')
+    await ui.page.getByRole('combobox', { name: 'Command palette' }).fill('Close terminal view')
+    await ui.page.getByRole('option', { name: 'Close terminal view' }).click()
     expect(await ui.tabNames()).toEqual([a, c])
     await expect(ui.page.getByRole('dialog')).toHaveCount(0)
     await expect.poll(() => attached(target, b)).toBe('0')
     expect(await target.sessions()).toContain(b)
     await expect(ui.session(b)).toBeVisible()
-    // The others stay attached.
-    expect(await attached(target, a)).toBe('1')
+    // The active view stays attached; the other inactive view is detached.
+    expect(await attached(target, a)).toBe('0')
     expect(await attached(target, c)).toBe('1')
   })
 
-  // Tabs follow rename and kill (T7)
-  test('tabs follow a UI rename and close when the session is killed elsewhere', async ({ page, ui, target }) => {
+  // Open views follow rename and close when the session is killed elsewhere.
+  test('open views follow rename and close when the session is killed elsewhere', async ({ page, ui, target }) => {
     const [a, b, c] = await newSessions(target, 'e2e-ra', 'e2e-rb', 'e2e-rc')
     await openAll(ui, target, [a, b, c])
 
@@ -130,7 +134,7 @@ test.describe('reload', { tag: '@desktop' }, () => {
     const check = async (names: string[], active: string) => {
       await expect.poll(() => ui.tabNames(), { timeout: 30_000 }).toEqual(names)
       expect(await ui.activeTabName()).toBe(active)
-      for (const n of names) await expect.poll(() => attached(target, n), { timeout: 30_000 }).toBe('1')
+      for (const n of names) await expect.poll(() => attached(target, n), { timeout: 30_000 }).toBe(n === active ? '1' : '0')
     }
 
     await ui.page.reload()
@@ -152,8 +156,8 @@ test.describe('reload', { tag: '@desktop' }, () => {
   })
 })
 
-// Tabs on the phone (T7)
-test('phone: two tabs from the compact tab bar, typed into each', { tag: '@phone' }, async ({ ui, target }) => {
+// Phone session switching uses the tree drawer, without a compact tab strip.
+test('phone: open sessions switch from the tree drawer', { tag: '@phone' }, async ({ ui, target }) => {
   const [a, b] = await newSessions(target, 'e2e-pa', 'e2e-pb')
   await ui.open()
   for (const n of [a, b]) {
@@ -163,8 +167,8 @@ test('phone: two tabs from the compact tab bar, typed into each', { tag: '@phone
     await expect.poll(() => attached(target, n), { timeout: 15_000 }).toBe('1')
   }
   expect(await ui.tabNames()).toEqual([a, b])
-  await expect(ui.page.getByRole('tablist', { name: 'Open terminals' })).toBeVisible()
+  await expect(ui.page.getByRole('tablist', { name: 'Open terminals' })).toHaveCount(0)
   await typeInTab(ui, target, a, true)
   await typeInTab(ui, target, b, true)
-  expect(await attached(target, a)).toBe('1')
+  expect(await attached(target, a)).toBe('0')
 })

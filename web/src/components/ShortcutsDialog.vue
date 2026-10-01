@@ -5,7 +5,7 @@ import { shortcuts, shortcutLabels, shortcutPlatform } from '@/lib/shortcuts'
 defineProps<{ open: boolean }>()
 const emit = defineEmits<{ 'update:open': [open: boolean] }>()
 const platform = shortcutPlatform()
-const groups = ['General', 'Tabs', 'Tree'] as const
+const groups = ['General', 'Sessions', 'Tree'] as const
 </script>
 
 <template>

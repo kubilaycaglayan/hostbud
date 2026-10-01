@@ -124,7 +124,7 @@ test.describe('desktop', { tag: '@desktop' }, () => {
 
     await ui.terminalAction(b, 'Close pane')
     await expect.poll(() => attached(target, b)).toBe('0')
-    const main = (await ui.page.getByRole('tabpanel').boundingBox())!
+    const main = (await ui.page.getByRole('group', { name: 'Terminal workspace' }).boundingBox())!
     await expect.poll(async () => (await box(ui, a)).width).toBeGreaterThan(main.width - 4)
     expect(await attached(target, a)).toBe('1')
     expect(await target.sessions()).toEqual(expect.arrayContaining([a, b, c]))
@@ -150,7 +150,7 @@ test.describe('reload', { tag: '@desktop' }, () => {
     await ui.page.mouse.move(splitter.x - 150, y, { steps: 10 })
     await ui.page.mouse.up()
     await ui.pane(b).getByTestId('terminal').click()
-    const main = (await ui.page.getByRole('tabpanel').boundingBox())!
+    const main = (await ui.page.getByRole('group', { name: 'Terminal workspace' }).boundingBox())!
     const share = async () => (await box(ui, a)).width / main.width
     const before = await share()
     await expect.poll(() => savedRoot(ui.page)).toEqual({ row: [a, { column: [b, c] }] })

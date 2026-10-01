@@ -21,10 +21,10 @@ describe('buildPaletteItems', () => {
     expect(items.filter((item) => item.group === 'Windows').map((item) => item.label)).toEqual(['editor'])
     expect(items.find((item) => item.id === 'project:p1')?.secondary).toBe('/home/dev/garden')
     expect(items.find((item) => item.id === 'action:unhide-session:acc-a')?.shortcut).toBe('H')
-    expect(items.some((item) => item.id === 'action:close-tab')).toBe(true)
+    expect(items.find((item) => item.id === 'action:close-tab')?.label).toBe('Close terminal view')
   })
 
-  it('includes every action, omits Close tab without an active tab and narrows split mode to destinations', () => {
+  it('includes every action, omits Close terminal view without an active layout and narrows split mode to destinations', () => {
     const base = data({ hasActiveTab: false, showHidden: false })
     const items = buildPaletteItems({
       ...base,
@@ -38,6 +38,8 @@ describe('buildPaletteItems', () => {
       'action:next-tab', 'action:previous-tab', 'action:theme-system', 'action:theme-dark', 'action:theme-dimmed', 'action:theme-solarized', 'action:theme-light',
       'action:shortcuts', 'action:sign-out',
     ]) expect(items.some((item) => item.id === id)).toBe(true)
+    expect(items.find((item) => item.id === 'action:next-tab')?.label).toBe('Next open visible session')
+    expect(items.find((item) => item.id === 'action:previous-tab')?.label).toBe('Previous open visible session')
     expect(items.some((item) => item.id === 'action:close-tab')).toBe(false)
 
     const split = buildPaletteItems(data({ selectingSplitTarget: true }))

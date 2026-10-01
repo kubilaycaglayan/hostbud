@@ -23,7 +23,7 @@ describe('ShortcutsDialog', () => {
     }
     expect(dialog.textContent).toContain('Works in the terminal')
     expect(dialog.textContent).toContain("Shortcuts aren't customizable yet.")
-    for (const group of ['General', 'Tabs', 'Tree']) expect(dialog.textContent).toContain(group)
+    for (const group of ['General', 'Sessions', 'Tree']) expect(dialog.textContent).toContain(group)
   })
 
   it('closes on Escape and emits the closed state', async () => {

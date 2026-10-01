@@ -154,3 +154,35 @@ export function projectTree(projects: Project[], sessions: Session[], order: Tre
     other: ordered(otherRows, order.sessions[OTHER_GROUP] ?? [], (s) => s.name),
   }
 }
+
+/** Session names in the order and visibility of the left tree, restricted to
+ * open terminal views. Collapsed project/section descendants are omitted. */
+export function visibleOpenSessionNames(
+  groups: ProjectGroup[],
+  other: Session[],
+  order: TreeState,
+  openNames: ReadonlySet<string>,
+): string[] {
+  const visibleGroups = groups.filter((group) => order.showHidden || !order.hidden.projects.includes(group.project.id))
+  const rows = (group: ProjectGroup) => group.sessions.filter((session) =>
+    (order.showHidden || !order.hidden.sessions.includes(sessionKey('host', session.name))) && openNames.has(sessionKey('host', session.name)),
+  )
+  const orderedGroups = [
+    ...visibleGroups.filter((group) => order.pinned.includes(group.project.id) && !order.projectSections[group.project.id]),
+    ...order.sections.flatMap((section) => [
+      ...visibleGroups.filter((group) => order.projectSections[group.project.id] === section.id && order.pinned.includes(group.project.id)),
+      ...visibleGroups.filter((group) => order.projectSections[group.project.id] === section.id && !order.pinned.includes(group.project.id)),
+    ]),
+    ...visibleGroups.filter((group) => !order.pinned.includes(group.project.id) && !order.projectSections[group.project.id]),
+  ]
+  const names = orderedGroups.flatMap((group) => {
+    const section = order.projectSections[group.project.id]
+    if ((section && order.collapsedSections.includes(section)) || order.collapsed.includes(group.project.id)) return []
+    return rows(group).map((session) => session.name)
+  })
+  const visibleOther = other.filter((session) =>
+    (order.showHidden || !order.hidden.sessions.includes(sessionKey('host', session.name))) && openNames.has(sessionKey('host', session.name)),
+  )
+  if (visibleOther.length && !order.collapsed.includes(OTHER_GROUP)) names.push(...visibleOther.map((session) => session.name))
+  return names
+}
