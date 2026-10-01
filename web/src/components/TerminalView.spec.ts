@@ -614,7 +614,7 @@ describe('TerminalView', () => {
     w.unmount()
   })
 
-  it('backgrounding blurs the active terminal field and hidden tabs do not refocus', async () => {
+  it('backgrounding blurs the active field and returning focuses the active terminal', async () => {
     const descriptor = Object.getOwnPropertyDescriptor(document, 'visibilityState')
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
     const w = await mountTerm({ focused: false })
@@ -629,10 +629,13 @@ describe('TerminalView', () => {
     await w.setProps({ focused: true })
     await flushPromises()
     expect(t.focused).toBe(before)
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+    document.dispatchEvent(new Event('visibilitychange'))
+    expect(t.focused).toBe(before + 1)
     await w.get('button[aria-label="Terminal actions"]').trigger('click')
     await flushPromises()
     await clickMenuItem('Show keyboard')
-    expect(t.focused).toBe(before + 1)
+    expect(t.focused).toBe(before + 2)
     w.unmount()
     if (descriptor) Object.defineProperty(document, 'visibilityState', descriptor)
     else Reflect.deleteProperty(document, 'visibilityState')

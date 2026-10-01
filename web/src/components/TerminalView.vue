@@ -522,7 +522,12 @@ onMounted(async () => {
   observer.observe(el.value!)
   // An attached tmux client can constrain the shared session size even when
   // no resize frames are sent, so hidden pages detach and reattach on return.
-  const onVisibilityChange = () => syncAttachment()
+  const onVisibilityChange = () => {
+    syncAttachment()
+    // Returning to hostbud restores keyboard input to the active pane. Only
+    // this pane has takesInput=true, so inactive split panes remain unfocused.
+    if (document.visibilityState === 'visible' && takesInput()) term.value?.focus()
+  }
   document.addEventListener('visibilitychange', onVisibilityChange)
   disposeVisibilityListener = () => document.removeEventListener('visibilitychange', onVisibilityChange)
   syncAttachment()

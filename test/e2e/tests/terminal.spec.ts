@@ -124,6 +124,7 @@ test('background window detaches its terminal until it is visible', async ({ pag
   await page.bringToFront()
   await expect.poll(async () => firstSize()).not.toEqual(before)
   await expect.poll(() => attached(target, name)).toBe('2')
+  await expect(page.locator('[data-focused="true"] .xterm-helper-textarea')).toBeFocused()
   await secondPage.close()
 })
 

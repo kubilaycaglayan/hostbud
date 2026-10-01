@@ -206,11 +206,11 @@ T8 verification: native reader checked at 390px in Chromium and WebKit (358px co
 
 ## Terminal resizing across browser windows
 
-- [ ] A terminal detaches while its hostbud tab is inactive or its browser page is hidden, so its stale tmux client size cannot constrain a visible terminal. On activation/return, it refits and reconnects at the current size without automatically focusing the terminal.
-  - U: T21 `TerminalView.spec.ts` covers detach on hidden/inactive state, remaining detached when selected while hidden, refit and reattach at current dimensions, and no automatic focus.
+- [ ] A terminal detaches while its hostbud tab is inactive or its browser page is hidden, so its stale tmux client size cannot constrain a visible terminal. On return to the browser tab, it refits and reconnects at the current size and focuses the active terminal cursor; inactive panes remain unfocused.
+  - U: T21 `TerminalView.spec.ts` covers detach on hidden/inactive state, remaining detached when selected while hidden, and refit/reattach at current dimensions; T27 covers active-terminal focus restoration on page return.
   - I: n/a: resize eligibility is frontend-only; M1 T13 covers PTY-to-tmux resize integration.
-  - E: T21 *Background window detaches its terminal until it is visible* (`terminal.spec.ts`, desktop Chromium) attaches two pages to the same throwaway tmux session, verifies the hidden client detaches and cannot affect the visible terminal, then checks it reattaches at the new size on return.
-  - Status (2026-10-01): Updated after the reported issue persisted: U and E coverage verify detach/reconnect lifecycle. E browser run is pending on demand. The full Vitest suite has one unrelated `App.spec.ts` failure because the test environment lacks `window.matchMedia`.
+  - E: T21 *Background window detaches its terminal until it is visible* (`terminal.spec.ts`, desktop Chromium) attaches two pages to the same throwaway tmux session, verifies the hidden client detaches and cannot affect the visible terminal, then checks it reattaches at the new size on return; T27 checks the active input is focused after return.
+  - Status (2026-10-01): T21 detach/reconnect U and E coverage passes/type-checks; T27 active-terminal focus U passes and E type-checks. Browser execution is pending on demand. The full web suite has unrelated existing failures in `CommandPalette.spec.ts` and `SessionList.spec.ts` (683/685 tests passed); `TerminalView.spec.ts` passes all 41 tests.
 
 ## Session row name width and hover actions
 
