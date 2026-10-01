@@ -630,7 +630,7 @@ describe('SessionTree', () => {
     wrapper.unmount()
   })
 
-  it('compact project rows: count only while collapsed, no attachment dots, and actions with drag last', async () => {
+  it('compact project rows: no session counts or attachment dots, with grouped row actions', async () => {
     const wrapper = mount(SessionTree, { attachTo: document.body })
     const project = wrapper.get('[data-tree-key="project:a"]')
     const header = project.element.firstElementChild as HTMLElement
@@ -669,7 +669,7 @@ describe('SessionTree', () => {
     expect(project.find('button[aria-label="New session in a"]').exists()).toBe(true)
     await project.get('button[aria-label="Collapse a"]').trigger('click')
     await nextTick()
-    expect(project.element.querySelector('[data-project-count]')?.textContent).toBe('2')
+    expect(project.element.querySelector('[data-project-count]')).toBeNull()
     await project.get('button[aria-label="Expand a"]').trigger('click')
     await nextTick()
     expect(project.element.querySelector('[data-project-count]')).toBeNull()

@@ -23,10 +23,10 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
   - I: n/a: presentation-only; tree data and APIs are unchanged.
   - E: T2 *Compact tree* (desktop and phone), including actual reorder/collapse/open behavior.
   - Status (2026-09-27): U written and passing (`web/src/components/SessionList.spec.ts`, `SessionTree.spec.ts`; e2e `tests/tree.compact.spec.ts`); E written and type-checked, run pending (on demand). Not ticked until the e2e run passes.
-- [ ] Session lists stay decluttered: no relative activity-age labels or green attachment dots on project/session rows; project session counts appear only while collapsed. Clicking any non-control area of a session row selects it, while row action buttons, drag handles and double-click rename keep their existing behavior. The selected row has a distinctive, readable background in Dark, Light, Solarized and Dimmed themes.
-  - U: T15 `SessionList.spec.ts` non-control row selection, interactive-control isolation, removed ages/dots and selected row; `SessionTree.spec.ts` collapsed-only count and removed project attachment dot; `check-theme-contrast.test.mjs` selected foreground/background contrast for all themes.
+- [ ] Session lists stay decluttered: no relative activity-age labels, green attachment dots or project session counts. Clicking any non-control area of a session row selects it, while row action buttons, drag handles and double-click rename keep their existing behavior. The selected row has a distinctive, readable background in Dark, Light, Solarized and Dimmed themes.
+  - U: T15 `SessionList.spec.ts` non-control row selection, interactive-control isolation, removed ages/dots and selected row; T26 `SessionTree.spec.ts` confirms project counts remain absent in both states; `check-theme-contrast.test.mjs` selected foreground/background contrast for all themes.
   - I: n/a: frontend presentation and click handling only; no server contract changes.
-  - E: T15 *Selected session stands out across themes* (desktop) and *Whole session row selects on touch* (iPhone 13 Pro), including button isolation, collapsed-only counts, no age/dot indicators, and selected styling in all four themes.
+  - E: T15 *Selected session stands out across themes* (desktop) and *Whole session row selects on touch* (iPhone 13 Pro), including button isolation, no project counts, no age/dot indicators, and selected styling in all four themes; T26 hierarchy scenarios keep project counts absent in either state.
 
 ## File browser and browser autocomplete
 
@@ -54,8 +54,16 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
 - [ ] Command palette results are separated by purpose: Sessions, Windows, Projects, Create, Open, Organize, Terminal, Appearance, Account and Destructive. Group headings and their result rows carry theme-aware color markers; destructive commands use the danger color, while keyboard focus and text remain readable in every theme.
   - U: T23 palette builder tests assert command-to-group assignment; `CommandPalette.spec.ts` checks rendered group membership and destructive marker; theme-aware colors use existing interface tokens.
   - I: n/a: group assignment and rendering are frontend-only and make no API or persistence changes.
-  - E: T23 *Command palette groups commands by purpose and color* (desktop): inspect the groups, representative commands, and distinct semantic colors with a live session present.
+  - E: T23 *Command palette groups commands and navigates across columns with counts* (desktop): inspect the groups, representative commands, and distinct semantic colors with a live session present.
   - Status: U written; E written and type-checked, browser run pending on demand.
+
+## Three-column command palette (T26)
+
+- [ ] On desktop, visible command groups appear in three columns; narrower screens use fewer columns. Each group heading shows its current result count. ArrowLeft/ArrowRight move the highlighted result to the adjacent group, ArrowUp/ArrowDown continue moving through results, and Enter activates the highlighted result.
+  - U: T26 `CommandPalette.spec.ts` covers group counts, grid columns and horizontal navigation; existing Enter and vertical navigation coverage remains in the same component spec.
+  - I: n/a: palette rendering and keyboard navigation are frontend-only.
+  - E: T26 *Command palette groups commands and navigates across columns with counts* in `palette.spec.ts` verifies responsive column count, session total and horizontal navigation on desktop and iPhone 13 Pro.
+  - Status: E written and type-checked; browser execution pending on demand.
 
 ## Text input caret placement
 
@@ -214,8 +222,8 @@ T8 verification: native reader checked at 390px in Chromium and WebKit (358px co
 
 ## Project row width and terminal session context
 
-- [ ] Project names use the available row width on desktop, with actions at the trailing edge revealed on hover; phones retain visible inline controls. The focused terminal header emphasizes its session name and shows that session's directory beside it in a contrasting style, with the full path available accessibly.
-  - U: T25 `SessionTree.spec.ts` covers project action grouping and row structure; `TerminalView.spec.ts` covers focused session emphasis, directory label and full-path tooltip.
+- [ ] Project names use the available row width on desktop, with actions at the trailing edge revealed on hover; phones retain visible inline controls. The focused terminal header starts with a directory icon, followed by the emphasized session name and its directory on the same row; the full path is available accessibly, and the name takes its color from its project's section when assigned.
+  - U: T25 `SessionTree.spec.ts` covers project action grouping and row structure; `TerminalView.spec.ts` covers icon/name/directory order, focused session emphasis, section-derived color, and full-path tooltip.
   - I: n/a: these are frontend presentation changes.
-  - E: T25 *Project names use the row width and terminal header shows session context* (`tree.custom.spec.ts`, desktop and iPhone 13 Pro) checks project action reveal/phone visibility and terminal session/directory labels.
+  - E: T25 *Project names use the row width and terminal header shows session context* (`tree.custom.spec.ts`, desktop and iPhone 13 Pro) checks project action reveal/phone visibility and terminal icon/session/directory order and section-derived name color.
   - Status: E written; type-check and browser execution pending on demand.

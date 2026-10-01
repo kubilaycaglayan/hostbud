@@ -6,6 +6,7 @@ import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
+import { Folder } from 'lucide-vue-next'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
 import { TermSession, termURL, type SessionState } from '@/api/term'
 import { ApiError, copyModeApi, filesystemApi, terminalOutputApi } from '@/api/client'
@@ -31,6 +32,7 @@ import { createCopyModeController } from '@/lib/copyMode'
 import { useAuthStore } from '@/stores/auth'
 import { useProjectsStore } from '@/stores/projects'
 import { useSessionsStore } from '@/stores/sessions'
+import { useTreeStore } from '@/stores/tree'
 import { useToastsStore } from '@/stores/toasts'
 import { useThemeStore } from '@/stores/theme'
 import { shouldInterceptGlobalShortcut, shortcutPlatform } from '@/lib/shortcuts'
@@ -99,9 +101,18 @@ const auth = useAuthStore()
 const theme = useThemeStore()
 const projects = useProjectsStore()
 const sessions = useSessionsStore()
+const tree = useTreeStore()
 const splitTargets = computed(() => sessions.list(props.machine).map((x) => x.name))
-const sessionDirectory = computed(() => sessions.list(props.machine).find((x) => x.name === props.session)?.path ?? '')
+const currentSession = computed(() => sessions.list(props.machine).find((x) => x.name === props.session))
+const sessionDirectory = computed(() => currentSession.value?.path ?? '')
 const sessionDirectoryName = computed(() => sessionDirectory.value.split('/').filter(Boolean).at(-1) ?? '/')
+const sessionSectionColor = computed(() => {
+  const projectId = tree.groups.groups.find((group) => group.sessions.some((session) => session.name === props.session))?.project.id
+  if (!projectId) return ''
+  const sectionId = tree.order.projectSections[projectId]
+  const color = tree.order.sections.find((section) => section.id === sectionId)?.color
+  return color ? `var(--hb-section-${color})` : ''
+})
 const uploadDirectory = computed(() => {
   const session = sessions.list(props.machine).find((x) => x.name === props.session)
   if (!session) return ''
@@ -596,7 +607,8 @@ defineExpose({ refit, reconnect, showKeyboard })
     @focusin="emit('focus')"
   >
     <div class="flex min-w-0 items-center gap-2 border-b border-border px-2 py-1.5">
-      <h2 data-terminal-session-name class="min-w-0 flex-1 truncate text-base font-bold tracking-tight" :class="takesInput() ? 'text-accent' : 'text-fg'">
+      <Folder data-terminal-directory-icon :size="16" class="shrink-0 text-muted" aria-hidden="true" />
+      <h2 data-terminal-session-name class="min-w-0 flex-1 truncate text-base font-bold tracking-tight" :class="takesInput() ? 'text-accent' : 'text-fg'" :style="sessionSectionColor ? { color: sessionSectionColor } : undefined">
         {{ props.session }}
       </h2>
       <span

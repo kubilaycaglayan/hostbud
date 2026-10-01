@@ -5,6 +5,7 @@ import type { Session } from '@/api/types'
 import { filesystemApi } from '@/api/client'
 import { useProjectsStore } from '@/stores/projects'
 import { useSessionsStore } from '@/stores/sessions'
+import { useTreeStore } from '@/stores/tree'
 import { useToastsStore } from '@/stores/toasts'
 import { useThemeStore } from '@/stores/theme'
 
@@ -194,14 +195,22 @@ async function clickMenuItem(text: string) {
 
 describe('TerminalView', () => {
   it('emphasizes the focused session and shows its directory beside the name', async () => {
+    useProjectsStore().remember({ id: 'project-a', machineId: 'host', path: '/home/dev/bright-work', name: 'Bright work', sortOrder: 0, pinned: false, createdAt: '', updatedAt: '' })
     useSessionsStore().$patch({ byMachine: { host: [{ id: '$1', name: 'acc-a', path: '/home/dev/bright-work', attached: 0, windows: 1, created: '', activity: '' }] } })
+    const tree = useTreeStore()
+    tree.order.projects = ['project-a']
+    tree.order.sections = [{ id: 'section-a', name: 'Research', color: 'purple' }]
+    tree.order.projectSections = { 'project-a': 'section-a' }
     const w = await mountTerm({ focused: true })
     const name = w.get('[data-terminal-session-name]')
     const directory = w.get('[data-terminal-directory]')
+    const icon = w.get('[data-terminal-directory-icon]')
     expect(name.text()).toBe('acc-a')
     expect(name.classes()).toContain('text-accent')
+    expect(name.attributes('style')).toContain('var(--hb-section-purple)')
     expect(directory.text()).toBe('bright-work')
     expect(directory.attributes('title')).toBe('/home/dev/bright-work')
+    expect(icon.element.nextElementSibling).toBe(name.element)
     expect(name.element.parentElement?.contains(directory.element)).toBe(true)
     w.unmount()
   })

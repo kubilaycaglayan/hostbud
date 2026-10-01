@@ -33,6 +33,7 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 | T23 Semantic command palette groups | Implemented; U written; E written and type-checked, browser run pending on demand |
 | T24 Full-width session names with hover actions | Implemented; U written; E written and type-checked, browser run pending on demand |
 | T25 Full-width project names and terminal session context | Implemented; U written; E written and type-checked, browser run pending on demand |
+| T26 Remove project counts and navigate a three-column command palette | Implemented; U written; E written and type-checked, browser run pending on demand |
 
 **Progress note (T2–T4, 2026-09-27):** Vitest (447 tests), eslint, `vue-tsc` and the e2e `tsc` passed; deployed to the host from a clean checkout of `f664bb8` (a pre-deploy `pg_dump` is in `backups/`), and the stack came up healthy. Still open for these tasks:
 - **E2E runs:** the scenarios *(T2) Compact tree*, *(T3) Compact file browser* and *(T3) No browser autocomplete outside login password* type-check but haven't run: e2e runs only on demand. The T2 commit also updated two M6 scenarios that expanded single-window sessions (*(T4) Inline rename a session*, *(T3) Window rows follow the real terminal*). T22 replaces the former M8 *(T4) Custom tab order* scenario.
@@ -209,9 +210,9 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 - Make the selected session row and active terminal tab clearly distinct from unselected entries in Dark, Light, Solarized and Dimmed themes, with accessible foreground/background contrast.
 - Let clicks on any non-control area of a session row select that session; preserve button actions, tab close behavior, drag handles and double-click rename.
 - Remove session activity-age labels and green attachment dots from project headers and session lists.
-- Show project session counts only while the project is collapsed.
+- Keep project rows free of session counts.
 
-**Tests:** U: T15 `SessionList.spec.ts` covers non-control row selection, button isolation, selected-row styling, and absent age/attachment indicators; `SessionTree.spec.ts` covers collapsed-only counts; `check-theme-contrast.test.mjs` checks selected foreground/background contrast for every theme. I: n/a; presentation and browser click handling only, no server contract changes. E: T15 *Selected session stands out across themes* (desktop) and *Whole session row selects on touch* (iPhone 13 Pro), including action-button isolation, collapsed-only count, and removed activity/dot indicators.
+**Tests:** U: T15 `SessionList.spec.ts` covers non-control row selection, button isolation, selected-row styling, and absent age/attachment indicators; `SessionTree.spec.ts` covers the absence of project session counts; `check-theme-contrast.test.mjs` checks selected foreground/background contrast for every theme. I: n/a; presentation and browser click handling only, no server contract changes. E: T15 *Selected session stands out across themes* (desktop) and *Whole session row selects on touch* (iPhone 13 Pro), including action-button isolation, no project session counts, and removed activity/dot indicators.
 
 **E2E:** Add T15 *Selected session stands out across themes* to `test/e2e/tests/theme.spec.ts` and *Whole session row selects on touch* to `test/e2e/tests/tree.custom.phone.spec.ts`. Type-check only; runs on demand.
 
@@ -287,7 +288,7 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 
 **Tests:** U: T23 `palette.spec.ts` covers command-to-group assignments and `CommandPalette.spec.ts` covers rendered group membership and destructive styling; I: n/a because grouping and styling are frontend-only; E: T23 *Command palette groups commands by purpose and color* checks representative commands and semantic group colors with a live session.
 
-**E2E:** Add T23 *Command palette groups commands by purpose and color* to `test/e2e/tests/palette.spec.ts`; type-check only and leave browser execution on demand.
+**E2E:** Add T23 *Command palette groups commands and navigates across columns with counts* to `test/e2e/tests/palette.spec.ts`; type-check only and leave browser execution on demand. T26 updates the same scenario.
 
 ## T24 — Full-width session names with hover actions
 
@@ -302,12 +303,22 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 ## T25 — Full-width project names and terminal session context
 
 - Give project names the full row width on desktop, with project actions floating at the trailing edge and appearing on hover. Keep the current inline controls on phones.
-- Emphasize the focused session name in its terminal header and show the session directory beside it in a contrasting, compact style. Keep the full directory available as a tooltip and accessible label.
-- Keep project counts, pin state, keyboard focus, menus and touch targets usable.
+- Place a directory icon first in the terminal header, followed by the focused session name and that session's directory on the same row. Emphasize the name; when its project belongs to a colored section, derive the name color from that section. Keep the full directory available as a tooltip and accessible label.
+- Keep pin state, keyboard focus, menus and touch targets usable.
 
-**Tests:** U: T25 `SessionTree.spec.ts` covers project action grouping and full-width row structure; `TerminalView.spec.ts` covers focused session emphasis and directory display; I: n/a (presentation-only); E: T25 *Project names use the row width and terminal header shows session context* checks desktop hover, phone inline controls, and the focused terminal's session/directory context.
+**Tests:** U: T25 `SessionTree.spec.ts` covers project action grouping and full-width row structure; `TerminalView.spec.ts` covers icon/name/directory order, focused session emphasis and section-derived color; I: n/a (presentation-only); E: T25 *Project names use the row width and terminal header shows session context* checks desktop hover, phone inline controls, and the focused terminal's icon/session/directory context and section color.
 
 **E2E:** Add T25 *Project names use the row width and terminal header shows session context* to `test/e2e/tests/tree.custom.spec.ts`; type-check only and leave browser execution on demand.
+
+## T26 — Remove project counts and navigate a three-column command palette
+
+- Remove the session total shown on project rows, whether expanded or collapsed.
+- Lay out command palette result groups in three columns on desktop, responsively reducing columns on narrower screens; retain semantic group colors and readable focus treatment.
+- Show each visible group's result count beside its heading. Left/right arrows move the highlighted result to the adjacent group while up/down continue moving through results; Enter still activates the highlighted result.
+
+**Tests:** U: T26 `SessionTree.spec.ts` covers no project counts in either state; `CommandPalette.spec.ts` covers per-group counts, responsive grid markers, horizontal group navigation and Enter activation; I: n/a (presentation and client keyboard behavior only); E: T26 *Command palette groups commands and navigates across columns with counts* checks responsive columns, session count and left/right movement.
+
+**E2E:** Update `test/e2e/tests/palette.spec.ts` with T26 *Command palette groups commands and navigates across columns with counts*; update tree hierarchy E2E assertions in desktop and phone specs to confirm project counts stay absent. Type-check only; browser execution remains on demand.
 
 ## Done
 

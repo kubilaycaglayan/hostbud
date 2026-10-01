@@ -36,6 +36,25 @@ describe('CommandPalette', () => {
     expect(dialog.textContent).toContain('window 1')
     expect(dialog.textContent).toContain('N')
     expect(document.querySelector('input[aria-label="Command palette"]')).toBeTruthy()
+    expect(dialog.querySelector('[data-palette-group="Sessions"] [data-palette-count]')?.textContent).toBe('1')
+    expect(dialog.querySelector('[data-palette-items]')?.classList.contains('min-[1050px]:grid-cols-3')).toBe(true)
+  })
+
+  it('moves the highlighted result horizontally between groups', async () => {
+    wrapper = mount(CommandPalette, { props: { open: true, items }, attachTo: document.body })
+    await flushPromises()
+    const input = document.querySelector<HTMLInputElement>('input[aria-label="Command palette"]')!
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }))
+    await flushPromises()
+    expect(document.querySelector('[role="option"][data-highlighted]')?.getAttribute('data-palette-id')).toBe('session:acc-a')
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }))
+    await flushPromises()
+    const next = document.querySelector<HTMLElement>('[role="option"][data-highlighted]')
+    expect(next?.getAttribute('data-palette-id')).toBe('window:acc-a:@1')
+    expect(next?.closest('[data-palette-group]')?.getAttribute('data-palette-group')).toBe('Windows')
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true }))
+    await flushPromises()
+    expect(document.querySelector('[role="option"][data-highlighted]')?.getAttribute('data-palette-id')).toBe('session:acc-a')
   })
 
   it('fuzzy filters by label or secondary text and emits the chosen item', async () => {

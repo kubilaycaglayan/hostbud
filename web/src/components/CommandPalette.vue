@@ -31,6 +31,7 @@ const groupColors: Record<PaletteGroup, string> = {
 }
 const filtered = computed(() => fuzzyFilter(query.value, props.items, 50))
 const filteredByGroup = computed(() => Object.fromEntries(groups.map((group) => [group, filtered.value.filter((item) => item.group === group)])) as Record<PaletteGroup, PaletteItem[]>)
+const visibleGroups = computed(() => groups.filter((group) => filteredByGroup.value[group].length > 0))
 
 watch(() => props.open, (open) => {
   if (open) {
@@ -61,6 +62,37 @@ function onEnter(event: KeyboardEvent) {
   select(first.id)
 }
 
+function onHorizontalNavigation(event: KeyboardEvent) {
+  if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+  const currentInput = event.currentTarget as HTMLInputElement
+  const content = currentInput.closest('[role="dialog"]')?.querySelector<HTMLElement>('[data-palette-items]')
+  const current = content?.querySelector<HTMLElement>('[role="option"][data-highlighted]')
+  const currentGroup = current?.closest<HTMLElement>('[data-palette-group]')
+  if (!content || !current || !currentGroup) return
+  const groupElements = [...content.querySelectorAll<HTMLElement>('[data-palette-group]')]
+  const currentGroupIndex = groupElements.indexOf(currentGroup)
+  if (currentGroupIndex < 0 || groupElements.length < 2) return
+
+  const direction = event.key === 'ArrowRight' ? 1 : -1
+  const nextGroupIndex = (currentGroupIndex + direction + groupElements.length) % groupElements.length
+  const currentGroupItems = [...currentGroup.querySelectorAll<HTMLElement>('[role="option"]')]
+  const nextGroup = groupElements[nextGroupIndex]
+  const nextGroupItems = [...nextGroup.querySelectorAll<HTMLElement>('[role="option"]')]
+  const localIndex = currentGroupItems.indexOf(current)
+  const next = nextGroupItems[Math.min(Math.max(localIndex, 0), nextGroupItems.length - 1)]
+  if (!next) return
+  const allItems = groupElements.flatMap((group) => [...group.querySelectorAll<HTMLElement>('[role="option"]')])
+  const distance = allItems.indexOf(next) - allItems.indexOf(current)
+  if (!distance) return
+
+  event.preventDefault()
+  event.stopPropagation()
+  const key = distance > 0 ? 'ArrowDown' : 'ArrowUp'
+  for (let i = 0; i < Math.abs(distance); i++) {
+    currentInput.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: false, cancelable: true }))
+  }
+}
+
 function select(id?: string) {
   if (!id) return
   if (id !== 'action:split-right' && id !== 'action:split-down') preventFocusRestore = true
@@ -80,7 +112,7 @@ function onCloseAutoFocus(event: Event) {
       <DialogOverlay class="fixed inset-0 z-50 bg-overlay" />
       <DialogContent
         aria-label="Command palette"
-        class="fixed left-1/2 top-[min(20vh,8rem)] z-50 max-h-[75vh] w-[min(92vw,42rem)] -translate-x-1/2 overflow-hidden rounded-lg border border-border bg-surface text-fg shadow-xl"
+        class="fixed left-1/2 top-[min(12vh,5rem)] z-50 max-h-[84vh] w-[min(96vw,68rem)] -translate-x-1/2 overflow-hidden rounded-lg border border-border bg-surface text-fg shadow-xl"
         @keydown.esc.stop="emit('update:open', false)"
         @close-auto-focus="onCloseAutoFocus"
       >
@@ -100,25 +132,28 @@ function onCloseAutoFocus(event: Event) {
             class="h-14 w-full border-b border-border bg-surface px-4 text-base text-fg outline-none placeholder:text-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
             @update:model-value="query = String($event ?? '')"
             @keydown.enter="onEnter"
+            @keydown="onHorizontalNavigation"
           />
-          <ComboboxContent class="max-h-[calc(75vh-3.5rem)] overflow-y-auto p-2 outline-none">
+          <ComboboxContent class="max-h-[calc(84vh-3.5rem)] overflow-y-auto p-2 outline-none">
             <ComboboxEmpty class="p-4 text-sm text-muted">No matching sessions, projects or commands.</ComboboxEmpty>
-            <ComboboxGroup v-for="group in groups" :key="group" class="palette-group mb-2" :data-palette-group="group" :style="{ '--palette-group-color': groupColors[group] }">
-              <template v-if="filteredByGroup[group].length">
-                <ComboboxLabel class="palette-group-label px-2 py-1 text-xs font-semibold uppercase tracking-wide">{{ group }}</ComboboxLabel>
+            <div data-palette-items class="grid grid-cols-1 gap-2 min-[700px]:grid-cols-2 min-[1050px]:grid-cols-3">
+              <ComboboxGroup v-for="group in visibleGroups" :key="group" class="palette-group min-w-0 rounded-md border border-border/60 p-1" :data-palette-group="group" :style="{ '--palette-group-color': groupColors[group] }">
+                <ComboboxLabel class="palette-group-label flex items-center justify-between px-2 py-1 text-xs font-semibold uppercase tracking-wide">
+                  <span>{{ group }}</span><span data-palette-count :aria-label="`${filteredByGroup[group].length} ${filteredByGroup[group].length === 1 ? 'item' : 'items'}`" class="rounded-full bg-bg px-1.5 py-0.5 text-[10px] tabular-nums">{{ filteredByGroup[group].length }}</span>
+                </ComboboxLabel>
                 <ComboboxItem
                   v-for="item in filteredByGroup[group]"
                   :key="item.id"
                   :data-palette-id="item.id"
                   :value="item.id"
                   :text-value="[item.label, item.secondary].filter(Boolean).join(' ')"
-                  class="palette-item flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded px-2 text-sm outline-none data-[highlighted]:bg-bg data-[highlighted]:ring-2 data-[highlighted]:ring-accent"
+                  class="palette-item flex min-h-10 cursor-pointer items-center justify-between gap-2 rounded px-2 text-sm outline-none data-[highlighted]:bg-bg data-[highlighted]:ring-2 data-[highlighted]:ring-accent"
                 >
                   <span class="min-w-0 truncate">{{ item.label }}<span v-if="item.hidden" class="ml-2 rounded bg-bg px-1.5 py-0.5 text-xs text-muted">hidden</span><span v-if="item.detail" class="ml-2 text-xs text-muted">{{ item.detail }}</span></span>
                   <kbd v-if="item.shortcut" class="shrink-0 rounded border border-border px-1.5 py-0.5 font-mono text-xs text-muted">{{ item.shortcut }}</kbd>
                 </ComboboxItem>
-              </template>
-            </ComboboxGroup>
+              </ComboboxGroup>
+            </div>
           </ComboboxContent>
         </ComboboxRoot>
       </DialogContent>

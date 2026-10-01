@@ -20,9 +20,9 @@ async function captured(target: { tmux(...args: string[]): Promise<string> }, na
   return target.tmux('capture-pane', '-p', '-t', `=${name}:`)
 }
 
-test('(T23) Command palette groups commands by purpose and color', async ({ page, ui, target }) => {
+test('(T23, T26) Command palette groups commands and navigates across columns with counts', async ({ page, ui, target }) => {
   await account(ui, 'e2e-palette-groups')
-  await createSessions(target, [uniqueName('palette-group')])
+  await createSessions(target, [uniqueName('palette-group-a'), uniqueName('palette-group-b')])
   await page.reload()
   await page.keyboard.press('Control+Shift+K')
   const dialog = page.getByRole('dialog', { name: 'Command palette' })
@@ -30,6 +30,15 @@ test('(T23) Command palette groups commands by purpose and color', async ({ page
   for (const group of ['Create', 'Open', 'Organize', 'Terminal', 'Appearance', 'Account', 'Destructive']) {
     await expect(dialog.locator(`[data-palette-group="${group}"] .palette-group-label`)).toBeVisible()
   }
+  const sessionGroup = dialog.locator('[data-palette-group="Sessions"]')
+  await expect(sessionGroup.locator('[data-palette-count]')).toHaveText(await sessionGroup.getByRole('option').count() + '')
+  const columns = await dialog.locator('[data-palette-items]').evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').length)
+  expect(columns).toBe(await page.evaluate(() => innerWidth >= 1050 ? 3 : innerWidth >= 700 ? 2 : 1))
+  const input = dialog.getByRole('combobox', { name: 'Command palette' })
+  await input.press('ArrowDown')
+  await expect(dialog.locator('[role="option"][data-highlighted]')).toBeVisible()
+  await input.press('ArrowRight')
+  await expect.poll(async () => dialog.locator('[role="option"][data-highlighted]').evaluate((option) => option.closest('[data-palette-group]')?.getAttribute('data-palette-group'))).not.toBe('Sessions')
   await expect(dialog.locator('[data-palette-group="Create"]')).toContainText('New session')
   await expect(dialog.locator('[data-palette-group="Open"]')).toContainText('Browse files')
   await expect(dialog.locator('[data-palette-group="Organize"]')).toContainText('Collapse all')

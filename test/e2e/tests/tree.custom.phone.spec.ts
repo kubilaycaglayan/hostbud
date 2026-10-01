@@ -88,7 +88,7 @@ test.describe('custom tree on iPhone 13 Pro', () => {
     await expect(header.locator('[data-project-count]')).toHaveCount(0)
     await expect(header).not.toHaveClass(/bg-tree-header/)
     await header.getByRole('button', { name: `Collapse ${project}` }).tap()
-    await expect(header.locator('[data-project-count]')).toHaveText('1')
+    await expect(header.locator('[data-project-count]')).toHaveCount(0)
     await header.getByRole('button', { name: `Expand ${project}` }).tap()
     await expect(header.locator('[data-project-count]')).toHaveCount(0)
     await expect(ui.treeItem('Other sessions').locator('[data-other-label]')).toHaveCSS('text-transform', 'uppercase')

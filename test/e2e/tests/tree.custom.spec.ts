@@ -91,8 +91,28 @@ test('(T25) Project names use the row width and terminal header shows session co
   const path = `/home/dev/${uniqueName('header-directory')}`
   const projectName = uniqueName('header-project')
   const sessionName = uniqueName('header-session')
-  await addProject(request, path, projectName)
+  const project = await addProject(request, path, projectName)
   await createSession(target, sessionName, path)
+  const sectionId = 'session-header-purple'
+  const savedTree = await getUIState(page.request, 'tree') as {
+    projects?: string[]; sessions?: Record<string, string[]>; pinned?: string[]
+    hidden?: { projects: string[]; sessions: string[] }; collapsed?: string[]; collapsedSections?: string[]
+    expanded?: string[]; showHidden?: boolean; sections?: { id: string; name: string; color: string }[]
+    projectSections?: Record<string, string>
+  } | null
+  await putUIState(page.request, 'tree', {
+    version: 4,
+    projects: [...new Set([...(savedTree?.projects ?? []), project.id])],
+    sessions: savedTree?.sessions ?? {},
+    pinned: savedTree?.pinned ?? [],
+    hidden: savedTree?.hidden ?? { projects: [], sessions: [] },
+    collapsed: savedTree?.collapsed ?? [],
+    collapsedSections: savedTree?.collapsedSections ?? [],
+    expanded: savedTree?.expanded ?? [],
+    showHidden: savedTree?.showHidden ?? false,
+    sections: [...(savedTree?.sections ?? []).filter((section) => section.id !== sectionId), { id: sectionId, name: 'Header accent', color: 'purple' }],
+    projectSections: { ...(savedTree?.projectSections ?? {}), [project.id]: sectionId },
+  })
   await page.reload()
   const projectRow = ui.treeItem(projectName)
   const projectHeader = projectRow.locator(':scope > .tree-row')
@@ -112,7 +132,10 @@ test('(T25) Project names use the row width and terminal header shows session co
 
   await ui.openTerminal(sessionName)
   const terminalHeader = page.getByRole('region', { name: `Terminal: ${sessionName}` })
-  await expect(terminalHeader.locator('[data-terminal-session-name]')).toHaveText(sessionName)
+  const sessionTitle = terminalHeader.locator('[data-terminal-session-name]')
+  await expect(terminalHeader.locator('[data-terminal-directory-icon]').locator('xpath=following-sibling::*[1]')).toHaveAttribute('data-terminal-session-name', '')
+  await expect(sessionTitle).toHaveText(sessionName)
+  await expect(sessionTitle).toHaveAttribute('style', /hb-section-purple/)
   await expect(terminalHeader.locator('[data-terminal-directory]')).toHaveText(path.split('/').at(-1)!)
   await expect(terminalHeader.locator('[data-terminal-directory]')).toHaveAttribute('title', path)
 })
@@ -223,7 +246,7 @@ for (const mode of ['collapse', 'hierarchy'] as const) {
       await expect(header.locator('[data-project-count]')).toHaveCount(0)
       await expect(header).not.toHaveClass(/bg-tree-header/)
       await header.getByRole('button', { name: `Collapse ${projectName}` }).click()
-      await expect(header.locator('[data-project-count]')).toHaveText('1')
+      await expect(header.locator('[data-project-count]')).toHaveCount(0)
       await header.getByRole('button', { name: `Expand ${projectName}` }).click()
       await expect(header.locator('[data-project-count]')).toHaveCount(0)
       await expect(ui.treeItem('Other sessions').locator('[data-other-label]')).toHaveCSS('text-transform', 'uppercase')
