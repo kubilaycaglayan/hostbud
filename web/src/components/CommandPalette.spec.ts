@@ -9,7 +9,8 @@ const items: PaletteItem[] = [
   { id: 'session:acc-a', label: 'acc-a', group: 'Sessions', secondary: 'Garden', hidden: true },
   { id: 'window:acc-a:@1', label: 'editor', group: 'Windows', secondary: 'acc-a', detail: 'window 1' },
   { id: 'project:p1', label: 'Garden', group: 'Projects', secondary: '/home/dev/garden' },
-  { id: 'action:new-session', label: 'New session', group: 'Actions', shortcut: 'N' },
+  { id: 'action:new-session', label: 'New session', group: 'Create', shortcut: 'N' },
+  { id: 'action:remove-project:p1', label: 'Remove project Garden', group: 'Destructive', secondary: '/home/dev/garden' },
 ]
 let wrapper: ReturnType<typeof mount> | undefined
 
@@ -25,7 +26,11 @@ describe('CommandPalette', () => {
     await flushPromises()
     const dialog = document.body.querySelector('[role="dialog"]')!
     expect(dialog.getAttribute('aria-label')).toBe('Command palette')
-    for (const heading of ['Sessions', 'Windows', 'Projects', 'Actions']) expect(dialog.textContent).toContain(heading)
+    for (const heading of ['Sessions', 'Windows', 'Projects', 'Create', 'Destructive']) expect(dialog.textContent).toContain(heading)
+    expect(dialog.querySelector('[data-palette-group="Destructive"] .palette-group-label')?.textContent).toContain('Destructive')
+    expect(dialog.querySelector('[data-palette-group="Destructive"] .palette-item')?.getAttribute('data-palette-id')).toBe('action:remove-project:p1')
+    expect(dialog.querySelector<HTMLElement>('[data-palette-group="Destructive"]')?.style.getPropertyValue('--palette-group-color')).toBe('var(--hb-danger)')
+    expect(dialog.querySelector('[data-palette-group="Destructive"] .palette-item')?.classList.contains('palette-item')).toBe(true)
     for (const item of items) expect(dialog.textContent).toContain(item.label)
     expect(dialog.textContent).toContain('hidden')
     expect(dialog.textContent).toContain('window 1')

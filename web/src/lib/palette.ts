@@ -1,6 +1,6 @@
 import type { TmuxWindow } from '@/api/types'
 
-export type PaletteGroup = 'Sessions' | 'Windows' | 'Projects' | 'Actions'
+export type PaletteGroup = 'Sessions' | 'Windows' | 'Projects' | 'Create' | 'Open' | 'Organize' | 'Terminal' | 'Appearance' | 'Account' | 'Destructive'
 export interface PaletteItem {
   id: string
   label: string
@@ -60,45 +60,45 @@ export function buildPaletteItems(data: PaletteData): PaletteItem[] {
     group: 'Projects',
     secondary: project.path,
   }))
-  const action = (id: string, label: string, secondary?: string, shortcutId = id): PaletteItem => ({
+  const action = (id: string, label: string, group: PaletteGroup, secondary?: string, shortcutId = id): PaletteItem => ({
     id: `action:${id}`,
     label,
-    group: 'Actions',
+    group,
     secondary,
     shortcut: data.shortcutHint(shortcutId),
   })
   const actions: PaletteItem[] = [
-    action('new-session', 'New session', undefined, 'tree-new-session'),
-    action('browse-files', 'Browse files'),
-    action('queue', 'Open queue panel'),
-    action('settings', 'Open settings'),
-    action('collapse-all', 'Collapse all'),
-    action('expand-all', 'Expand all'),
-    action(data.showHidden ? 'hide-hidden' : 'show-hidden', data.showHidden ? 'Hide hidden' : 'Show hidden'),
-    action('split-right', 'Split right'),
-    action('split-down', 'Split down'),
-    ...(data.hasActiveTab ? [action('close-tab', 'Close terminal view')] : []),
-    action('next-tab', 'Next open visible session'),
-    action('previous-tab', 'Previous open visible session'),
-    action('theme-system', 'Theme: System'),
-    action('theme-dark', 'Theme: Dark'),
-    action('theme-dimmed', 'Theme: Dimmed'),
-    action('theme-solarized', 'Theme: Solarized'),
-    action('theme-light', 'Theme: Light'),
-    action('shortcuts', 'Keyboard shortcuts'),
-    action('sign-out', 'Sign out'),
+    action('new-session', 'New session', 'Create', undefined, 'tree-new-session'),
+    action('browse-files', 'Browse files', 'Open'),
+    action('queue', 'Open queue panel', 'Open'),
+    action('settings', 'Open settings', 'Open'),
+    action('collapse-all', 'Collapse all', 'Organize'),
+    action('expand-all', 'Expand all', 'Organize'),
+    action(data.showHidden ? 'hide-hidden' : 'show-hidden', data.showHidden ? 'Hide hidden' : 'Show hidden', 'Organize'),
+    action('split-right', 'Split right', 'Terminal'),
+    action('split-down', 'Split down', 'Terminal'),
+    ...(data.hasActiveTab ? [action('close-tab', 'Close terminal view', 'Terminal')] : []),
+    action('next-tab', 'Next open visible session', 'Terminal'),
+    action('previous-tab', 'Previous open visible session', 'Terminal'),
+    action('theme-system', 'Theme: System', 'Appearance'),
+    action('theme-dark', 'Theme: Dark', 'Appearance'),
+    action('theme-dimmed', 'Theme: Dimmed', 'Appearance'),
+    action('theme-solarized', 'Theme: Solarized', 'Appearance'),
+    action('theme-light', 'Theme: Light', 'Appearance'),
+    action('shortcuts', 'Keyboard shortcuts', 'Open'),
+    action('sign-out', 'Sign out', 'Account'),
   ]
   for (const project of data.projects) {
-    actions.push(action(`new-project-session:${project.id}`, `New session in ${project.name}`, project.path))
-    actions.push(action(`rename-project:${project.id}`, `Rename ${project.name}`, project.path, 'tree-rename'))
-    actions.push(action(`remove-project:${project.id}`, `Remove project ${project.name}`, project.path))
-    actions.push(action(`${project.hidden ? 'unhide' : 'hide'}-project:${project.id}`, `${project.hidden ? 'Unhide' : 'Hide'} ${project.name}`, project.path, 'tree-hide'))
-    actions.push(action(`${project.pinned ? 'unpin' : 'pin'}-project:${project.id}`, `${project.pinned ? 'Unpin' : 'Pin'} ${project.name}`, project.path, 'tree-pin'))
+    actions.push(action(`new-project-session:${project.id}`, `New session in ${project.name}`, 'Create', project.path))
+    actions.push(action(`rename-project:${project.id}`, `Rename ${project.name}`, 'Organize', project.path, 'tree-rename'))
+    actions.push(action(`remove-project:${project.id}`, `Remove project ${project.name}`, 'Destructive', project.path))
+    actions.push(action(`${project.hidden ? 'unhide' : 'hide'}-project:${project.id}`, `${project.hidden ? 'Unhide' : 'Hide'} ${project.name}`, 'Organize', project.path, 'tree-hide'))
+    actions.push(action(`${project.pinned ? 'unpin' : 'pin'}-project:${project.id}`, `${project.pinned ? 'Unpin' : 'Pin'} ${project.name}`, 'Organize', project.path, 'tree-pin'))
   }
   for (const session of data.sessions) {
-    actions.push(action(`rename-session:${session.name}`, `Rename ${session.name}`, session.projectName ?? session.path, 'tree-rename'))
-    actions.push(action(`${session.hidden ? 'unhide' : 'hide'}-session:${session.name}`, `${session.hidden ? 'Unhide' : 'Hide'} ${session.name}`, session.projectName ?? session.path, 'tree-hide'))
-    actions.push(action(`kill-session:${session.name}`, `Kill ${session.name}`, session.projectName ?? session.path, 'tree-kill'))
+    actions.push(action(`rename-session:${session.name}`, `Rename ${session.name}`, 'Organize', session.projectName ?? session.path, 'tree-rename'))
+    actions.push(action(`${session.hidden ? 'unhide' : 'hide'}-session:${session.name}`, `${session.hidden ? 'Unhide' : 'Hide'} ${session.name}`, 'Organize', session.projectName ?? session.path, 'tree-hide'))
+    actions.push(action(`kill-session:${session.name}`, `Kill ${session.name}`, 'Destructive', session.projectName ?? session.path, 'tree-kill'))
   }
   const groups = data.selectingSplitTarget
     ? [...sessionItems, ...actions.filter((item) => item.id === 'action:new-session' || item.id.startsWith('action:new-project-session:'))]

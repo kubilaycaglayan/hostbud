@@ -22,6 +22,14 @@ describe('buildPaletteItems', () => {
     expect(items.find((item) => item.id === 'project:p1')?.secondary).toBe('/home/dev/garden')
     expect(items.find((item) => item.id === 'action:unhide-session:acc-a')?.shortcut).toBe('H')
     expect(items.find((item) => item.id === 'action:close-tab')?.label).toBe('Close terminal view')
+    expect(items.find((item) => item.id === 'action:new-session')?.group).toBe('Create')
+    expect(items.find((item) => item.id === 'action:browse-files')?.group).toBe('Open')
+    expect(items.find((item) => item.id === 'action:rename-project:p1')?.group).toBe('Organize')
+    expect(items.find((item) => item.id === 'action:close-tab')?.group).toBe('Terminal')
+    expect(items.find((item) => item.id === 'action:theme-dark')?.group).toBe('Appearance')
+    expect(items.find((item) => item.id === 'action:sign-out')?.group).toBe('Account')
+    expect(items.find((item) => item.id === 'action:remove-project:p1')?.group).toBe('Destructive')
+    expect(items.find((item) => item.id === 'action:kill-session:acc-a')?.group).toBe('Destructive')
   })
 
   it('includes every action, omits Close terminal view without an active layout and narrows split mode to destinations', () => {

@@ -20,6 +20,32 @@ async function captured(target: { tmux(...args: string[]): Promise<string> }, na
   return target.tmux('capture-pane', '-p', '-t', `=${name}:`)
 }
 
+test('(T23) Command palette groups commands by purpose and color', async ({ page, ui, target }) => {
+  await account(ui, 'e2e-palette-groups')
+  await createSessions(target, [uniqueName('palette-group')])
+  await page.reload()
+  await page.keyboard.press('Control+Shift+K')
+  const dialog = page.getByRole('dialog', { name: 'Command palette' })
+  await expect(dialog).toBeVisible()
+  for (const group of ['Create', 'Open', 'Organize', 'Terminal', 'Appearance', 'Account', 'Destructive']) {
+    await expect(dialog.locator(`[data-palette-group="${group}"] .palette-group-label`)).toBeVisible()
+  }
+  await expect(dialog.locator('[data-palette-group="Create"]')).toContainText('New session')
+  await expect(dialog.locator('[data-palette-group="Open"]')).toContainText('Browse files')
+  await expect(dialog.locator('[data-palette-group="Organize"]')).toContainText('Collapse all')
+  await expect(dialog.locator('[data-palette-group="Terminal"]')).toContainText('Next open visible session')
+  await expect(dialog.locator('[data-palette-group="Appearance"]')).toContainText('Theme: Dark')
+  await expect(dialog.locator('[data-palette-group="Account"]')).toContainText('Sign out')
+  await expect(dialog.locator('[data-palette-group="Destructive"]')).toContainText('Kill palette-group')
+  const colors = await dialog.locator('.palette-group').evaluateAll((groups) => groups.map((group) => ({
+    name: group.getAttribute('data-palette-group'),
+    color: getComputedStyle(group).getPropertyValue('--palette-group-color').trim(),
+  })))
+  expect(colors.find((item) => item.name === 'Create')?.color).not.toBe(colors.find((item) => item.name === 'Destructive')?.color)
+  expect(colors.find((item) => item.name === 'Organize')?.color).not.toBe(colors.find((item) => item.name === 'Account')?.color)
+  await page.keyboard.press('Escape')
+})
+
 test('(T8) Keyboard shortcuts help opens from both scopes and restores focus', async ({ page, ui, target }) => {
   await account(ui)
   const session = uniqueName('keys-help')

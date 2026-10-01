@@ -30,6 +30,7 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 | T20 Collapsible sections and selected-content marker | Implemented; U passes; E written and type-checked, browser run pending on demand |
 | T21 Background terminal resize isolation | Implemented; U passes; E written and type-checked, browser run pending on demand |
 | T22 Session switching without tab strips | Implemented; U written; E written and type-checked, browser run pending on demand |
+| T23 Semantic command palette groups | Implemented; U written; E written and type-checked, browser run pending on demand |
 
 **Progress note (T2–T4, 2026-09-27):** Vitest (447 tests), eslint, `vue-tsc` and the e2e `tsc` passed; deployed to the host from a clean checkout of `f664bb8` (a pre-deploy `pg_dump` is in `backups/`), and the stack came up healthy. Still open for these tasks:
 - **E2E runs:** the scenarios *(T2) Compact tree*, *(T3) Compact file browser* and *(T3) No browser autocomplete outside login password* type-check but haven't run: e2e runs only on demand. The T2 commit also updated two M6 scenarios that expanded single-window sessions (*(T4) Inline rename a session*, *(T3) Window rows follow the real terminal*). T22 replaces the former M8 *(T4) Custom tab order* scenario.
@@ -275,6 +276,16 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 **Tests:** U: T22 `tree.spec.ts` covers rendered grouping order, open-only filtering, hidden sessions and collapsed projects/sections; palette and shortcut specs cover the session-oriented labels. I: n/a because no server behavior or contract changes. E: T22 desktop and phone scenarios verify no tab strip and keyboard switching; desktop also checks collapsed rows, unopened sessions and palette close preserving the tmux session.
 
 **E2E:** Replace the obsolete T4 *Custom tab order* scenario in `test/e2e/tests/tabs.order.spec.ts` with T22 *Visible open-session shortcuts replace tab strips on desktop* and *Phone terminal has no tab strip and session cycling still works*. Type-check only; browser runs remain on demand.
+
+## T23 — Semantic command palette groups
+
+- Split palette results into Sessions, Windows, Projects, Create, Open, Organize, Terminal, Appearance, Account and Destructive groups.
+- Assign each command to the group that reflects its purpose. Keep destructive session/project actions together and visually marked as destructive.
+- Color-code headings and result rows with theme-aware semantic colors while preserving readable text and the existing focus indicator.
+
+**Tests:** U: T23 `palette.spec.ts` covers command-to-group assignments and `CommandPalette.spec.ts` covers rendered group membership and destructive styling; I: n/a because grouping and styling are frontend-only; E: T23 *Command palette groups commands by purpose and color* checks representative commands and semantic group colors with a live session.
+
+**E2E:** Add T23 *Command palette groups commands by purpose and color* to `test/e2e/tests/palette.spec.ts`; type-check only and leave browser execution on demand.
 
 ## Done
 

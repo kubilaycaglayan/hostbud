@@ -49,6 +49,14 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
   - E: T22 *Visible open-session shortcuts replace tab strips on desktop* and *Phone terminal has no tab strip and session cycling still works*; desktop scenario also checks collapsed rows, unopened sessions and palette close preserving tmux.
   - Status: U written; E written and type-checked, full run pending on demand.
 
+## Command palette command groups (T23)
+
+- [ ] Command palette results are separated by purpose: Sessions, Windows, Projects, Create, Open, Organize, Terminal, Appearance, Account and Destructive. Group headings and their result rows carry theme-aware color markers; destructive commands use the danger color, while keyboard focus and text remain readable in every theme.
+  - U: T23 palette builder tests assert command-to-group assignment; `CommandPalette.spec.ts` checks rendered group membership and destructive marker; theme-aware colors use existing interface tokens.
+  - I: n/a: group assignment and rendering are frontend-only and make no API or persistence changes.
+  - E: T23 *Command palette groups commands by purpose and color* (desktop): inspect the groups, representative commands, and distinct semantic colors with a live session present.
+  - Status: U written; E written and type-checked, browser run pending on demand.
+
 ## Text input caret placement
 
 - [ ] Option-click in editable text inputs places the caret at the clicked character and line in single-line and multiline inputs, without jumps to unrelated positions. Ordinary click, selection, typing, keyboard navigation and existing login password autocomplete behavior remain intact.

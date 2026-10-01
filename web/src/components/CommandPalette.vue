@@ -16,7 +16,19 @@ const query = ref('')
 const selected = ref<string>()
 const input = ref<InstanceType<typeof ComboboxInput>>()
 let preventFocusRestore = false
-const groups = ['Sessions', 'Windows', 'Projects', 'Actions'] as const
+const groups = ['Sessions', 'Windows', 'Projects', 'Create', 'Open', 'Organize', 'Terminal', 'Appearance', 'Account', 'Destructive'] as const
+const groupColors: Record<PaletteGroup, string> = {
+  Sessions: 'var(--hb-ok)',
+  Windows: 'var(--hb-accent)',
+  Projects: 'color-mix(in srgb, var(--hb-accent) 55%, var(--hb-danger))',
+  Create: 'var(--hb-ok)',
+  Open: 'var(--hb-accent)',
+  Organize: 'var(--hb-warning)',
+  Terminal: 'color-mix(in srgb, var(--hb-accent) 55%, var(--hb-ok))',
+  Appearance: 'color-mix(in srgb, var(--hb-accent) 55%, var(--hb-danger))',
+  Account: 'var(--hb-muted)',
+  Destructive: 'var(--hb-danger)',
+}
 const filtered = computed(() => fuzzyFilter(query.value, props.items, 50))
 const filteredByGroup = computed(() => Object.fromEntries(groups.map((group) => [group, filtered.value.filter((item) => item.group === group)])) as Record<PaletteGroup, PaletteItem[]>)
 
@@ -73,7 +85,7 @@ function onCloseAutoFocus(event: Event) {
         @close-auto-focus="onCloseAutoFocus"
       >
         <DialogTitle class="sr-only">Command palette</DialogTitle>
-        <DialogDescription class="sr-only">Search sessions, windows, projects and actions.</DialogDescription>
+        <DialogDescription class="sr-only">Search sessions, windows, projects and commands grouped by purpose.</DialogDescription>
         <ComboboxRoot
           v-model="selected"
           :ignore-filter="true"
@@ -91,16 +103,16 @@ function onCloseAutoFocus(event: Event) {
           />
           <ComboboxContent class="max-h-[calc(75vh-3.5rem)] overflow-y-auto p-2 outline-none">
             <ComboboxEmpty class="p-4 text-sm text-muted">No matching sessions, projects or commands.</ComboboxEmpty>
-            <ComboboxGroup v-for="group in groups" :key="group" class="mb-2">
+            <ComboboxGroup v-for="group in groups" :key="group" class="palette-group mb-2" :data-palette-group="group" :style="{ '--palette-group-color': groupColors[group] }">
               <template v-if="filteredByGroup[group].length">
-                <ComboboxLabel class="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-muted">{{ group }}</ComboboxLabel>
+                <ComboboxLabel class="palette-group-label px-2 py-1 text-xs font-semibold uppercase tracking-wide">{{ group }}</ComboboxLabel>
                 <ComboboxItem
                   v-for="item in filteredByGroup[group]"
                   :key="item.id"
                   :data-palette-id="item.id"
                   :value="item.id"
                   :text-value="[item.label, item.secondary].filter(Boolean).join(' ')"
-                  class="flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded px-2 text-sm outline-none data-[highlighted]:bg-bg data-[highlighted]:ring-2 data-[highlighted]:ring-accent"
+                  class="palette-item flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded px-2 text-sm outline-none data-[highlighted]:bg-bg data-[highlighted]:ring-2 data-[highlighted]:ring-accent"
                 >
                   <span class="min-w-0 truncate">{{ item.label }}<span v-if="item.hidden" class="ml-2 rounded bg-bg px-1.5 py-0.5 text-xs text-muted">hidden</span><span v-if="item.detail" class="ml-2 text-xs text-muted">{{ item.detail }}</span></span>
                   <kbd v-if="item.shortcut" class="shrink-0 rounded border border-border px-1.5 py-0.5 font-mono text-xs text-muted">{{ item.shortcut }}</kbd>
@@ -113,3 +125,28 @@ function onCloseAutoFocus(event: Event) {
     </DialogPortal>
   </DialogRoot>
 </template>
+
+<style scoped>
+.palette-group {
+  --palette-group-color: var(--hb-accent);
+}
+
+.palette-group-label {
+  color: var(--hb-fg);
+}
+
+.palette-group-label::before {
+  display: inline-block;
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-right: 0.5rem;
+  border-radius: 9999px;
+  background-color: var(--palette-group-color);
+  content: '';
+  vertical-align: 0.08rem;
+}
+
+.palette-item {
+  border-left: 2px solid color-mix(in srgb, var(--palette-group-color) 72%, transparent);
+}
+</style>
