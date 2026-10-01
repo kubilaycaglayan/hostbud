@@ -261,7 +261,7 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 
 - Detach a terminal while its hostbud tab is inactive or its browser page is hidden, so stale tmux clients cannot constrain the shared session size. Refit before reattaching when active/visible; preserve the tmux session and running process.
 
-**Tests:** U: T21 `TerminalView.spec.ts` verifies hidden-page and inactive-tab clients detach, then refit and reconnect at the current dimensions without focusing xterm. I: n/a because this is frontend attachment lifecycle; existing M1 PTY-to-tmux resize integration coverage remains applicable. E: T21 two-page same-session scenario verifies the background client detaches, cannot constrain the visible client, and reattaches at its current size on return.
+**Tests:** U: T21 `TerminalView.spec.ts` verifies hidden-page and inactive-tab clients detach, remain detached if selected while the page stays hidden, then refit and reconnect at the current dimensions without focusing xterm. I: n/a because this is frontend attachment lifecycle; existing M1 PTY-to-tmux resize integration coverage remains applicable. E: T21 two-page same-session scenario verifies the background client detaches, cannot constrain the visible client, and reattaches at its current size on return.
 
 **E2E:** Add T21 *Background window detaches its terminal until it is visible* to `test/e2e/tests/terminal.spec.ts`; type-check only and leave browser execution on demand.
 

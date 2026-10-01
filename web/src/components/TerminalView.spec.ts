@@ -333,6 +333,12 @@ describe('TerminalView', () => {
       document.dispatchEvent(new Event('visibilitychange'))
       expect(ws.closed).toBe(true)
 
+      // Becoming the selected hostbud tab while the browser page is still
+      // hidden must not create another tmux client.
+      await w.setProps({ active: false })
+      await w.setProps({ active: true })
+      expect(FakeWS.all).toHaveLength(1)
+
       h.fitSize = { cols: 80, rows: 24 }
       resizeCallback()
       expect(FakeWS.all).toHaveLength(1)
