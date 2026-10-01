@@ -144,6 +144,7 @@ describe('SessionTree', () => {
     const wrapper = mount(SessionTree)
     const sorter = wrapper.findAllComponents(VueDraggable).find((list) => list.attributes('data-section-order-list') !== undefined)
     expect(sorter).toBeTruthy()
+    expect(sorter!.classes()).toContain('gap-1')
     expect(wrapper.get('button[aria-label="Drag to reorder section First"]').classes()).toContain('section-drag-handle')
     await sorter!.vm.$emit('update:modelValue', [{ id: second.id }, { id: first.id }])
     expect(tree.order.sections.map((section) => section.id)).toEqual([second.id, first.id])

@@ -182,10 +182,10 @@ T8 verification: native reader checked at 390px in Chromium and WebKit (358px co
   - E: T17 *Project sections* (desktop and iPhone 13 Pro), including section creation, color/name changes, project assignment, gutter geometry, and state after reload and app restart.
   - Status: U passes (`tree.spec.ts`, `SessionTree.spec.ts`); E written and type-checked (`tree.sections.spec.ts`), browser run pending on demand.
 
-- [ ] Users can drag sections into a custom saved order with a dedicated touch-sized handle. The create-section action stays at the bottom of the gutter while its tree scrolls. Section gaps are 2px vertically and 1px horizontally to the enclosing tree, with no inner right padding and no additional project indentation.
-  - U: T18 `tree.spec.ts` and `stores/tree.spec.ts` cover section ordering and membership retention; `SessionTree.spec.ts` covers the drag list, handle, sticky footer placement and action-menu dismissal after project assignment.
+- [ ] Users can drag sections into a custom saved order with a dedicated touch-sized handle. The create-section action stays at the bottom of the gutter while its tree scrolls. Section gaps are 4px vertically and 1px horizontally to the enclosing tree, with no inner right padding and no additional project indentation.
+  - U: T18 `tree.spec.ts` and `stores/tree.spec.ts` cover section ordering and membership retention; `SessionTree.spec.ts` covers the drag list, 4px gap, handle, sticky footer placement and action-menu dismissal after project assignment.
   - I: n/a: sorting and gutter placement use existing tree UI-state persistence and browser layout; no server contract changes.
-  - E: T18 *Project sections and ordering* in `tree.sections.spec.ts` (desktop and iPhone 13 Pro) drags sections, checks persisted order, gutter-bottom placement and that the create action remains outside the scrolling tree.
+  - E: T18 *Project sections and ordering* in `tree.sections.spec.ts` (desktop and iPhone 13 Pro) drags sections, checks the 4px gap and persisted order, gutter-bottom placement and that the create action remains outside the scrolling tree.
   - Status: U passes; E written and type-checked, browser run pending on demand.
 
 ## Selected session in a collapsed project

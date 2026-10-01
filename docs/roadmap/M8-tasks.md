@@ -238,10 +238,10 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 ## T18 — Reorderable project sections and anchored gutter action
 
 - Let users drag sections into a custom order with a dedicated, accessible touch-sized handle; save their order with the existing per-account tree state.
-- Keep the create-section action at the bottom of the left gutter while the project tree scrolls. Keep only a 2px vertical gap between sections, a 1px horizontal gap to the enclosing tree, and no inner right padding; project rows stay aligned with the existing tree level.
+- Keep the create-section action at the bottom of the left gutter while the project tree scrolls. Keep a 4px vertical gap between sections, a 1px horizontal gap to the enclosing tree, and no inner right padding; project rows stay aligned with the existing tree level.
 - Close the project actions menu immediately after moving a project into or out of a section.
 
-**Tests:** U: T18 `tree.spec.ts` and `stores/tree.spec.ts` verify section ordering and retained membership; `SessionTree.spec.ts` verifies the sortable list, handle, footer anchoring classes, and menu dismissal after assignment. I: n/a because this uses the existing per-account tree UI-state endpoint and browser layout. E: T18 updates *Project sections and ordering* in `test/e2e/tests/tree.sections.spec.ts` to drag sections, check persisted order, and check the create action is outside the scrolling tree at the gutter bottom.
+**Tests:** U: T18 `tree.spec.ts` and `stores/tree.spec.ts` verify section ordering and retained membership; `SessionTree.spec.ts` verifies the sortable list, 4px section gap, handle, footer anchoring classes, and menu dismissal after assignment. I: n/a because this uses the existing per-account tree UI-state endpoint and browser layout. E: T18 updates *Project sections and ordering* in `test/e2e/tests/tree.sections.spec.ts` to drag sections, check the 4px gap and persisted order, and check the create action is outside the scrolling tree at the gutter bottom.
 
 **E2E:** Add T18 ordering and anchored-footer assertions to `test/e2e/tests/tree.sections.spec.ts`; type-check only and leave browser execution on demand.
 
