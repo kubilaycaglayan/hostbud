@@ -8,7 +8,7 @@ Goal: show the selected agent logo while selecting an agent and show each agent 
 |---|---|
 | T1 Queue panel and coverage | Done |
 | T2 Docs, verification and deploy | Done: `make lint test`, E2E TypeScript check, `make gitleaks`, deploy and `/api/health` passed |
-| T3 Safe Docker cleanup | Pending |
+| T3 Safe Docker cleanup | Done: skipped because hostbud toolbox containers and warm test targets were active |
 
 ## Tasks
 
