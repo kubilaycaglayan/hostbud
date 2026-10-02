@@ -6,6 +6,27 @@ import type { Queue, QueueItem, QueueItemStatus, QueueStatus, RunStatus, VerifyS
 export const AGENTS = ['claude', 'codex'] as const
 export type Agent = (typeof AGENTS)[number]
 
+const lastAgentKey = 'hostbud.queue.lastAgent'
+
+/** The agent last picked for a new item on this browser (claude if none). */
+export function readLastAgent(): Agent {
+  try {
+    const saved = window.localStorage.getItem(lastAgentKey)
+    return AGENTS.find((a) => a === saved) ?? 'claude'
+  } catch {
+    return 'claude'
+  }
+}
+
+/** Remembers the picked agent across page reloads. */
+export function saveLastAgent(agent: Agent) {
+  try {
+    window.localStorage.setItem(lastAgentKey, agent)
+  } catch {
+    // Storage can be disabled; the pick still applies to this form.
+  }
+}
+
 /** A queue's default prompt text until the owner changes it. */
 export const DEFAULT_PROMPT = ', commit regularly.'
 

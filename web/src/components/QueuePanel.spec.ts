@@ -24,6 +24,7 @@ afterEach(() => {
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
   document.body.innerHTML = ''
+  localStorage.clear()
 })
 
 const $$ = (sel: string) => [...document.body.querySelectorAll<HTMLElement>(sel)]
@@ -289,6 +290,24 @@ describe('QueuePanel', () => {
     button('Add item')!.click()
     await flushPromises()
     expect(calls[0].body).toEqual({ agent: 'codex', flags: "--model 'opus 4'", instruction: '/goal verify flags', executionMode: 'agent' })
+  })
+
+  it('remembers the last picked agent across page reloads', async () => {
+    await mountPanel(queue([], 'idle'))
+    let form = $$('form[aria-label="Add item"]')[0]
+    const agent = form.querySelectorAll('select')[1] as HTMLSelectElement
+    expect(agent.value).toBe('claude')
+    agent.value = 'codex'
+    agent.dispatchEvent(new Event('change'))
+    await flushPromises()
+    panel.unmount()
+    document.body.innerHTML = ''
+
+    await mountPanel(queue([], 'idle'))
+    form = $$('form[aria-label="Add item"]')[0]
+    expect((form.querySelectorAll('select')[1] as HTMLSelectElement).value).toBe('codex')
+    expect(form.querySelector('[data-agent-mark]')?.getAttribute('data-agent')).toBe('codex')
+    expect((form.querySelector('input[spellcheck="false"]') as HTMLInputElement).value).toBe('--yolo')
   })
 
   it('offers the matching permission-mode toggle while editing an item', async () => {

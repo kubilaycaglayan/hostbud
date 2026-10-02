@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import type { QueueItem } from '@/api/types'
-import { capacityError, capacityValue, completedSessions, DEFAULT_PROMPT, defaultPromptError, elapsedText, flagsError, initialInstruction, instructionError, loopRuntimeError, loopRuntimeText, itemActions, moveQueued, progressCount, promptCaret, queuePrompt, queueControls, queueRunning, statusLabel, tokensText, verifyCommandError, verifyLine } from './queue'
+import { capacityError, capacityValue, completedSessions, DEFAULT_PROMPT, defaultPromptError, elapsedText, flagsError, initialInstruction, instructionError, loopRuntimeError, loopRuntimeText, itemActions, moveQueued, progressCount, promptCaret, queuePrompt, queueControls, queueRunning, readLastAgent, saveLastAgent, statusLabel, tokensText, verifyCommandError, verifyLine } from './queue'
 
 const item = (id: string, status: QueueItem['status'], run?: Partial<QueueItem['run']>): QueueItem => ({
   id, queueId: 'q', position: 1, agent: 'claude', flags: '', instruction: '/goal x', status,
@@ -193,5 +193,18 @@ describe('queue default prompt', () => {
     expect(defaultPromptError('')).toBe('')
     expect(defaultPromptError('a\nb')).toBe('The default prompt must be one line.')
     expect(defaultPromptError('x'.repeat(1001))).toContain('1000')
+  })
+})
+
+describe('last picked agent', () => {
+  afterEach(() => localStorage.clear())
+  it('defaults to claude and returns the saved agent', () => {
+    expect(readLastAgent()).toBe('claude')
+    saveLastAgent('codex')
+    expect(readLastAgent()).toBe('codex')
+  })
+  it('ignores an unknown stored value', () => {
+    localStorage.setItem('hostbud.queue.lastAgent', 'gpt')
+    expect(readLastAgent()).toBe('claude')
   })
 })

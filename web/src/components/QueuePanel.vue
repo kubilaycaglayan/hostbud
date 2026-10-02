@@ -11,7 +11,7 @@ import ConfirmDialog from './ConfirmDialog.vue'
 import DurationPicker from './DurationPicker.vue'
 import FormError from './FormError.vue'
 import AgentMark from './AgentMark.vue'
-import { AGENTS, type Agent, completedSessions, DEFAULT_LOOP_RUNTIME_SECONDS, DEFAULT_PROMPT, elapsedText, flagsError, loopRuntimeError, loopRuntimeText, defaultPromptError, initialInstruction, instructionError, itemActions, itemLive, moveQueued, progressCount, promptCaret, queueControls, queuePrompt, queueRunning, statusLabel, tokensText, verifyCommandError, verifyLine } from '@/lib/queue'
+import { AGENTS, type Agent, completedSessions, DEFAULT_LOOP_RUNTIME_SECONDS, DEFAULT_PROMPT, elapsedText, flagsError, loopRuntimeError, loopRuntimeText, defaultPromptError, initialInstruction, instructionError, itemActions, itemLive, moveQueued, progressCount, promptCaret, queueControls, queuePrompt, queueRunning, readLastAgent, saveLastAgent, statusLabel, tokensText, verifyCommandError, verifyLine } from '@/lib/queue'
 import { useQueuesStore } from '@/stores/queues'
 import { useProjectsStore } from '@/stores/projects'
 import { useSessionsStore } from '@/stores/sessions'
@@ -337,10 +337,11 @@ function placePromptCaret(e: FocusEvent) {
   const at = promptCaret(prefill.value)
   requestAnimationFrame(() => box.setSelectionRange(at, at))
 }
-const draft = ref<Draft>({ agent: 'claude', flags: permissionFlag.claude, instruction: prefill.value, executionMode: 'agent', targetSession: '', command: '', verifyCommand: '', requiresApproval: false })
+const lastAgent = readLastAgent()
+const draft = ref<Draft>({ agent: lastAgent, flags: permissionFlag[lastAgent], instruction: prefill.value, executionMode: 'agent', targetSession: '', command: '', verifyCommand: '', requiresApproval: false })
 const draftPermissionFlag = computed({
   get: () => draft.value.agent,
-  set: (agent: Agent) => { draft.value = { ...draft.value, agent, flags: switchAgentFlags(draft.value.flags, agent) } },
+  set: (agent: Agent) => { draft.value = { ...draft.value, agent, flags: switchAgentFlags(draft.value.flags, agent) }; saveLastAgent(agent) },
 })
 const edit = ref<Draft>({ agent: 'claude', flags: '', instruction: '', executionMode: 'agent', targetSession: '', command: '', verifyCommand: '', requiresApproval: false })
 const editPermissionFlag = computed({
