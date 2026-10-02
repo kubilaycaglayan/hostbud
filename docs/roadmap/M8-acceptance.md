@@ -174,7 +174,7 @@ T10 (open): on macOS, copy an image from Preview or Finder and Cmd-V in the term
 
 T28 (open): verify live counts on a real Codex conversation after deployment. The optional hooks are already configured on this host with this checkout’s handler; no user config changes are needed. Browser suite run remains open/on demand.
 
-T28 verification (2026-10-02): hook, Go unit/integration and focused terminal component tests pass; E2E type-check passes; rendered header inspected at 320px, 390px and desktop width with no horizontal overflow. `make lint test` is blocked only by two existing unrelated web failures in `CommandPalette.spec.ts` and `SessionList.spec.ts` (687/689 web tests passed).
+T28 verification (2026-10-02): hook, Go unit/integration and focused terminal component tests pass; E2E type-check passes; rendered header inspected at 320px, 390px and desktop width with no horizontal overflow. `make lint test` passes after correcting the stale initial-highlight and reorder-handle assertions in `CommandPalette.spec.ts` and `SessionList.spec.ts`.
 
 T8 verification: native reader checked at 390px in Chromium and WebKit (358px content width and scroll width; full text selection; 6,220px vertical history). Capture integration passed. Full Go suite encountered the existing `TestIntegrationSlowTerminalClientDropped` timeout on two runs; tracked separately from the reader fix.
 

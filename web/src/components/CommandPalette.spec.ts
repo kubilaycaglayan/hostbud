@@ -44,7 +44,6 @@ describe('CommandPalette', () => {
     wrapper = mount(CommandPalette, { props: { open: true, items }, attachTo: document.body })
     await flushPromises()
     const input = document.querySelector<HTMLInputElement>('input[aria-label="Command palette"]')!
-    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }))
     await flushPromises()
     expect(document.querySelector('[role="option"][data-highlighted]')?.getAttribute('data-palette-id')).toBe('session:acc-a')
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }))

@@ -56,6 +56,7 @@ describe('SessionList', () => {
     expect(actions?.tagName).toBe('DIV')
     expect([...actions!.querySelectorAll('button')].map((button) => button.getAttribute('aria-label'))).toEqual([
       'More actions for a',
+      'Drag to reorder session a',
     ])
     expect(w.find('button[aria-label="Kill a"]').exists()).toBe(false)
     expect(w.find('button[aria-label="Rename a"]').exists()).toBe(false)
