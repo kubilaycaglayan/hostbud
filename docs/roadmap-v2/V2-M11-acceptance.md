@@ -8,6 +8,7 @@
 - [x] **4 API and UI expose the loop.** `PUT /api/queues/{id}/loop` with Origin and auth checks; desktop and phone can toggle looping, set the limit and see the pass and when looping stops; Start restarts a finished looping queue. — U: T1/T2 · I: T1 · E: T1/T2.
 - [x] **5 Existing data and responses are unchanged.** Migration 0015 is append-only with defaults (looping off); queues with default loop settings keep V2-M1's response keys. — U: T1 · I: T1 · E: n/a (schema).
 - [x] **7 (T5) Queue default prompt, opt-in.** Off by default with `, commit regularly.`; Settings turns it on and edits it (one line, ≤ 1000 bytes; refused otherwise); when on, each new item's instruction starts with it and the server stores the instruction as sent; open panels follow a change. — U: T5 (store, service, API, Vitest) · I: T5 (`capacity_integration_test.go`) · E: T5 (`queue-default-prompt.spec.ts`, API and desktop).
+- [x] **8 (T6) Queue panel uses the available desktop viewport when its content needs it.** The dialog can grow to the viewport height minus a small margin, and long queue contents scroll inside it. — U: n/a (browser layout) · I: n/a (no backend behavior) · E: T6 (`queues.spec.ts`, constrained desktop viewport).
 - [x] **6 Docs match behavior.** — U: n/a (documentation) · I: n/a (documentation) · E: n/a (documentation).
 
 ## E2E scenarios
@@ -15,6 +16,7 @@
 - [x] (T1) API *Loop queue runs its items again until the runtime limit* — written and type-checked; browser run pending on demand.
 - [x] (T2) Desktop *Loop a queue until its runtime limit* and phone *Loop a queue on phone; Pause cancels the pending pass* — written and type-checked; browser run pending on demand.
 - [x] (T5) API *Off by default, Origin-checked, validated and reported by GET /api/queues* and desktop *Opting in prefills the new item instruction; the item keeps what was typed* — written and type-checked; browser run pending on demand.
+- [x] (T6) Desktop *Long queue fits a constrained viewport and scrolls inside the Queue panel* — written and type-checked; browser run pending on demand.
 - [ ] (on demand) Full suite green on every e2e app and both profiles — open until requested, not a blocker.
 
 ## Manual checks (owner; backlog, not blockers)

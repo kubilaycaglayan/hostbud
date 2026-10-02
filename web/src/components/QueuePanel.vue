@@ -503,7 +503,7 @@ const badge: Record<QueueItem['status'], string> = {
       <DialogOverlay class="fixed inset-0 z-40 bg-overlay" />
       <DialogContent
         class="fixed z-40 flex flex-col overflow-hidden border border-border bg-surface text-fg"
-        :class="props.compact ? 'inset-0 h-dvh w-full pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]' : 'left-1/2 top-1/2 max-h-[min(48rem,90vh)] w-[min(52rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded'"
+        :class="props.compact ? 'inset-0 h-dvh w-full pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]' : 'left-1/2 top-1/2 max-h-[min(48rem,calc(100dvh-1rem))] w-[min(52rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded'"
       >
         <div class="flex items-start justify-between gap-2 border-b border-border px-3 py-2">
           <div class="min-w-0">
@@ -532,7 +532,7 @@ const badge: Record<QueueItem['status'], string> = {
             </DialogClose>
           </div>
         </div>
-        <div class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-3">
+        <div data-testid="queue-panel-content" class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-3">
           <section v-if="historyOpen" aria-label="Queue history" data-testid="queue-history">
             <h2 class="text-lg font-bold">Queue history</h2>
             <p class="mt-1 text-sm text-muted">Status changes and item metadata. Terminal output and session transcripts are not stored here.</p>
