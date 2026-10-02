@@ -227,3 +227,11 @@ T8 verification: native reader checked at 390px in Chromium and WebKit (358px co
   - I: n/a: these are frontend presentation changes.
   - E: T25 *Project names use the row width and terminal header shows session context* (`tree.custom.spec.ts`, desktop and iPhone 13 Pro) checks project action reveal/phone visibility and terminal icon/session/directory order, section-colored header, and matching name/directory foreground color.
   - Status: E written; type-check and browser execution pending on demand.
+
+## Web focus mode (T29)
+
+- [ ] A signed-in user can open Focus mode from the top bar. An opaque overlay covers the entire browser viewport with only “focus” centered; clicking or tapping it closes it. Escape closes it for keyboard users and focus returns to the trigger. The mode is local to the page and leaves sessions running.
+  - U: T29 `App.spec.ts` checks the header trigger, full-viewport overlay classes, visible word, click dismissal and focus restoration.
+  - I: n/a: browser-only presentation state; no HTTP, WebSocket or host action.
+  - E: T29 *Focus mode covers the web app and closes on a tap* (`header.actions.spec.ts`, desktop and iPhone 13 Pro) checks opening, viewport bounds, centered word, click/tap dismissal and focus.
+  - Status: U passes; E written and type-checked, browser run pending on demand.

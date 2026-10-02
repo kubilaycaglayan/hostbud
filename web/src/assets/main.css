@@ -4,6 +4,15 @@
   color: #d97757;
 }
 
+.focus-screen {
+  background: #101114;
+  color: #a6abb4;
+}
+
+.focus-screen:focus-visible {
+  outline-color: #a6abb4;
+}
+
 @utility touch-target {
   @media (pointer: coarse) {
     min-width: 2.75rem;

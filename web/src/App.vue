@@ -36,7 +36,7 @@ import { useWindowsStore } from '@/stores/windows'
 import { useProjectsStore } from '@/stores/projects'
 import { useToastsStore } from '@/stores/toasts'
 import { useSessionsStore } from '@/stores/sessions'
-import { FolderSearch, ListOrdered, PanelLeftClose, PanelLeftOpen, Search, SquareTerminal, UserRound } from 'lucide-vue-next'
+import { EyeOff, FolderSearch, ListOrdered, PanelLeftClose, PanelLeftOpen, Search, SquareTerminal, UserRound } from 'lucide-vue-next'
 import { isEditableTarget, isTerminalTarget, isTreeTarget, matchingShortcut, shortcutLabels, shortcutPlatform, shortcuts } from '@/lib/shortcuts'
 import { projectTree, sessionKey, visibleOpenSessionNames, windowKey } from '@/lib/tree'
 import { dispatchPaletteAction } from '@/lib/paletteActions'
@@ -78,6 +78,18 @@ const killingProject = ref<Project | null>(null) // the project whose sessions t
 const killingProjectSessions = ref<string[]>([])
 const shortcutsOpen = ref(false)
 const paletteOpen = ref(false)
+const focusMode = ref(false)
+const focusOverlay = ref<HTMLButtonElement | null>(null)
+let focusReturnTarget: HTMLElement | null = null
+function openFocusMode(event: MouseEvent) {
+  focusReturnTarget = event.currentTarget as HTMLElement
+  focusMode.value = true
+  void nextTick(() => focusOverlay.value?.focus())
+}
+function closeFocusMode() {
+  focusMode.value = false
+  void nextTick(() => focusReturnTarget?.focus())
+}
 const recentSessionNames = ref<string[]>([])
 const paletteSplitDir = ref<SplitDir | null>(null)
 let paletteActionSplitDir: SplitDir | null = null
@@ -486,7 +498,7 @@ function onDrawerCloseAutoFocus(event: Event) {
 }
 
 function onShortcutKeydown(event: KeyboardEvent) {
-  if (auth.status !== 'authenticated' || event.defaultPrevented || event.repeat) return
+  if (auth.status !== 'authenticated' || focusMode.value || event.defaultPrevented || event.repeat) return
   const platform = shortcutPlatform()
   const global = matchingShortcut(event, platform, 'global')
   if (global) {
@@ -572,6 +584,7 @@ watch(
   () => auth.status,
   async (s) => {
     if (s !== 'authenticated') {
+      focusMode.value = false
       recentSessionNames.value = []
       theme.signOut()
       live.stop()
@@ -654,7 +667,7 @@ onUnmounted(() => {
     class="flex h-full flex-col"
   >
     <HostBanner :machine="host" />
-    <header class="flex min-h-12 items-center gap-1 border-b border-border bg-surface px-2 sm:px-3">
+    <header class="flex min-h-12 flex-wrap items-center gap-1 border-b border-border bg-surface px-2 sm:flex-nowrap sm:px-3">
       <IconButton
         v-if="!compact || hasTabs"
         :label="sidebarExpanded ? 'Hide sidebar' : 'Show sidebar'"
@@ -677,6 +690,9 @@ onUnmounted(() => {
       </IconButton>
       <IconButton label="Queue" :emphasized="hasRunningQueue" @click="openQueue">
         <ListOrdered :size="18" aria-hidden="true" />
+      </IconButton>
+      <IconButton label="Focus mode" @click="openFocusMode">
+        <EyeOff :size="18" aria-hidden="true" />
       </IconButton>
       <IconButton
         v-if="compact || coarsePointer"
@@ -813,6 +829,17 @@ onUnmounted(() => {
       @update:open="closePalette"
       @select="selectPaletteItem"
     />
+    <button
+      v-if="focusMode"
+      ref="focusOverlay"
+      type="button"
+      aria-label="Exit focus mode"
+      class="focus-screen fixed inset-0 z-[100] flex h-[100dvh] w-screen items-center justify-center focus-visible:outline-2 focus-visible:outline-offset-[-4px]"
+      @click="closeFocusMode"
+      @keydown.esc.stop.prevent="closeFocusMode"
+    >
+      <span class="text-2xl font-medium tracking-[0.3em]">focus</span>
+    </button>
   </div>
   <ToastRegion />
 </template>

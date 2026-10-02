@@ -35,6 +35,7 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 | T25 Full-width project names and terminal session context | Implemented; U written; E written and type-checked, browser run pending on demand |
 | T26 Remove project counts and navigate a three-column command palette | Implemented; U written; E written and type-checked, browser run pending on demand |
 | T27 Restore terminal cursor focus on browser-tab return and page load | Implemented; U passes; E updated and type-checked, browser run pending on demand |
+| T29 Simple web focus mode | Implemented; U passes; E written and type-checked, browser run pending on demand |
 
 **Progress note (T2–T4, 2026-09-27):** Vitest (447 tests), eslint, `vue-tsc` and the e2e `tsc` passed; deployed to the host from a clean checkout of `f664bb8` (a pre-deploy `pg_dump` is in `backups/`), and the stack came up healthy. Still open for these tasks:
 - **E2E runs:** the scenarios *(T2) Compact tree*, *(T3) Compact file browser* and *(T3) No browser autocomplete outside login password* type-check but haven't run: e2e runs only on demand. The T2 commit also updated two M6 scenarios that expanded single-window sessions (*(T4) Inline rename a session*, *(T3) Window rows follow the real terminal*). T22 replaces the former M8 *(T4) Custom tab order* scenario.
@@ -328,6 +329,15 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 **Tests:** U: T26 `SessionTree.spec.ts` covers no per-project session totals in either state; `CommandPalette.spec.ts` covers per-group counts, responsive grid markers, horizontal group navigation and Enter activation; I: n/a (presentation and client keyboard behavior only); E: T26 *Command palette groups commands and navigates across columns with counts* checks responsive columns, session count and left/right movement.
 
 **E2E:** Update `test/e2e/tests/palette.spec.ts` with T26 *Command palette groups commands and navigates across columns with counts*; update tree hierarchy E2E assertions in desktop and phone specs to confirm project counts stay absent. Type-check only; browser execution remains on demand.
+
+## T29 — Simple web focus mode
+
+- Add a Focus mode button to the signed-in app header. Clicking it displays an opaque, full-viewport overlay with “focus” centered. Clicking or tapping anywhere on the overlay closes it; Escape also closes it and focus returns to the header button. Keep this state local to the current page and do not alter sessions.
+
+**Tests:** U: T29 `App.spec.ts` covers opening, overlay content and positioning, click-to-close and focus restoration. I: n/a: this is a local browser presentation state with no server behavior. E: T29 *Focus mode covers the web app and closes on a tap* (`header.actions.spec.ts`, desktop and iPhone 13 Pro) checks the header control, viewport coverage, centered word, click/tap dismissal and keyboard focus.
+
+**E2E:** Add the T29 scenario with the UI behavior; type-check only, run on demand.
+
 
 ## Done
 
