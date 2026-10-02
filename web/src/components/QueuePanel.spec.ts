@@ -310,6 +310,44 @@ describe('QueuePanel', () => {
     expect((form.querySelector('input[spellcheck="false"]') as HTMLInputElement).value).toBe('--yolo')
   })
 
+  it('uploads a pasted image to the queue project and inserts its path at the caret, new and edited items', async () => {
+    const uploads: string[] = []
+    vi.stubGlobal('fetch', vi.fn(async (path: string, init?: RequestInit) => {
+      if (init?.method === 'PUT') {
+        uploads.push(path)
+        const name = new URL(path, 'http://x').searchParams.get('name')
+        return new Response(JSON.stringify({ path: `/home/dev/app/${name}`, size: 3 }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } })
+    }))
+    await mountPanel(queue([queued], 'idle'))
+    const paste = (box: HTMLTextAreaElement, file?: File) => {
+      const items = file ? [{ kind: 'file', type: file.type, getAsFile: () => file }] : [{ kind: 'string', type: 'text/plain', getAsFile: () => null }]
+      const event = new Event('paste', { bubbles: true, cancelable: true }) as ClipboardEvent
+      Object.defineProperty(event, 'clipboardData', { value: { items, files: [] } })
+      box.dispatchEvent(event)
+      return event
+    }
+    const instruction = $$('[data-testid="new-item-instruction"]')[0] as HTMLTextAreaElement
+    instruction.value = '/goal fix the header'
+    instruction.dispatchEvent(new Event('input'))
+    instruction.setSelectionRange(5, 5)
+    expect(paste(instruction).defaultPrevented).toBe(false)
+    expect(paste(instruction, new File(['png'], 'shot.png', { type: 'image/png' })).defaultPrevented).toBe(true)
+    await flushPromises()
+    expect(uploads).toEqual(['/api/machines/host/fs/upload?directory=%2Fhome%2Fdev%2Fapp&name=shot.png'])
+    expect(instruction.value).toBe('/goal ./shot.png fix the header')
+    expect(instruction.selectionStart).toBe(16)
+
+    button('Edit item 2')!.click()
+    await flushPromises()
+    const edit = $$('form[aria-label="Edit item 2"] textarea')[0] as HTMLTextAreaElement
+    edit.setSelectionRange(edit.value.length, edit.value.length)
+    paste(edit, new File(['png'], 'edit.png', { type: 'image/png' }))
+    await flushPromises()
+    expect(edit.value).toBe('/goal m2 ./edit.png')
+  })
+
   it('offers the matching permission-mode toggle while editing an item', async () => {
     await mountPanel(queue([{ ...queued, flags: "--model 'opus 4'" }]))
     button('Edit item 2')!.click()

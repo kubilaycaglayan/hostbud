@@ -5,7 +5,7 @@ import {
 } from 'reka-ui'
 import { VueDraggable } from 'vue-draggable-plus'
 import { ArrowDown, ArrowUp, Check, ChevronsDown, CircleCheck, GripVertical, History, ListOrdered, ListX, Pause, Pencil, Play, Plus, PowerOff, RotateCcw, RotateCw, Save, ShieldCheck, SkipForward, SquareTerminal, ThumbsDown, Timer, ThumbsUp, Trash2, TriangleAlert, X } from 'lucide-vue-next'
-import { queuesApi } from '@/api/client'
+import { ApiError, filesystemApi, queuesApi } from '@/api/client'
 import type { QueueItem, QueueItemHistory } from '@/api/types'
 import ConfirmDialog from './ConfirmDialog.vue'
 import DurationPicker from './DurationPicker.vue'
@@ -16,7 +16,8 @@ import { useQueuesStore } from '@/stores/queues'
 import { useProjectsStore } from '@/stores/projects'
 import { useSessionsStore } from '@/stores/sessions'
 import { killSessions } from '@/lib/killSessions'
-import { describeError } from '@/stores/toasts'
+import { describeError, useToastsStore } from '@/stores/toasts'
+import { clipboardImages, insertWord, relativePath } from '@/lib/clipboardImages'
 
 // Queue panel: a queue belongs to a project; its items run one after
 // another in their own tmux session, advancing only when the agent's own
@@ -344,6 +345,35 @@ const draftPermissionFlag = computed({
   set: (agent: Agent) => { draft.value = { ...draft.value, agent, flags: switchAgentFlags(draft.value.flags, agent) }; saveLastAgent(agent) },
 })
 const edit = ref<Draft>({ agent: 'claude', flags: '', instruction: '', executionMode: 'agent', targetSession: '', command: '', verifyCommand: '', requiresApproval: false })
+/** Pasting an image into an instruction saves it in the queue's project
+ * (like the terminal paste) and inserts its project-relative path at the
+ * caret; plain text paste is left to the textarea. */
+async function pasteInstructionImages(event: ClipboardEvent, target: Draft) {
+  const files = clipboardImages(event)
+  if (!files.length) return
+  event.preventDefault()
+  const box = event.currentTarget as HTMLTextAreaElement
+  const directory = queue.value?.projectPath
+  if (!directory) {
+    useToastsStore().push({ title: 'Could not send photo', message: "The queue's project folder is unavailable.", tone: 'error' })
+    return
+  }
+  for (const file of files) {
+    try {
+      const result = await filesystemApi.uploadPhotoUnique(props.machine, directory, file)
+      const pastedPath = relativePath(directory, result.path)
+      const next = insertWord(target.instruction, box.selectionStart, box.selectionEnd, pastedPath)
+      target.instruction = next.value
+      await nextTick()
+      box.setSelectionRange(next.caret, next.caret)
+      useToastsStore().push({ title: 'Photo added to repo', message: `${pastedPath} · ${result.size.toLocaleString()} bytes; path added to the instruction`, tone: 'success', placement: 'top-right' }, 5_000)
+    } catch (cause) {
+      if (cause instanceof ApiError) useToastsStore().error(`Could not send ${file.name}`, cause)
+      else useToastsStore().push({ title: `Could not send ${file.name}`, message: cause instanceof Error ? cause.message : 'Try pasting the photo again.', tone: 'error' })
+      return
+    }
+  }
+}
 const editPermissionFlag = computed({
   get: () => edit.value.agent,
   set: (agent: Agent) => { edit.value = { ...edit.value, agent, flags: switchAgentFlags(edit.value.flags, agent) } },
@@ -869,7 +899,7 @@ const badge: Record<QueueItem['status'], string> = {
                   </label>
                   <p v-if="editErrors.flags" class="text-sm text-danger">{{ editErrors.flags }}</p>
                   <label class="block">Instruction
-                    <textarea v-model="edit.instruction" autocomplete="off" spellcheck="false" rows="2" class="mt-1 min-h-11 w-full resize-y rounded border border-border bg-bg px-2 py-1 font-mono text-base"></textarea>
+                    <textarea v-model="edit.instruction" autocomplete="off" spellcheck="false" rows="2" class="mt-1 min-h-11 w-full resize-y rounded border border-border bg-bg px-2 py-1 font-mono text-base" @paste="pasteInstructionImages($event, edit)"></textarea>
                   </label>
                   <p v-if="editErrors.instruction" class="text-sm text-danger">{{ editErrors.instruction }}</p>
                   </template>
@@ -1000,7 +1030,7 @@ const badge: Record<QueueItem['status'], string> = {
               </label>
               <p v-if="draftTouched && draftErrors.flags" class="text-sm text-danger">{{ draftErrors.flags }}</p>
               <label class="block">Instruction
-                <textarea v-model="draft.instruction" data-testid="new-item-instruction" autocomplete="off" spellcheck="false" rows="2" class="mt-1 min-h-11 w-full resize-y rounded border border-border bg-bg px-2 py-1 font-mono text-base" @focus="placePromptCaret"></textarea>
+                <textarea v-model="draft.instruction" data-testid="new-item-instruction" autocomplete="off" spellcheck="false" rows="2" class="mt-1 min-h-11 w-full resize-y rounded border border-border bg-bg px-2 py-1 font-mono text-base" @focus="placePromptCaret" @paste="pasteInstructionImages($event, draft)"></textarea>
               </label>
               <p v-if="draftTouched && draftErrors.instruction" class="text-sm text-danger">{{ draftErrors.instruction }}</p>
               </template>

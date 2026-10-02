@@ -19,7 +19,7 @@ import TerminalSearch from '@/components/TerminalSearch.vue'
 import KeyBar from '@/components/KeyBar.vue'
 import ScrollBar from '@/components/ScrollBar.vue'
 import { copySelection, installOsc52 } from '@/lib/clipboard'
-import { clipboardImages } from '@/lib/clipboardImages'
+import { clipboardImages, relativePath } from '@/lib/clipboardImages'
 import { registerPane, unregisterPane } from '@/lib/e2eHooks'
 import { hyperlinkHandler, openLink, type LinkHover } from '@/lib/links'
 import { keepScrollback, WHEEL_SMOOTH_SCROLL_MS } from '@/lib/scrollback'
@@ -398,12 +398,7 @@ function sendDictation(text: string) {
 
 function relativePhotoPath(absolutePath: string) {
   const sessionPath = sessions.list(props.machine).find((session) => session.name === props.session)?.path ?? uploadDirectory.value
-  const from = sessionPath.split('/').filter(Boolean)
-  const to = absolutePath.split('/').filter(Boolean)
-  let common = 0
-  while (common < from.length && common < to.length && from[common] === to[common]) common++
-  const relative = [...Array(from.length - common).fill('..'), ...to.slice(common)].join('/')
-  return relative.startsWith('..') ? relative : `./${relative}`
+  return relativePath(sessionPath, absolutePath)
 }
 
 async function uploadPastedPhotos(files: File[]) {
@@ -414,9 +409,9 @@ async function uploadPastedPhotos(files: File[]) {
   for (const file of files) {
     try {
       const result = await filesystemApi.uploadPhotoUnique(props.machine, uploadDirectory.value, file)
-      const relativePath = relativePhotoPath(result.path)
-      useToastsStore().push({ title: 'Photo added to repo', message: `${relativePath} · ${result.size.toLocaleString()} bytes; path pasted into terminal`, tone: 'success', placement: 'top-right' }, 5_000)
-      term.value?.paste(relativePath)
+      const pastedPath = relativePhotoPath(result.path)
+      useToastsStore().push({ title: 'Photo added to repo', message: `${pastedPath} · ${result.size.toLocaleString()} bytes; path pasted into terminal`, tone: 'success', placement: 'top-right' }, 5_000)
+      term.value?.paste(pastedPath)
     } catch (cause) {
       if (cause instanceof ApiError) useToastsStore().error(`Could not send ${file.name}`, cause)
       else useToastsStore().push({ title: `Could not send ${file.name}`, message: cause instanceof Error ? cause.message : 'Try pasting the photo again.', tone: 'error' })
