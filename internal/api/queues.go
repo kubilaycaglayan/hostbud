@@ -37,6 +37,8 @@ type QueueService interface {
 	Capacity(ctx context.Context) (*int, error)
 	SetCapacity(ctx context.Context, maxRuns *int) (*int, error)
 	SetParallel(ctx context.Context, on bool) (bool, error)
+	DefaultPrompt(ctx context.Context) (store.DefaultPrompt, error)
+	SetDefaultPrompt(ctx context.Context, p store.DefaultPrompt) (store.DefaultPrompt, error)
 	History(ctx context.Context, limit, offset int) ([]store.QueueItemHistory, error)
 }
 
@@ -68,6 +70,9 @@ func mountQueueRoutes(s *server, addFunc func(string, http.HandlerFunc)) {
 	addFunc("PUT /api/machines/{machine}/capacity", s.putCapacity)
 	// The parallel-queues switch (Queue panel), over HOSTBUD_PARALLEL_QUEUES.
 	addFunc("PUT /api/machines/{machine}/parallel-queues", s.putParallelQueues)
+	// The queue default prompt (Settings): prefills new items' instructions.
+	addFunc("GET /api/machines/{machine}/default-prompt", s.getDefaultPrompt)
+	addFunc("PUT /api/machines/{machine}/default-prompt", s.putDefaultPrompt)
 }
 
 func (s *server) queueHistory(w http.ResponseWriter, r *http.Request) {
@@ -120,13 +125,20 @@ func (s *server) listQueues(w http.ResponseWriter, r *http.Request) {
 		s.queueError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, queueList{Queues: queues, ParallelQueues: s.cfg.Queues.ParallelQueues()})
+	prompt, err := s.cfg.Queues.DefaultPrompt(r.Context())
+	if err != nil {
+		s.queueError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, queueList{Queues: queues, ParallelQueues: s.cfg.Queues.ParallelQueues(), DefaultPrompt: prompt})
 }
 
-// queueList is GET /api/queues: the queues and the V2-M2 switch.
+// queueList is GET /api/queues: the queues, the V2-M2 switch and the
+// default prompt that prefills new items.
 type queueList struct {
-	Queues         []queue.View `json:"queues"`
-	ParallelQueues bool         `json:"parallelQueues"`
+	Queues         []queue.View        `json:"queues"`
+	ParallelQueues bool                `json:"parallelQueues"`
+	DefaultPrompt  store.DefaultPrompt `json:"defaultPrompt"`
 }
 
 // capacityBody is the capacity route's body: a whole number 1–32, or null
@@ -212,6 +224,41 @@ func (s *server) putParallelQueues(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, parallelBody{ParallelQueues: on})
+}
+
+func (s *server) getDefaultPrompt(w http.ResponseWriter, r *http.Request) {
+	if !s.capacityMachine(w, r) {
+		return
+	}
+	p, err := s.cfg.Queues.DefaultPrompt(r.Context())
+	if err != nil {
+		s.queueError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, p)
+}
+
+func (s *server) putDefaultPrompt(w http.ResponseWriter, r *http.Request) {
+	if !s.capacityMachine(w, r) {
+		return
+	}
+	var req struct {
+		Enabled *bool   `json:"enabled"`
+		Text    *string `json:"text"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	if req.Enabled == nil || req.Text == nil {
+		writeError(w, http.StatusBadRequest, "enabled and text are required", `Send {"enabled": true, "text": ", commit regularly."}.`)
+		return
+	}
+	p, err := s.cfg.Queues.SetDefaultPrompt(r.Context(), store.DefaultPrompt{Enabled: *req.Enabled, Text: *req.Text})
+	if err != nil {
+		s.queueError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, p)
 }
 
 func (s *server) getQueue(w http.ResponseWriter, r *http.Request) {

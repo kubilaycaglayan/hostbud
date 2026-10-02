@@ -169,6 +169,15 @@ export interface QueueList {
   queues: Queue[]
   /** The parallel-queues switch (V2-M2; Queue panel, default HOSTBUD_PARALLEL_QUEUES). */
   parallelQueues: boolean
+  /** The queue default prompt (Settings). */
+  defaultPrompt?: DefaultPrompt
+}
+
+/** GET|PUT /api/machines/:id/default-prompt: when enabled, each new queue
+ * item's instruction starts with text (opt-in; ", commit regularly."). */
+export interface DefaultPrompt {
+  enabled: boolean
+  text: string
 }
 
 /** Metadata-only historical snapshot for a queue item lifecycle event (V2-M9). */
@@ -214,6 +223,8 @@ export interface QueueChanged {
   queue?: Queue
   /** The parallel-queues switch at the time of the change. */
   parallelQueues?: boolean
+  /** Set when the owner changed the queue default prompt (no queue). */
+  defaultPrompt?: DefaultPrompt
   /** V2-M3: set on item done, needs attention and queue finished while an
    * account has notifications on. The only text a notification shows. */
   notification?: NotificationPayload

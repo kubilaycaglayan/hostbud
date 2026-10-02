@@ -85,6 +85,17 @@ describe('queues store', () => {
     expect(store.parallelQueues).toBe(false)
   })
 
+  it('follows the default prompt from GET /api/queues and queue.changed, keeping the queues', async () => {
+    stubFetch(() => ({ status: 200, body: { queues: [q1], parallelQueues: false, defaultPrompt: { enabled: true, text: ', commit regularly.' } } }))
+    const store = useQueuesStore()
+    expect(store.defaultPrompt).toEqual({ enabled: false, text: ', commit regularly.' })
+    await store.load()
+    expect(store.defaultPrompt).toEqual({ enabled: true, text: ', commit regularly.' })
+    store.apply({ type: 'queue.changed', machine: 'host', payload: { action: 'default_prompt_changed', queueId: '', parallelQueues: false, defaultPrompt: { enabled: false, text: ' and push.' } } })
+    expect(store.defaultPrompt).toEqual({ enabled: false, text: ' and push.' })
+    expect(store.queues).toEqual([q1])
+  })
+
   it('keeps a load error for the panel', async () => {
     stubFetch(() => ({ status: 503, body: { error: 'database unavailable', hint: 'Try again.' } }))
     const store = useQueuesStore()

@@ -10,6 +10,7 @@ Goal: a queue can loop its items instead of finishing, and stops starting new pa
 | T2 Queue panel | Done |
 | T3 Docs, acceptance, verification and deploy | Done: `make lint test`, E2E type-check, `make gitleaks`, deploy and health check passed |
 | T4 Safe Docker cleanup | Done: skipped because hostbud toolbox containers and warm test targets were active |
+| T5 Queue default prompt (follow-up) | Implemented; U and I pass; E written and type-checked, browser run pending on demand |
 
 ## Tasks
 
@@ -24,3 +25,6 @@ README, v1 ARCHITECTURE §9 route, v2 ARCHITECTURE decision 13 and ROADMAP; run 
 
 ### T4 — Safe Docker cleanup
 Follow the v2 Rules and V1 M7 T15 procedure; skip and record if anything is in use. Tests/E2E: n/a (operations only).
+
+### T5 — Queue default prompt (follow-up)
+Opt-in per machine, off by default: migration 0019 adds `default_prompt_enabled` and `default_prompt` to `machine_capacity`; `GET|PUT /api/machines/{id}/default-prompt {enabled, text}` (text defaults to `, commit regularly.`, one line, ≤ 1000 bytes); `GET /api/queues` reports it and a PUT publishes `queue.changed` with `defaultPrompt`. Settings gets a *Queue default prompt* form; when on, the Queue panel's new-item instruction starts with the text (caret before a continuing prompt), resets to it after each add, and refuses the prefill alone. Design: ARCHITECTURE §3 decision 14. Tests: U: store (`TestQueueDefaultPrompt`), service (`TestSetDefaultPromptStoresAndPublishes`), API routes and validation (`TestCapacityRouteAndParallelFlag`), Vitest for the helpers, store, Settings form and panel prefill; I: `capacity_integration_test.go` round trip through PostgreSQL with Origin refusal. E2E: `queue-default-prompt.spec.ts`: API *Off by default, Origin-checked, validated and reported by GET /api/queues* and desktop *Opting in prefills the new item instruction; the item keeps what was typed*.

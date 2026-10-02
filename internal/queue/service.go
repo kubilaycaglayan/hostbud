@@ -77,6 +77,8 @@ type Store interface {
 	CountActiveRuns(ctx context.Context, machineID string) (int, error)
 	ParallelQueuesSetting(ctx context.Context, machineID string) (*bool, error)
 	SetParallelQueuesSetting(ctx context.Context, machineID string, on bool) error
+	QueueDefaultPrompt(ctx context.Context, machineID string) (store.DefaultPrompt, error)
+	SetQueueDefaultPrompt(ctx context.Context, machineID string, p store.DefaultPrompt) error
 	VerifyEvents(ctx context.Context, runID string) ([]store.RunEvent, error)
 	RunEvents(ctx context.Context, runID string, limit int) ([]store.RunEvent, error)
 }
@@ -209,6 +211,9 @@ type Changed struct {
 	// ParallelQueues is the switch at the time of the change, so every
 	// open panel follows a toggle.
 	ParallelQueues bool `json:"parallelQueues"`
+	// DefaultPrompt is set when the owner changed the queue default prompt
+	// (Settings), so every open panel prefills the new one.
+	DefaultPrompt *store.DefaultPrompt `json:"defaultPrompt,omitempty"`
 	// Notification is set on the three notifying transitions (item done,
 	// needs attention, queue finished) while at least one account has
 	// notifications on (V2-M3). Clients show only this, never text built
@@ -613,6 +618,30 @@ func (s *Service) SetCapacity(ctx context.Context, maxRuns *int) (*int, error) {
 		}
 	}
 	return s.store.MachineCapacity(ctx, s.machine)
+}
+
+// DefaultPrompt returns the machine's queue default prompt (Settings).
+func (s *Service) DefaultPrompt(ctx context.Context) (store.DefaultPrompt, error) {
+	return s.store.QueueDefaultPrompt(ctx, s.machine)
+}
+
+// SetDefaultPrompt stores the machine's queue default prompt. It only
+// prefills new items' instructions in the UI; existing items keep theirs.
+// One queue.changed carries it to every open panel.
+func (s *Service) SetDefaultPrompt(ctx context.Context, p store.DefaultPrompt) (store.DefaultPrompt, error) {
+	if err := s.store.SetQueueDefaultPrompt(ctx, s.machine, p); errors.Is(err, store.ErrDefaultPrompt) {
+		return store.DefaultPrompt{}, invalid(err.Error(), "Keep it on one line, or shorten it.")
+	} else if err != nil {
+		return store.DefaultPrompt{}, err
+	}
+	saved, err := s.store.QueueDefaultPrompt(ctx, s.machine)
+	if err != nil {
+		return store.DefaultPrompt{}, err
+	}
+	if s.bus != nil {
+		s.bus.Publish(events.Event{Type: events.QueueChanged, Machine: s.machine, Payload: Changed{Action: "default_prompt_changed", ParallelQueues: s.ParallelQueues(), DefaultPrompt: &saved}})
+	}
+	return saved, nil
 }
 
 // Publish sends queue.changed with the queue's current view (the

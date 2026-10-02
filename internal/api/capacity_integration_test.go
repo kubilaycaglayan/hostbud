@@ -153,4 +153,28 @@ func TestIntegrationCapacityRouteUsesPostgres(t *testing.T) {
 	if status, body := call("GET", "/api/queues", "", "", true); status != 200 || !strings.Contains(body, `"parallelQueues":false`) {
 		t.Fatalf("GET /api/queues after switch off: %d %s", status, body)
 	}
+
+	// The queue default prompt: off with ", commit regularly." until the
+	// owner opts in; stored in PostgreSQL; a refused request changes nothing.
+	if status, body := call("GET", "/api/machines/host/default-prompt", "", "", true); status != 200 || body != `{"enabled":false,"text":", commit regularly."}` {
+		t.Fatalf("GET default prompt: %d %s", status, body)
+	}
+	if status, _ := call("PUT", "/api/machines/host/default-prompt", `{"enabled":true,"text":", commit regularly."}`, "http://evil.example.com", true); status != http.StatusForbidden {
+		t.Fatalf("default prompt with a bad Origin: %d", status)
+	}
+	if status, _ := call("PUT", "/api/machines/host/default-prompt", `{"enabled":true,"text":"a\nb"}`, origin, true); status != http.StatusBadRequest {
+		t.Fatalf("two-line default prompt: %d", status)
+	}
+	if p, _ := repo.QueueDefaultPrompt(ctx, store.HostMachineID); p.Enabled {
+		t.Fatalf("a refused request stored the prompt: %+v", p)
+	}
+	if status, body := call("PUT", "/api/machines/host/default-prompt", `{"enabled":true,"text":", commit regularly."}`, origin, true); status != 200 || body != `{"enabled":true,"text":", commit regularly."}` {
+		t.Fatalf("opt in: %d %s", status, body)
+	}
+	if status, body := call("GET", "/api/queues", "", "", true); status != 200 || !strings.Contains(body, `"defaultPrompt":{"enabled":true,"text":", commit regularly."}`) {
+		t.Fatalf("GET /api/queues after opt-in: %d %s", status, body)
+	}
+	if c, _ := repo.MachineCapacity(ctx, store.HostMachineID); c != nil {
+		t.Fatalf("the prompt changed the cap: %v", *c)
+	}
 }

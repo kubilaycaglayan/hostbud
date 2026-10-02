@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -177,6 +178,61 @@ func (s *Store) SetParallelQueuesSetting(ctx context.Context, machineID string, 
 		SELECT id, $2, $3 FROM machines WHERE id = $1
 		ON CONFLICT (machine_id) DO UPDATE SET parallel_queues = EXCLUDED.parallel_queues, updated_at = EXCLUDED.updated_at`,
 		machineID, on, s.now())
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// DefaultQueuePrompt is the default prompt's text until the owner changes it.
+const DefaultQueuePrompt = ", commit regularly."
+
+// MaxDefaultPromptLen bounds the default prompt (bytes).
+const MaxDefaultPromptLen = 1000
+
+// ErrDefaultPrompt means a default prompt with a line break or over
+// MaxDefaultPromptLen bytes.
+var ErrDefaultPrompt = errors.New("the default prompt must be one line of at most 1000 characters")
+
+// DefaultPrompt is the owner's queue default prompt: when Enabled, each new
+// queue item's instruction starts with Text (opt-in, off by default).
+type DefaultPrompt struct {
+	Enabled bool   `json:"enabled"`
+	Text    string `json:"text"`
+}
+
+// QueueDefaultPrompt returns the machine's default prompt (off, with
+// DefaultQueuePrompt, without a row).
+func (s *Store) QueueDefaultPrompt(ctx context.Context, machineID string) (DefaultPrompt, error) {
+	p := DefaultPrompt{Text: DefaultQueuePrompt}
+	var text sql.NullString
+	err := s.db.QueryRowContext(ctx, `SELECT default_prompt_enabled, default_prompt FROM machine_capacity WHERE machine_id = $1`, machineID).Scan(&p.Enabled, &text)
+	if errors.Is(err, sql.ErrNoRows) {
+		return p, nil
+	}
+	if err != nil {
+		return DefaultPrompt{}, err
+	}
+	if text.Valid {
+		p.Text = text.String
+	}
+	return p, nil
+}
+
+// SetQueueDefaultPrompt stores the machine's default prompt; the cap and the
+// parallel-queues switch are kept.
+func (s *Store) SetQueueDefaultPrompt(ctx context.Context, machineID string, p DefaultPrompt) error {
+	if len(p.Text) > MaxDefaultPromptLen || strings.ContainsAny(p.Text, "\r\n") {
+		return ErrDefaultPrompt
+	}
+	res, err := s.db.ExecContext(ctx, `
+		INSERT INTO machine_capacity (machine_id, default_prompt_enabled, default_prompt, updated_at)
+		SELECT id, $2, $3, $4 FROM machines WHERE id = $1
+		ON CONFLICT (machine_id) DO UPDATE SET default_prompt_enabled = EXCLUDED.default_prompt_enabled, default_prompt = EXCLUDED.default_prompt, updated_at = EXCLUDED.updated_at`,
+		machineID, p.Enabled, p.Text, s.now())
 	if err != nil {
 		return err
 	}

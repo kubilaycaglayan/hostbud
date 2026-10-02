@@ -311,3 +311,33 @@ func TestSetParallelStoresAndPublishes(t *testing.T) {
 		t.Fatalf("env default lost: %v %v", fresh.ParallelQueues(), err)
 	}
 }
+
+// The queue default prompt (Settings): off with ", commit regularly." until
+// set; stored, validated, and announced once to every open panel.
+func TestSetDefaultPromptStoresAndPublishes(t *testing.T) {
+	e := newServiceEnv(t)
+	ctx := context.Background()
+	if p, err := e.svc.DefaultPrompt(ctx); err != nil || p != (store.DefaultPrompt{Text: ", commit regularly."}) {
+		t.Fatalf("default: %+v %v", p, err)
+	}
+	_, _ = e.svc.Create(ctx, "project_a", "Alpha")
+	e.drain()
+	want := store.DefaultPrompt{Enabled: true, Text: ", commit regularly."}
+	if p, err := e.svc.SetDefaultPrompt(ctx, want); err != nil || p != want {
+		t.Fatalf("set: %+v %v", p, err)
+	}
+	if got := e.drain(); len(got) != 1 || got[0].Action != "default_prompt_changed" || got[0].DefaultPrompt == nil || *got[0].DefaultPrompt != want || got[0].Queue != nil {
+		t.Fatalf("queue.changed after set: %+v", got)
+	}
+	if p, _ := e.svc.DefaultPrompt(ctx); p != want {
+		t.Fatalf("read back %+v", p)
+	}
+	_, err := e.svc.SetDefaultPrompt(ctx, store.DefaultPrompt{Enabled: true, Text: "two\nlines"})
+	var qe *Error
+	if !errors.As(err, &qe) || qe.Status != http.StatusBadRequest {
+		t.Fatalf("two lines: %v, want a 400", err)
+	}
+	if got := e.drain(); len(got) != 0 {
+		t.Fatalf("a refused prompt published %+v", got)
+	}
+}

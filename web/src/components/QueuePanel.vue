@@ -10,7 +10,7 @@ import type { QueueItem, QueueItemHistory } from '@/api/types'
 import ConfirmDialog from './ConfirmDialog.vue'
 import DurationPicker from './DurationPicker.vue'
 import FormError from './FormError.vue'
-import { AGENTS, type Agent, completedSessions, DEFAULT_LOOP_RUNTIME_SECONDS, elapsedText, flagsError, loopRuntimeError, loopRuntimeText, INSTRUCTION_PREFIX, instructionError, itemActions, itemLive, moveQueued, progressCount, queueControls, queueRunning, statusLabel, tokensText, verifyCommandError, verifyLine } from '@/lib/queue'
+import { AGENTS, type Agent, completedSessions, DEFAULT_LOOP_RUNTIME_SECONDS, elapsedText, flagsError, loopRuntimeError, loopRuntimeText, initialInstruction, instructionError, itemActions, itemLive, moveQueued, progressCount, promptCaret, queueControls, queueRunning, statusLabel, tokensText, verifyCommandError, verifyLine } from '@/lib/queue'
 import { useQueuesStore } from '@/stores/queues'
 import { useProjectsStore } from '@/stores/projects'
 import { useSessionsStore } from '@/stores/sessions'
@@ -302,7 +302,18 @@ function switchAgentFlags(flags: string, agent: Agent): string {
   const custom = setFlag(setFlag(flags, permissionFlag.claude, false), permissionFlag.codex, false)
   return setFlag(custom, permissionFlag[agent], true)
 }
-const draft = ref<Draft>({ agent: 'claude', flags: permissionFlag.claude, instruction: INSTRUCTION_PREFIX, executionMode: 'agent', targetSession: '', command: '', verifyCommand: '', requiresApproval: false })
+/** The new item's instruction starts with the default prompt when the owner
+ * opted in (Settings); untouched, it follows a changed setting. */
+const prefill = computed(() => initialInstruction(store.defaultPrompt))
+watch(prefill, (next, prev) => { if (draft.value.instruction === prev) draft.value.instruction = next })
+/** Focusing an untouched prefill puts the caret where the owner types. */
+function placePromptCaret(e: FocusEvent) {
+  const box = e.target as HTMLTextAreaElement
+  if (!prefill.value || box.value !== prefill.value) return
+  const at = promptCaret(prefill.value)
+  requestAnimationFrame(() => box.setSelectionRange(at, at))
+}
+const draft = ref<Draft>({ agent: 'claude', flags: permissionFlag.claude, instruction: prefill.value, executionMode: 'agent', targetSession: '', command: '', verifyCommand: '', requiresApproval: false })
 const draftPermissionFlag = computed({
   get: () => draft.value.agent,
   set: (agent: Agent) => { draft.value = { ...draft.value, agent, flags: switchAgentFlags(draft.value.flags, agent) } },
@@ -313,7 +324,11 @@ const editPermissionFlag = computed({
   set: (agent: Agent) => { edit.value = { ...edit.value, agent, flags: switchAgentFlags(edit.value.flags, agent) } },
 })
 const draftTouched = ref(false)
-const draftErrors = computed(() => ({ flags: flagsError(draft.value.flags), instruction: instructionError(draft.value.instruction), verify: verifyCommandError(draft.value.verifyCommand) }))
+const draftErrors = computed(() => ({
+  flags: flagsError(draft.value.flags),
+  instruction: prefill.value && draft.value.instruction.trim() === prefill.value.trim() ? 'Add your instruction to the default prompt.' : instructionError(draft.value.instruction),
+  verify: verifyCommandError(draft.value.verifyCommand),
+}))
 function addItem() {
   draftTouched.value = true
   if (!queue.value || (draft.value.executionMode === 'agent' && (draftErrors.value.flags || draftErrors.value.instruction || draftErrors.value.verify)) || (draft.value.executionMode === 'session' && (!draft.value.targetSession || !draft.value.command.trim()))) return
@@ -321,7 +336,7 @@ function addItem() {
   const d = { ...draft.value }
   void act("Couldn't add the item", async () => {
     await queuesApi.addItem(q.id, { agent: d.agent, flags: d.flags, instruction: d.instruction, executionMode: d.executionMode, ...(d.executionMode === 'session' ? { targetSession: d.targetSession, command: d.command } : { ...gates(d) }) })
-    draft.value = { agent: d.agent, flags: permissionFlag[d.agent], instruction: INSTRUCTION_PREFIX, executionMode: 'agent', targetSession: '', command: '', verifyCommand: '', requiresApproval: false }
+    draft.value = { agent: d.agent, flags: permissionFlag[d.agent], instruction: prefill.value, executionMode: 'agent', targetSession: '', command: '', verifyCommand: '', requiresApproval: false }
     draftTouched.value = false
   })
 }
@@ -931,7 +946,7 @@ const badge: Record<QueueItem['status'], string> = {
               </label>
               <p v-if="draftTouched && draftErrors.flags" class="text-sm text-danger">{{ draftErrors.flags }}</p>
               <label class="block">Instruction
-                <textarea v-model="draft.instruction" autocomplete="off" spellcheck="false" rows="2" class="mt-1 min-h-11 w-full resize-y rounded border border-border bg-bg px-2 py-1 font-mono text-base"></textarea>
+                <textarea v-model="draft.instruction" data-testid="new-item-instruction" autocomplete="off" spellcheck="false" rows="2" class="mt-1 min-h-11 w-full resize-y rounded border border-border bg-bg px-2 py-1 font-mono text-base" @focus="placePromptCaret"></textarea>
               </label>
               <p v-if="draftTouched && draftErrors.instruction" class="text-sm text-danger">{{ draftErrors.instruction }}</p>
               </template>

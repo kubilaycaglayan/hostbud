@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { QueueItem } from '@/api/types'
-import { capacityError, capacityValue, completedSessions, elapsedText, flagsError, instructionError, loopRuntimeError, loopRuntimeText, itemActions, moveQueued, progressCount, queueControls, queueRunning, statusLabel, tokensText, verifyCommandError, verifyLine } from './queue'
+import { capacityError, capacityValue, completedSessions, DEFAULT_PROMPT, defaultPromptError, elapsedText, flagsError, initialInstruction, instructionError, loopRuntimeError, loopRuntimeText, itemActions, moveQueued, progressCount, promptCaret, queueControls, queueRunning, statusLabel, tokensText, verifyCommandError, verifyLine } from './queue'
 
 const item = (id: string, status: QueueItem['status'], run?: Partial<QueueItem['run']>): QueueItem => ({
   id, queueId: 'q', position: 1, agent: 'claude', flags: '', instruction: '/goal x', status,
@@ -168,5 +168,27 @@ describe('item elapsed time and tokens', () => {
     expect(tokensText(item('a', 'done', { inputTokens: 1_236_000, outputTokens: 45_120 }).run)).toBe('1.24M in · 45k out')
     expect(tokensText(item('a', 'done', { inputTokens: 8_460, outputTokens: 312 }).run)).toBe('8.5k in · 312 out')
     expect(tokensText(item('a', 'done', { inputTokens: 25_000_000, outputTokens: 1_000 }).run)).toBe('25M in · 1k out')
+  })
+})
+
+describe('queue default prompt', () => {
+  it('defaults to ", commit regularly." and prefills only when opted in', () => {
+    expect(DEFAULT_PROMPT).toBe(', commit regularly.')
+    expect(initialInstruction({ enabled: false, text: DEFAULT_PROMPT })).toBe('')
+    expect(initialInstruction({ enabled: true, text: DEFAULT_PROMPT })).toBe(', commit regularly.')
+    expect(initialInstruction(null)).toBe('')
+  })
+
+  it('puts the caret before a continuing prompt and after an opening one', () => {
+    expect(promptCaret(', commit regularly.')).toBe(0)
+    expect(promptCaret(' and run make test.')).toBe(0)
+    expect(promptCaret('/goal ')).toBe(6)
+  })
+
+  it('accepts one line up to 1000 bytes', () => {
+    expect(defaultPromptError(DEFAULT_PROMPT)).toBe('')
+    expect(defaultPromptError('')).toBe('')
+    expect(defaultPromptError('a\nb')).toBe('The default prompt must be one line.')
+    expect(defaultPromptError('x'.repeat(1001))).toContain('1000')
   })
 })

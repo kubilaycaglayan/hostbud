@@ -27,6 +27,7 @@ type memStore struct {
 	capacity  *int
 	maxActive int
 	parallel  *bool
+	prompt    *store.DefaultPrompt
 	// V2-M3: the notices queued with a transition that went through.
 	outbox []store.Notice
 }
@@ -141,6 +142,25 @@ func (m *memStore) SetParallelQueuesSetting(_ context.Context, _ string, on bool
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.parallel = &on
+	return nil
+}
+
+func (m *memStore) QueueDefaultPrompt(context.Context, string) (store.DefaultPrompt, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.prompt == nil {
+		return store.DefaultPrompt{Text: store.DefaultQueuePrompt}, nil
+	}
+	return *m.prompt, nil
+}
+
+func (m *memStore) SetQueueDefaultPrompt(_ context.Context, _ string, p store.DefaultPrompt) error {
+	if strings.ContainsAny(p.Text, "\r\n") || len(p.Text) > store.MaxDefaultPromptLen {
+		return store.ErrDefaultPrompt
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.prompt = &p
 	return nil
 }
 

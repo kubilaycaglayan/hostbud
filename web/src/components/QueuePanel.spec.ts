@@ -184,6 +184,44 @@ describe('QueuePanel', () => {
     expect(calls).toEqual([{ method: 'POST', path: '/api/queues/q1/items', body: { agent: 'claude', flags: '--dangerously-skip-permissions', instruction: '/goal ship M2', executionMode: 'agent' } }])
   })
 
+  it('starts the new item with the opted-in default prompt, caret before it, and follows a changed setting', async () => {
+    const calls = stubFetch(() => ({ status: 201, body: {} }))
+    useQueuesStore().defaultPrompt = { enabled: true, text: ', commit regularly.' }
+    await mountPanel(queue([], 'idle'))
+    const instruction = () => $$('[data-testid="new-item-instruction"]')[0] as HTMLTextAreaElement
+    expect(instruction().value).toBe(', commit regularly.')
+    vi.stubGlobal('requestAnimationFrame', (fn: FrameRequestCallback) => { fn(0); return 0 })
+    instruction().setSelectionRange(19, 19)
+    instruction().dispatchEvent(new FocusEvent('focus'))
+    expect(instruction().selectionStart).toBe(0)
+    // The prefill alone is not an instruction.
+    button('Add item')!.click()
+    await flushPromises()
+    expect(calls).toHaveLength(0)
+    expect(document.body.textContent).toContain('Add your instruction to the default prompt.')
+    instruction().value = 'fix the login bug, commit regularly.'
+    instruction().dispatchEvent(new Event('input'))
+    button('Add item')!.click()
+    await flushPromises()
+    expect(calls[0].body).toMatchObject({ instruction: 'fix the login bug, commit regularly.' })
+    // The next item starts with the prompt again; untouched, it follows the setting.
+    expect(instruction().value).toBe(', commit regularly.')
+    useQueuesStore().defaultPrompt = { enabled: false, text: ', commit regularly.' }
+    await nextTick()
+    expect(instruction().value).toBe('')
+  })
+
+  it('keeps a typed instruction when the default prompt setting changes', async () => {
+    useQueuesStore().defaultPrompt = { enabled: true, text: ', commit regularly.' }
+    await mountPanel(queue([], 'idle'))
+    const instruction = $$('[data-testid="new-item-instruction"]')[0] as HTMLTextAreaElement
+    instruction.value = 'ship it, commit regularly.'
+    instruction.dispatchEvent(new Event('input'))
+    useQueuesStore().defaultPrompt = { enabled: true, text: ' and push.' }
+    await nextTick()
+    expect(instruction.value).toBe('ship it, commit regularly.')
+  })
+
   it('defaults permission modes by agent, exposes a quick toggle, and preserves custom flags', async () => {
     const calls = stubFetch(() => ({ status: 201, body: {} }))
     await mountPanel(queue([], 'idle'))

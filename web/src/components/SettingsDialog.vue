@@ -6,6 +6,7 @@ import type { SupervisorStatus } from '@/api/types'
 import ConfirmDialog from './ConfirmDialog.vue'
 import FormError from './FormError.vue'
 import NotificationSettings from './NotificationSettings.vue'
+import QueuePromptSettings from './QueuePromptSettings.vue'
 import { capacityError, capacityValue } from '@/lib/queue'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useQueuesStore } from '@/stores/queues'
@@ -139,6 +140,7 @@ async function persist() {
               </button>
             </div>
           </form>
+          <QueuePromptSettings :machine="props.machine" class="mt-4 border-t border-border pt-4" />
         </div>
       </DialogContent>
     </DialogPortal>

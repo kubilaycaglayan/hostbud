@@ -287,6 +287,10 @@ const v2m1ItemCols = "id, queue_id, machine_id, position, agent, flags, instruct
 const v2m1RunCols = "id, item_id, machine_id, session_name, agent_session_id, transcript_path, transcript_offset, client_version, token_hash, status, started_at, ended_at, last_signal_at, detail"
 const v2m5QueueCols = "id, machine_id, project_id, name, status, created_at, updated_at, waiting_since"
 
+// v2m2CapacityCols are machine_capacity's columns through V2-M2; later
+// migrations add columns (0019: the queue default prompt) with defaults.
+const v2m2CapacityCols = "machine_id, max_concurrent_runs, parallel_queues, updated_at"
+
 func columnChecksums(t *testing.T, db *sql.DB, tables map[string]string) map[string]string {
 	t.Helper()
 	out := map[string]string{}

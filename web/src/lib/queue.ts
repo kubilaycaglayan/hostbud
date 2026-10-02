@@ -6,7 +6,26 @@ import type { Queue, QueueItem, QueueItemStatus, QueueStatus, RunStatus, VerifyS
 export const AGENTS = ['claude', 'codex'] as const
 export type Agent = (typeof AGENTS)[number]
 
-export const INSTRUCTION_PREFIX = ''
+/** The queue default prompt's text until the owner changes it (Settings). */
+export const DEFAULT_PROMPT = ', commit regularly.'
+
+/** A new item's instruction: the default prompt when the owner opted in. */
+export function initialInstruction(prompt: { enabled: boolean; text: string } | null | undefined): string {
+  return prompt?.enabled ? prompt.text : ''
+}
+
+/** Where the caret goes in a prefilled instruction: before a prompt that
+ * continues a sentence (", commit regularly."), after one that opens it. */
+export function promptCaret(text: string): number {
+  return /^[\s,.;:!?)]/.test(text) ? 0 : text.length
+}
+
+/** The default prompt's problem, or '' (the server checks the same). */
+export function defaultPromptError(text: string): string {
+  if (/[\r\n]/.test(text)) return 'The default prompt must be one line.'
+  if (new TextEncoder().encode(text).length > 1000) return 'Keep the default prompt under 1000 characters.'
+  return ''
+}
 
 /** The instruction's problem, or '' when it is a valid one-line prompt. */
 export function instructionError(instruction: string): string {

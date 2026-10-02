@@ -101,6 +101,7 @@ func TestIntegrationNotificationsMigrationKeepsV2M2Data(t *testing.T) {
 		tables[table] = "*"
 	}
 	tables["queues"] = v2m5QueueCols
+	tables["machine_capacity"] = v2m2CapacityCols
 	tables["queue_items"] = v2m1ItemCols
 	tables["runs"] = v2m1RunCols
 	before := columnChecksums(t, db, tables)
