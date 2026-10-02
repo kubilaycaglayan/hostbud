@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { DropdownMenuContent, DropdownMenuItem, DropdownMenuPortal, DropdownMenuRoot, DropdownMenuTrigger } from 'reka-ui'
 import { ChevronRight, Folder, MoreHorizontal, Pin, Plus } from 'lucide-vue-next'
-import type { Project } from '@/api/types'
+import type { Project, Session } from '@/api/types'
 import type { SplitDir } from '@/lib/layout'
 import type { ProjectGroup, ProjectSection } from '@/lib/tree'
 import { computed } from 'vue'
@@ -43,6 +43,7 @@ const emit = defineEmits<{
   split: [name: string, dir: SplitDir]
   hideSession: [name: string, hidden: boolean]
   kill: [name: string]
+  createQueue: [session: Session]
   createSessionInProject: [project: Project]
   reorderSessions: [group: string, names: string[]]
 }>()
@@ -158,6 +159,7 @@ function onMenuCloseAutoFocus(event: Event) {
         @edit-cancel="emit('cancelRename', 'session:' + $event)"
         @hide="(name, hidden) => emit('hideSession', name, hidden)"
         @kill="emit('kill', $event)"
+        @create-queue="emit('createQueue', $event)"
         @reorder="emit('reorderSessions', props.group.project.id, $event)"
       />
     </div>

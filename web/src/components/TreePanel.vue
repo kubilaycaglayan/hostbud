@@ -2,7 +2,7 @@
 import SessionTree from './SessionTree.vue'
 import { ref } from 'vue'
 import type { SplitDir } from '@/lib/layout'
-import type { Project } from '@/api/types'
+import type { Project, Session } from '@/api/types'
 
 defineProps<{ selected?: string; connectionState: string }>()
 const emit = defineEmits<{
@@ -10,6 +10,7 @@ const emit = defineEmits<{
   selectWindow: [name: string, window: string, pane?: string]
   split: [name: string, dir: SplitDir]
   kill: [name: string]
+  createQueue: [session: Session]
   removeProject: [id: string]
   killProjectSessions: [id: string]
   sessionInProject: [project: Project]
@@ -37,6 +38,7 @@ defineExpose({
         @select-window="(name, window, pane) => emit('selectWindow', name, window, pane)"
         @split="(name, dir) => emit('split', name, dir)"
         @kill="emit('kill', $event)"
+        @create-queue="emit('createQueue', $event)"
         @remove-project="emit('removeProject', $event)"
         @kill-project-sessions="emit('killProjectSessions', $event)"
         @session-in-project="emit('sessionInProject', $event)"

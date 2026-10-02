@@ -50,6 +50,7 @@ const highlighted = ref<string | null>(null)
 watch(() => store.focus, async (f) => {
   if (!f) return
   select(f.queueId)
+  addingQueue.value = false
   highlighted.value = f.itemId
   if (!store.loaded) await store.load()
   await nextTick()

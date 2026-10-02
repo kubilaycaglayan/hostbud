@@ -272,6 +272,25 @@ for (const profile of ['desktop', 'phone'] as const) {
       expect(after).toMatchObject({ id: original.id, path: original.path, name: original.name })
     })
 
+    test('Session row Create queue opens the Queue panel on a new queue', async ({ page, target, request }) => {
+      const path = `/home/dev/${uniqueName('e2e-session-queue')}`
+      const name = uniqueName('e2e-queue-from')
+      await target.run(`mkdir -p ${shq(path)}`)
+      await createTargetSession(target, name, path)
+      await page.goto('/')
+      const row = page.getByRole('treeitem', { name, exact: true })
+      await expect(row).toBeVisible()
+      await row.getByRole('button', { name: `More actions for ${name}` }).click()
+      await page.getByRole('menuitem', { name: 'Create queue' }).click()
+      const panel = page.getByRole('dialog', { name: 'Queue' })
+      await expect(panel).toBeVisible()
+      await expect(panel.getByRole('form', { name: 'Create queue' })).toHaveCount(0)
+      // The new queue is the shown one, on the session's directory.
+      await expect(panel.getByText(path, { exact: true })).toBeVisible()
+      const { queues } = await (await request.get('/api/queues')).json() as { queues: { projectPath: string }[] }
+      expect(queues.filter((q) => q.projectPath === path)).toHaveLength(1)
+    })
+
     test('(T5) Distinct project tree entries', async ({ page, target, request }) => {
       const root = `/home/dev/${uniqueName('e2e-distinct')}`
       const displayName = uniqueName('same-display-name')

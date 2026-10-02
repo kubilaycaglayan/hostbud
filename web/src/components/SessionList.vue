@@ -36,6 +36,8 @@ const emit = defineEmits<{
   kill: [name: string]
   reorder: [names: string[]]
   saveAsProject: [session: Session]
+  /** A new queue on the session's directory, shown in the Queue panel. */
+  createQueue: [session: Session]
   selectWindow: [name: string, window: string, pane?: string]
   editCancel: [name: string]
   hide: [name: string, hidden: boolean]
@@ -332,6 +334,12 @@ const sortableSessions = computed({
                 @select="emit('saveAsProject', s)"
               >
                 Save as project
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                :class="item"
+                @select="emit('createQueue', s)"
+              >
+                Create queue
               </DropdownMenuItem>
               <DropdownMenuItem
                 :class="[item, 'text-danger']"

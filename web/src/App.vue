@@ -18,7 +18,7 @@ import HostBanner from '@/components/HostBanner.vue'
 import TabView from '@/components/TabView.vue'
 import IconButton from '@/components/IconButton.vue'
 import { NEW_SESSION_FOR_SPLIT } from '@/components/layoutKeys'
-import type { Project } from '@/api/types'
+import type { Project, Session } from '@/api/types'
 import { panelOrder, panesOf, type SplitDir } from '@/lib/layout'
 import { useMediaQuery, COMPACT_QUERY } from '@/lib/media'
 import ToastRegion from '@/components/ToastRegion.vue'
@@ -41,7 +41,7 @@ import { isEditableTarget, isTerminalTarget, isTreeTarget, matchingShortcut, sho
 import { projectTree, sessionKey, visibleOpenSessionNames, windowKey } from '@/lib/tree'
 import { dispatchPaletteAction } from '@/lib/paletteActions'
 import { buildPaletteItems } from '@/lib/palette'
-import { projectsApi } from '@/api/client'
+import { projectsApi, queuesApi } from '@/api/client'
 import { directorySessionName, uniqueSessionName } from '@/lib/names'
 
 const app = useAppStore()
@@ -276,6 +276,23 @@ function openQueueItem(queueId: string, itemId: string | null) {
   queueOpen.value = true
 }
 notifications.onOpen(openQueueItem)
+
+/** A session row's "Create queue": a new queue on the session's directory
+ * (saved as a project first if it isn't one), shown in the Queue panel. */
+async function createQueueFor(session: Session) {
+  try {
+    const project = projects.byPath(session.path) ?? await projectsApi.create(MACHINE, session.path, '')
+    projects.remember(project)
+    tree.sync()
+    if (!queuesStore.loaded) await queuesStore.load()
+    // Unnamed: "Milestones" for the first queue, else the server's "Queue n".
+    const queue = await queuesApi.create(project.id, queuesStore.queues.length ? '' : 'Milestones')
+    queuesStore.put(queue)
+    openQueueItem(queue.id, null)
+  } catch (error) {
+    toasts.error("Couldn't create the queue", error)
+  }
+}
 
 /** A push notification opened the app on an item's path: show the item and
  * go back to the app's own URL. */
@@ -762,10 +779,10 @@ onUnmounted(() => {
         aria-label="Sessions"
         class="flex w-64 shrink-0 flex-col border-r border-border bg-surface p-2"
       >
-        <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @remove-project="askRemoveProject" @kill-project-sessions="askKillProjectSessions" @session-in-project="newProjectSession" @create-session-in-project="createProjectSession" @create="newSession" />
+        <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @remove-project="askRemoveProject" @kill-project-sessions="askKillProjectSessions" @session-in-project="newProjectSession" @create-session-in-project="createProjectSession" @create-queue="createQueueFor" @create="newSession" />
       </aside>
       <main v-if="compact && !hasTabs" id="sessions-sidebar" class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-surface p-2">
-        <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @remove-project="askRemoveProject" @kill-project-sessions="askKillProjectSessions" @session-in-project="newProjectSession" @create-session-in-project="createProjectSession" @create="newSession" />
+        <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @remove-project="askRemoveProject" @kill-project-sessions="askKillProjectSessions" @session-in-project="newProjectSession" @create-session-in-project="createProjectSession" @create-queue="createQueueFor" @create="newSession" />
       </main>
       <main
         v-else
@@ -819,7 +836,7 @@ onUnmounted(() => {
             </DialogClose>
           </div>
           <DialogDescription class="sr-only">Choose a project or session.</DialogDescription>
-          <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @remove-project="askRemoveProject" @kill-project-sessions="askKillProjectSessions" @session-in-project="newProjectSession" @create-session-in-project="createProjectSession" @create="newSession" />
+          <TreePanel :ref="setTreePanel" :selected="selectedSession" :connection-state="live.state" @select="openSession" @select-window="openAtWindow" @split="openInSplit" @kill="askKill" @remove-project="askRemoveProject" @kill-project-sessions="askKillProjectSessions" @session-in-project="newProjectSession" @create-session-in-project="createProjectSession" @create-queue="createQueueFor" @create="newSession" />
         </DialogContent>
       </DialogPortal>
     </DialogRoot>

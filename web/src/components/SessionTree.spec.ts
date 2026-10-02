@@ -867,4 +867,15 @@ describe('SessionTree', () => {
     expect(useTreeStore().groups.groups.some((group) => group.project.id === 'saved' && group.sessions.some((s) => s.name === 'loose'))).toBe(true)
     expect(useSessionsStore().list('host').find((s) => s.name === 'loose')).toEqual(before)
   })
+
+  it('emits createQueue with the session from its actions menu', async () => {
+    const wrapper = mount(SessionTree)
+    await wrapper.get('button[aria-label="More actions for loose"]').trigger('keydown', { key: 'Enter' })
+    await new Promise((r) => setTimeout(r))
+    const action = [...document.body.querySelectorAll<HTMLElement>('[role=menuitem]')].find((x) => x.textContent?.trim() === 'Create queue')
+    expect(action).toBeDefined()
+    action!.click()
+    await flushPromises()
+    expect(wrapper.emitted('createQueue')?.[0]?.[0]).toMatchObject({ name: 'loose', path: '/outside' })
+  })
 })
