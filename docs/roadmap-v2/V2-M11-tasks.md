@@ -11,7 +11,7 @@ Goal: a queue can loop its items instead of finishing, and stops starting new pa
 | T3 Docs, acceptance, verification and deploy | Done: `make lint test`, E2E type-check, `make gitleaks`, deploy and health check passed |
 | T4 Safe Docker cleanup | Done: skipped because hostbud toolbox containers and warm test targets were active |
 | T5 Queue default prompt (follow-up) | Implemented; U and I pass; E written and type-checked, browser run pending on demand |
-| T6 Queue panel viewport sizing (follow-up) | In progress |
+| T6 Queue panel viewport sizing (follow-up) | Done: `make lint test`, E2E type-check, `make gitleaks`, deploy and health check passed |
 
 ## Tasks
 
