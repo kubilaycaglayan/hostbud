@@ -1,10 +1,19 @@
-# Keep the build context small and free of secrets/state.
-*
-!go.mod
-!go.sum
-!cmd/
-!internal/
-!web/
-web/node_modules/
-web/dist/
+# Exclude local state and generated artifacts. The previous root-wide
+# allowlist silently dropped nested application sources from Docker builds.
+.git
+.git/**
+.env
+.env.*
+data
+data/**
+backups
+backups/**
+web/node_modules
+web/node_modules/**
+web/dist
+web/dist/**
+test/e2e/node_modules
+test/e2e/node_modules/**
+test/e2e/results
+test/e2e/results/**
 **/*_test.go

@@ -10,6 +10,7 @@ import type { QueueItem, QueueItemHistory } from '@/api/types'
 import ConfirmDialog from './ConfirmDialog.vue'
 import DurationPicker from './DurationPicker.vue'
 import FormError from './FormError.vue'
+import AgentMark from './AgentMark.vue'
 import { AGENTS, type Agent, completedSessions, DEFAULT_LOOP_RUNTIME_SECONDS, elapsedText, flagsError, loopRuntimeError, loopRuntimeText, initialInstruction, instructionError, itemActions, itemLive, moveQueued, progressCount, promptCaret, queueControls, queueRunning, statusLabel, tokensText, verifyCommandError, verifyLine } from '@/lib/queue'
 import { useQueuesStore } from '@/stores/queues'
 import { useProjectsStore } from '@/stores/projects'
@@ -503,7 +504,7 @@ const badge: Record<QueueItem['status'], string> = {
       <DialogOverlay class="fixed inset-0 z-40 bg-overlay" />
       <DialogContent
         class="fixed z-40 flex flex-col overflow-hidden border border-border bg-surface text-fg"
-        :class="props.compact ? 'inset-0 h-dvh w-full pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]' : 'left-1/2 top-1/2 max-h-[min(48rem,calc(100dvh-1rem))] w-[min(52rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded'"
+        :class="props.compact ? 'inset-0 h-dvh w-full pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]' : 'left-1/2 top-1/2 h-fit max-h-[calc(100dvh-1rem)] w-[min(52rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded'"
       >
         <div class="flex items-start justify-between gap-2 border-b border-border px-3 py-2">
           <div class="min-w-0">
@@ -805,9 +806,12 @@ const badge: Record<QueueItem['status'], string> = {
                   </template>
                   <template v-if="!gatesOnly && edit.executionMode === 'agent'">
                   <label class="block">Agent
-                    <select v-model="editPermissionFlag" autocomplete="off" class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 text-base">
+                    <span class="mt-1 flex min-h-11 items-center gap-2 rounded border border-border bg-bg px-3">
+                    <AgentMark :agent="edit.agent" />
+                    <select v-model="editPermissionFlag" autocomplete="off" class="min-h-11 min-w-0 flex-1 bg-transparent text-base">
                       <option v-for="a in AGENTS" :key="a" :value="a">{{ a }}</option>
                     </select>
+                    </span>
                   </label>
                   <label class="block">Flags
                     <input v-model="edit.flags" autocomplete="off" autocapitalize="off" dir="ltr" spellcheck="false" class="mt-1 min-h-11 w-full min-w-0 rounded border border-border bg-bg px-3 text-left font-mono text-base">
@@ -848,7 +852,7 @@ const badge: Record<QueueItem['status'], string> = {
                       <p class="break-words font-mono text-sm">{{ item.executionMode === 'session' ? item.command : item.instruction }}</p>
                       <p class="mt-1 break-words text-sm text-muted">
                         <template v-if="item.executionMode === 'session'">Command in <span class="font-mono">{{ item.targetSession }}</span></template>
-                        <template v-else>{{ item.agent }}<template v-if="item.flags"> · <span class="font-mono">{{ item.flags }}</span></template>
+                        <template v-else><span class="inline-flex items-center gap-1.5"><AgentMark :agent="item.agent" />{{ item.agent }}</span><template v-if="item.flags"> · <span class="font-mono">{{ item.flags }}</span></template>
                           <template v-if="item.run?.sessionName"> · session <span class="font-mono">{{ item.run.sessionName }}</span></template>
                         </template>
                       </p>
@@ -932,9 +936,12 @@ const badge: Record<QueueItem['status'], string> = {
               <template v-else>
               <div class="flex flex-wrap gap-2">
                 <label class="block min-w-32">Agent
-                  <select v-model="draftPermissionFlag" autocomplete="off" class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 text-base">
+                  <span class="mt-1 flex min-h-11 items-center gap-2 rounded border border-border bg-bg px-3">
+                  <AgentMark :agent="draft.agent" />
+                  <select v-model="draftPermissionFlag" autocomplete="off" class="min-h-11 min-w-0 flex-1 bg-transparent text-base">
                     <option v-for="a in AGENTS" :key="a" :value="a">{{ a }}</option>
                   </select>
+                  </span>
                 </label>
                 <label class="block min-w-0 flex-1">Flags
                   <input v-model="draft.flags" autocomplete="off" autocapitalize="off" dir="ltr" spellcheck="false" :placeholder="permissionFlag[draft.agent]" class="mt-1 min-h-11 w-full min-w-0 rounded border border-border bg-bg px-3 text-left font-mono text-base">

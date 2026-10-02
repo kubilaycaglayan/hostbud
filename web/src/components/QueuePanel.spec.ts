@@ -67,6 +67,8 @@ describe('QueuePanel', () => {
     expect(text).toContain('Needs attention · no signal (stale)')
     expect(text).toContain('no signal from the agent for 2h0m0s')
     expect(text).toContain('app-q1')
+    expect($$('[data-queue-item="i1"] [data-agent-mark][data-agent="claude"]')).toHaveLength(1)
+    expect($$('[data-queue-item="i2"] [data-agent-mark][data-agent="codex"]')).toHaveLength(1)
     for (const label of ['Retry item 1', 'Skip item 1', 'Mark item 1 done', 'Open session of item 1', 'Edit item 2', 'Delete item 2']) {
       expect(button(label), label).toBeTruthy()
     }
@@ -235,6 +237,7 @@ describe('QueuePanel', () => {
     agent.value = 'codex'
     agent.dispatchEvent(new Event('change'))
     await flushPromises()
+    expect(form.querySelector('[data-agent-mark]')?.getAttribute('data-agent')).toBe('codex')
     expect(flags.value).toBe('--yolo')
     expect(form.textContent).toContain('YOLO mode')
 

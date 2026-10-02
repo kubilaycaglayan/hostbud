@@ -22,11 +22,14 @@ test.beforeEach(async ({ target }) => {
 const panel = (page: Page) => page.getByRole('dialog', { name: 'Queue' })
 const row = (page: Page, condition: string) => panel(page).getByRole('listitem', { name: new RegExp(`: /goal ${condition}$`) })
 
-async function addItem(page: Page, condition: string) {
+async function addItem(page: Page, condition: string, agent: 'claude' | 'codex' = 'claude') {
   const form = panel(page).getByRole('form', { name: 'Add item' })
+  await form.getByLabel('Agent').selectOption(agent)
+  await expect(form.locator('[data-agent-mark]')).toHaveAttribute('data-agent', agent)
   await form.getByLabel('Instruction').fill(`/goal ${condition}`)
   await form.getByRole('button', { name: 'Add item' }).click()
   await expect(row(page, condition)).toBeVisible()
+  await expect(row(page, condition).locator('[data-agent-mark]')).toHaveAttribute('data-agent', agent)
 }
 
 async function setCap(page: Page, value: string) {
@@ -68,7 +71,7 @@ test.describe('Queues panel (desktop, parallel queues)', { tag: '@desktop' }, ()
     // The selected tab is filled with the accent color; the other isn't.
     await expect(panel(page).getByRole('button', { name: 'Show queue Beta' })).toHaveClass(/queue-tab-selected/)
     await expect(panel(page).getByRole('button', { name: 'Show queue Alpha' })).not.toHaveClass(/queue-tab-selected/)
-    await addItem(page, 'e2e multi beta')
+    await addItem(page, 'e2e multi beta', 'codex')
     await expect(panel(page).getByRole('navigation', { name: 'Queues' }).getByRole('button')).toHaveCount(2)
 
     // Cap 1 in Settings, then start both: Beta waits for a free slot.
@@ -116,11 +119,14 @@ test.describe('Queues panel (desktop, parallel queues)', { tag: '@desktop' }, ()
     await expect(panel(page).getByRole('navigation', { name: 'Queues' }).getByRole('button')).toHaveCount(1)
     await expect(panel(page).getByRole('button', { name: 'Show queue Beta docs' })).toHaveAttribute('aria-current', 'true')
 
-    // Long queues use the available viewport and scroll inside the panel.
-    for (let i = 0; i < 8; i++) await addItem(page, `viewport item ${i}`)
+    // The dialog grows with the queue before reaching the viewport limit.
     await page.setViewportSize({ width: 1024, height: 500 })
+    const initialBox = await panel(page).boundingBox()
+    expect(initialBox).not.toBeNull()
+    for (let i = 0; i < 8; i++) await addItem(page, `viewport item ${i}`)
     const dialogBox = await panel(page).boundingBox()
     expect(dialogBox).not.toBeNull()
+    expect(dialogBox!.height).toBeGreaterThan(initialBox!.height + 80)
     expect(dialogBox!.height).toBeLessThanOrEqual(484)
     const content = panel(page).getByTestId('queue-panel-content')
     await expect.poll(() => content.evaluate((node) => node.scrollHeight > node.clientHeight)).toBe(true)

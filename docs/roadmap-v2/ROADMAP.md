@@ -6,6 +6,12 @@ This roadmap replaces the *v2 — Orchestration* section of the v1 ROADMAP (V2.1
 
 ---
 
+## V2-M12 — Agent marks in queue items
+
+**Goal.** Make each agent-backed queue item identifiable at a glance by showing its Claude Code or Codex mark in the agent picker and queue list. Breakdown: [V2-M12-tasks.md](V2-M12-tasks.md).
+
+---
+
 ## V2-M11 — Looping queues with a runtime limit
 
 **Goal.** A queue can loop: when its last item ends, it runs all its items again instead of finishing. It stops starting new passes once a configurable runtime since Start (default 5 h) has passed. Opt-in per queue, off by default. Breakdown: [V2-M11-tasks.md](V2-M11-tasks.md); design: v2 §3 decision 13.
