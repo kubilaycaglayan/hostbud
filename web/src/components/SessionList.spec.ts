@@ -92,13 +92,12 @@ describe('SessionList', () => {
     expect(prefix.element.nextElementSibling?.hasAttribute('data-session-row')).toBe(true)
   })
 
-  it('shows the pane title as a muted second line in the tree, and nothing without one', () => {
+  it('shows only the session name in the tree, without a pane-title second line', () => {
     setActivePinia(createPinia())
-    const w = mount(SessionList, { props: { sessions: [{ ...s('titled'), title: '✳ deploy the changes and commit them' }, s('plain')], treeView: true } })
-    const [titled, plain] = w.findAll('li')
-    expect(titled.get('[data-session-subtitle]').text()).toBe('deploy the changes and commit them')
-    expect(titled.get('[data-session-subtitle]').classes()).toEqual(expect.arrayContaining(['basis-full', 'truncate', 'text-muted']))
-    expect(plain.find('[data-session-subtitle]').exists()).toBe(false)
+    const w = mount(SessionList, { props: { sessions: [{ ...s('titled'), title: '✳ deploy the changes and commit them' }], treeView: true } })
+    const titled = w.get('li')
+    expect(titled.find('[data-session-subtitle]').exists()).toBe(false)
+    expect(titled.text()).not.toContain('deploy the changes')
     expect(titled.attributes('aria-label')).toBe('titled')
   })
 

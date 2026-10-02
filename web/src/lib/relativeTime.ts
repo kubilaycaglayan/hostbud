@@ -12,13 +12,6 @@ export function relativeTime(iso: string, now: number): string {
   return `${Math.floor(hours / 24)}d`
 }
 
-/** A pane title as a one-line subtitle: drops the leading spinner or status
- * glyphs agents put in front of the task (tmux prints non-ASCII as '_' in a
- * non-UTF-8 ssh session, so those are dropped too). */
-export function sessionSubtitle(title: string | undefined): string {
-  return (title ?? '').replace(/^[^\p{L}\p{N}]+/u, '').trim()
-}
-
 const now = ref(Date.now())
 let users = 0
 let timer: ReturnType<typeof setInterval> | undefined

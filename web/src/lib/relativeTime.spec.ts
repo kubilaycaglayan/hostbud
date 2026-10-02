@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { relativeTime, sessionSubtitle } from './relativeTime'
+import { relativeTime } from './relativeTime'
 
 describe('relativeTime', () => {
   const now = Date.parse('2026-09-28T12:00:00Z')
@@ -20,13 +20,3 @@ describe('relativeTime', () => {
   })
 })
 
-describe('sessionSubtitle', () => {
-  it('drops leading agent glyphs', () => {
-    expect(sessionSubtitle('✳ deploy the changes')).toBe('deploy the changes')
-    expect(sessionSubtitle('⠐ indexing ~/docs')).toBe('indexing ~/docs')
-    expect(sessionSubtitle('_ tmux probe shell')).toBe('tmux probe shell')
-    expect(sessionSubtitle('rg -n "x"')).toBe('rg -n "x"')
-    expect(sessionSubtitle(undefined)).toBe('')
-    expect(sessionSubtitle('✳ ')).toBe('')
-  })
-})

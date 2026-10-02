@@ -11,7 +11,6 @@ import { useWindowsStore } from '@/stores/windows'
 import { describeError } from '@/stores/toasts'
 import InlineRename from './InlineRename.vue'
 import AgentMark from './AgentMark.vue'
-import { sessionSubtitle } from '@/lib/relativeTime'
 
 const props = defineProps<{
   sessions: Session[]
@@ -362,12 +361,6 @@ const sortableSessions = computed({
           ⠿
         </button>
       </div>
-      <span
-        v-if="props.treeView && sessionSubtitle(s.title)"
-        data-session-subtitle
-        :title="sessionSubtitle(s.title)"
-        class="basis-full truncate pb-0.5 pl-3 text-xs text-muted"
-      >{{ sessionSubtitle(s.title) }}</span>
       <ul v-if="canExpand(s) && isExpanded(sessionKey('host', s.name))" role="group" class="ml-2 basis-[calc(100%-0.5rem)] border-l border-border py-0 pl-1.5">
         <li v-if="windowsFor(s.name)?.status === 'loading' || windowsFor(s.name)?.status === 'idle'" role="treeitem" :aria-level="(props.level ?? 1) + 1" aria-disabled="true" tabindex="-1" class="touch-target min-h-8 px-2 py-1 text-sm text-muted">
           <span class="animate-spin" aria-hidden="true">◌</span> Loading windows…

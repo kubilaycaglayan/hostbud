@@ -276,7 +276,7 @@ for (const mode of ['collapse', 'hierarchy'] as const) {
   })
 }
 
-test('Session rows show pane titles without activity ages or attachment dots', async ({ page, ui, target }) => {
+test('Session rows show only the name, without pane titles, activity ages or attachment dots', async ({ page, ui, target }) => {
   await account(ui)
   const titled = uniqueName('tree-titled')
   const plain = uniqueName('tree-plain')
@@ -285,8 +285,9 @@ test('Session rows show pane titles without activity ages or attachment dots', a
   await target.run(`tmux select-pane -t ${shq('=' + titled + ':')} -T ${shq('✳ deploy the changes and commit them')}`)
   await target.run(`tmux select-pane -t ${shq('=' + plain + ':')} -T "$(hostname)"`)
   await page.reload()
-  await expect(ui.treeItem(titled).locator('[data-session-subtitle]')).toHaveText('deploy the changes and commit them')
-  await expect(ui.treeItem(plain).locator('[data-session-subtitle]')).toHaveCount(0)
+  await expect(ui.treeItem(titled)).toBeVisible()
+  await expect(ui.treeItem(titled)).not.toContainText('deploy the changes')
+  await expect(page.locator('[data-session-subtitle]')).toHaveCount(0)
   await expect(page.locator('[data-session-age], [data-session-dot]')).toHaveCount(0)
   await ui.openTerminal(titled)
   await ui.showList() // the compact tree drawer closes on open
