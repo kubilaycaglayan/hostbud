@@ -214,7 +214,7 @@ T8 verification: native reader checked at 390px in Chromium and WebKit (358px co
   - U: T32 `control-sizing.test.mjs` covers the shared CSS sizing contract; T32 component assertions cover touch targets on terminal search and queue parallel toggle labels.
   - I: n/a: shared CSS and label markup only; no server behavior.
   - E: T32 *Native choice controls stay compact on touch screens* in `notifications.phone.spec.ts` checks actual WebKit checkbox boxes and label targets.
-  - Status: U written; E written and type-check pending; browser run remains on demand.
+  - Status: U passes (`control-sizing.test.mjs`, `TerminalSearch.spec.ts`, `QueuePanel.spec.ts`); E is written and type-checks (`notifications.phone.spec.ts`); browser run remains on demand.
 
 ## Terminal resizing across browser windows
 
