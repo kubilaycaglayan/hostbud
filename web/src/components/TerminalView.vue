@@ -107,6 +107,15 @@ const sessions = useSessionsStore()
 const tree = useTreeStore()
 const splitTargets = computed(() => sessions.list(props.machine).map((x) => x.name))
 const currentSession = computed(() => sessions.list(props.machine).find((x) => x.name === props.session))
+const codexUsage = computed(() => currentSession.value?.codexUsage)
+const tokenNumber = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 })
+const tokenDetail = computed(() => {
+  const usage = codexUsage.value
+  if (!usage) return ''
+  const number = (n: number) => n.toLocaleString('en-US')
+  const limit = usage.contextWindow ? ` of ${number(usage.contextWindow)}` : ''
+  return `Codex: ${number(usage.contextTokens)}${limit} context tokens; ${number(usage.totalTokens)} total tokens consumed (includes cached input). Last reported by Codex.`
+})
 const sessionDirectory = computed(() => currentSession.value?.path ?? '')
 const sessionDirectoryName = computed(() => sessionDirectory.value.split('/').filter(Boolean).at(-1) ?? '/')
 const sessionSectionColor = computed(() => {
@@ -637,6 +646,9 @@ defineExpose({ refit, reconnect, showKeyboard })
         :title="sessionDirectory"
         class="min-w-0 max-w-[40%] shrink truncate text-xs font-medium"
       >{{ sessionDirectoryName }}</span>
+      <span v-if="codexUsage" data-codex-usage :title="tokenDetail" :aria-label="tokenDetail" class="shrink-0 whitespace-nowrap text-xs tabular-nums">
+        {{ tokenNumber.format(codexUsage.contextTokens) }} ctx · {{ tokenNumber.format(codexUsage.totalTokens) }} used
+      </span>
       <!-- Narrow screens show one pane of a split at a time. -->
       <button
         v-if="props.narrow && props.paneCount > 1"

@@ -172,6 +172,10 @@ T8 full-screen apps: while a pane is on the alternate screen (vim, Claude Code, 
 T10 (open): on an iPhone 13 Pro PWA, choose a known photo from Photos and compare its original library SHA-256/size with the uploaded target file. The app submits the selected `File` unchanged. WebKit fixed its earlier unconditional HEIC-to-JPEG conversion for file inputs (WebKit bug 267277), and Safari 17 added HEIC support, but this does not prove which file representation the iPhone Photos picker supplies for a specific library item or iCloud state. Verify the actual selected item against its original.
 T10 (open): on macOS, copy an image from Preview or Finder and Cmd-V in the terminal; confirm it appears in the active repo and text-only Cmd-V still pastes into the terminal. Clipboard image exposure can vary by browser and source application.
 
+T28 (open): verify live counts on a real Codex conversation after deployment. The optional hooks are already configured on this host with this checkout’s handler; no user config changes are needed. Browser suite run remains open/on demand.
+
+T28 verification (2026-10-02): hook, Go unit/integration and focused terminal component tests pass; E2E type-check passes; rendered header inspected at 320px, 390px and desktop width with no horizontal overflow. `make lint test` is blocked only by two existing unrelated web failures in `CommandPalette.spec.ts` and `SessionList.spec.ts` (687/689 web tests passed).
+
 T8 verification: native reader checked at 390px in Chromium and WebKit (358px content width and scroll width; full text selection; 6,220px vertical history). Capture integration passed. Full Go suite encountered the existing `TestIntegrationSlowTerminalClientDropped` timeout on two runs; tracked separately from the reader fix.
 
 ## Colored project sections
@@ -227,6 +231,13 @@ T8 verification: native reader checked at 390px in Chromium and WebKit (358px co
   - I: n/a: these are frontend presentation changes.
   - E: T25 *Project names use the row width and terminal header shows session context* (`tree.custom.spec.ts`, desktop and iPhone 13 Pro) checks project action reveal/phone visibility and terminal icon/session/directory order, section-colored header, and matching name/directory foreground color.
   - Status: E written; type-check and browser execution pending on demand.
+
+## Codex token usage in the terminal header
+
+- [x] The active Codex pane shows its last reported context tokens and cumulative tokens consumed in the session window header. Exact counts and context limit are available accessibly. Values update through session events, survive browser reload, hide for an active shell or unknown usage, and distinguish zero from unknown. Only validated numeric metadata leaves the hook; transcript content is not stored or exposed.
+  - U: T28 `test-agent-status-hook.py`, `tmux_test.go`, `inventory_test.go`, `TerminalView.spec.ts`: bounded parsing, count semantics, malformed/partial data, compaction, new sessions, zero/unknown, events and rendering.
+  - I: T28 `TestIntegrationCodexUsageFromHookInActivePane`: actual hook → tmux → SSH inventory, including active-pane isolation.
+  - E: T28 *Codex header shows context and consumed tokens and follows the active pane* (`codex-usage.spec.ts`), desktop and iPhone 13 Pro; written, execution pending on demand.
 
 ## Web focus mode (T29)
 

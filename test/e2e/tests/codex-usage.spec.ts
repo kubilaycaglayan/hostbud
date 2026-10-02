@@ -1,0 +1,37 @@
+import { expect, test } from '../helpers/fixtures.ts'
+import { shq, uniqueName } from '../helpers/target.ts'
+
+// M8 T28: metadata travels through the real inventory/API/events and header.
+// Transcript parsing and the hook-to-tmux path also run in integration tests.
+test('Codex header shows context and consumed tokens and follows the active pane', async ({ page, ui, target }) => {
+  const name = uniqueName('e2e-codex-usage')
+  await target.run('mkdir -p /home/dev/.hostbud-test-bin && ln -sf /bin/sleep /home/dev/.hostbud-test-bin/coy')
+  await target.tmux('new-session', '-d', '-s', name, '-c', '/home/dev', '/home/dev/.hostbud-test-bin/coy 120')
+  try {
+    await ui.open()
+    await ui.openTerminal(name)
+    const header = page.getByRole('region', { name: `Terminal: ${name}`, exact: true }).locator('[data-terminal-header]')
+    const usage = header.locator('[data-codex-usage]')
+    await expect(usage).toHaveCount(0)
+    await target.tmux('set-option', '-p', '-t', `=${name}:.0`, '@hostbud_codex_usage', '12000,345678,200000')
+    await expect(usage).toHaveText('12K ctx · 345.7K used')
+    await expect(usage).toHaveAttribute('aria-label', /12,000 of 200,000 context tokens; 345,678 total tokens consumed/)
+    await target.tmux('set-option', '-p', '-t', `=${name}:.0`, '@hostbud_codex_usage', '2000,360000,200000')
+    await expect(usage).toHaveText('2K ctx · 360K used')
+    await page.reload()
+    await expect(usage).toHaveText('2K ctx · 360K used')
+    await target.tmux('split-window', '-t', `=${name}:`)
+    await expect(usage).toHaveCount(0)
+    await target.tmux('select-pane', '-t', `=${name}:.0`)
+    await expect(usage).toHaveText('2K ctx · 360K used')
+    await target.tmux('set-option', '-p', '-t', `=${name}:.0`, '@hostbud_codex_usage', '')
+    await expect(usage).toHaveCount(0)
+    // Zero is a reported value, distinct from unavailable.
+    await target.tmux('set-option', '-p', '-t', `=${name}:.0`, '@hostbud_codex_usage', '0,0,0')
+    await expect(usage).toHaveText('0 ctx · 0 used')
+    const bounds = await header.boundingBox()
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(page.viewportSize()!.width)
+  } finally {
+    await target.exec(`tmux kill-session -t ${shq('=' + name)} 2>/dev/null || true`)
+  }
+})

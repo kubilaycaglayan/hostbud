@@ -57,7 +57,7 @@ class StatusMappingTests(unittest.TestCase):
     @patch.object(HOOK.subprocess, "run")
     def test_report_uses_only_fixed_status_and_valid_pane_target(self, run):
         HOOK.report("codex", {"hook_event_name": "UserPromptSubmit"}, "%42")
-        run.assert_called_once_with(
+        run.assert_any_call(
             ["tmux", "set-option", "-p", "-q", "-t", "%42", "@hostbud_agent_status", "working"],
             check=False,
             stdin=HOOK.subprocess.DEVNULL,
@@ -68,6 +68,66 @@ class StatusMappingTests(unittest.TestCase):
         run.reset_mock()
         HOOK.report("codex", {"hook_event_name": "UserPromptSubmit"}, "; kill-server")
         run.assert_not_called()
+
+
+class CodexUsageTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        self.path = self.root / "sessions" / "rollout.jsonl"
+        self.path.parent.mkdir()
+        env = patch.dict(os.environ, {"CODEX_HOME": str(self.root)})
+        env.start()
+        self.addCleanup(env.stop)
+
+    def record(self, current=12000, total=345678, window=200000):
+        return json.dumps({"type": "event_msg", "payload": {"type": "token_count", "info": {
+            "last_token_usage": {"total_tokens": current, "cached_input_tokens": 100},
+            "total_token_usage": {"total_tokens": total, "reasoning_output_tokens": 50},
+            "model_context_window": window,
+        }}}) + "\n"
+
+    def read(self, text):
+        self.path.write_text(text)
+        return HOOK.codex_usage({"transcript_path": str(self.path)})
+
+    def test_latest_usage_ignores_partial_records_and_does_not_double_count(self):
+        self.assertEqual(self.read(self.record() + self.record(14000, 360000) + '{"type":'), "14000,360000,200000")
+        self.assertEqual(self.read(self.record(0, 0, None)), "0,0,0")
+        self.assertEqual(self.read(self.record(2000, 360000)), "2000,360000,200000")  # compacted context
+        self.assertEqual(self.read(self.record() + '{"type":"event_msg","payload":{"type":"token_count","info":null}}\n'), "12000,345678,200000")
+
+    def test_only_structured_bounded_safe_counts_are_accepted(self):
+        for invalid in (-1, True, 1.5, "100", 2**53):
+            self.assertEqual(self.read(self.record(invalid)), "")
+        self.assertEqual(self.read('null\n[]\n' + json.dumps({"type": "response_item", "text": self.record()}) + "\n"), "")
+        self.assertEqual(self.read(self.record() + "x" * 1048576), "")
+        self.assertEqual(self.read("x" * 1048576 + "\n" + self.record()), "12000,345678,200000")
+
+    def test_missing_external_symlink_and_fifo_paths_are_ignored(self):
+        self.assertEqual(HOOK.codex_usage({}), "")
+        outside = self.root / "outside.jsonl"
+        outside.write_text(self.record())
+        self.assertEqual(HOOK.codex_usage({"transcript_path": str(outside)}), "")
+        self.path.symlink_to(outside)
+        self.assertEqual(HOOK.codex_usage({"transcript_path": str(self.path)}), "")
+        self.path.unlink()
+        os.mkfifo(self.path)
+        self.assertEqual(HOOK.codex_usage({"transcript_path": str(self.path)}), "")
+
+    @patch.object(HOOK.subprocess, "run")
+    def test_hooks_publish_counts_and_clear_unknown_new_sessions(self, run):
+        self.read(self.record())
+        HOOK.report("codex", {"hook_event_name": "Stop", "transcript_path": str(self.path)}, "%1")
+        self.assertEqual(run.call_args_list[0].args[0][-2:], ["@hostbud_codex_usage", "12000,345678,200000"])
+        run.reset_mock()
+        HOOK.report("codex", {"hook_event_name": "SessionStart"}, "%1")
+        self.assertEqual(run.call_args_list[0].args[0][-2:], ["@hostbud_codex_usage", ""])
+        run.reset_mock()
+        HOOK.report("codex", {"hook_event_name": "SessionStart", "source": "compact", "transcript_path": str(self.path)}, "%1")
+        self.assertEqual(len(run.call_args_list), 1)
+        self.assertEqual(run.call_args.args[0][-2:], ["@hostbud_codex_usage", "12000,345678,200000"])
 
 
 class DaemonPaneLookupTests(unittest.TestCase):

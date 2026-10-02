@@ -244,6 +244,25 @@ describe('TerminalView', () => {
     w.unmount()
   })
 
+  it('shows live Codex context and consumed tokens, including zero, and hides unavailable usage', async () => {
+    const store = useSessionsStore()
+    store.$patch({ byMachine: { host: [{ id: '$1', name: 'acc-a', path: '/home/dev', attached: 0, windows: 1, created: '', activity: '' }] } })
+    const w = await mountTerm()
+    expect(w.find('[data-codex-usage]').exists()).toBe(false)
+    const session = store.byMachine.host![0]!
+    session.codexUsage = { contextTokens: 12000, totalTokens: 345678, contextWindow: 200000 }
+    await w.vm.$nextTick()
+    expect(w.get('[data-codex-usage]').text()).toBe('12K ctx · 345.7K used')
+    expect(w.get('[data-codex-usage]').attributes('aria-label')).toContain('12,000 of 200,000 context tokens; 345,678 total tokens consumed')
+    session.codexUsage = { contextTokens: 0, totalTokens: 0, contextWindow: 0 }
+    await w.vm.$nextTick()
+    expect(w.get('[data-codex-usage]').text()).toBe('0 ctx · 0 used')
+    delete session.codexUsage
+    await w.vm.$nextTick()
+    expect(w.find('[data-codex-usage]').exists()).toBe(false)
+    w.unmount()
+  })
+
   it('updates a mounted xterm palette without reconnecting', async () => {
     const w = await mountTerm()
     const terminal = h.terms[0]

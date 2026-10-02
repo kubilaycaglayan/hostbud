@@ -502,3 +502,17 @@ func TestNewSessionScript(t *testing.T) {
 		t.Errorf("tmux 3.1: %v", err)
 	}
 }
+
+func TestCodexUsageMetadata(t *testing.T) {
+	for _, raw := range []string{"0,0,0", "12000,345678,200000"} {
+		got, err := ParsePaneMetadata("U\ta\t" + raw + "\nP\ta\t%1\tcodex\tworking\tcodex,\n")
+		if err != nil || got["a"].CodexUsage == nil {
+			t.Fatalf("usage %s: %+v %v", raw, got, err)
+		}
+	}
+	for _, raw := range []string{"", "1,2", "-1,2,3", "1,2,9007199254740992", "nan,2,3"} {
+		if got := parseCodexUsage(raw); got != nil {
+			t.Fatalf("accepted %q", raw)
+		}
+	}
+}

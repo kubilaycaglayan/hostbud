@@ -364,3 +364,40 @@ func TestIntegrationPollerTimeoutAndRecovery(t *testing.T) {
 		return ok && m.Status == inventory.StatusOK
 	})
 }
+
+func TestIntegrationCodexUsageFromHookInActivePane(t *testing.T) {
+	inv, _, c := run(t, testenv.SSHD)
+	script, err := os.ReadFile("../../scripts/agent-status-hook.py")
+	if err != nil {
+		t.Fatal(err)
+	}
+	testenv.Sh(t, c, "mkdir -p /home/dev/.codex/sessions")
+	testenv.Sh(t, c, "ln -sf /bin/sleep /home/dev/coy; tmux new-session -d -s hostbud-usage-it -c /home/dev '/home/dev/coy 120'")
+	t.Cleanup(func() {
+		testenv.Sh(t, c, "tmux kill-session -t =hostbud-usage-it 2>/dev/null; rm -f /home/dev/.codex/sessions/hostbud-usage-it.jsonl /home/dev/hostbud-usage-hook.py")
+	})
+	testenv.Sh(t, c, "printf %s "+sshx.Quote(string(script))+" > /home/dev/hostbud-usage-hook.py")
+	const record = `{"type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"total_tokens":12000},"total_token_usage":{"total_tokens":345678},"model_context_window":200000}}}` + "\n"
+	testenv.Sh(t, c, "printf %s "+sshx.Quote(record)+" > /home/dev/.codex/sessions/hostbud-usage-it.jsonl")
+	const event = `{"hook_event_name":"Stop","transcript_path":"/home/dev/.codex/sessions/hostbud-usage-it.jsonl"}`
+	testenv.Sh(t, c, "printf %s "+sshx.Quote(event)+` | TMUX_PANE=$(tmux display-message -p -t =hostbud-usage-it: '#{pane_id}') python3 /home/dev/hostbud-usage-hook.py codex`)
+	check := func(want *tmux.CodexUsage) {
+		t.Helper()
+		if err := inv.Refresh(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		_, sessions := inv.Snapshot()
+		got, ok := findSession(sessions, "hostbud-usage-it")
+		if !ok || (want == nil && got.CodexUsage != nil) || (want != nil && (got.CodexUsage == nil || *got.CodexUsage != *want)) {
+			t.Fatalf("usage = %+v, want %+v", got.CodexUsage, want)
+		}
+	}
+	check(&tmux.CodexUsage{ContextTokens: 12000, TotalTokens: 345678, ContextWindow: 200000})
+	// A second active shell pane must not inherit the first pane's counts.
+	testenv.Sh(t, c, "tmux split-window -t =hostbud-usage-it:")
+	check(nil)
+	testenv.Sh(t, c, "tmux select-pane -t =hostbud-usage-it:.0")
+	check(&tmux.CodexUsage{ContextTokens: 12000, TotalTokens: 345678, ContextWindow: 200000})
+	testenv.Sh(t, c, "tmux set-option -p -t =hostbud-usage-it:.0 @hostbud_codex_usage broken")
+	check(nil)
+}

@@ -330,6 +330,16 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 
 **E2E:** Update `test/e2e/tests/palette.spec.ts` with T26 *Command palette groups commands and navigates across columns with counts*; update tree hierarchy E2E assertions in desktop and phone specs to confirm project counts stay absent. Type-check only; browser execution remains on demand.
 
+## T28 — Codex token usage in the terminal header
+
+- Extend the optional Codex status hook to extract the latest structured token-count event from a bounded (1 MiB) transcript tail. Forward only current-context, cumulative-total and context-window counts via a pane option; clear unavailable counts, including on a new conversation. Process compaction updates without changing lifecycle status.
+- Publish the active window/pane's Codex counts through session metadata and events. Hide counts on a shell or unavailable metadata; never add totals across unrelated panes or equate cumulative consumption with context size.
+- Show compact context/consumed counts in the terminal header, with precise accessible text and tooltip. Counts include cached input and are last reported values, not billing or quota estimates.
+
+**Tests:** U: T28 `test-agent-status-hook.py` covers bounded parsing, malformed/partial records, compaction, zero and clearing, regular files and path restrictions; `tmux_test.go` covers validated numeric metadata; `inventory_test.go` covers events and snapshot isolation; `TerminalView.spec.ts` covers live display and unknown/zero. I: T28 `TestIntegrationCodexUsageFromHookInActivePane` runs the real hook against `test/sshd`, reads its tmux option through inventory and checks active-pane isolation. E: T28 *Codex header shows context and consumed tokens and follows the active pane* covers updates, reload, pane switches and zero/unknown on desktop/phone.
+
+**E2E:** Added `test/e2e/tests/codex-usage.spec.ts`; type-check passes. Browser execution remains on demand.
+
 ## T29 — Web focus mode toggle
 
 - Add a Focus mode toggle (`aria-pressed`) to the signed-in app header. While it is on, the mouse leaving the browser viewport for 2 s displays an opaque, full-viewport overlay with “focus” centered (coming back sooner cancels it). The mouse re-entering the viewport hides the overlay immediately, as does clicking, tapping or Escape on it, and focus returns to the element focused before. The toggle stays on until the user turns it off. Keep this state local to the current page and do not alter sessions.

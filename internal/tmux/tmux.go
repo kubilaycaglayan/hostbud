@@ -45,17 +45,18 @@ func target(name string) string { return "=" + name }
 
 // Session is one line of list-sessions.
 type Session struct {
-	ID        string      `json:"id"`
-	Name      string      `json:"name"`
-	Path      string      `json:"path"`
-	Agents    []string    `json:"agents,omitempty"`
-	Status    AgentStatus `json:"status,omitempty"`
-	Title     string      `json:"title,omitempty"` // active pane's title, unless it is the default hostname
-	ProjectID string      `json:"projectId,omitempty"`
-	Attached  int         `json:"attached"` // number of attached clients
-	Windows   int         `json:"windows"`
-	Created   time.Time   `json:"created"`
-	Activity  time.Time   `json:"activity"`
+	ID         string      `json:"id"`
+	Name       string      `json:"name"`
+	Path       string      `json:"path"`
+	Agents     []string    `json:"agents,omitempty"`
+	Status     AgentStatus `json:"status,omitempty"`
+	CodexUsage *CodexUsage `json:"codexUsage,omitempty"`
+	Title      string      `json:"title,omitempty"` // active pane's title, unless it is the default hostname
+	ProjectID  string      `json:"projectId,omitempty"`
+	Attached   int         `json:"attached"` // number of attached clients
+	Windows    int         `json:"windows"`
+	Created    time.Time   `json:"created"`
+	Activity   time.Time   `json:"activity"`
 }
 
 // AgentStatus is the most urgent hook-reported agent state in a session.
@@ -126,7 +127,7 @@ func ListPaneCommands() []string {
 // The session's focused pane also reports its title (what Claude Code and
 // Codex set to the current task); tmux's default title, the hostname, is
 // blanked. The title is last so '|' in it stays inside the field.
-const paneMetadataScript = `tmux list-panes -a -F 'P|#{session_name}|#{pane_id}|#{pane_current_command}|#{@hostbud_agent_status}|#{pane_tty}|#{window_active}#{pane_active}|#{?#{||:#{==:#{pane_title},#{host}},#{==:#{pane_title},#{host_short}}},,#{pane_title}}' |
+const paneMetadataScript = `tmux list-panes -a -F 'P|#{session_name}|#{pane_id}|#{pane_current_command}|#{@hostbud_agent_status}|#{pane_tty}|#{window_active}#{pane_active}|#{@hostbud_codex_usage}|#{?#{||:#{==:#{pane_title},#{host}},#{==:#{pane_title},#{host_short}}},,#{pane_title}}' |
 awk -F '|' '
 BEGIN {
 	# One ps for every pane: a ps per pane cost ~25ms each on every poll.
@@ -142,19 +143,28 @@ $1 == "P" {
 	sub(/^\/dev\//, "", tty)
 	agents = ((tty in codex) ? "codex" : "") "," ((tty in claude) ? "claude" : "")
 	title = ""
-	if (NF >= 8) {
+	if (NF >= 9) {
 		title = $0
-		for (i = 1; i <= 7; i++) title = substr(title, index(title, "|") + 1)
+		for (i = 1; i <= 8; i++) title = substr(title, index(title, "|") + 1)
 		gsub(/[\t\r\n]/, "", title)
 	}
+	if ($7 == "11" && ((tty in codex) || tolower($4) ~ /^(codex|coy|codex-.*)$/) && $8 ~ /^[0-9]+,[0-9]+,[0-9]+$/) printf "U\t%s\t%s\n", $2, $8
 	if ($7 == "11" && title != "") printf "P\t%s\t%s\t%s\t%s\t%s\t%s\n", $2, $3, $4, $5, agents, title
 	else printf "P\t%s\t%s\t%s\t%s\t%s\n", $2, $3, $4, $5, agents
 }'`
 
+// CodexUsage contains the last reported context and cumulative token counts.
+type CodexUsage struct {
+	ContextTokens int64 `json:"contextTokens"`
+	TotalTokens   int64 `json:"totalTokens"`
+	ContextWindow int64 `json:"contextWindow"`
+}
+
 type PaneMetadata struct {
-	Agents []string
-	Status AgentStatus
-	Title  string
+	CodexUsage *CodexUsage
+	Agents     []string
+	Status     AgentStatus
+	Title      string
 }
 
 // maxTitleRunes bounds a pane title; the tree shows one truncated line.
@@ -173,8 +183,16 @@ func ParsePaneMetadata(out string) (map[string]PaneMetadata, error) {
 		title  string
 	}
 	found := make(map[string]aggregate)
+	usage := make(map[string]*CodexUsage)
 	for line := range strings.SplitSeq(strings.TrimRight(out, "\n"), "\n") {
 		if line == "" {
+			continue
+		}
+		if strings.HasPrefix(line, "U\t") {
+			f := strings.Split(line, "\t")
+			if len(f) == 3 {
+				usage[f[1]] = parseCodexUsage(f[2])
+			}
 			continue
 		}
 		f := strings.SplitN(line, "\t", 7)
@@ -244,9 +262,25 @@ func ParsePaneMetadata(out string) (map[string]PaneMetadata, error) {
 				list = append(list, agent)
 			}
 		}
-		result[name] = PaneMetadata{Agents: list, Status: meta.status, Title: meta.title}
+		result[name] = PaneMetadata{Agents: list, Status: meta.status, Title: meta.title, CodexUsage: usage[name]}
 	}
 	return result, nil
+}
+
+func parseCodexUsage(raw string) *CodexUsage {
+	fields := strings.Split(raw, ",")
+	if len(fields) != 3 {
+		return nil
+	}
+	var n [3]int64
+	for i, field := range fields {
+		value, err := strconv.ParseInt(field, 10, 64)
+		if err != nil || value < 0 || value > 9_007_199_254_740_991 {
+			return nil
+		}
+		n[i] = value
+	}
+	return &CodexUsage{ContextTokens: n[0], TotalTokens: n[1], ContextWindow: n[2]}
 }
 
 // paneTitle trims a title to printable text of bounded length.

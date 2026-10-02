@@ -10,6 +10,7 @@ import json
 import os
 import re
 import subprocess
+import stat
 import sys
 from typing import Optional
 
@@ -163,24 +164,85 @@ def find_pane(provider: str, event: dict, status: str, path: Optional[str] = Non
         return only
 
 
+def codex_usage(event: dict) -> str:
+    """Read only the final 1 MiB of the hook's rollout; return numeric metadata.
+
+    Never copy transcript text into tmux, logs or hostbud. Missing/unknown usage
+    is empty, not zero. Cache and reasoning subtotals are already in total_tokens.
+    """
+    path = event.get("transcript_path")
+    if not isinstance(path, str) or not os.path.isabs(path):
+        return ""
+    root = os.path.realpath(os.environ.get("CODEX_HOME") or os.path.expanduser("~/.codex"))
+    path = os.path.realpath(path)
+    if not any(path.startswith(os.path.join(root, folder) + os.sep) for folder in ("sessions", "archived_sessions")):
+        return ""
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+        with os.fdopen(fd, "rb") as f:
+            info = os.fstat(f.fileno())
+            if not stat.S_ISREG(info.st_mode):
+                return ""
+            start = max(0, info.st_size - 1_048_576)
+            f.seek(start)
+            data = f.read(1_048_576)
+        lines = data.split(b"\n")[:-1]  # ignore an in-progress final record
+        if start:
+            lines = lines[1:]  # first record may have been cut in half
+        for line in reversed(lines):
+            try:
+                record = json.loads(line)
+            except (ValueError, UnicodeDecodeError):
+                continue
+            if not isinstance(record, dict) or record.get("type") != "event_msg":
+                continue
+            payload = record.get("payload")
+            if not isinstance(payload, dict) or payload.get("type") != "token_count":
+                continue
+            usage = payload.get("info")
+            if not isinstance(usage, dict):
+                continue  # rate-limit-only events have null info
+            current = usage.get("last_token_usage")
+            total = usage.get("total_token_usage")
+            if not isinstance(current, dict) or not isinstance(total, dict):
+                return ""
+            values = [current.get("total_tokens"), total.get("total_tokens"), usage.get("model_context_window") or 0]
+            if not all(type(n) is int and 0 <= n <= 9_007_199_254_740_991 for n in values):
+                return ""
+            return ",".join(str(n) for n in values)
+    except (OSError, ValueError):
+        pass
+    return ""
+
+
 def report(provider: str, event: dict, pane: Optional[str] = None) -> None:
     """Set a bounded tmux user option; hook failures never affect the client."""
     if provider not in {"codex", "claude"}:
         return
     status = status_for(provider, event)
-    if status is None:
+    if status is None and not (provider == "codex" and event.get("source") == "compact"):
         return
     if not pane and not os.environ.get("TMUX_PANE"):
         try:
-            pane = find_pane(provider, event, status)
+            pane = find_pane(provider, event, status or "working")
         except Exception:  # noqa: BLE001 - a hook must never disturb the client
             return
     pane = pane or os.environ.get("TMUX_PANE", "")
     if not PANE_RE.fullmatch(pane):
         return
+    options = []
+    if provider == "codex":
+        options.append(("@hostbud_codex_usage", codex_usage(event)))
+    if status is not None:
+        options.append(("@hostbud_agent_status", status))
+    for name, value in options:
+        set_pane_option(pane, name, value)
+
+
+def set_pane_option(pane: str, name: str, value: str) -> None:
     try:
         subprocess.run(
-            ["tmux", "set-option", "-p", "-q", "-t", pane, "@hostbud_agent_status", status],
+            ["tmux", "set-option", "-p", "-q", "-t", pane, name, value],
             check=False,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
