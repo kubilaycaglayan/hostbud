@@ -78,15 +78,42 @@ const killingProject = ref<Project | null>(null) // the project whose sessions t
 const killingProjectSessions = ref<string[]>([])
 const shortcutsOpen = ref(false)
 const paletteOpen = ref(false)
+// Focus mode (T29): the header toggle arms it; while armed, the mouse leaving
+// the viewport for FOCUS_DELAY_MS shows the overlay, and the mouse coming back
+// (or a click/Escape on the overlay) hides it and disarms the toggle.
+const FOCUS_DELAY_MS = 2000
+const focusArmed = ref(false)
 const focusMode = ref(false)
 const focusOverlay = ref<HTMLButtonElement | null>(null)
+let focusTimer: ReturnType<typeof setTimeout> | null = null
 let focusReturnTarget: HTMLElement | null = null
-function openFocusMode(event: MouseEvent) {
-  focusReturnTarget = event.currentTarget as HTMLElement
+function clearFocusTimer() {
+  if (focusTimer) clearTimeout(focusTimer)
+  focusTimer = null
+}
+function toggleFocusArmed() {
+  if (focusArmed.value) disarmFocusMode()
+  else focusArmed.value = true
+}
+function onViewportMouseLeave() {
+  if (!focusArmed.value || focusMode.value || focusTimer) return
+  focusTimer = setTimeout(showFocusOverlay, FOCUS_DELAY_MS)
+}
+function onViewportMouseEnter() {
+  if (focusMode.value) disarmFocusMode()
+  else clearFocusTimer()
+}
+function showFocusOverlay() {
+  focusTimer = null
+  if (!focusArmed.value) return
+  focusReturnTarget = document.activeElement instanceof HTMLElement ? document.activeElement : null
   focusMode.value = true
   void nextTick(() => focusOverlay.value?.focus())
 }
-function closeFocusMode() {
+function disarmFocusMode() {
+  clearFocusTimer()
+  focusArmed.value = false
+  if (!focusMode.value) return
   focusMode.value = false
   void nextTick(() => focusReturnTarget?.focus())
 }
@@ -584,7 +611,7 @@ watch(
   () => auth.status,
   async (s) => {
     if (s !== 'authenticated') {
-      focusMode.value = false
+      disarmFocusMode()
       recentSessionNames.value = []
       theme.signOut()
       live.stop()
@@ -640,12 +667,17 @@ onMounted(() => {
   window.addEventListener('pagehide', flushState)
   document.addEventListener('visibilitychange', onVisibilityChange)
   window.addEventListener('keydown', onShortcutKeydown, true)
+  document.documentElement.addEventListener('mouseleave', onViewportMouseLeave)
+  document.documentElement.addEventListener('mouseenter', onViewportMouseEnter)
 })
 onUnmounted(() => {
   navigator.serviceWorker?.removeEventListener('message', onWorkerMessage)
   window.removeEventListener('pagehide', flushState)
   document.removeEventListener('visibilitychange', onVisibilityChange)
   window.removeEventListener('keydown', onShortcutKeydown, true)
+  document.documentElement.removeEventListener('mouseleave', onViewportMouseLeave)
+  document.documentElement.removeEventListener('mouseenter', onViewportMouseEnter)
+  clearFocusTimer()
   live.stop()
 })
 </script>
@@ -691,7 +723,7 @@ onUnmounted(() => {
       <IconButton label="Queue" :emphasized="hasRunningQueue" @click="openQueue">
         <ListOrdered :size="18" aria-hidden="true" />
       </IconButton>
-      <IconButton label="Focus mode" @click="openFocusMode">
+      <IconButton label="Focus mode" :emphasized="focusArmed" :aria-pressed="focusArmed" @click="toggleFocusArmed">
         <EyeOff :size="18" aria-hidden="true" />
       </IconButton>
       <IconButton
@@ -835,8 +867,8 @@ onUnmounted(() => {
       type="button"
       aria-label="Exit focus mode"
       class="focus-screen fixed inset-0 z-[100] flex h-[100dvh] w-screen items-center justify-center focus-visible:outline-2 focus-visible:outline-offset-[-4px]"
-      @click="closeFocusMode"
-      @keydown.esc.stop.prevent="closeFocusMode"
+      @click="disarmFocusMode"
+      @keydown.esc.stop.prevent="disarmFocusMode"
     >
       <span class="text-2xl font-medium tracking-[0.3em]">focus</span>
     </button>

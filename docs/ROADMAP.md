@@ -171,7 +171,7 @@ Tasks: [roadmap/M8-tasks.md](roadmap/M8-tasks.md) · Checklist: [roadmap/M8-acce
 
 ---
 
-**Accept (T29):** a header button opens a web-only full-viewport focus overlay with “focus” centered; a click or tap closes it, with keyboard dismissal and focus restoration.
+**Accept (T29):** a header toggle arms a web-only full-viewport focus overlay with “focus” centered, shown 2 s after the mouse leaves the viewport; the mouse returning (or a click, tap or Escape) closes it and turns the toggle off, restoring focus.
 
 ## Later (not scheduled)
 - **Multi-machine:** discover hosts from `~/.ssh/config`, custom connections, activate/deactivate, host-key trust UI (keyscan → confirm fingerprint), Machine level in the tree.

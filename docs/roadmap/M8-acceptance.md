@@ -230,8 +230,8 @@ T8 verification: native reader checked at 390px in Chromium and WebKit (358px co
 
 ## Web focus mode (T29)
 
-- [ ] A signed-in user can open Focus mode from the top bar. An opaque overlay covers the entire browser viewport with only “focus” centered; clicking or tapping it closes it. Escape closes it for keyboard users and focus returns to the trigger. The mode is local to the page and leaves sessions running.
-  - U: T29 `App.spec.ts` checks the header trigger, full-viewport overlay classes, visible word, click dismissal and focus restoration.
+- [ ] A signed-in user can turn on the Focus mode toggle in the top bar. While on, the mouse leaving the viewport for 2 s shows an opaque overlay covering the entire browser viewport with only “focus” centered; returning sooner cancels it. The mouse re-entering hides the overlay immediately and turns the toggle off; clicking, tapping or Escape on the overlay does the same, and focus returns to where it was. The mode is local to the page and leaves sessions running.
+  - U: T29 `App.spec.ts` checks the toggle state, no overlay while off, the 2 s delay and its cancellation, full-viewport overlay classes, visible word, mouse-return/click/Escape dismissal that disarms, and focus restoration.
   - I: n/a: browser-only presentation state; no HTTP, WebSocket or host action.
-  - E: T29 *Focus mode covers the web app and closes on a tap* (`header.actions.spec.ts`, desktop and iPhone 13 Pro) checks opening, viewport bounds, centered word, click/tap dismissal and focus.
+  - E: T29 *Focus mode toggle shows the overlay after the mouse leaves and hides it on return* (`header.actions.spec.ts`, desktop and iPhone 13 Pro) checks the toggle, the delayed overlay after a dispatched viewport leave, viewport bounds, centered word, dismissal on return and on click/tap, and focus.
   - Status: U passes; E written and type-checked, browser run pending on demand.

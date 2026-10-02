@@ -81,16 +81,26 @@ test('(T1) Header actions and compact controls', async ({ page, ui, isMobile }) 
   await expect(files).toBeHidden()
 })
 
-test('(T29) Focus mode covers the web app and closes on a tap', async ({ page, ui, isMobile }) => {
+test('(T29) Focus mode toggle shows the overlay after the mouse leaves and hides it on return', async ({ page, ui, isMobile }) => {
   await ui.open()
   const trigger = page.getByRole('banner').getByRole('button', { name: 'Focus mode' })
   await expect(trigger).toBeVisible()
+  await expect(trigger).toHaveAttribute('aria-pressed', 'false')
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width)
   if (isMobile) await trigger.tap()
   else await trigger.click()
+  await expect(trigger).toHaveAttribute('aria-pressed', 'true')
 
   const overlay = page.getByRole('button', { name: 'Exit focus mode' })
-  await expect(overlay).toBeVisible()
+  await expect(overlay).toHaveCount(0)
+  // Playwright can't move a real pointer outside the page, so the viewport
+  // boundary events are dispatched on the root element.
+  const pointer = (type: 'mouseleave' | 'mouseenter') =>
+    page.evaluate((t) => document.documentElement.dispatchEvent(new MouseEvent(t)), type)
+  await pointer('mouseleave')
+  await page.waitForTimeout(1000)
+  await expect(overlay).toHaveCount(0)
+  await expect(overlay).toBeVisible({ timeout: 3000 })
   await expect(overlay).toHaveText('focus')
   await expect(overlay).toBeFocused()
   const bounds = await box(overlay)
@@ -103,8 +113,21 @@ test('(T29) Focus mode covers the web app and closes on a tap', async ({ page, u
   expect(Math.abs(word.x + word.width / 2 - viewport.width / 2)).toBeLessThan(2)
   expect(Math.abs(word.y + word.height / 2 - viewport.height / 2)).toBeLessThan(2)
 
+  await pointer('mouseenter')
+  await expect(overlay).toHaveCount(0)
+  await expect(trigger).toHaveAttribute('aria-pressed', 'false')
+  await expect(trigger).toBeFocused()
+  await pointer('mouseleave')
+  await page.waitForTimeout(2500)
+  await expect(overlay).toHaveCount(0)
+
+  // A click or tap on the overlay also exits and disarms.
+  if (isMobile) await trigger.tap()
+  else await trigger.click()
+  await pointer('mouseleave')
+  await expect(overlay).toBeVisible({ timeout: 3000 })
   if (isMobile) await overlay.tap({ position: { x: 20, y: 20 } })
   else await overlay.click({ position: { x: 20, y: 20 } })
   await expect(overlay).toHaveCount(0)
-  await expect(trigger).toBeFocused()
+  await expect(trigger).toHaveAttribute('aria-pressed', 'false')
 })

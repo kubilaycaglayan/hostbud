@@ -1,5 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
-import { defineComponent, h } from 'vue'
+import { defineComponent, h, nextTick } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App.vue'
@@ -108,30 +108,80 @@ describe('App shell', () => {
     expect(wrapper.get('[role=status]').text()).toBe('Connecting…')
   })
 
-  it('opens a full-screen focus overlay and restores the trigger after closing', async () => {
+  it('arms focus mode and shows the overlay two seconds after the mouse leaves the viewport', async () => {
     signedIn()
     const wrapper = mount(App, { attachTo: document.body })
     await flushPromises()
-    const trigger = wrapper.get('header button[aria-label="Focus mode"]')
-    expect(wrapper.find('button[aria-label="Exit focus mode"]').exists()).toBe(false)
-    ;(trigger.element as HTMLButtonElement).focus()
-    await trigger.trigger('click')
-    await flushPromises()
-    const overlay = wrapper.get('button[aria-label="Exit focus mode"]')
-    expect(overlay.text()).toBe('focus')
-    expect(overlay.classes()).toContain('fixed')
-    expect(overlay.classes()).toContain('inset-0')
-    expect(overlay.classes()).toContain('z-[100]')
-    expect(document.activeElement).toBe(overlay.element)
-    await overlay.trigger('click')
-    await flushPromises()
-    expect(wrapper.find('button[aria-label="Exit focus mode"]').exists()).toBe(false)
-    expect(document.activeElement).toBe(trigger.element)
-    await trigger.trigger('click')
-    await wrapper.get('button[aria-label="Exit focus mode"]').trigger('keydown', { key: 'Escape' })
-    await flushPromises()
-    expect(wrapper.find('button[aria-label="Exit focus mode"]').exists()).toBe(false)
-    wrapper.unmount()
+    vi.useFakeTimers()
+    try {
+      const html = document.documentElement
+      const overlay = () => wrapper.find('button[aria-label="Exit focus mode"]')
+      const trigger = wrapper.get('header button[aria-label="Focus mode"]')
+      expect(trigger.attributes('aria-pressed')).toBe('false')
+
+      // Disarmed: leaving the viewport does nothing.
+      html.dispatchEvent(new MouseEvent('mouseleave'))
+      await vi.advanceTimersByTimeAsync(3000)
+      expect(overlay().exists()).toBe(false)
+
+      await trigger.trigger('click')
+      expect(trigger.attributes('aria-pressed')).toBe('true')
+      expect(overlay().exists()).toBe(false)
+
+      // Coming back before the delay cancels it and keeps the toggle on.
+      html.dispatchEvent(new MouseEvent('mouseleave'))
+      await vi.advanceTimersByTimeAsync(1500)
+      html.dispatchEvent(new MouseEvent('mouseenter'))
+      await vi.advanceTimersByTimeAsync(3000)
+      expect(overlay().exists()).toBe(false)
+      expect(trigger.attributes('aria-pressed')).toBe('true')
+
+      ;(trigger.element as HTMLButtonElement).focus()
+      html.dispatchEvent(new MouseEvent('mouseleave'))
+      await vi.advanceTimersByTimeAsync(1999)
+      expect(overlay().exists()).toBe(false)
+      await vi.advanceTimersByTimeAsync(1)
+      await nextTick()
+      expect(overlay().text()).toBe('focus')
+      expect(overlay().classes()).toEqual(expect.arrayContaining(['fixed', 'inset-0', 'z-[100]']))
+      expect(document.activeElement).toBe(overlay().element)
+
+      // The mouse returning hides it at once and turns the toggle off.
+      html.dispatchEvent(new MouseEvent('mouseenter'))
+      await nextTick()
+      await nextTick()
+      expect(overlay().exists()).toBe(false)
+      expect(trigger.attributes('aria-pressed')).toBe('false')
+      expect(document.activeElement).toBe(trigger.element)
+      html.dispatchEvent(new MouseEvent('mouseleave'))
+      await vi.advanceTimersByTimeAsync(3000)
+      expect(overlay().exists()).toBe(false)
+
+      // A click or Escape on the overlay also exits and disarms.
+      await trigger.trigger('click')
+      html.dispatchEvent(new MouseEvent('mouseleave'))
+      await vi.advanceTimersByTimeAsync(2000)
+      await nextTick()
+      await overlay().trigger('click')
+      expect(overlay().exists()).toBe(false)
+      expect(trigger.attributes('aria-pressed')).toBe('false')
+      await trigger.trigger('click')
+      html.dispatchEvent(new MouseEvent('mouseleave'))
+      await vi.advanceTimersByTimeAsync(2000)
+      await nextTick()
+      await overlay().trigger('keydown', { key: 'Escape' })
+      expect(overlay().exists()).toBe(false)
+
+      // Turning the toggle off cancels a pending overlay.
+      await trigger.trigger('click')
+      html.dispatchEvent(new MouseEvent('mouseleave'))
+      await trigger.trigger('click')
+      await vi.advanceTimersByTimeAsync(3000)
+      expect(overlay().exists()).toBe(false)
+    } finally {
+      vi.useRealTimers()
+      wrapper.unmount()
+    }
   })
 
   it('offers a Theme radio group in the account menu and saves the choice', async () => {
