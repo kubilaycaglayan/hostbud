@@ -81,6 +81,7 @@ const paletteOpen = ref(false)
 // Focus mode (T29): the header toggle arms it; while armed, the mouse leaving
 // the viewport for FOCUS_DELAY_MS shows the overlay, and the mouse coming back
 // (or a click/Escape on the overlay) hides it. Only the toggle disarms it.
+// Phones, touch devices and the installed PWA don't offer it and keep it off.
 const FOCUS_DELAY_MS = 2000
 const focusArmed = ref(false)
 const focusMode = ref(false)
@@ -92,11 +93,11 @@ function clearFocusTimer() {
   focusTimer = null
 }
 function toggleFocusArmed() {
-  if (focusArmed.value) disarmFocusMode()
+  if (focusArmed.value || !focusAvailable.value) disarmFocusMode()
   else focusArmed.value = true
 }
 function onViewportMouseLeave() {
-  if (!focusArmed.value || focusMode.value || focusTimer) return
+  if (!focusArmed.value || !focusAvailable.value || focusMode.value || focusTimer) return
   focusTimer = setTimeout(showFocusOverlay, FOCUS_DELAY_MS)
 }
 function onViewportMouseEnter() {
@@ -105,7 +106,7 @@ function onViewportMouseEnter() {
 }
 function showFocusOverlay() {
   focusTimer = null
-  if (!focusArmed.value) return
+  if (!focusArmed.value || !focusAvailable.value) return
   focusReturnTarget = document.activeElement instanceof HTMLElement ? document.activeElement : null
   focusMode.value = true
   void nextTick(() => focusOverlay.value?.focus())
@@ -606,6 +607,13 @@ function toggleLastSession() {
 }
 
 const compact = useMediaQuery(COMPACT_QUERY)
+const standaloneDisplay = useMediaQuery('(display-mode: standalone)')
+const focusAvailable = computed(
+  () => !compact.value && !coarsePointer.value && !standaloneDisplay.value && (navigator as Navigator & { standalone?: boolean }).standalone !== true,
+)
+watch(focusAvailable, (available) => {
+  if (!available) disarmFocusMode()
+})
 const hasTabs = computed(() => layout.loaded && layout.tabs.length > 0)
 // Keep terminal panel elements in their layout order so updating the active
 // layout never moves a mounted terminal in the DOM.
@@ -743,7 +751,7 @@ onUnmounted(() => {
       <IconButton label="Queue" :emphasized="hasRunningQueue" @click="openQueue">
         <ListOrdered :size="18" aria-hidden="true" />
       </IconButton>
-      <IconButton label="Focus mode" :emphasized="focusArmed" :aria-pressed="focusArmed" @click="toggleFocusArmed">
+      <IconButton v-if="focusAvailable" label="Focus mode" :emphasized="focusArmed" :aria-pressed="focusArmed" @click="toggleFocusArmed">
         <EyeOff :size="18" aria-hidden="true" />
       </IconButton>
       <IconButton
@@ -882,7 +890,7 @@ onUnmounted(() => {
       @select="selectPaletteItem"
     />
     <button
-      v-if="focusMode"
+      v-if="focusMode && focusAvailable"
       ref="focusOverlay"
       type="button"
       aria-label="Exit focus mode"

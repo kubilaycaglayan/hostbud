@@ -81,14 +81,13 @@ test('(T1) Header actions and compact controls', async ({ page, ui, isMobile }) 
   await expect(files).toBeHidden()
 })
 
-test('(T29) Focus mode toggle shows the overlay after the mouse leaves and hides it on return while staying on', async ({ page, ui, isMobile }) => {
+test('(T29) Focus mode toggle shows the overlay after the mouse leaves and hides it on return while staying on', { tag: '@desktop' }, async ({ page, ui }) => {
   await ui.open()
   const trigger = page.getByRole('banner').getByRole('button', { name: 'Focus mode' })
   await expect(trigger).toBeVisible()
   await expect(trigger).toHaveAttribute('aria-pressed', 'false')
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width)
-  if (isMobile) await trigger.tap()
-  else await trigger.click()
+  await trigger.click()
   await expect(trigger).toHaveAttribute('aria-pressed', 'true')
 
   const overlay = page.getByRole('button', { name: 'Exit focus mode' })
@@ -121,16 +120,25 @@ test('(T29) Focus mode toggle shows the overlay after the mouse leaves and hides
   // A click or tap on the overlay also hides it; the toggle stays on.
   await pointer('mouseleave')
   await expect(overlay).toBeVisible({ timeout: 3000 })
-  if (isMobile) await overlay.tap({ position: { x: 20, y: 20 } })
-  else await overlay.click({ position: { x: 20, y: 20 } })
+  await overlay.click({ position: { x: 20, y: 20 } })
   await expect(overlay).toHaveCount(0)
   await expect(trigger).toHaveAttribute('aria-pressed', 'true')
 
   // Only the toggle turns it off.
-  if (isMobile) await trigger.tap()
-  else await trigger.click()
+  await trigger.click()
   await expect(trigger).toHaveAttribute('aria-pressed', 'false')
   await pointer('mouseleave')
   await page.waitForTimeout(2500)
   await expect(overlay).toHaveCount(0)
+})
+
+test('(T29) Focus mode is not offered on phones or in the installed PWA and stays off there', async ({ page, ui, isMobile }) => {
+  // On desktop, an installed PWA reports the standalone display mode.
+  if (!isMobile) await page.addInitScript(() => Object.defineProperty(navigator, 'standalone', { configurable: true, value: true }))
+  await ui.open()
+  await expect(page.getByRole('banner').getByRole('button', { name: 'New session' })).toBeVisible()
+  await expect(page.getByRole('banner').getByRole('button', { name: 'Focus mode' })).toHaveCount(0)
+  await page.evaluate(() => document.documentElement.dispatchEvent(new MouseEvent('mouseleave')))
+  await page.waitForTimeout(2500)
+  await expect(page.getByRole('button', { name: 'Exit focus mode' })).toHaveCount(0)
 })

@@ -180,6 +180,49 @@ describe('App shell', () => {
     }
   })
 
+  it.each([
+    ['the installed PWA', '(display-mode: standalone)'],
+    ['a phone', '(max-width: 47.99rem), (pointer: coarse) and (max-height: 31.99rem)'],
+    ['a touch device', '(pointer: coarse)'],
+  ])('hides focus mode and keeps it off in %s', async (_, query) => {
+    const listeners = new Map<string, () => void>()
+    let matching = ''
+    vi.stubGlobal('matchMedia', vi.fn((media: string) => ({
+      media,
+      get matches() { return media === matching },
+      addEventListener: (_: string, cb: () => void) => listeners.set(media, cb),
+      removeEventListener: vi.fn(),
+    })))
+    signedIn()
+    const wrapper = mount(App, { attachTo: document.body })
+    await flushPromises()
+    vi.useFakeTimers()
+    try {
+      const html = document.documentElement
+      const overlay = () => wrapper.find('button[aria-label="Exit focus mode"]')
+      await wrapper.get('header button[aria-label="Focus mode"]').trigger('click')
+      expect(wrapper.get('header button[aria-label="Focus mode"]').attributes('aria-pressed')).toBe('true')
+
+      // Switching to the platform drops the toggle and turns the mode off.
+      matching = query
+      listeners.get(query)?.()
+      await nextTick()
+      expect(wrapper.find('header button[aria-label="Focus mode"]').exists()).toBe(false)
+      html.dispatchEvent(new MouseEvent('mouseleave'))
+      await vi.advanceTimersByTimeAsync(3000)
+      expect(overlay().exists()).toBe(false)
+
+      // Leaving the platform again keeps it off until the user turns it on.
+      matching = ''
+      listeners.get(query)?.()
+      await nextTick()
+      expect(wrapper.get('header button[aria-label="Focus mode"]').attributes('aria-pressed')).toBe('false')
+    } finally {
+      vi.useRealTimers()
+      wrapper.unmount()
+    }
+  })
+
   it('offers a Theme radio group in the account menu and saves the choice', async () => {
     const calls = signedIn()
     const wrapper = mount(App, { attachTo: document.body })
