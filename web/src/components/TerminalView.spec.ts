@@ -239,12 +239,14 @@ describe('TerminalView', () => {
     expect(directory.classes()).not.toContain('text-accent')
     expect(directory.text()).toBe('bright-work')
     expect(directory.attributes('title')).toBe('/home/dev/bright-work')
+    expect(w.get('[data-terminal-project]').text()).toBe('Bright work')
     expect(icon.element.nextElementSibling).toBe(name.element)
     expect(name.element.parentElement?.contains(directory.element)).toBe(true)
     w.unmount()
   })
 
   it('shows live Codex and Claude Code context and consumed tokens, including zero, and hides unavailable usage', async () => {
+    useProjectsStore().remember({ id: 'usage-project', machineId: 'host', path: '/home/dev', name: 'Usage project', sortOrder: 0, pinned: false, createdAt: '', updatedAt: '' })
     const store = useSessionsStore()
     store.$patch({ byMachine: { host: [{ id: '$1', name: 'acc-a', path: '/home/dev', attached: 0, windows: 1, created: '', activity: '' }] } })
     const w = await mountTerm()
@@ -253,7 +255,11 @@ describe('TerminalView', () => {
     session.agentUsage = { agent: 'codex', contextTokens: 12000, totalTokens: 345678, contextWindow: 200000 }
     await w.vm.$nextTick()
     expect(w.get('[data-agent-usage]').text()).toBe('12K ctx · 345.7K used')
+    expect(w.get('[data-agent-usage]').classes()).toContain('text-center')
+    expect(w.get('[data-terminal-project]').text()).toBe('Usage project')
+    expect(w.get('[data-terminal-project]').attributes('aria-label')).toBe('Project: Usage project')
     expect(w.get('[data-agent-usage]').attributes('aria-label')).toContain('12,000 of 200,000 context tokens; 345,678 total tokens consumed')
+    expect(w.get('[data-agent-usage]').element.compareDocumentPosition(w.get('[data-terminal-project]').element) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     session.agentUsage = { agent: 'claude', contextTokens: 74243, totalTokens: 417626, contextWindow: 0 }
     await w.vm.$nextTick()
     expect(w.get('[data-agent-usage]').text()).toBe('74.2K ctx · 417.6K used')

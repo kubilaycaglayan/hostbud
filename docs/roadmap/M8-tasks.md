@@ -37,6 +37,7 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 | T27 Restore terminal cursor focus on browser-tab return and page load | Implemented; U passes; E updated and type-checked, browser run pending on demand |
 | T29 Web focus mode toggle (mouse-leave overlay) | Implemented; U passes; E written and type-checked, browser run pending on demand |
 | T30 Claude Code token usage in the terminal header | Implemented; U and I pass; E written and type-checked, browser run pending on demand |
+| T31 Session header project and token alignment | Implemented; U written; E written and type-checked, browser run pending on demand |
 
 **Progress note (T2–T4, 2026-09-27):** Vitest (447 tests), eslint, `vue-tsc` and the e2e `tsc` passed; deployed to the host from a clean checkout of `f664bb8` (a pre-deploy `pg_dump` is in `backups/`), and the stack came up healthy. Still open for these tasks:
 - **E2E runs:** the scenarios *(T2) Compact tree*, *(T3) Compact file browser* and *(T3) No browser autocomplete outside login password* type-check but haven't run: e2e runs only on demand. The T2 commit also updated two M6 scenarios that expanded single-window sessions (*(T4) Inline rename a session*, *(T3) Window rows follow the real terminal*). T22 replaces the former M8 *(T4) Custom tab order* scenario.
@@ -357,6 +358,14 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 **Tests:** U: T30 `test-agent-status-hook.py` (`ClaudeUsageTests`) covers per-message dedupe, incremental reads with partial records, sidechain/invalid records, rewritten transcripts, path restrictions and hook publishing; `tmux_test.go` covers agent-tagged records; `TerminalView.spec.ts` covers the Claude label. I: T30 `TestIntegrationClaudeUsageFromHookInActivePane` runs the real hook against `test/sshd`. E: T30 *Claude Code header shows context and consumed tokens* (`codex-usage.spec.ts`).
 
 **E2E:** Added the T30 scenario to `test/e2e/tests/codex-usage.spec.ts`; type-check passes. Browser execution remains on demand.
+
+## T31 — Session header project and token alignment
+
+- Keep the active session name at the left of its title bar, center available agent token usage, and show its project name on the right. Retain the directory name and full-path tooltip; keep the project label accessible and compact on desktop and phone. Token usage remains hidden when unavailable.
+
+**Tests:** U: T31 `TerminalView.spec.ts` covers project lookup, left/name → centered usage → right/project ordering, accessible project labeling, and absent usage; I: n/a (presentation-only); E: T31 *Active session header aligns project and token usage* (`codex-usage.spec.ts`) checks the session name, centered token counts and project label on desktop and iPhone 13 Pro.
+
+**E2E:** Add T31 *Active session header aligns project and token usage* to `test/e2e/tests/codex-usage.spec.ts`; type-check only, run on demand.
 
 
 ## Done

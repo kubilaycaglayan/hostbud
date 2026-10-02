@@ -254,3 +254,11 @@ T8 verification: native reader checked at 390px in Chromium and WebKit (358px co
   - I: T30 `TestIntegrationClaudeUsageFromHookInActivePane`: actual hook → tmux → SSH inventory.
   - E: T30 *Claude Code header shows context and consumed tokens* (`codex-usage.spec.ts`), desktop and iPhone 13 Pro; written, execution pending on demand.
   - Status: U and I pass; E type-checked, browser run pending on demand. Owner (open): confirm live counts on a real Claude Code session after deployment.
+
+## Active session header alignment (T31)
+
+- [ ] The active session header keeps the session name on the left, centers available agent token usage, and shows the session's project name on the right. Directory context and its full-path tooltip remain available. Missing token usage stays hidden, and the project label has an accessible name.
+  - U: T31 `TerminalView.spec.ts` covers project matching, content ordering/alignment classes, accessible project label, and hidden unknown usage.
+  - I: n/a: presentation-only header change with no server behavior.
+  - E: T31 *Active session header aligns project and token usage* (`codex-usage.spec.ts`, desktop and iPhone 13 Pro) checks left/center/right placement and project context with live usage.
+  - Status: E written and type-checked; browser run pending on demand.

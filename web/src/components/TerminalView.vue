@@ -119,6 +119,7 @@ const tokenDetail = computed(() => {
 })
 const sessionDirectory = computed(() => currentSession.value?.path ?? '')
 const sessionDirectoryName = computed(() => sessionDirectory.value.split('/').filter(Boolean).at(-1) ?? '/')
+const sessionProject = computed(() => tree.groups.groups.find((group) => group.sessions.some((session) => session.name === props.session))?.project)
 const sessionSectionColor = computed(() => {
   const projectId = tree.groups.groups.find((group) => group.sessions.some((session) => session.name === props.session))?.project.id
   if (!projectId) return ''
@@ -640,34 +641,37 @@ defineExpose({ refit, reconnect, showKeyboard })
       <h2 data-terminal-session-name class="min-w-0 flex-1 truncate text-base font-bold tracking-tight">
         {{ props.session }}
       </h2>
-      <span
-        v-if="sessionDirectory"
-        data-terminal-directory
-        :aria-label="`Directory: ${sessionDirectory}`"
-        :title="sessionDirectory"
-        class="min-w-0 max-w-[40%] shrink truncate text-xs font-medium"
-      >{{ sessionDirectoryName }}</span>
-      <span v-if="agentUsage" data-agent-usage :title="tokenDetail" :aria-label="tokenDetail" class="shrink-0 whitespace-nowrap text-xs tabular-nums">
+      <span v-if="agentUsage" data-agent-usage :title="tokenDetail" :aria-label="tokenDetail" class="min-w-0 flex-1 shrink-0 whitespace-nowrap text-center text-xs tabular-nums">
         {{ tokenNumber.format(agentUsage.contextTokens) }} ctx · {{ tokenNumber.format(agentUsage.totalTokens) }} used
       </span>
-      <!-- Narrow screens show one pane of a split at a time. -->
-      <button
-        v-if="props.narrow && props.paneCount > 1"
-        type="button"
-        class="touch-target shrink-0 rounded border border-border px-2"
-        :aria-label="`Pane ${props.paneIndex} of ${props.paneCount}: show the next pane`"
-        @click="emit('cyclePane')"
-      >
-        Pane {{ props.paneIndex }} of {{ props.paneCount }}
-      </button>
-      <span class="ml-auto" />
-      <TerminalActions
-        :has-selection="hasSelection"
-        :can-split="props.canSplit && !props.narrow"
-        :sessions="splitTargets"
-        @action="onToolbarAction"
-        @split="(direction, session) => emit('split', direction, session)"
-      />
+      <div class="flex min-w-0 flex-1 items-center justify-end gap-2">
+        <span
+          v-if="sessionDirectory"
+          data-terminal-directory
+          :aria-label="`Directory: ${sessionDirectory}`"
+          :title="sessionDirectory"
+          class="min-w-0 max-w-[40%] shrink truncate text-xs font-medium"
+        >{{ sessionDirectoryName }}</span>
+        <span v-if="sessionProject" data-terminal-project :title="sessionDirectory" :aria-label="`Project: ${sessionProject.name}`" class="min-w-0 max-w-[24%] truncate text-xs font-semibold">{{ sessionProject.name }}</span>
+        <!-- Narrow screens show one pane of a split at a time. -->
+        <button
+          v-if="props.narrow && props.paneCount > 1"
+          type="button"
+          class="touch-target shrink-0 rounded border border-border px-2"
+          :aria-label="`Pane ${props.paneIndex} of ${props.paneCount}: show the next pane`"
+          @click="emit('cyclePane')"
+        >
+          Pane {{ props.paneIndex }} of {{ props.paneCount }}
+        </button>
+        <span class="ml-auto" />
+        <TerminalActions
+          :has-selection="hasSelection"
+          :can-split="props.canSplit && !props.narrow"
+          :sessions="splitTargets"
+          @action="onToolbarAction"
+          @split="(direction, session) => emit('split', direction, session)"
+        />
+      </div>
     </div>
     <TerminalMenu :term="term">
       <!-- The menu's trigger; the ref sits inside it (as-child clones it). -->

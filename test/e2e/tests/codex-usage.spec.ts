@@ -1,20 +1,32 @@
 import { expect, test } from '../helpers/fixtures.ts'
+import { MACHINE, mutate, ORIGIN } from '../helpers/api.ts'
 import { shq, uniqueName } from '../helpers/target.ts'
 
 // M8 T28: metadata travels through the real inventory/API/events and header.
 // Transcript parsing and the hook-to-tmux path also run in integration tests.
-test('Codex header shows context and consumed tokens and follows the active pane', async ({ page, ui, target }) => {
+test('(T28, T31) Active session header aligns project and token usage', async ({ page, ui, target }) => {
   const name = uniqueName('e2e-codex-usage')
-  await target.run('mkdir -p /home/dev/.hostbud-test-bin && ln -sf /bin/sleep /home/dev/.hostbud-test-bin/coy')
-  await target.tmux('new-session', '-d', '-s', name, '-c', '/home/dev', '/home/dev/.hostbud-test-bin/coy 120')
+  const path = `/home/dev/${uniqueName('header-project')}`
+  const projectName = uniqueName('Project')
+  await target.run(`mkdir -p ${shq(path)} /home/dev/.hostbud-test-bin && ln -sf /bin/sleep /home/dev/.hostbud-test-bin/coy`)
+  const projectResponse = await mutate(page.request, 'POST', '/api/projects', { machineId: MACHINE, path, name: projectName }, ORIGIN)
+  expect(projectResponse.status(), await projectResponse.text()).toBe(201)
+  await target.tmux('new-session', '-d', '-s', name, '-c', path, '/home/dev/.hostbud-test-bin/coy 120')
   try {
     await ui.open()
     await ui.openTerminal(name)
     const header = page.getByRole('region', { name: `Terminal: ${name}`, exact: true }).locator('[data-terminal-header]')
     const usage = header.locator('[data-agent-usage]')
+    const project = header.locator('[data-terminal-project]')
+    await expect(project).toHaveText(projectName)
+    await expect(project).toHaveAttribute('aria-label', `Project: ${projectName}`)
     await expect(usage).toHaveCount(0)
     await target.tmux('set-option', '-p', '-t', `=${name}:.0`, '@hostbud_codex_usage', '12000,345678,200000')
     await expect(usage).toHaveText('12K ctx · 345.7K used')
+    await expect(usage).toHaveClass(/text-center/)
+    const headerBox = await header.boundingBox()
+    const usageBox = await usage.boundingBox()
+    expect(Math.abs((usageBox!.x + usageBox!.width / 2) - (headerBox!.x + headerBox!.width / 2))).toBeLessThan(80)
     await expect(usage).toHaveAttribute('aria-label', /12,000 of 200,000 context tokens; 345,678 total tokens consumed/)
     await target.tmux('set-option', '-p', '-t', `=${name}:.0`, '@hostbud_codex_usage', '2000,360000,200000')
     await expect(usage).toHaveText('2K ctx · 360K used')
