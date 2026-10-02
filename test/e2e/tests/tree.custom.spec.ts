@@ -1,4 +1,5 @@
 import { expect, test } from '../helpers/fixtures.ts'
+import type { Locator } from '@playwright/test'
 import { newAccount } from '../helpers/auth.ts'
 import { owner } from '../helpers/db.ts'
 import { forbidInLogs, getUIState, listSessions, MACHINE, mutate, ORIGIN, POLL_INTERVAL_MS, putUIState } from '../helpers/api.ts'
@@ -288,6 +289,10 @@ test('Session rows show only the name, without pane titles, activity ages or att
   await expect(ui.treeItem(titled)).toBeVisible()
   await expect(ui.treeItem(titled)).not.toContainText('deploy the changes')
   await expect(page.locator('[data-session-subtitle]')).toHaveCount(0)
+  // Labels and gutters in the sidebar show the arrow, never the text cursor.
+  const cursor = (l: Locator) => l.evaluate((el) => getComputedStyle(el).cursor)
+  expect(await cursor(ui.treeItem(titled).locator('[data-session-prefix]'))).toBe('default')
+  expect(await cursor(page.locator('[data-other-label]'))).toBe('default')
   await expect(page.locator('[data-session-age], [data-session-dot]')).toHaveCount(0)
   await ui.openTerminal(titled)
   await ui.showList() // the compact tree drawer closes on open

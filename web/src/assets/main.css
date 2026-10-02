@@ -155,6 +155,15 @@ button {
   filter: invert(1);
 }
 
+/* The sessions sidebar is navigation, not text: an arrow over labels and
+   gutters, the text cursor only on real text inputs. */
+.tree-panel {
+  cursor: default;
+}
+.tree-panel :is(input:not([type='checkbox'], [type='radio'], [type='button'], [type='submit'], [type='color'], [type='range']), textarea, [contenteditable='true']) {
+  cursor: text;
+}
+
 /* Tree row actions (drag, more, new session) stay out of the way until the
    row is hovered on a mouse; touch devices always show them. */
 @media (hover: hover) and (pointer: fine) {

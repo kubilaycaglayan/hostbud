@@ -26,7 +26,7 @@ defineExpose({
 </script>
 
 <template>
-  <section class="flex min-h-0 flex-1 flex-col" aria-label="Sessions">
+  <section class="tree-panel flex min-h-0 flex-1 flex-col" aria-label="Sessions">
     <p v-if="connectionState === 'reconnecting' || connectionState === 'connecting'" role="status" class="mb-1 text-muted">
       {{ connectionState === 'connecting' ? 'Connecting…' : 'Reconnecting…' }}
     </p>
