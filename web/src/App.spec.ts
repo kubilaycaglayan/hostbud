@@ -146,36 +146,32 @@ describe('App shell', () => {
       expect(overlay().classes()).toEqual(expect.arrayContaining(['fixed', 'inset-0', 'z-[100]']))
       expect(document.activeElement).toBe(overlay().element)
 
-      // The mouse returning hides it at once and turns the toggle off.
+      // The mouse returning hides it at once; the toggle stays on.
       html.dispatchEvent(new MouseEvent('mouseenter'))
       await nextTick()
       await nextTick()
       expect(overlay().exists()).toBe(false)
-      expect(trigger.attributes('aria-pressed')).toBe('false')
+      expect(trigger.attributes('aria-pressed')).toBe('true')
       expect(document.activeElement).toBe(trigger.element)
-      html.dispatchEvent(new MouseEvent('mouseleave'))
-      await vi.advanceTimersByTimeAsync(3000)
-      expect(overlay().exists()).toBe(false)
 
-      // A click or Escape on the overlay also exits and disarms.
-      await trigger.trigger('click')
+      // A click or Escape on the overlay also hides it and keeps the toggle on.
       html.dispatchEvent(new MouseEvent('mouseleave'))
       await vi.advanceTimersByTimeAsync(2000)
       await nextTick()
       await overlay().trigger('click')
       expect(overlay().exists()).toBe(false)
-      expect(trigger.attributes('aria-pressed')).toBe('false')
-      await trigger.trigger('click')
+      expect(trigger.attributes('aria-pressed')).toBe('true')
       html.dispatchEvent(new MouseEvent('mouseleave'))
       await vi.advanceTimersByTimeAsync(2000)
       await nextTick()
       await overlay().trigger('keydown', { key: 'Escape' })
       expect(overlay().exists()).toBe(false)
+      expect(trigger.attributes('aria-pressed')).toBe('true')
 
-      // Turning the toggle off cancels a pending overlay.
-      await trigger.trigger('click')
+      // Only the toggle turns it off, which also cancels a pending overlay.
       html.dispatchEvent(new MouseEvent('mouseleave'))
       await trigger.trigger('click')
+      expect(trigger.attributes('aria-pressed')).toBe('false')
       await vi.advanceTimersByTimeAsync(3000)
       expect(overlay().exists()).toBe(false)
     } finally {

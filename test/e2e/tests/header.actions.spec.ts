@@ -81,7 +81,7 @@ test('(T1) Header actions and compact controls', async ({ page, ui, isMobile }) 
   await expect(files).toBeHidden()
 })
 
-test('(T29) Focus mode toggle shows the overlay after the mouse leaves and hides it on return', async ({ page, ui, isMobile }) => {
+test('(T29) Focus mode toggle shows the overlay after the mouse leaves and hides it on return while staying on', async ({ page, ui, isMobile }) => {
   await ui.open()
   const trigger = page.getByRole('banner').getByRole('button', { name: 'Focus mode' })
   await expect(trigger).toBeVisible()
@@ -115,19 +115,22 @@ test('(T29) Focus mode toggle shows the overlay after the mouse leaves and hides
 
   await pointer('mouseenter')
   await expect(overlay).toHaveCount(0)
-  await expect(trigger).toHaveAttribute('aria-pressed', 'false')
+  await expect(trigger).toHaveAttribute('aria-pressed', 'true')
   await expect(trigger).toBeFocused()
-  await pointer('mouseleave')
-  await page.waitForTimeout(2500)
-  await expect(overlay).toHaveCount(0)
 
-  // A click or tap on the overlay also exits and disarms.
-  if (isMobile) await trigger.tap()
-  else await trigger.click()
+  // A click or tap on the overlay also hides it; the toggle stays on.
   await pointer('mouseleave')
   await expect(overlay).toBeVisible({ timeout: 3000 })
   if (isMobile) await overlay.tap({ position: { x: 20, y: 20 } })
   else await overlay.click({ position: { x: 20, y: 20 } })
   await expect(overlay).toHaveCount(0)
+  await expect(trigger).toHaveAttribute('aria-pressed', 'true')
+
+  // Only the toggle turns it off.
+  if (isMobile) await trigger.tap()
+  else await trigger.click()
   await expect(trigger).toHaveAttribute('aria-pressed', 'false')
+  await pointer('mouseleave')
+  await page.waitForTimeout(2500)
+  await expect(overlay).toHaveCount(0)
 })

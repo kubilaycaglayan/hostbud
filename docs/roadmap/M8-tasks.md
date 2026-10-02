@@ -332,9 +332,9 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 
 ## T29 — Web focus mode toggle
 
-- Add a Focus mode toggle (`aria-pressed`) to the signed-in app header. While it is on, the mouse leaving the browser viewport for 2 s displays an opaque, full-viewport overlay with “focus” centered (coming back sooner cancels it). The mouse re-entering the viewport hides the overlay immediately and turns the toggle off; clicking, tapping or Escape on the overlay does the same, and focus returns to the element focused before. Keep this state local to the current page and do not alter sessions.
+- Add a Focus mode toggle (`aria-pressed`) to the signed-in app header. While it is on, the mouse leaving the browser viewport for 2 s displays an opaque, full-viewport overlay with “focus” centered (coming back sooner cancels it). The mouse re-entering the viewport hides the overlay immediately, as does clicking, tapping or Escape on it, and focus returns to the element focused before. The toggle stays on until the user turns it off. Keep this state local to the current page and do not alter sessions.
 
-**Tests:** U: T29 `App.spec.ts` covers the toggle, the 2 s mouse-leave delay and cancellation, overlay content and positioning, mouse-return/click/Escape dismissal that disarms, and focus restoration. I: n/a: this is a local browser presentation state with no server behavior. E: T29 *Focus mode toggle shows the overlay after the mouse leaves and hides it on return* (`header.actions.spec.ts`, desktop and iPhone 13 Pro) checks the toggle, delayed overlay on a viewport leave, viewport coverage, centered word, dismissal on return and click/tap, and keyboard focus.
+**Tests:** U: T29 `App.spec.ts` covers the toggle, the 2 s mouse-leave delay and cancellation, overlay content and positioning, mouse-return/click/Escape dismissal that keeps the toggle on, and focus restoration. I: n/a: this is a local browser presentation state with no server behavior. E: T29 *Focus mode toggle shows the overlay after the mouse leaves and hides it on return while staying on* (`header.actions.spec.ts`, desktop and iPhone 13 Pro) checks the toggle, delayed overlay on a viewport leave, viewport coverage, centered word, dismissal on return and click/tap, and keyboard focus.
 
 **E2E:** Add the T29 scenario with the UI behavior; type-check only, run on demand.
 

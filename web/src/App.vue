@@ -80,7 +80,7 @@ const shortcutsOpen = ref(false)
 const paletteOpen = ref(false)
 // Focus mode (T29): the header toggle arms it; while armed, the mouse leaving
 // the viewport for FOCUS_DELAY_MS shows the overlay, and the mouse coming back
-// (or a click/Escape on the overlay) hides it and disarms the toggle.
+// (or a click/Escape on the overlay) hides it. Only the toggle disarms it.
 const FOCUS_DELAY_MS = 2000
 const focusArmed = ref(false)
 const focusMode = ref(false)
@@ -100,8 +100,8 @@ function onViewportMouseLeave() {
   focusTimer = setTimeout(showFocusOverlay, FOCUS_DELAY_MS)
 }
 function onViewportMouseEnter() {
-  if (focusMode.value) disarmFocusMode()
-  else clearFocusTimer()
+  clearFocusTimer()
+  hideFocusOverlay()
 }
 function showFocusOverlay() {
   focusTimer = null
@@ -113,6 +113,9 @@ function showFocusOverlay() {
 function disarmFocusMode() {
   clearFocusTimer()
   focusArmed.value = false
+  hideFocusOverlay()
+}
+function hideFocusOverlay() {
   if (!focusMode.value) return
   focusMode.value = false
   void nextTick(() => focusReturnTarget?.focus())
@@ -867,8 +870,8 @@ onUnmounted(() => {
       type="button"
       aria-label="Exit focus mode"
       class="focus-screen fixed inset-0 z-[100] flex h-[100dvh] w-screen items-center justify-center focus-visible:outline-2 focus-visible:outline-offset-[-4px]"
-      @click="disarmFocusMode"
-      @keydown.esc.stop.prevent="disarmFocusMode"
+      @click="hideFocusOverlay"
+      @keydown.esc.stop.prevent="hideFocusOverlay"
     >
       <span class="text-2xl font-medium tracking-[0.3em]">focus</span>
     </button>
