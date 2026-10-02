@@ -244,22 +244,26 @@ describe('TerminalView', () => {
     w.unmount()
   })
 
-  it('shows live Codex context and consumed tokens, including zero, and hides unavailable usage', async () => {
+  it('shows live Codex and Claude Code context and consumed tokens, including zero, and hides unavailable usage', async () => {
     const store = useSessionsStore()
     store.$patch({ byMachine: { host: [{ id: '$1', name: 'acc-a', path: '/home/dev', attached: 0, windows: 1, created: '', activity: '' }] } })
     const w = await mountTerm()
-    expect(w.find('[data-codex-usage]').exists()).toBe(false)
+    expect(w.find('[data-agent-usage]').exists()).toBe(false)
     const session = store.byMachine.host![0]!
-    session.codexUsage = { contextTokens: 12000, totalTokens: 345678, contextWindow: 200000 }
+    session.agentUsage = { agent: 'codex', contextTokens: 12000, totalTokens: 345678, contextWindow: 200000 }
     await w.vm.$nextTick()
-    expect(w.get('[data-codex-usage]').text()).toBe('12K ctx · 345.7K used')
-    expect(w.get('[data-codex-usage]').attributes('aria-label')).toContain('12,000 of 200,000 context tokens; 345,678 total tokens consumed')
-    session.codexUsage = { contextTokens: 0, totalTokens: 0, contextWindow: 0 }
+    expect(w.get('[data-agent-usage]').text()).toBe('12K ctx · 345.7K used')
+    expect(w.get('[data-agent-usage]').attributes('aria-label')).toContain('12,000 of 200,000 context tokens; 345,678 total tokens consumed')
+    session.agentUsage = { agent: 'claude', contextTokens: 74243, totalTokens: 417626, contextWindow: 0 }
     await w.vm.$nextTick()
-    expect(w.get('[data-codex-usage]').text()).toBe('0 ctx · 0 used')
-    delete session.codexUsage
+    expect(w.get('[data-agent-usage]').text()).toBe('74.2K ctx · 417.6K used')
+    expect(w.get('[data-agent-usage]').attributes('aria-label')).toBe('Claude Code: 74,243 context tokens; 417,626 total tokens consumed (includes cached input). Last reported by Claude Code.')
+    session.agentUsage = { agent: 'codex', contextTokens: 0, totalTokens: 0, contextWindow: 0 }
     await w.vm.$nextTick()
-    expect(w.find('[data-codex-usage]').exists()).toBe(false)
+    expect(w.get('[data-agent-usage]').text()).toBe('0 ctx · 0 used')
+    delete session.agentUsage
+    await w.vm.$nextTick()
+    expect(w.find('[data-agent-usage]').exists()).toBe(false)
     w.unmount()
   })
 

@@ -246,3 +246,11 @@ T8 verification: native reader checked at 390px in Chromium and WebKit (358px co
   - I: n/a: browser-only presentation state; no HTTP, WebSocket or host action.
   - E: T29 *Focus mode toggle shows the overlay after the mouse leaves and hides it on return while staying on* (`header.actions.spec.ts`, desktop and iPhone 13 Pro) checks the toggle, the delayed overlay after a dispatched viewport leave, viewport bounds, centered word, dismissal on return and on click/tap with the toggle still on, turning it off, and focus.
   - Status: U passes; E written and type-checked, browser run pending on demand.
+
+## Claude Code token usage in the terminal header (T30)
+
+- [x] The active Claude Code pane shows its last context tokens and cumulative tokens consumed (main conversation, each message counted once, cached input included) in the session window header, labelled as Claude Code in the accessible text. A new conversation clears the counts; only numeric metadata leaves the hook.
+  - U: T30 `test-agent-status-hook.py` (`ClaudeUsageTests`), `tmux_test.go` (`TestAgentUsageMetadata`), `TerminalView.spec.ts`: dedupe, incremental reads, invalid/sidechain records, rewritten transcripts, path restrictions, agent-tagged records and the label.
+  - I: T30 `TestIntegrationClaudeUsageFromHookInActivePane`: actual hook → tmux → SSH inventory.
+  - E: T30 *Claude Code header shows context and consumed tokens* (`codex-usage.spec.ts`), desktop and iPhone 13 Pro; written, execution pending on demand.
+  - Status: U and I pass; E type-checked, browser run pending on demand. Owner (open): confirm live counts on a real Claude Code session after deployment.

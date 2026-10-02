@@ -365,7 +365,7 @@ func TestIntegrationPollerTimeoutAndRecovery(t *testing.T) {
 	})
 }
 
-func TestIntegrationCodexUsageFromHookInActivePane(t *testing.T) {
+func TestIntegrationAgentUsageFromHookInActivePane(t *testing.T) {
 	inv, _, c := run(t, testenv.SSHD)
 	script, err := os.ReadFile("../../scripts/agent-status-hook.py")
 	if err != nil {
@@ -381,23 +381,53 @@ func TestIntegrationCodexUsageFromHookInActivePane(t *testing.T) {
 	testenv.Sh(t, c, "printf %s "+sshx.Quote(record)+" > /home/dev/.codex/sessions/hostbud-usage-it.jsonl")
 	const event = `{"hook_event_name":"Stop","transcript_path":"/home/dev/.codex/sessions/hostbud-usage-it.jsonl"}`
 	testenv.Sh(t, c, "printf %s "+sshx.Quote(event)+` | TMUX_PANE=$(tmux display-message -p -t =hostbud-usage-it: '#{pane_id}') python3 /home/dev/hostbud-usage-hook.py codex`)
-	check := func(want *tmux.CodexUsage) {
+	check := func(want *tmux.AgentUsage) {
 		t.Helper()
 		if err := inv.Refresh(context.Background()); err != nil {
 			t.Fatal(err)
 		}
 		_, sessions := inv.Snapshot()
 		got, ok := findSession(sessions, "hostbud-usage-it")
-		if !ok || (want == nil && got.CodexUsage != nil) || (want != nil && (got.CodexUsage == nil || *got.CodexUsage != *want)) {
-			t.Fatalf("usage = %+v, want %+v", got.CodexUsage, want)
+		if !ok || (want == nil && got.AgentUsage != nil) || (want != nil && (got.AgentUsage == nil || *got.AgentUsage != *want)) {
+			t.Fatalf("usage = %+v, want %+v", got.AgentUsage, want)
 		}
 	}
-	check(&tmux.CodexUsage{ContextTokens: 12000, TotalTokens: 345678, ContextWindow: 200000})
+	check(&tmux.AgentUsage{Agent: "codex", ContextTokens: 12000, TotalTokens: 345678, ContextWindow: 200000})
 	// A second active shell pane must not inherit the first pane's counts.
 	testenv.Sh(t, c, "tmux split-window -t =hostbud-usage-it:")
 	check(nil)
 	testenv.Sh(t, c, "tmux select-pane -t =hostbud-usage-it:.0")
-	check(&tmux.CodexUsage{ContextTokens: 12000, TotalTokens: 345678, ContextWindow: 200000})
+	check(&tmux.AgentUsage{Agent: "codex", ContextTokens: 12000, TotalTokens: 345678, ContextWindow: 200000})
 	testenv.Sh(t, c, "tmux set-option -p -t =hostbud-usage-it:.0 @hostbud_codex_usage broken")
 	check(nil)
+}
+
+func TestIntegrationClaudeUsageFromHookInActivePane(t *testing.T) {
+	inv, _, c := run(t, testenv.SSHD)
+	script, err := os.ReadFile("../../scripts/agent-status-hook.py")
+	if err != nil {
+		t.Fatal(err)
+	}
+	const transcript = "/home/dev/.claude/projects/-home-dev/hostbud-claude-usage-it.jsonl"
+	testenv.Sh(t, c, "mkdir -p /home/dev/.claude/projects/-home-dev")
+	testenv.Sh(t, c, "ln -sf /bin/sleep /home/dev/cly; tmux new-session -d -s hostbud-claude-usage-it -c /home/dev '/home/dev/cly 120'")
+	t.Cleanup(func() {
+		testenv.Sh(t, c, "tmux kill-session -t =hostbud-claude-usage-it 2>/dev/null; rm -f "+transcript+" /home/dev/hostbud-claude-usage-hook.py")
+	})
+	testenv.Sh(t, c, "printf %s "+sshx.Quote(string(script))+" > /home/dev/hostbud-claude-usage-hook.py")
+	// One message split over two content blocks counts once.
+	const block = `{"type":"assistant","message":{"id":"msg_1","usage":{"input_tokens":10,"cache_creation_input_tokens":1000,"cache_read_input_tokens":20000,"output_tokens":500}}}` + "\n"
+	const next = `{"type":"assistant","message":{"id":"msg_2","usage":{"input_tokens":5,"cache_creation_input_tokens":0,"cache_read_input_tokens":21500,"output_tokens":100}}}` + "\n"
+	testenv.Sh(t, c, "printf %s "+sshx.Quote(block+block+next)+" > "+transcript)
+	const event = `{"hook_event_name":"Stop","transcript_path":"` + transcript + `"}`
+	testenv.Sh(t, c, "printf %s "+sshx.Quote(event)+` | TMUX_PANE=$(tmux display-message -p -t =hostbud-claude-usage-it: '#{pane_id}') python3 /home/dev/hostbud-claude-usage-hook.py claude`)
+	if err := inv.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	_, sessions := inv.Snapshot()
+	got, ok := findSession(sessions, "hostbud-claude-usage-it")
+	want := tmux.AgentUsage{Agent: "claude", ContextTokens: 21605, TotalTokens: 43115}
+	if !ok || got.AgentUsage == nil || *got.AgentUsage != want {
+		t.Fatalf("usage = %+v, want %+v", got.AgentUsage, want)
+	}
 }

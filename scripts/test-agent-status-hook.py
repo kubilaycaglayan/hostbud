@@ -130,6 +130,80 @@ class CodexUsageTests(unittest.TestCase):
         self.assertEqual(run.call_args.args[0][-2:], ["@hostbud_codex_usage", "12000,345678,200000"])
 
 
+class ClaudeUsageTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        self.path = self.root / "projects" / "-home-dev" / "s.jsonl"
+        self.path.parent.mkdir(parents=True)
+        self.cache = str(self.root / "state" / "claude-usage.json")
+        env = patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": str(self.root)})
+        env.start()
+        self.addCleanup(env.stop)
+
+    def record(self, mid="m1", inp=10, create=1000, read=20000, out=500, **extra):
+        usage = {"input_tokens": inp, "cache_creation_input_tokens": create, "cache_read_input_tokens": read, "output_tokens": out}
+        return json.dumps({"type": "assistant", "message": {"id": mid, "usage": usage, "content": "secret"}, **extra}) + "\n"
+
+    def usage(self):
+        return HOOK.claude_usage({"transcript_path": str(self.path)}, self.cache)
+
+    def append(self, text):
+        with open(self.path, "a") as f:
+            f.write(text)
+
+    def test_counts_each_message_once_and_reads_incrementally(self):
+        self.append(self.record() + self.record())  # one message, two content blocks
+        self.assertEqual(self.usage(), "21510,21510,0")
+        self.append(self.record("m2", 5, 0, 21500, 100) + '{"type":"assistant"')
+        self.assertEqual(self.usage(), "21605,43115,0")
+        self.assertEqual(self.usage(), "21605,43115,0")  # nothing new: same totals
+        self.append(',"message":{"id":"m3","usage":{"output_tokens":1}}}\n')  # finished partial record
+        self.assertEqual(self.usage(), "1,43116,0")
+        cached = json.loads(Path(self.cache).read_text())
+        self.assertEqual(cached[str(self.path)]["offset"], self.path.stat().st_size)
+        self.assertNotIn("secret", Path(self.cache).read_text())
+
+    def test_ignores_sidechains_invalid_counts_and_other_records(self):
+        self.append(self.record("s", 1, 1, 1, 1, isSidechain=True) + self.record("x", True) + self.record("y", -1)
+                    + json.dumps({"type": "user", "message": {"usage": {"input_tokens": 9}}}) + "\nnot json usage\n")
+        self.assertEqual(self.usage(), "")
+        self.append(self.record())
+        self.assertEqual(self.usage(), "21510,21510,0")
+
+    def test_rewritten_transcript_restarts_and_paths_are_restricted(self):
+        self.append(self.record() + self.record("m2"))
+        self.assertEqual(self.usage(), "21510,43020,0")
+        self.path.unlink()
+        self.append(self.record("m9", 1, 0, 0, 1))
+        self.assertEqual(self.usage(), "2,2,0")
+        self.assertEqual(HOOK.claude_usage({}, self.cache), "")
+        outside = self.root / "outside.jsonl"
+        outside.write_text(self.record())
+        self.assertEqual(HOOK.claude_usage({"transcript_path": str(outside)}, self.cache), "")
+        link = self.path.parent / "link.jsonl"
+        link.symlink_to(outside)
+        self.assertEqual(HOOK.claude_usage({"transcript_path": str(link)}, self.cache), "")
+        fifo = self.path.parent / "fifo.jsonl"
+        os.mkfifo(fifo)
+        self.assertEqual(HOOK.claude_usage({"transcript_path": str(fifo)}, self.cache), "")
+
+    @patch.object(HOOK.subprocess, "run")
+    def test_hooks_publish_claude_counts_and_skip_unrelated_events(self, run):
+        self.append(self.record())
+        with patch.object(HOOK, "usage_cache_path", return_value=self.cache):
+            HOOK.report("claude", {"hook_event_name": "Stop", "transcript_path": str(self.path)}, "%1")
+            self.assertEqual(run.call_args_list[0].args[0][-2:], ["@hostbud_claude_usage", "21510,21510,0"])
+            self.assertEqual(run.call_args_list[1].args[0][-2:], ["@hostbud_agent_status", "blocked"])
+            run.reset_mock()
+            HOOK.report("claude", {"hook_event_name": "SessionStart", "transcript_path": str(self.root / "projects" / "-home-dev" / "new.jsonl")}, "%1")
+            self.assertEqual(run.call_args_list[0].args[0][-2:], ["@hostbud_claude_usage", ""])
+            run.reset_mock()
+            HOOK.report("claude", {"hook_event_name": "Notification", "notification_type": "other"}, "%1")
+            run.assert_not_called()
+
+
 class DaemonPaneLookupTests(unittest.TestCase):
     """Codex runs hooks in its app-server daemon, which has no TMUX_PANE."""
 

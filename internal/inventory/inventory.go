@@ -134,9 +134,9 @@ func (inv *Inventory) Snapshot() (Machine, []tmux.Session) {
 func cloneSessions(sessions []tmux.Session) []tmux.Session {
 	copyOf := append([]tmux.Session{}, sessions...)
 	for i := range copyOf {
-		if sessions[i].CodexUsage != nil {
-			usage := *sessions[i].CodexUsage
-			copyOf[i].CodexUsage = &usage
+		if sessions[i].AgentUsage != nil {
+			usage := *sessions[i].AgentUsage
+			copyOf[i].AgentUsage = &usage
 		}
 		copyOf[i].Agents = append([]string(nil), sessions[i].Agents...)
 	}
@@ -304,7 +304,7 @@ func (inv *Inventory) poll(ctx context.Context) bool {
 					sessions[i].Agents = item.Agents
 					sessions[i].Status = item.Status
 					sessions[i].Title = item.Title
-					sessions[i].CodexUsage = item.CodexUsage
+					sessions[i].AgentUsage = item.AgentUsage
 				}
 			}
 		}
@@ -412,10 +412,10 @@ func sameSession(a, b tmux.Session) bool {
 	return a.ID == b.ID && a.Name == b.Name && a.Path == b.Path &&
 		a.ProjectID == b.ProjectID && a.Attached == b.Attached && a.Windows == b.Windows &&
 		a.Created.Equal(b.Created) && slices.Equal(a.Agents, b.Agents) && a.Status == b.Status &&
-		a.Title == b.Title && equalUsage(a.CodexUsage, b.CodexUsage) && a.Activity.Truncate(time.Minute).Equal(b.Activity.Truncate(time.Minute))
+		a.Title == b.Title && equalUsage(a.AgentUsage, b.AgentUsage) && a.Activity.Truncate(time.Minute).Equal(b.Activity.Truncate(time.Minute))
 }
 
-func equalUsage(a, b *tmux.CodexUsage) bool {
+func equalUsage(a, b *tmux.AgentUsage) bool {
 	if a == nil || b == nil {
 		return a == b
 	}

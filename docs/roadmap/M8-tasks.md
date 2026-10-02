@@ -36,6 +36,7 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 | T26 Remove project counts and navigate a three-column command palette | Implemented; U written; E written and type-checked, browser run pending on demand |
 | T27 Restore terminal cursor focus on browser-tab return and page load | Implemented; U passes; E updated and type-checked, browser run pending on demand |
 | T29 Web focus mode toggle (mouse-leave overlay) | Implemented; U passes; E written and type-checked, browser run pending on demand |
+| T30 Claude Code token usage in the terminal header | Implemented; U and I pass; E written and type-checked, browser run pending on demand |
 
 **Progress note (T2–T4, 2026-09-27):** Vitest (447 tests), eslint, `vue-tsc` and the e2e `tsc` passed; deployed to the host from a clean checkout of `f664bb8` (a pre-deploy `pg_dump` is in `backups/`), and the stack came up healthy. Still open for these tasks:
 - **E2E runs:** the scenarios *(T2) Compact tree*, *(T3) Compact file browser* and *(T3) No browser autocomplete outside login password* type-check but haven't run: e2e runs only on demand. The T2 commit also updated two M6 scenarios that expanded single-window sessions (*(T4) Inline rename a session*, *(T3) Window rows follow the real terminal*). T22 replaces the former M8 *(T4) Custom tab order* scenario.
@@ -347,6 +348,15 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 **Tests:** U: T29 `App.spec.ts` covers the toggle, the 2 s mouse-leave delay and cancellation, overlay content and positioning, mouse-return/click/Escape dismissal that keeps the toggle on, and focus restoration. I: n/a: this is a local browser presentation state with no server behavior. E: T29 *Focus mode toggle shows the overlay after the mouse leaves and hides it on return while staying on* (`header.actions.spec.ts`, desktop and iPhone 13 Pro) checks the toggle, delayed overlay on a viewport leave, viewport coverage, centered word, dismissal on return and click/tap, and keyboard focus.
 
 **E2E:** Add the T29 scenario with the UI behavior; type-check only, run on demand.
+
+## T30 — Claude Code token usage in the terminal header
+
+- Extend the optional status hook so Claude Code events write `@hostbud_claude_usage` (`context,total,0`) from the hook-supplied transcript under `$CLAUDE_CONFIG_DIR/projects` (default `~/.claude/projects`). Context is the last main-chain assistant message's input + cache creation + cache read + output tokens; total sums the same per distinct message id (content blocks repeat a message's usage). Sidechain records are skipped. Transcripts grow without bound, so the hook reads only bytes appended since its last run, keeping per-transcript offsets and totals in `~/.local/state/hostbud/claude-usage.json` (counts only); a replaced or truncated file restarts the count. The context window is not reported.
+- Generalize T28's metadata to `agentUsage` with an `agent` (`codex`/`claude`) field; inventory reports Claude counts only for a recognized Claude Code in the active pane. The header labels the source agent in its accessible text.
+
+**Tests:** U: T30 `test-agent-status-hook.py` (`ClaudeUsageTests`) covers per-message dedupe, incremental reads with partial records, sidechain/invalid records, rewritten transcripts, path restrictions and hook publishing; `tmux_test.go` covers agent-tagged records; `TerminalView.spec.ts` covers the Claude label. I: T30 `TestIntegrationClaudeUsageFromHookInActivePane` runs the real hook against `test/sshd`. E: T30 *Claude Code header shows context and consumed tokens* (`codex-usage.spec.ts`).
+
+**E2E:** Added the T30 scenario to `test/e2e/tests/codex-usage.spec.ts`; type-check passes. Browser execution remains on demand.
 
 
 ## Done

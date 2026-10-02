@@ -398,21 +398,21 @@ func TestSameSessionComparesTitleAndActivityMinute(t *testing.T) {
 	}
 }
 
-func TestCodexUsagePublishesChangesAndCopiesSnapshots(t *testing.T) {
+func TestAgentUsagePublishesChangesAndCopiesSnapshots(t *testing.T) {
 	f := &fakeExec{probeOut: probeOK, listOut: line("a", 0, 1, 1)}
 	h := start(t, f)
 	h.drain()
 	for _, counts := range []string{"12,100,200", "12,120,200", "0,120,200"} {
-		f.set(func(f *fakeExec) { f.paneOut = "U\ta\t" + counts + "\nP\ta\t%1\tcodex\tworking\tcodex,\n" })
+		f.set(func(f *fakeExec) { f.paneOut = "U\ta\tcodex\t" + counts + "\nP\ta\t%1\tcodex\tworking\tcodex,\n" })
 		h.step()
 		evs := h.drain()
 		if len(evs) != 1 || evs[0].Type != events.SessionsChanged {
 			t.Fatalf("missing usage event: %+v", evs)
 		}
 		_, snapshot := h.inv.Snapshot()
-		snapshot[0].CodexUsage.TotalTokens = 999
+		snapshot[0].AgentUsage.TotalTokens = 999
 		_, again := h.inv.Snapshot()
-		if again[0].CodexUsage.TotalTokens == 999 {
+		if again[0].AgentUsage.TotalTokens == 999 {
 			t.Fatal("snapshot aliases usage")
 		}
 		h.step()
@@ -423,7 +423,7 @@ func TestCodexUsagePublishesChangesAndCopiesSnapshots(t *testing.T) {
 	f.set(func(f *fakeExec) { f.paneOut = "P\ta\t%1\tbash\t\t\n" })
 	h.step()
 	evs := h.drain()
-	if len(evs) != 1 || evs[0].Payload.(SessionsChanged).Sessions[0].CodexUsage != nil {
+	if len(evs) != 1 || evs[0].Payload.(SessionsChanged).Sessions[0].AgentUsage != nil {
 		t.Fatalf("stale usage: %+v", evs)
 	}
 }

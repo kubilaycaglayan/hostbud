@@ -23,7 +23,7 @@ export interface Session {
   status?: 'working' | 'blocked' | 'ended'
   /** Active pane's title (the agent's current task); absent for tmux's default. */
   title?: string
-  codexUsage?: { contextTokens: number; totalTokens: number; contextWindow: number }
+  agentUsage?: { agent: 'codex' | 'claude'; contextTokens: number; totalTokens: number; contextWindow: number }
   projectId?: string
   attached: number
   windows: number

@@ -215,6 +215,94 @@ def codex_usage(event: dict) -> str:
     return ""
 
 
+MAX_COUNT = 9_007_199_254_740_991
+
+
+def usage_cache_path() -> str:
+    return os.path.join(os.path.dirname(claims_path()), "claude-usage.json")
+
+
+def claude_usage(event: dict, cache_path: Optional[str] = None) -> str:
+    """Return "context,total,0" for the main Claude Code conversation.
+
+    Context is the last assistant message's input (including cache) and output
+    tokens; total sums them over each distinct message. Claude Code repeats a
+    message's usage on every content block, so a repeated id replaces its earlier
+    value. Transcripts grow without bound, so only bytes appended since the last
+    hook are read; per-transcript totals and offsets live in the state directory.
+    Only counts leave this function. The context window is not reported (0).
+    """
+    path = event.get("transcript_path")
+    if not isinstance(path, str) or not os.path.isabs(path):
+        return ""
+    root = os.path.realpath(os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude"))
+    path = os.path.realpath(path)
+    if not path.startswith(os.path.join(root, "projects") + os.sep) or not path.endswith(".jsonl"):
+        return ""
+    cache_path = cache_path or usage_cache_path()
+    import fcntl
+
+    try:
+        os.makedirs(os.path.dirname(cache_path), mode=0o700, exist_ok=True)
+        with open(cache_path + ".lock", "a") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            try:
+                with open(cache_path, encoding="utf-8") as f:
+                    cache = json.load(f)
+                if not isinstance(cache, dict):
+                    cache = {}
+            except (OSError, ValueError):
+                cache = {}
+            fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+            with os.fdopen(fd, "rb") as f:
+                info = os.fstat(f.fileno())
+                if not stat.S_ISREG(info.st_mode):
+                    return ""
+                state = cache.get(path)
+                fresh = {"inode": info.st_ino, "offset": 0, "total": 0, "context": -1, "id": "", "value": 0}
+                if not isinstance(state, dict) or set(state) != set(fresh) or state["inode"] != info.st_ino \
+                        or not all(type(state[k]) is type(fresh[k]) for k in fresh) or state["offset"] > info.st_size:
+                    state = fresh
+                f.seek(state["offset"])
+                for line in f:
+                    if not line.endswith(b"\n"):
+                        break  # an in-progress record is read again next time
+                    state["offset"] += len(line)
+                    if b'"usage"' not in line:
+                        continue
+                    try:
+                        record = json.loads(line)
+                    except (ValueError, UnicodeDecodeError):
+                        continue
+                    if not isinstance(record, dict) or record.get("type") != "assistant" or record.get("isSidechain"):
+                        continue
+                    message = record.get("message")
+                    usage = message.get("usage") if isinstance(message, dict) else None
+                    if not isinstance(usage, dict):
+                        continue
+                    counts = [usage.get(k, 0) for k in ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens", "output_tokens")]
+                    if not all(type(n) is int and 0 <= n <= MAX_COUNT for n in counts):
+                        continue
+                    value = sum(counts)
+                    message_id = message.get("id") if isinstance(message.get("id"), str) else ""
+                    if message_id and message_id == state["id"]:
+                        state["total"] -= state["value"]
+                    state["total"] = min(state["total"] + value, MAX_COUNT)
+                    state["context"], state["id"], state["value"] = value, message_id[:128], value
+            cache[path] = state
+            # Keep the cache small: drop transcripts that no longer exist.
+            cache = {k: v for k, v in cache.items() if k == path or os.path.isfile(k)}
+            tmp = cache_path + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(cache, f)
+            os.replace(tmp, cache_path)
+    except (OSError, ValueError):
+        return ""
+    if state["context"] < 0:
+        return ""
+    return f'{state["context"]},{state["total"]},0'
+
+
 def report(provider: str, event: dict, pane: Optional[str] = None) -> None:
     """Set a bounded tmux user option; hook failures never affect the client."""
     if provider not in {"codex", "claude"}:
@@ -233,6 +321,8 @@ def report(provider: str, event: dict, pane: Optional[str] = None) -> None:
     options = []
     if provider == "codex":
         options.append(("@hostbud_codex_usage", codex_usage(event)))
+    elif status is not None:
+        options.append(("@hostbud_claude_usage", claude_usage(event)))
     if status is not None:
         options.append(("@hostbud_agent_status", status))
     for name, value in options:

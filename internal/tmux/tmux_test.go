@@ -503,16 +503,25 @@ func TestNewSessionScript(t *testing.T) {
 	}
 }
 
-func TestCodexUsageMetadata(t *testing.T) {
-	for _, raw := range []string{"0,0,0", "12000,345678,200000"} {
-		got, err := ParsePaneMetadata("U\ta\t" + raw + "\nP\ta\t%1\tcodex\tworking\tcodex,\n")
-		if err != nil || got["a"].CodexUsage == nil {
-			t.Fatalf("usage %s: %+v %v", raw, got, err)
+func TestAgentUsageMetadata(t *testing.T) {
+	for _, agent := range []string{"codex", "claude"} {
+		for _, raw := range []string{"0,0,0", "12000,345678,200000"} {
+			got, err := ParsePaneMetadata("U\ta\t" + agent + "\t" + raw + "\nP\ta\t%1\t" + agent + "\tworking\t,\n")
+			if err != nil || got["a"].AgentUsage == nil || got["a"].AgentUsage.Agent != agent {
+				t.Fatalf("usage %s %s: %+v %v", agent, raw, got, err)
+			}
 		}
 	}
 	for _, raw := range []string{"", "1,2", "-1,2,3", "1,2,9007199254740992", "nan,2,3"} {
-		if got := parseCodexUsage(raw); got != nil {
+		if got := parseAgentUsage("codex", raw); got != nil {
 			t.Fatalf("accepted %q", raw)
 		}
+	}
+	if got := parseAgentUsage("other", "1,2,3"); got != nil {
+		t.Fatal("accepted unknown agent")
+	}
+	// The old three-field record (pre-agent) is ignored rather than misread.
+	if got, err := ParsePaneMetadata("U\ta\t1,2,3\nP\ta\t%1\tcodex\t\tcodex,\n"); err != nil || got["a"].AgentUsage != nil {
+		t.Fatalf("legacy record: %+v %v", got, err)
 	}
 }

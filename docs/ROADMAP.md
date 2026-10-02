@@ -173,6 +173,8 @@ Tasks: [roadmap/M8-tasks.md](roadmap/M8-tasks.md) · Checklist: [roadmap/M8-acce
 
 **Accept (T28):** the terminal header shows the active Codex pane’s last reported context and cumulative consumed tokens from optional hooks; exact counts are accessible, updates use session events, and unknown usage is hidden.
 
+**Accept (T30):** Claude Code sessions with the optional hook show the same context and consumed token counts in the terminal header, labelled as Claude Code.
+
 **Accept (T29):** a header toggle arms a web-only full-viewport focus overlay with “focus” centered, shown 2 s after the mouse leaves the viewport; the mouse returning (or a click, tap or Escape) closes it and restores focus, and the toggle stays on until turned off.
 
 ## Later (not scheduled)

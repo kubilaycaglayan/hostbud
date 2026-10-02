@@ -11,7 +11,7 @@ test('Codex header shows context and consumed tokens and follows the active pane
     await ui.open()
     await ui.openTerminal(name)
     const header = page.getByRole('region', { name: `Terminal: ${name}`, exact: true }).locator('[data-terminal-header]')
-    const usage = header.locator('[data-codex-usage]')
+    const usage = header.locator('[data-agent-usage]')
     await expect(usage).toHaveCount(0)
     await target.tmux('set-option', '-p', '-t', `=${name}:.0`, '@hostbud_codex_usage', '12000,345678,200000')
     await expect(usage).toHaveText('12K ctx · 345.7K used')
@@ -31,6 +31,27 @@ test('Codex header shows context and consumed tokens and follows the active pane
     await expect(usage).toHaveText('0 ctx · 0 used')
     const bounds = await header.boundingBox()
     expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(page.viewportSize()!.width)
+  } finally {
+    await target.exec(`tmux kill-session -t ${shq('=' + name)} 2>/dev/null || true`)
+  }
+})
+
+// M8 T30: Claude Code sessions use the same header via @hostbud_claude_usage.
+test('Claude Code header shows context and consumed tokens', async ({ page, ui, target }) => {
+  const name = uniqueName('e2e-claude-usage')
+  await target.run('mkdir -p /home/dev/.hostbud-test-bin && ln -sf /bin/sleep /home/dev/.hostbud-test-bin/cly')
+  await target.tmux('new-session', '-d', '-s', name, '-c', '/home/dev', '/home/dev/.hostbud-test-bin/cly 120')
+  try {
+    await ui.open()
+    await ui.openTerminal(name)
+    const header = page.getByRole('region', { name: `Terminal: ${name}`, exact: true }).locator('[data-terminal-header]')
+    const usage = header.locator('[data-agent-usage]')
+    await expect(usage).toHaveCount(0)
+    await target.tmux('set-option', '-p', '-t', `=${name}:.0`, '@hostbud_claude_usage', '74243,417626,0')
+    await expect(usage).toHaveText('74.2K ctx · 417.6K used')
+    await expect(usage).toHaveAttribute('aria-label', /^Claude Code: 74,243 context tokens; 417,626 total tokens consumed/)
+    await target.tmux('set-option', '-p', '-t', `=${name}:.0`, '@hostbud_claude_usage', '')
+    await expect(usage).toHaveCount(0)
   } finally {
     await target.exec(`tmux kill-session -t ${shq('=' + name)} 2>/dev/null || true`)
   }
