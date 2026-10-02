@@ -194,13 +194,13 @@ export function statusLabel(item: QueueItem): string {
   return item.run ? `${label} · ${RUN_LABELS[item.run.status] ?? item.run.status}` : label
 }
 
-/** The queue header's count: "1 in progress | 2 left", "Last in progress" when
+/** The queue header's count: "1 WIP | 2 left", "Last in progress" when
  * nothing is queued behind the active item, else "2 left". */
 export function progressCount(items: QueueItem[]): string {
   const active = items.filter((item) => ['running', 'verifying', 'awaiting_approval'].includes(item.status)).length
   const left = items.filter((item) => item.status === 'queued').length
   if (!active) return `${left} left`
-  return left ? `${active} in progress | ${left} left` : 'Last in progress'
+  return left ? `${active} WIP | ${left} left` : 'Last in progress'
 }
 
 /** The cap input's problem, or '' for a whole number 1–32 or empty (default 2). */

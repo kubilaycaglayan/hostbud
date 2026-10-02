@@ -143,7 +143,7 @@ describe('loop runtime limit', () => {
 describe('queue progress count', () => {
   it('shows the active item next to what is left, and the last one alone', () => {
     expect(progressCount([item('a', 'queued'), item('b', 'queued')])).toBe('2 left')
-    expect(progressCount([item('a', 'done'), item('b', 'running'), item('c', 'queued')])).toBe('1 in progress | 1 left')
+    expect(progressCount([item('a', 'done'), item('b', 'running'), item('c', 'queued')])).toBe('1 WIP | 1 left')
     expect(progressCount([item('a', 'done'), item('b', 'awaiting_approval')])).toBe('Last in progress')
     expect(progressCount([item('a', 'done'), item('b', 'needs_attention')])).toBe('0 left')
   })
