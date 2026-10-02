@@ -112,7 +112,7 @@ function onMenuCloseAutoFocus(event: Event) {
       </button>
       <Folder :size="16" class="shrink-0 text-muted" aria-hidden="true" />
       <InlineRename v-if="props.editingKey === 'project:' + props.group.project.id" :name="props.group.project.name" :error="props.editError" :commit="(value) => props.renameProject(props.group.project.id, value)" @cancel="emit('cancelRename', 'project:' + props.group.project.id)" />
-      <span v-else class="min-w-0 flex-1 truncate font-semibold" :class="{ 'text-ok': hasWorkingSession }" :data-working="hasWorkingSession || undefined" @dblclick.stop="renameOnFinePointer">{{ props.group.project.name }}</span>
+      <span v-else data-project-name class="min-w-0 flex-1 truncate cursor-pointer font-semibold" :class="{ 'text-ok': hasWorkingSession }" :data-working="hasWorkingSession || undefined" @dblclick.stop="renameOnFinePointer">{{ props.group.project.name }}</span>
       <div data-project-actions class="flex shrink-0 items-center">
       <button v-if="props.pinned" type="button" class="row-action touch-target inline-flex min-h-7 min-w-6 items-center justify-center rounded text-muted" :aria-label="'Unpin ' + props.group.project.name" title="Pinned" tabindex="-1" @click.stop="emit('togglePin', props.group.project.id)">
         <Pin :size="16" aria-hidden="true" />

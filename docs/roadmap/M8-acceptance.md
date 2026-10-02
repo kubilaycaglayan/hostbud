@@ -18,15 +18,15 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
 
 ## Project and session tree
 
-- [ ] Project drag/reorder and expand/collapse affordances sit close together; project/session row padding and margins are compact. Session names are the leading, prominent content. No session chevron is rendered where the session row has no expandable children; actual expandable content remains discoverable and operable. Reorder, collapse, keyboard access, focus and phone usability continue to work.
-  - U: T2 row structure, affordance visibility, name-first layout, action wiring and compact styling (Vitest).
+- [ ] Project drag/reorder and expand/collapse affordances sit close together; project/session row padding and margins are compact. Session names are the leading, prominent content. Clickable project names and session rows show a pointer cursor; other sidebar areas show the arrow cursor and editable fields show the text cursor. No session chevron is rendered where the session row has no expandable children; actual expandable content remains discoverable and operable. Reorder, collapse, keyboard access, focus and phone usability continue to work.
+  - U: T2 `SessionList.spec.ts` and `SessionTree.spec.ts` cover pointer cursor classes on session rows/names and project names, row structure, affordance visibility, name-first layout, action wiring and compact styling.
   - I: n/a: presentation-only; tree data and APIs are unchanged.
-  - E: T2 *Compact tree* (desktop and phone), including actual reorder/collapse/open behavior.
+  - E: T2 *Compact tree* (desktop and phone), including pointer cursors over clickable project/session names and actual reorder/collapse/open behavior.
   - Status (2026-09-27): U written and passing (`web/src/components/SessionList.spec.ts`, `SessionTree.spec.ts`; e2e `tests/tree.compact.spec.ts`); E written and type-checked, run pending (on demand). Not ticked until the e2e run passes.
-- [ ] Session lists stay decluttered: no relative activity-age labels, green attachment dots or project session counts. Clicking any non-control area of a session row selects it, while row action buttons, drag handles and double-click rename keep their existing behavior. The selected row has a distinctive, readable background in Dark, Light, Solarized and Dimmed themes.
+- [ ] Session lists stay decluttered: no relative activity-age labels, green attachment dots or project session counts. Clicking any non-control area of a session row selects it, with a pointer cursor over the selectable row/name, while row action buttons, drag handles and double-click rename keep their existing behavior. The selected row has a distinctive, readable background in Dark, Light, Solarized and Dimmed themes.
   - U: T15 `SessionList.spec.ts` non-control row selection, interactive-control isolation, removed ages/dots and selected row; T26 `SessionTree.spec.ts` confirms per-project session totals remain absent in both states; `check-theme-contrast.test.mjs` selected foreground/background contrast for all themes.
   - I: n/a: frontend presentation and click handling only; no server contract changes.
-  - E: T15 *Selected session stands out across themes* (desktop) and *Whole session row selects on touch* (iPhone 13 Pro), including button isolation, no per-project session totals, no age/dot indicators, and selected styling in all four themes; T26 hierarchy scenarios keep per-project session totals absent in either state.
+  - E: T15 *Selected session stands out across themes* (desktop) and *Whole session row selects on touch* (iPhone 13 Pro), including pointer cursor over the session row/name, button isolation, no per-project session totals, no age/dot indicators, and selected styling in all four themes; T26 hierarchy scenarios keep per-project session totals absent in either state.
 
 ## File browser and browser autocomplete
 

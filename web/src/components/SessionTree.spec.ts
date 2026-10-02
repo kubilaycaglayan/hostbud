@@ -665,6 +665,7 @@ describe('SessionTree', () => {
     const header = project.element.firstElementChild as HTMLElement
     expect(header.className).toContain('min-h-8')
     expect(header.classList.contains('tree-row')).toBe(true)
+    expect(header.querySelector('[data-project-name]')?.classList.contains('cursor-pointer')).toBe(true)
     expect(header.classList.contains('relative')).toBe(true)
     const expand = header.firstElementChild as HTMLElement
     const drag = header.querySelector('[aria-label="Drag to reorder project a"]') as HTMLElement

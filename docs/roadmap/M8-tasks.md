@@ -80,11 +80,12 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 - Reduce excess horizontal gap between project reorder/drag affordance and project expand/collapse control, and reduce row padding/margins across project and session rows.
 - Remove session chevrons when sessions have no expandable children; retain expand affordances only where a row actually expands (such as lazily loaded windows/panes).
 - Make the session name the first and most prominent content in each session row; keep secondary actions available without crowding the name.
+- Show a pointer over clickable session rows and project names; keep the arrow cursor elsewhere in the sidebar and a text cursor in editable fields.
 - Preserve reorder, collapse, row actions, keyboard tree navigation, focus visibility and phone touch targets.
 
-**Tests:** U: Vitest covers row structure/affordances (no inert session chevron), name-first order, action availability and compact spacing classes; I: n/a (presentation-only); E: T2 *Compact tree* checks names, project controls, real reorder/collapse/open actions and keyboard access on desktop and phone.
+**Tests:** U: Vitest covers row structure/affordances (no inert session chevron), name-first order, pointer cursor classes on session rows/names and project names, action availability and compact spacing classes; I: n/a (presentation-only); E: T2 *Compact tree* checks pointer cursors over clickable project/session names, project controls, real reorder/collapse/open actions and keyboard access on desktop and phone.
 
-**E2E:** Add T2 *Compact tree* (desktop and phone): verify project reorder/collapse controls work, session rows have no inert chevron, session names remain prominent, and selecting a session still opens it.
+**E2E:** Add T2 *Compact tree* (desktop and phone): verify project reorder/collapse controls work, project names and session rows show a pointer cursor, session rows have no inert chevron, session names remain prominent, and selecting a session still opens it.
 
 ## T3 — Compact file browser and autocomplete policy
 
@@ -213,6 +214,7 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 
 - Make the selected session row and active terminal tab clearly distinct from unselected entries in Dark, Light, Solarized and Dimmed themes, with accessible foreground/background contrast.
 - Let clicks on any non-control area of a session row select that session; preserve button actions, tab close behavior, drag handles and double-click rename.
+- Show a pointer over the selectable session name/row.
 - Remove session activity-age labels and green attachment dots from project headers and session lists.
 - Keep project rows free of session counts.
 

@@ -160,6 +160,9 @@ button {
 .tree-panel {
   cursor: default;
 }
+.tree-panel :is(.tree-row, [data-session-row]) {
+  cursor: pointer;
+}
 .tree-panel :is(input:not([type='checkbox'], [type='radio'], [type='button'], [type='submit'], [type='color'], [type='range']), textarea, [contenteditable='true']) {
   cursor: text;
 }

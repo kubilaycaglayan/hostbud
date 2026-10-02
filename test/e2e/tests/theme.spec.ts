@@ -91,6 +91,7 @@ test('(T15) Selected session stands out across themes', async ({ page, ui, targe
   await ui.openTerminal(first)
   await ui.showList()
   const row = ui.treeItem(second)
+  await expect(row.locator('[data-session-row]')).toHaveCSS('cursor', 'pointer')
   const box = await row.boundingBox()
   expect(box).not.toBeNull()
   // Hit the row's leading blank/padding area, outside the name and controls.

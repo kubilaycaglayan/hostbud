@@ -149,7 +149,10 @@ describe('SessionList', () => {
 
   it('selects the session when clicking any non-control area of its row', async () => {
     const w = mount(SessionList, { props: { sessions: [s('a'), s('b')], treeView: true } })
-    await w.get('[data-tree-key="session:a"]').trigger('click')
+    const row = w.get('[data-tree-key="session:a"]')
+    expect(row.classes()).toContain('cursor-pointer')
+    expect(row.get('[data-session-row]').classes()).toContain('cursor-pointer')
+    await row.trigger('click')
     expect(w.emitted('select')).toEqual([['a']])
     await w.get('[data-tree-key="session:b"] button[aria-label="More actions for b"]').trigger('click')
     expect(w.emitted('select')).toEqual([['a']])

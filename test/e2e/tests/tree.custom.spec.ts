@@ -245,6 +245,9 @@ for (const mode of ['collapse', 'hierarchy'] as const) {
     if (mode === 'hierarchy') {
       const header = ui.treeItem(projectName)
       const row = ui.treeItem(inProject)
+      await expect(header.locator('[data-project-name]')).toHaveCSS('cursor', 'pointer')
+      await expect(header.locator(':scope > .tree-row')).toHaveCSS('cursor', 'pointer')
+      await expect(row.locator('[data-session-row]')).toHaveCSS('cursor', 'pointer')
       await expect(header).toContainText('~/' + path.split('/').at(-1))
       await expect(header.locator(`[title="${path}"]`)).toHaveCount(1)
       await expect(header.locator('[data-project-count]')).toHaveCount(0)
@@ -289,10 +292,10 @@ test('Session rows show only the name, without pane titles, activity ages or att
   await expect(ui.treeItem(titled)).toBeVisible()
   await expect(ui.treeItem(titled)).not.toContainText('deploy the changes')
   await expect(page.locator('[data-session-subtitle]')).toHaveCount(0)
-  // Labels and gutters in the sidebar show the arrow, never the text cursor.
+  // Clickable session rows show a pointer; the status prefix follows the row.
   const cursor = (l: Locator) => l.evaluate((el) => getComputedStyle(el).cursor)
-  expect(await cursor(ui.treeItem(titled).locator('[data-session-prefix]'))).toBe('default')
-  expect(await cursor(page.locator('[data-other-label]'))).toBe('default')
+  expect(await cursor(ui.treeItem(titled).locator('[data-session-row]'))).toBe('pointer')
+  expect(await cursor(ui.treeItem('Other sessions').locator(':scope > .tree-row'))).toBe('pointer')
   await expect(page.locator('[data-session-age], [data-session-dot]')).toHaveCount(0)
   await ui.openTerminal(titled)
   await ui.showList() // the compact tree drawer closes on open

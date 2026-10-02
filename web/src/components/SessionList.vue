@@ -260,7 +260,7 @@ const sortableSessions = computed({
         :aria-label="s.name"
         :aria-current="s.name === props.selected ? 'true' : undefined"
         :tabindex="props.treeView ? -1 : undefined"
-        class="touch-target min-h-6 min-w-[8ch] flex-1 truncate text-left font-semibold"
+        class="touch-target min-h-6 min-w-[8ch] flex-1 cursor-pointer truncate text-left font-semibold"
         :class="s.name === props.selected ? 'text-selected-fg' : 'text-fg'"
         @pointerdown="startLongPress($event, s.name)"
         @pointermove="moveLongPress"
