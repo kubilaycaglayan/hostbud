@@ -39,6 +39,14 @@ async function mountSearch(initial = '') {
 const lastOpts = (fn: ReturnType<typeof vi.fn>) => fn.mock.calls.at(-1)![1]
 
 describe('TerminalSearch', () => {
+  it('keeps the option checkboxes inside touch-sized labels', async () => {
+    const { w } = await mountSearch()
+    for (const checkbox of w.findAll('input[type=checkbox]')) {
+      expect(checkbox.element.parentElement?.classList.contains('touch-target')).toBe(true)
+      expect(checkbox.element.parentElement?.classList.contains('min-h-11')).toBe(true)
+    }
+  })
+
   it('updates search decorations when the theme changes', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)

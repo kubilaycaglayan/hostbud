@@ -146,7 +146,7 @@ defineExpose({ focus })
       </button>
     </div>
     <div class="flex items-center gap-3 text-muted">
-      <label class="flex items-center gap-1">
+      <label class="touch-target flex min-h-11 items-center gap-1">
         <input
           v-model="caseSensitive"
           type="checkbox"
@@ -154,7 +154,7 @@ defineExpose({ focus })
         >
         Match case
       </label>
-      <label class="flex items-center gap-1">
+      <label class="touch-target flex min-h-11 items-center gap-1">
         <input
           v-model="regex"
           type="checkbox"

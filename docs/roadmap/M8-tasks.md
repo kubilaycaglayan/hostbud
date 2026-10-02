@@ -369,6 +369,16 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 
 **E2E:** Add T31 *Active session header aligns project and token usage* to `test/e2e/tests/codex-usage.spec.ts`; type-check only, run on demand.
 
+## T32 — Compact native checkbox and radio visuals on touch screens
+
+- Remove checkbox and radio inputs from the global 44px coarse-pointer input sizing rule. Keep native control sizing compact through an explicit global minimum-size reset, so future controls do not need component-specific overrides.
+- Keep the 44px touch target on each surrounding label or wrapper. Add that target to the terminal search options and queue parallel toggle where needed.
+- Preserve authored visual sizes (including 16px and 20px controls) and keyboard focus behavior.
+
+**Tests:** U: T32 `control-sizing.test.mjs` protects the global coarse-pointer selectors and compact control reset; component coverage checks touch-target labels remain present for terminal search and queue parallel controls. I: n/a because this is frontend CSS and markup only. E: T32 *Native choice controls stay compact on touch screens* (`notifications.phone.spec.ts`) checks rendered checkbox dimensions and 44px label targets in WebKit.
+
+**E2E:** Update T32 *Native choice controls stay compact on touch screens* in `test/e2e/tests/notifications.phone.spec.ts`; type-check only, run on demand.
+
 
 ## Done
 

@@ -669,6 +669,13 @@ describe('QueuePanel', () => {
     expect(confirmSpy).not.toHaveBeenCalled()
   })
 
+  it('keeps the parallel checkbox inside a touch-sized label', async () => {
+    await mountPanel(queue([], 'idle'))
+    const toggle = document.querySelector<HTMLInputElement>('[data-testid="parallel-toggle"]')!
+    expect(toggle.parentElement?.classList.contains('touch-target')).toBe(true)
+    expect(toggle.parentElement?.classList.contains('min-h-11')).toBe(true)
+  })
+
   it('leaves the parallel switch unchanged when confirmation is cancelled', async () => {
     const calls = stubFetch((_m, _p, body) => ({ status: 200, body }))
     await mountPanel([queue([queued], 'idle')], false, false);

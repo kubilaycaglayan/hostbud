@@ -208,6 +208,14 @@ T8 verification: native reader checked at 390px in Chromium and WebKit (358px co
   - E: T20 *Selected content stays marked when its project or section collapses* in `tree.sections.spec.ts` (desktop and iPhone 13 Pro) verifies section toggle behavior, selected marking and persistence after reload/restart.
   - Status: U passes; E written and type-checked (`tree.sections.spec.ts`); browser run pending on demand.
 
+## Native choice control sizing
+
+- [ ] On coarse-pointer devices, radio and checkbox visuals remain compact across the app, including controls added in future features. Their surrounding labels or wrappers retain at least a 44px touch target, and authored 16px/20px control sizes remain intact.
+  - U: T32 `control-sizing.test.mjs` covers the shared CSS sizing contract; T32 component assertions cover touch targets on terminal search and queue parallel toggle labels.
+  - I: n/a: shared CSS and label markup only; no server behavior.
+  - E: T32 *Native choice controls stay compact on touch screens* in `notifications.phone.spec.ts` checks actual WebKit checkbox boxes and label targets.
+  - Status: U written; E written and type-check pending; browser run remains on demand.
+
 ## Terminal resizing across browser windows
 
 - [ ] A terminal detaches while its hostbud tab is inactive or its browser page is hidden, so its stale tmux client size cannot constrain a visible terminal. On return to the browser tab, and on initial page load/refresh, it refits and reconnects at the current size and focuses the active terminal cursor; inactive panes remain unfocused.

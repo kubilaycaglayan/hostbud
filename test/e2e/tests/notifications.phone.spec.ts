@@ -20,6 +20,11 @@ test('(V2-M3 T4) Notification settings (phone)', async ({ page, ui }) => {
   // The per-event choice still saves (for the account's other devices).
   await dialog.getByRole('checkbox', { name: 'An item needs attention' }).tap()
   await expect.poll(async () => (await settings()).onAttention).toBe(false)
-  // Controls are touch-sized.
-  expect((await toggle.locator('xpath=..').boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  // The label remains a touch target while native control visuals stay compact.
+  for (const checkbox of await dialog.getByRole('checkbox').all()) {
+    const box = await checkbox.boundingBox()
+    expect(box?.width).toBeLessThan(24)
+    expect(box?.height).toBeLessThan(24)
+    expect((await checkbox.locator('xpath=..').boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  }
 })

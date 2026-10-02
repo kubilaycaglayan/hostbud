@@ -673,7 +673,7 @@ const badge: Record<QueueItem['status'], string> = {
               <Plus :size="16" aria-hidden="true" />
             </button>
           </div>
-          <label v-if="store.queues.length" class="mt-1 flex min-h-8 items-center gap-2 text-sm">
+          <label v-if="store.queues.length" class="touch-target mt-1 flex min-h-11 items-center gap-2 text-sm">
             <input
               type="checkbox"
               data-testid="parallel-toggle"
