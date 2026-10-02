@@ -16,14 +16,14 @@
 - [x] (T1) API *Loop queue runs its items again until the runtime limit* — written and type-checked; browser run pending on demand.
 - [x] (T2) Desktop *Loop a queue until its runtime limit* and phone *Loop a queue on phone; Pause cancels the pending pass* — written and type-checked; browser run pending on demand.
 - [x] (T5) API *Per queue, off by default, Origin-checked and validated* and desktop *Opting a queue in prefills its new item instruction; the item keeps what was typed* — written and type-checked; browser run pending on demand.
-- [x] (T6) Desktop *Long queue fits a constrained viewport and scrolls inside the Queue panel* — written and type-checked; browser run pending on demand.
+- [x] (T6) Desktop *Long queue fills a constrained viewport and scrolls inside the Queue panel* — focused browser run passed; full suite remains pending on demand.
 - [ ] (on demand) Full suite green on every e2e app and both profiles — open until requested, not a blocker.
 
 ## Manual checks (owner; backlog, not blockers)
 
 - [ ] Review the loop controls in the deployed queue panel (open).
 - [ ] Turn on a queue's default prompt in the Queue panel and add an item on desktop and phone (open).
-- [ ] E2E scenarios have not been run; on-demand full run remains open.
+- [ ] Full E2E suite remains open on demand; T6's focused desktop scenario passed.
 
 ## Definition of done
 
