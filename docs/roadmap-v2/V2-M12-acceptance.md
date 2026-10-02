@@ -20,4 +20,4 @@
 - [x] Unit/integration tests pass; E2E scenario is written and type-checked.
 - [x] `make lint test`, E2E TypeScript check, `make gitleaks`, deploy and health check pass.
 - [x] Docker cleanup was safely skipped because hostbud toolbox containers and warm test targets were active; production volumes were not touched.
-- [ ] Summary includes owner checks and pending on-demand E2E run.
+- [x] Summary includes owner checks and pending on-demand E2E run.
