@@ -28,7 +28,6 @@ type fakeQueues struct {
 	parallel bool
 	capacity *int
 	delay    time.Duration
-	prompt   *store.DefaultPrompt
 }
 
 func (f *fakeQueues) rec(call string) { f.calls = append(f.calls, call) }
@@ -63,6 +62,13 @@ func (f *fakeQueues) Rename(_ context.Context, id, name string) (queue.View, err
 func (f *fakeQueues) SetLoop(_ context.Context, id string, enabled bool, maxRuntime time.Duration) (queue.View, error) {
 	f.rec(fmt.Sprintf("loop %s %t %s", id, enabled, maxRuntime))
 	return queue.View{}, f.err
+}
+func (f *fakeQueues) SetDefaultPrompt(_ context.Context, id string, p store.DefaultPrompt) (queue.View, error) {
+	f.rec(fmt.Sprintf("default-prompt %s %t %q", id, p.Enabled, p.Text))
+	if strings.ContainsAny(p.Text, "\r\n") {
+		return queue.View{}, &queue.Error{Status: http.StatusBadRequest, Message: store.ErrDefaultPrompt.Error()}
+	}
+	return queue.View{DefaultPrompt: &p}, f.err
 }
 func (f *fakeQueues) Delete(_ context.Context, id string) error { f.rec("delete " + id); return f.err }
 func (f *fakeQueues) AddItem(_ context.Context, queueID, agent, flags, instruction string, gates ...store.ItemGates) (queue.ItemView, error) {
@@ -146,23 +152,6 @@ func (f *fakeQueues) SetParallel(_ context.Context, on bool) (bool, error) {
 	return f.parallel, f.err
 }
 
-// DefaultPrompt records no call: GET /api/queues reads it too.
-func (f *fakeQueues) DefaultPrompt(context.Context) (store.DefaultPrompt, error) {
-	if f.prompt == nil {
-		return store.DefaultPrompt{Text: store.DefaultQueuePrompt}, nil
-	}
-	return *f.prompt, nil
-}
-
-func (f *fakeQueues) SetDefaultPrompt(_ context.Context, p store.DefaultPrompt) (store.DefaultPrompt, error) {
-	f.rec(fmt.Sprintf("set-default-prompt %v %q", p.Enabled, p.Text))
-	if strings.ContainsAny(p.Text, "\r\n") {
-		return store.DefaultPrompt{}, &queue.Error{Status: http.StatusBadRequest, Message: store.ErrDefaultPrompt.Error()}
-	}
-	f.prompt = &p
-	return p, f.err
-}
-
 func queueEnv(t *testing.T, q *fakeQueues) http.Handler {
 	t.Helper()
 	return New(Config{
@@ -209,6 +198,8 @@ func TestQueueRoutesCallTheService(t *testing.T) {
 		{"PUT", "/api/queues/queue_a/loop", `{"enabled":true,"maxRuntime":"5h30m"}`, 200, "loop queue_a true 5h30m0s"},
 		{"PUT", "/api/queues/queue_a/loop", `{"enabled":true}`, 200, "loop queue_a true 5h0m0s"},
 		{"PUT", "/api/queues/queue_a/loop", `{"enabled":false}`, 200, "loop queue_a false 5h0m0s"},
+		{"PUT", "/api/queues/queue_a/default-prompt", `{"enabled":true,"text":", commit regularly."}`, 200, `default-prompt queue_a true ", commit regularly."`},
+		{"PUT", "/api/queues/queue_a/default-prompt", `{"enabled":false,"text":""}`, 200, `default-prompt queue_a false ""`},
 		{"PUT", "/api/queues/queue_a/link", `{"afterSession":"manual-work"}`, 200, "link queue_a run= session=manual-work"},
 		{"PUT", "/api/queues/queue_a/link", `{"afterRunId":"run_a"}`, 200, "link queue_a run=run_a session="},
 		{"PUT", "/api/queues/queue_a/link", `{}`, 200, "link queue_a run= session="},
@@ -237,6 +228,16 @@ func TestQueueRoutesCallTheService(t *testing.T) {
 	}
 	if q.delay != 254*time.Minute {
 		t.Errorf("start delay = %s", q.delay)
+	}
+	// The default prompt needs both fields; the service refuses two lines.
+	for _, body := range []string{`{"enabled":true}`, `{"text":"x"}`, `{"enabled":"yes","text":"x"}`, `{"enabled":true,"text":"a\nb"}`} {
+		if rec := queueRequest(t, h, "PUT", "/api/queues/queue_a/default-prompt", body, nil); rec.Code != http.StatusBadRequest {
+			t.Errorf("default prompt %s status = %d", body, rec.Code)
+		}
+	}
+	q.calls = nil
+	if rec := queueRequest(t, h, "PUT", "/api/queues/queue_a/default-prompt", `{"enabled":true,"text":"x"}`, map[string]string{"Origin": "http://evil.example.com"}); rec.Code != http.StatusForbidden || len(q.calls) != 0 {
+		t.Errorf("default prompt bad origin: %d, calls %v", rec.Code, q.calls)
 	}
 	for _, value := range []string{"0s", "nonsense", "721h", "-1h"} {
 		if rec := queueRequest(t, h, "PUT", "/api/queues/queue_a/loop", `{"enabled":true,"maxRuntime":"`+value+`"}`, nil); rec.Code != http.StatusBadRequest {
@@ -318,16 +319,6 @@ func TestCapacityRouteAndParallelFlag(t *testing.T) {
 		{"PUT", "/api/machines/host/parallel-queues", `{"parallelQueues":"true"}`, 400, "", ""},
 		{"PUT", "/api/machines/host/parallel-queues", `{"parallelQueues":true,"extra":1}`, 400, "", ""},
 		{"PUT", "/api/machines/server-a/parallel-queues", `{"parallelQueues":true}`, 404, "", ""},
-		// The queue default prompt: off with ", commit regularly." by default.
-		{"GET", "/api/machines/host/default-prompt", "", 200, "", `{"enabled":false,"text":", commit regularly."}`},
-		{"PUT", "/api/machines/host/default-prompt", `{"enabled":true,"text":", commit regularly."}`, 200, `set-default-prompt true ", commit regularly."`, `{"enabled":true,"text":", commit regularly."}`},
-		{"GET", "/api/machines/host/default-prompt", "", 200, "", `{"enabled":true,"text":", commit regularly."}`},
-		{"PUT", "/api/machines/host/default-prompt", `{"enabled":true,"text":"a\nb"}`, 400, `set-default-prompt true "a\nb"`, ""},
-		{"PUT", "/api/machines/host/default-prompt", `{"enabled":true}`, 400, "", ""},
-		{"PUT", "/api/machines/host/default-prompt", `{"text":"x"}`, 400, "", ""},
-		{"PUT", "/api/machines/host/default-prompt", `{"enabled":"yes","text":"x"}`, 400, "", ""},
-		{"PUT", "/api/machines/server-a/default-prompt", `{"enabled":true,"text":"x"}`, 404, "", ""},
-		{"GET", "/api/machines/server-a/default-prompt", "", 404, "", ""},
 	} {
 		q.calls = nil
 		rec := queueRequest(t, h, c.method, c.path, c.body, nil)
@@ -344,19 +335,14 @@ func TestCapacityRouteAndParallelFlag(t *testing.T) {
 	}
 	rec := queueRequest(t, h, "GET", "/api/queues", "", nil)
 	var list struct {
-		Queues         []map[string]any    `json:"queues"`
-		ParallelQueues *bool               `json:"parallelQueues"`
-		DefaultPrompt  store.DefaultPrompt `json:"defaultPrompt"`
+		Queues         []map[string]any `json:"queues"`
+		ParallelQueues *bool            `json:"parallelQueues"`
 	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil || list.ParallelQueues == nil || !*list.ParallelQueues || len(list.Queues) != 1 || list.DefaultPrompt != (store.DefaultPrompt{Enabled: true, Text: ", commit regularly."}) {
+	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil || list.ParallelQueues == nil || !*list.ParallelQueues || len(list.Queues) != 1 {
 		t.Fatalf("GET /api/queues: %s, %v", rec.Body, err)
 	}
 	// A bad Origin never reaches the service.
 	q.calls = nil
-	rec = queueRequest(t, h, "PUT", "/api/machines/host/default-prompt", `{"enabled":true,"text":"x"}`, map[string]string{"Origin": "http://evil.example.com"})
-	if rec.Code != http.StatusForbidden || len(q.calls) != 0 {
-		t.Fatalf("bad origin: %d, calls %v", rec.Code, q.calls)
-	}
 	rec = queueRequest(t, h, "PUT", "/api/machines/host/capacity", `{"maxConcurrentRuns":2}`, map[string]string{"Origin": "http://evil.example.com"})
 	if rec.Code != http.StatusForbidden || len(q.calls) != 0 {
 		t.Fatalf("bad origin: %d, calls %v", rec.Code, q.calls)

@@ -351,6 +351,7 @@ GET    /api/queue-history?limit=100&offset=0  V2-M9: newest-first metadata snaps
 POST   /api/queues                    {projectId, name} — 201; several queues either way, names unique per project (409); with parallel queues off only one runs at a time (start/resume of another → 409)
 GET    /api/queues/:id
 PATCH  /api/queues/:id                {name}
+PUT    /api/queues/:id/default-prompt {enabled: bool, text: string} — the queue's default prompt (Queue panel); opt-in per queue (off by default; text defaults to ", commit regularly."), one line ≤ 1000 bytes (400 otherwise); when enabled the queue's new-item instruction starts with it (prefill only: the server never rewrites an instruction); the queue view carries `defaultPrompt` once it differs from the default; publishes queue.changed
 PUT    /api/queues/:id/loop           {enabled, maxRuntime?} — looping on/off and its runtime limit (Go duration, 1s–30d, default "5h"); applies at the next pass boundary
 PUT    /api/queues/:id/link           {afterRunId?, afterSession?} — "Start after" on an existing queue, in any state: an active tracked goal or any existing session (at most one; both empty clears); a session link gates the next item started
 DELETE /api/queues/:id                204; refused (409) while a run is active or an item is verifying; run sessions stay open
@@ -361,7 +362,6 @@ PUT    /api/queues/:id/order          {itemIds} — exactly the queued items, in
 POST   /api/queues/:id/start|pause|resume        an invalid transition → 409 naming the current state; switch off: 409 while another queue is active; the response carries warnings
 GET|PUT /api/machines/:id/capacity    {maxConcurrentRuns: 1–32 | null} — the per-machine cap on active runs (V2-M2; PUT out of range or not a whole number → 400; publishes queue.changed)
 PUT    /api/machines/:id/parallel-queues {parallelQueues: bool} — the parallel-queues switch (Queue panel), stored in machine_capacity.parallel_queues over the HOSTBUD_PARALLEL_QUEUES default; publishes queue.changed (each payload carries parallelQueues); switching off stops no run
-GET|PUT /api/machines/:id/default-prompt {enabled: bool, text: string} — the queue default prompt (Settings), stored in machine_capacity; opt-in (off by default), text defaults to ", commit regularly.", one line ≤ 1000 bytes (400 otherwise); when enabled the Queue panel's new-item instruction starts with it (prefill only: the server never rewrites an instruction); also reported by GET /api/queues; PUT publishes one queue.changed carrying defaultPrompt
 POST   /api/queue-items/:id/retry|skip|mark-done needs_attention items only (409 otherwise); an active run is cancelled first
 POST   /api/queue-items/:id/approve|reject      V2-M4: awaiting_approval items only (409 naming the state otherwise); approve ⇒ done and the queue advances, reject ⇒ needs_attention and the queue pauses
 POST   /api/queue-items/:id/reverify           V2-M4: Re-run verify on a needs_attention item whose latest run achieved and that has a verify command (409 otherwise); no new run or session

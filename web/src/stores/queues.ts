@@ -1,14 +1,11 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { queuesApi } from '@/api/client'
-import type { DefaultPrompt, Queue, QueueChanged, RunChanged, ServerEvent } from '@/api/types'
-import { DEFAULT_PROMPT } from '@/lib/queue'
+import type { Queue, QueueChanged, RunChanged, ServerEvent } from '@/api/types'
 import { describeError } from './toasts'
 
-/** Applies a queue.changed payload: the queue after the change, or its
- * removal. A setting change (no queueId) leaves the queues alone. */
+/** Applies a queue.changed payload: the queue after the change, or its removal. */
 export function applyQueueChanged(queues: Queue[], change: QueueChanged): Queue[] {
-  if (!change.queueId) return queues
   if (!change.queue) return queues.filter((q) => q.id !== change.queueId)
   const at = queues.findIndex((q) => q.id === change.queueId)
   if (at < 0) return [...queues, change.queue]
@@ -39,8 +36,6 @@ export const useQueuesStore = defineStore('queues', () => {
   const loadError = ref('')
   /** The parallel-queues switch (V2-M2): several queues, parallel runs. */
   const parallelQueues = ref(false)
-  /** The queue default prompt (Settings): prefills new items when enabled. */
-  const defaultPrompt = ref<DefaultPrompt>({ enabled: false, text: DEFAULT_PROMPT })
   let loading: Promise<void> | null = null
   /** V2-M3: the queue item a notification asked to open (the Queue panel
    * selects its queue and highlights the item). */
@@ -52,7 +47,6 @@ export const useQueuesStore = defineStore('queues', () => {
         const list = await queuesApi.list()
         queues.value = list.queues
         parallelQueues.value = list.parallelQueues === true
-        if (list.defaultPrompt) defaultPrompt.value = list.defaultPrompt
         loaded.value = true
         loadError.value = ''
       } catch (e) {
@@ -73,7 +67,6 @@ export const useQueuesStore = defineStore('queues', () => {
       case 'queue.changed':
         queues.value = applyQueueChanged(queues.value, e.payload)
         if (typeof e.payload.parallelQueues === 'boolean') parallelQueues.value = e.payload.parallelQueues
-        if (e.payload.defaultPrompt) defaultPrompt.value = e.payload.defaultPrompt
         break
       case 'run.changed':
         queues.value = applyRunChanged(queues.value, e.payload)
@@ -91,12 +84,11 @@ export const useQueuesStore = defineStore('queues', () => {
     loaded.value = false
     loadError.value = ''
     parallelQueues.value = false
-    defaultPrompt.value = { enabled: false, text: DEFAULT_PROMPT }
   }
 
   function focusItem(queueId: string, itemId: string | null) {
     focus.value = { queueId, itemId, at: Date.now() }
   }
 
-  return { queues, loaded, loadError, parallelQueues, defaultPrompt, focus, load, apply, put, reset, focusItem }
+  return { queues, loaded, loadError, parallelQueues, focus, load, apply, put, reset, focusItem }
 })

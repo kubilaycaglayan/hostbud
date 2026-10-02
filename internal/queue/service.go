@@ -77,8 +77,7 @@ type Store interface {
 	CountActiveRuns(ctx context.Context, machineID string) (int, error)
 	ParallelQueuesSetting(ctx context.Context, machineID string) (*bool, error)
 	SetParallelQueuesSetting(ctx context.Context, machineID string, on bool) error
-	QueueDefaultPrompt(ctx context.Context, machineID string) (store.DefaultPrompt, error)
-	SetQueueDefaultPrompt(ctx context.Context, machineID string, p store.DefaultPrompt) error
+	SetQueueDefaultPrompt(ctx context.Context, id string, p store.DefaultPrompt) (store.Queue, error)
 	VerifyEvents(ctx context.Context, runID string) ([]store.RunEvent, error)
 	RunEvents(ctx context.Context, runID string, limit int) ([]store.RunEvent, error)
 }
@@ -161,6 +160,17 @@ type View struct {
 	// Loop is set once the queue's loop settings differ from the default
 	// (off, 5 h), so queues that never looped keep V2-M1's fields.
 	Loop *LoopView `json:"loop,omitempty"`
+	// DefaultPrompt is set once the queue's default prompt differs from the
+	// default (off, ", commit regularly."), so other queues keep V2-M1's
+	// fields. When enabled, the queue's new items start with its text.
+	DefaultPrompt *store.DefaultPrompt `json:"defaultPrompt,omitempty"`
+}
+
+func defaultPromptView(q store.Queue) *store.DefaultPrompt {
+	if !q.DefaultPromptEnabled && q.DefaultPrompt == store.DefaultQueuePrompt {
+		return nil
+	}
+	return &store.DefaultPrompt{Enabled: q.DefaultPromptEnabled, Text: q.DefaultPrompt}
 }
 
 // LoopView is a queue's loop settings and progress.
@@ -211,9 +221,6 @@ type Changed struct {
 	// ParallelQueues is the switch at the time of the change, so every
 	// open panel follows a toggle.
 	ParallelQueues bool `json:"parallelQueues"`
-	// DefaultPrompt is set when the owner changed the queue default prompt
-	// (Settings), so every open panel prefills the new one.
-	DefaultPrompt *store.DefaultPrompt `json:"defaultPrompt,omitempty"`
 	// Notification is set on the three notifying transitions (item done,
 	// needs attention, queue finished) while at least one account has
 	// notifications on (V2-M3). Clients show only this, never text built
@@ -444,7 +451,7 @@ func (s *Service) item(ctx context.Context, id string) (store.QueueItem, error) 
 }
 
 func (s *Service) view(ctx context.Context, q store.Queue) (View, error) {
-	v := View{Queue: q, Items: []ItemView{}, Loop: loopView(q)}
+	v := View{Queue: q, Items: []ItemView{}, Loop: loopView(q), DefaultPrompt: defaultPromptView(q)}
 	if q.AfterRunID != nil {
 		if predecessor, err := s.store.Run(ctx, *q.AfterRunID); err == nil {
 			v.AfterRunStatus = predecessor.Status
@@ -620,30 +627,6 @@ func (s *Service) SetCapacity(ctx context.Context, maxRuns *int) (*int, error) {
 	return s.store.MachineCapacity(ctx, s.machine)
 }
 
-// DefaultPrompt returns the machine's queue default prompt (Settings).
-func (s *Service) DefaultPrompt(ctx context.Context) (store.DefaultPrompt, error) {
-	return s.store.QueueDefaultPrompt(ctx, s.machine)
-}
-
-// SetDefaultPrompt stores the machine's queue default prompt. It only
-// prefills new items' instructions in the UI; existing items keep theirs.
-// One queue.changed carries it to every open panel.
-func (s *Service) SetDefaultPrompt(ctx context.Context, p store.DefaultPrompt) (store.DefaultPrompt, error) {
-	if err := s.store.SetQueueDefaultPrompt(ctx, s.machine, p); errors.Is(err, store.ErrDefaultPrompt) {
-		return store.DefaultPrompt{}, invalid(err.Error(), "Keep it on one line, or shorten it.")
-	} else if err != nil {
-		return store.DefaultPrompt{}, err
-	}
-	saved, err := s.store.QueueDefaultPrompt(ctx, s.machine)
-	if err != nil {
-		return store.DefaultPrompt{}, err
-	}
-	if s.bus != nil {
-		s.bus.Publish(events.Event{Type: events.QueueChanged, Machine: s.machine, Payload: Changed{Action: "default_prompt_changed", ParallelQueues: s.ParallelQueues(), DefaultPrompt: &saved}})
-	}
-	return saved, nil
-}
-
 // Publish sends queue.changed with the queue's current view (the
 // dispatcher uses it too). Queues sharing its directory get one as well,
 // since their shared-directory warning may have changed with it.
@@ -773,6 +756,20 @@ func (s *Service) SetLoop(ctx context.Context, id string, enabled bool, maxRunti
 		return View{}, err
 	}
 	return s.changed(ctx, "loop_changed", id)
+}
+
+// SetDefaultPrompt stores the queue's default prompt. It only prefills the
+// queue's new item instructions in the UI; existing items keep theirs.
+func (s *Service) SetDefaultPrompt(ctx context.Context, id string, p store.DefaultPrompt) (View, error) {
+	if _, err := s.queue(ctx, id); err != nil {
+		return View{}, err
+	}
+	if _, err := s.store.SetQueueDefaultPrompt(ctx, id, p); errors.Is(err, store.ErrDefaultPrompt) {
+		return View{}, invalid(err.Error(), "Keep it on one line, or shorten it.")
+	} else if err != nil {
+		return View{}, err
+	}
+	return s.changed(ctx, "default_prompt_changed", id)
 }
 
 // Delete deletes a queue with its items and runs; their sessions stay open.

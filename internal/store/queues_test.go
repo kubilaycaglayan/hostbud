@@ -879,3 +879,35 @@ func TestQueueItemHistorySurvivesDeleteAndStoresOnlyMetadata(t *testing.T) {
 		}
 	}
 }
+
+// A queue's default prompt: off with ", commit regularly." on a new queue,
+// stored per queue, validated.
+func TestQueueDefaultPrompt(t *testing.T) {
+	ctx := context.Background()
+	s, p := queueFixture(t)
+	a, _ := s.CreateQueue(ctx, p.ID, "Alpha")
+	b, _ := s.CreateQueue(ctx, p.ID, "Beta")
+	if a.DefaultPromptEnabled || a.DefaultPrompt != ", commit regularly." {
+		t.Fatalf("new queue: %v %q, want off with the built-in text", a.DefaultPromptEnabled, a.DefaultPrompt)
+	}
+	for _, want := range []DefaultPrompt{{Enabled: true, Text: DefaultQueuePrompt}, {Enabled: true, Text: " and run make test."}, {Enabled: false, Text: ""}} {
+		q, err := s.SetQueueDefaultPrompt(ctx, a.ID, want)
+		if err != nil || q.DefaultPromptEnabled != want.Enabled || q.DefaultPrompt != want.Text {
+			t.Fatalf("set %+v: %v %q, %v", want, q.DefaultPromptEnabled, q.DefaultPrompt, err)
+		}
+		if got, _ := s.Queue(ctx, a.ID); got.DefaultPromptEnabled != want.Enabled || got.DefaultPrompt != want.Text {
+			t.Fatalf("read back %v %q", got.DefaultPromptEnabled, got.DefaultPrompt)
+		}
+	}
+	if got, _ := s.Queue(ctx, b.ID); got.DefaultPromptEnabled || got.DefaultPrompt != DefaultQueuePrompt {
+		t.Fatalf("another queue changed: %v %q", got.DefaultPromptEnabled, got.DefaultPrompt)
+	}
+	for _, bad := range []string{"a\nb", "a\rb", strings.Repeat("x", MaxDefaultPromptLen+1)} {
+		if _, err := s.SetQueueDefaultPrompt(ctx, a.ID, DefaultPrompt{Enabled: true, Text: bad}); !errors.Is(err, ErrDefaultPrompt) {
+			t.Errorf("%q: %v, want ErrDefaultPrompt", bad[:3], err)
+		}
+	}
+	if _, err := s.SetQueueDefaultPrompt(ctx, "queue_missing", DefaultPrompt{}); !errors.Is(err, ErrNotFound) {
+		t.Errorf("unknown queue: %v, want ErrNotFound", err)
+	}
+}

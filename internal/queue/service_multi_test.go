@@ -312,30 +312,37 @@ func TestSetParallelStoresAndPublishes(t *testing.T) {
 	}
 }
 
-// The queue default prompt (Settings): off with ", commit regularly." until
-// set; stored, validated, and announced once to every open panel.
+// A queue's default prompt: off with ", commit regularly." until set; the
+// view carries it only once it differs; stored per queue, validated, and
+// published as the queue's queue.changed.
 func TestSetDefaultPromptStoresAndPublishes(t *testing.T) {
 	e := newServiceEnv(t)
 	ctx := context.Background()
-	if p, err := e.svc.DefaultPrompt(ctx); err != nil || p != (store.DefaultPrompt{Text: ", commit regularly."}) {
-		t.Fatalf("default: %+v %v", p, err)
+	a, _ := e.svc.Create(ctx, "project_a", "Alpha")
+	b, _ := e.svc.Create(ctx, "project_a", "Beta")
+	if a.DefaultPrompt != nil {
+		t.Fatalf("new queue: %+v, want none (the default)", a.DefaultPrompt)
 	}
-	_, _ = e.svc.Create(ctx, "project_a", "Alpha")
 	e.drain()
 	want := store.DefaultPrompt{Enabled: true, Text: ", commit regularly."}
-	if p, err := e.svc.SetDefaultPrompt(ctx, want); err != nil || p != want {
-		t.Fatalf("set: %+v %v", p, err)
+	v, err := e.svc.SetDefaultPrompt(ctx, a.ID, want)
+	if err != nil || v.DefaultPrompt == nil || *v.DefaultPrompt != want {
+		t.Fatalf("set: %+v %v", v.DefaultPrompt, err)
 	}
-	if got := e.drain(); len(got) != 1 || got[0].Action != "default_prompt_changed" || got[0].DefaultPrompt == nil || *got[0].DefaultPrompt != want || got[0].Queue != nil {
+	// Beta shares the directory, so it hears a peer_changed as well.
+	if got := e.drain(); len(got) == 0 || got[0].Action != "default_prompt_changed" || got[0].QueueID != a.ID || got[0].Queue == nil || *got[0].Queue.DefaultPrompt != want {
 		t.Fatalf("queue.changed after set: %+v", got)
 	}
-	if p, _ := e.svc.DefaultPrompt(ctx); p != want {
-		t.Fatalf("read back %+v", p)
+	if other, _ := e.svc.Get(ctx, b.ID); other.DefaultPrompt != nil {
+		t.Fatalf("Beta changed: %+v", other.DefaultPrompt)
 	}
-	_, err := e.svc.SetDefaultPrompt(ctx, store.DefaultPrompt{Enabled: true, Text: "two\nlines"})
+	_, err = e.svc.SetDefaultPrompt(ctx, a.ID, store.DefaultPrompt{Enabled: true, Text: "two\nlines"})
 	var qe *Error
 	if !errors.As(err, &qe) || qe.Status != http.StatusBadRequest {
 		t.Fatalf("two lines: %v, want a 400", err)
+	}
+	if _, err := e.svc.SetDefaultPrompt(ctx, "queue_missing", want); !errors.As(err, &qe) || qe.Status != http.StatusNotFound {
+		t.Fatalf("unknown queue: %v, want a 404", err)
 	}
 	if got := e.drain(); len(got) != 0 {
 		t.Fatalf("a refused prompt published %+v", got)

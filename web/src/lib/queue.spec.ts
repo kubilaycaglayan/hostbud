@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { QueueItem } from '@/api/types'
-import { capacityError, capacityValue, completedSessions, DEFAULT_PROMPT, defaultPromptError, elapsedText, flagsError, initialInstruction, instructionError, loopRuntimeError, loopRuntimeText, itemActions, moveQueued, progressCount, promptCaret, queueControls, queueRunning, statusLabel, tokensText, verifyCommandError, verifyLine } from './queue'
+import { capacityError, capacityValue, completedSessions, DEFAULT_PROMPT, defaultPromptError, elapsedText, flagsError, initialInstruction, instructionError, loopRuntimeError, loopRuntimeText, itemActions, moveQueued, progressCount, promptCaret, queuePrompt, queueControls, queueRunning, statusLabel, tokensText, verifyCommandError, verifyLine } from './queue'
 
 const item = (id: string, status: QueueItem['status'], run?: Partial<QueueItem['run']>): QueueItem => ({
   id, queueId: 'q', position: 1, agent: 'claude', flags: '', instruction: '/goal x', status,
@@ -177,6 +177,9 @@ describe('queue default prompt', () => {
     expect(initialInstruction({ enabled: false, text: DEFAULT_PROMPT })).toBe('')
     expect(initialInstruction({ enabled: true, text: DEFAULT_PROMPT })).toBe(', commit regularly.')
     expect(initialInstruction(null)).toBe('')
+    expect(queuePrompt(null)).toEqual({ enabled: false, text: ', commit regularly.' })
+    expect(queuePrompt({})).toEqual({ enabled: false, text: ', commit regularly.' })
+    expect(queuePrompt({ defaultPrompt: { enabled: true, text: ' and push.' } })).toEqual({ enabled: true, text: ' and push.' })
   })
 
   it('puts the caret before a continuing prompt and after an opening one', () => {

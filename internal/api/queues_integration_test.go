@@ -153,6 +153,7 @@ func TestIntegrationQueueRoutesUsePostgres(t *testing.T) {
 		{"POST", "/api/queues/" + q.ID + "/items", `{"agent":"claude","instruction":"/goal x"}`},
 		{"PUT", "/api/queues/" + q.ID + "/order", `{"itemIds":["` + ids[0] + `","` + ids[2] + `"]}`},
 		{"PUT", "/api/queues/" + q.ID + "/loop", `{"enabled":true,"maxRuntime":"2h"}`},
+		{"PUT", "/api/queues/" + q.ID + "/default-prompt", `{"enabled":true,"text":", commit regularly."}`},
 		{"PATCH", "/api/queue-items/" + ids[0], `{"instruction":"/goal x"}`},
 		{"DELETE", "/api/queue-items/" + ids[0], ""},
 		{"POST", "/api/queues/" + q.ID + "/start", ""},
@@ -183,6 +184,21 @@ func TestIntegrationQueueRoutesUsePostgres(t *testing.T) {
 	want(200, status, body, "loop off")
 	if strings.Contains(string(body), `"loop"`) {
 		t.Fatalf("loop off still shows loop settings: %s", body)
+	}
+	// The queue's default prompt: absent (off, ", commit regularly.") until
+	// set, stored in PostgreSQL, refused on two lines.
+	if strings.Contains(string(body), `"defaultPrompt"`) {
+		t.Fatalf("a new queue shows a default prompt: %s", body)
+	}
+	status, body = call("PUT", "/api/queues/"+q.ID+"/default-prompt", `{"enabled":true,"text":"a\nb"}`, origin)
+	want(400, status, body, "two-line default prompt")
+	status, body = call("PUT", "/api/queues/"+q.ID+"/default-prompt", `{"enabled":true,"text":", commit regularly."}`, origin)
+	want(200, status, body, "default prompt on")
+	if !strings.Contains(string(body), `"defaultPrompt":{"enabled":true,"text":", commit regularly."}`) {
+		t.Fatalf("default prompt on: %s", body)
+	}
+	if _, listed := call("GET", "/api/queues", "", ""); !strings.Contains(string(listed), `"defaultPrompt":{"enabled":true,"text":", commit regularly."}`) {
+		t.Fatalf("GET /api/queues after default prompt on: %s", listed)
 	}
 	status, body = call("POST", "/api/queues/"+q.ID+"/start", "", origin)
 	want(200, status, body, "start")
@@ -216,9 +232,9 @@ func TestIntegrationQueueRoutesUsePostgres(t *testing.T) {
 			n++
 		}
 	}
-	// 12 changes on Milestones, 3 on Second, each also heard by its peer
-	// in the same directory (3 more).
-	if n != 18 {
-		t.Fatalf("queue.changed events: %d, want one per change plus peers (18)", n)
+	// 13 changes on Milestones (one sets its default prompt), 3 on Second,
+	// each also heard by its peer in the same directory (3 more).
+	if n != 19 {
+		t.Fatalf("queue.changed events: %d, want one per change plus peers (19)", n)
 	}
 }

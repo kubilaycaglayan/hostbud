@@ -6,8 +6,13 @@ import type { Queue, QueueItem, QueueItemStatus, QueueStatus, RunStatus, VerifyS
 export const AGENTS = ['claude', 'codex'] as const
 export type Agent = (typeof AGENTS)[number]
 
-/** The queue default prompt's text until the owner changes it (Settings). */
+/** A queue's default prompt text until the owner changes it. */
 export const DEFAULT_PROMPT = ', commit regularly.'
+
+/** The queue's default prompt (the view omits the default). */
+export function queuePrompt(q: Pick<Queue, 'defaultPrompt'> | null | undefined): { enabled: boolean; text: string } {
+  return q?.defaultPrompt ?? { enabled: false, text: DEFAULT_PROMPT }
+}
 
 /** A new item's instruction: the default prompt when the owner opted in. */
 export function initialInstruction(prompt: { enabled: boolean; text: string } | null | undefined): string {

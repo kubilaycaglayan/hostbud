@@ -11,7 +11,7 @@ import ConfirmDialog from './ConfirmDialog.vue'
 import DurationPicker from './DurationPicker.vue'
 import FormError from './FormError.vue'
 import AgentMark from './AgentMark.vue'
-import { AGENTS, type Agent, completedSessions, DEFAULT_LOOP_RUNTIME_SECONDS, elapsedText, flagsError, loopRuntimeError, loopRuntimeText, initialInstruction, instructionError, itemActions, itemLive, moveQueued, progressCount, promptCaret, queueControls, queueRunning, statusLabel, tokensText, verifyCommandError, verifyLine } from '@/lib/queue'
+import { AGENTS, type Agent, completedSessions, DEFAULT_LOOP_RUNTIME_SECONDS, DEFAULT_PROMPT, elapsedText, flagsError, loopRuntimeError, loopRuntimeText, defaultPromptError, initialInstruction, instructionError, itemActions, itemLive, moveQueued, progressCount, promptCaret, queueControls, queuePrompt, queueRunning, statusLabel, tokensText, verifyCommandError, verifyLine } from '@/lib/queue'
 import { useQueuesStore } from '@/stores/queues'
 import { useProjectsStore } from '@/stores/projects'
 import { useSessionsStore } from '@/stores/sessions'
@@ -277,6 +277,29 @@ function saveLoop(enabled: boolean) {
   void act("Couldn't change looping", () => queuesApi.setLoop(q.id, enabled, loopRuntimeText(loopLimit.value)))
 }
 
+// ---- the queue's default prompt: prefills its new items' instructions ----
+const prompt = computed(() => queuePrompt(queue.value))
+const promptText = ref(prompt.value.text)
+const promptError = ref<string | null>(null)
+watch(() => [queue.value?.id, prompt.value.text] as const, ([, text]) => {
+  promptText.value = text
+  promptError.value = null
+}, { immediate: true })
+// The box shows the server's state until the change is saved.
+function togglePrompt(e: Event) {
+  const box = e.target as HTMLInputElement
+  const on = box.checked
+  box.checked = prompt.value.enabled
+  savePrompt(on)
+}
+function savePrompt(enabled: boolean) {
+  const q = queue.value
+  if (!q) return
+  promptError.value = defaultPromptError(promptText.value) || null
+  if (promptError.value) return
+  void act("Couldn't change the default prompt", () => queuesApi.setDefaultPrompt(q.id, { enabled, text: promptText.value }))
+}
+
 // ---- adding and editing items ----
 interface Draft { agent: Agent; flags: string; instruction: string; executionMode: 'agent' | 'session'; targetSession: string; command: string; verifyCommand: string; requiresApproval: boolean }
 const VERIFY_HINT = "Runs as argv in the project directory on the host, not in the agent's session; quote words like flags. For pipes or &&: sh -c '…'."
@@ -303,9 +326,9 @@ function switchAgentFlags(flags: string, agent: Agent): string {
   const custom = setFlag(setFlag(flags, permissionFlag.claude, false), permissionFlag.codex, false)
   return setFlag(custom, permissionFlag[agent], true)
 }
-/** The new item's instruction starts with the default prompt when the owner
- * opted in (Settings); untouched, it follows a changed setting. */
-const prefill = computed(() => initialInstruction(store.defaultPrompt))
+/** The new item's instruction starts with the queue's default prompt when
+ * the owner opted in; untouched, it follows a changed prompt or queue. */
+const prefill = computed(() => initialInstruction(prompt.value))
 watch(prefill, (next, prev) => { if (draft.value.instruction === prev) draft.value.instruction = next })
 /** Focusing an untouched prefill puts the caret where the owner types. */
 function placePromptCaret(e: FocusEvent) {
@@ -746,6 +769,29 @@ const badge: Record<QueueItem['status'], string> = {
                   After the last item the queue runs all its items again, at most once a minute. The limit counts from Start and is checked between passes; a pass that began always finishes.
                 </template>
               </p>
+            </form>
+            <form aria-label="Default prompt" data-testid="queue-default-prompt" class="mt-2 flex flex-wrap items-end gap-2 text-sm" @submit.prevent="savePrompt(prompt.enabled)">
+              <label class="flex min-h-11 items-center gap-2">
+                <input type="checkbox" autocomplete="off" :checked="prompt.enabled" :disabled="busy" aria-label="Start new items with the default prompt" class="h-5 w-5" @change="togglePrompt">
+                Start new items with
+              </label>
+              <label class="min-w-0 flex-1">
+                <span class="sr-only">Default prompt</span>
+                <input
+                  v-model="promptText"
+                  data-testid="queue-default-prompt-text"
+                  type="text"
+                  autocomplete="off"
+                  autocapitalize="off"
+                  spellcheck="false"
+                  :placeholder="DEFAULT_PROMPT"
+                  :disabled="busy"
+                  :aria-invalid="promptError ? 'true' : undefined"
+                  class="min-h-11 w-full min-w-0 rounded border border-border bg-bg px-3 font-mono text-base"
+                >
+              </label>
+              <button v-if="promptText !== prompt.text" type="submit" :disabled="busy" aria-label="Save default prompt" title="Save default prompt" class="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border"><Save :size="18" aria-hidden="true" /></button>
+              <p v-if="promptError" role="alert" class="basis-full text-danger">{{ promptError }}</p>
             </form>
             <p v-if="queue.scheduledAt" data-testid="queue-scheduled" class="mt-1 text-sm text-accent">
               Scheduled for <time :datetime="queue.scheduledAt">{{ new Date(queue.scheduledAt).toLocaleString() }}</time>.

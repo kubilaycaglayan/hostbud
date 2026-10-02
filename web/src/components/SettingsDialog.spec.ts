@@ -125,31 +125,4 @@ describe('SettingsDialog', () => {
     await mountSettings(null, false)
     expect($$('[data-testid="parallel-off"]')[0].textContent).toContain('Run queues in parallel')
   })
-
-  it('opts in to the queue default prompt, off with ", commit regularly." by default', async () => {
-    const calls = await mountSettings(null)
-    const form = $$('form[aria-label="Queue default prompt"]')[0]
-    const box = form.querySelector('[data-testid="default-prompt-enabled"]') as HTMLInputElement
-    const text = form.querySelector('[data-testid="default-prompt-text"]') as HTMLInputElement
-    expect(box.checked).toBe(false)
-    expect(text.value).toBe(', commit regularly.')
-    box.click()
-    ;[...form.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Save')!.click()
-    await flushPromises()
-    expect(calls.filter((c) => c.method === 'PUT')).toEqual([{ method: 'PUT', path: '/api/machines/host/default-prompt', body: { enabled: true, text: ', commit regularly.' } }])
-    expect(useQueuesStore().defaultPrompt).toEqual({ enabled: true, text: ', commit regularly.' })
-    expect(form.textContent).toContain('Saved: new queue items start with the default prompt.')
-  })
-
-  it('refuses an over-long default prompt before sending', async () => {
-    const calls = await mountSettings(null)
-    const form = $$('form[aria-label="Queue default prompt"]')[0]
-    const text = form.querySelector('[data-testid="default-prompt-text"]') as HTMLInputElement
-    text.value = 'x'.repeat(1001)
-    text.dispatchEvent(new Event('input'))
-    await flushPromises()
-    ;[...form.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Save')!.click()
-    await flushPromises()
-    expect(calls.filter((c) => c.method === 'PUT')).toEqual([])
-  })
 })

@@ -27,7 +27,6 @@ type memStore struct {
 	capacity  *int
 	maxActive int
 	parallel  *bool
-	prompt    *store.DefaultPrompt
 	// V2-M3: the notices queued with a transition that went through.
 	outbox []store.Notice
 }
@@ -142,25 +141,6 @@ func (m *memStore) SetParallelQueuesSetting(_ context.Context, _ string, on bool
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.parallel = &on
-	return nil
-}
-
-func (m *memStore) QueueDefaultPrompt(context.Context, string) (store.DefaultPrompt, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.prompt == nil {
-		return store.DefaultPrompt{Text: store.DefaultQueuePrompt}, nil
-	}
-	return *m.prompt, nil
-}
-
-func (m *memStore) SetQueueDefaultPrompt(_ context.Context, _ string, p store.DefaultPrompt) error {
-	if strings.ContainsAny(p.Text, "\r\n") || len(p.Text) > store.MaxDefaultPromptLen {
-		return store.ErrDefaultPrompt
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.prompt = &p
 	return nil
 }
 
@@ -427,7 +407,7 @@ func (m *memStore) CreateQueueLinked(_ context.Context, projectID, name string, 
 	}
 	m.q().seq++
 	q := store.Queue{ID: fmt.Sprintf("queue_%02d", m.q().seq), MachineID: p.MachineID, ProjectID: p.ID, Name: name, Status: store.QueueIdle,
-		LoopMaxRuntimeSeconds: int64(store.DefaultLoopMaxRuntime / time.Second)}
+		LoopMaxRuntimeSeconds: int64(store.DefaultLoopMaxRuntime / time.Second), DefaultPrompt: store.DefaultQueuePrompt}
 	if m.now != nil {
 		q.CreatedAt = m.now()
 	}
@@ -581,6 +561,21 @@ func (m *memStore) SetQueueLoop(_ context.Context, id string, enabled bool, maxR
 		return q, store.ErrNotFound
 	}
 	q.LoopEnabled, q.LoopMaxRuntimeSeconds = enabled, int64(maxRuntime/time.Second)
+	m.q().queues[id] = q
+	return q, nil
+}
+
+func (m *memStore) SetQueueDefaultPrompt(_ context.Context, id string, p store.DefaultPrompt) (store.Queue, error) {
+	if strings.ContainsAny(p.Text, "\r\n") || len(p.Text) > store.MaxDefaultPromptLen {
+		return store.Queue{}, store.ErrDefaultPrompt
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	q, ok := m.q().queues[id]
+	if !ok {
+		return q, store.ErrNotFound
+	}
+	q.DefaultPromptEnabled, q.DefaultPrompt = p.Enabled, p.Text
 	m.q().queues[id] = q
 	return q, nil
 }

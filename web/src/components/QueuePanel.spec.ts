@@ -186,10 +186,9 @@ describe('QueuePanel', () => {
     expect(calls).toEqual([{ method: 'POST', path: '/api/queues/q1/items', body: { agent: 'claude', flags: '--dangerously-skip-permissions', instruction: '/goal ship M2', executionMode: 'agent' } }])
   })
 
-  it('starts the new item with the opted-in default prompt, caret before it, and follows a changed setting', async () => {
+  it('starts the new item with the queue\'s opted-in default prompt, caret before it, and follows a changed prompt', async () => {
     const calls = stubFetch(() => ({ status: 201, body: {} }))
-    useQueuesStore().defaultPrompt = { enabled: true, text: ', commit regularly.' }
-    await mountPanel(queue([], 'idle'))
+    await mountPanel({ ...queue([], 'idle'), defaultPrompt: { enabled: true, text: ', commit regularly.' } })
     const instruction = () => $$('[data-testid="new-item-instruction"]')[0] as HTMLTextAreaElement
     expect(instruction().value).toBe(', commit regularly.')
     vi.stubGlobal('requestAnimationFrame', (fn: FrameRequestCallback) => { fn(0); return 0 })
@@ -206,22 +205,58 @@ describe('QueuePanel', () => {
     button('Add item')!.click()
     await flushPromises()
     expect(calls[0].body).toMatchObject({ instruction: 'fix the login bug, commit regularly.' })
-    // The next item starts with the prompt again; untouched, it follows the setting.
+    // The next item starts with the prompt again; untouched, it follows the queue's prompt.
     expect(instruction().value).toBe(', commit regularly.')
-    useQueuesStore().defaultPrompt = { enabled: false, text: ', commit regularly.' }
+    useQueuesStore().queues = [{ ...queue([], 'idle'), defaultPrompt: { enabled: false, text: ', commit regularly.' } }]
     await nextTick()
     expect(instruction().value).toBe('')
   })
 
-  it('keeps a typed instruction when the default prompt setting changes', async () => {
-    useQueuesStore().defaultPrompt = { enabled: true, text: ', commit regularly.' }
-    await mountPanel(queue([], 'idle'))
-    const instruction = $$('[data-testid="new-item-instruction"]')[0] as HTMLTextAreaElement
-    instruction.value = 'ship it, commit regularly.'
-    instruction.dispatchEvent(new Event('input'))
-    useQueuesStore().defaultPrompt = { enabled: true, text: ' and push.' }
+  it('keeps a typed instruction when the default prompt changes, and switches with the queue tab', async () => {
+    const other: Queue = { ...queue([], 'idle'), id: 'q2', name: 'Docs', defaultPrompt: { enabled: true, text: ' and push.' } }
+    await mountPanel([{ ...queue([], 'idle'), defaultPrompt: { enabled: true, text: ', commit regularly.' } }, other], false, true)
+    const instruction = () => $$('[data-testid="new-item-instruction"]')[0] as HTMLTextAreaElement
+    const text = () => $$('[data-testid="queue-default-prompt-text"]')[0] as HTMLInputElement
+    expect(text().value).toBe(', commit regularly.')
+    button('Show queue Docs')!.click()
+    await flushPromises()
+    expect(text().value).toBe(' and push.')
+    expect(instruction().value).toBe(' and push.')
+    instruction().value = 'ship it and push.'
+    instruction().dispatchEvent(new Event('input'))
+    useQueuesStore().queues = [useQueuesStore().queues[0], { ...other, defaultPrompt: { enabled: false, text: ' and push.' } }]
     await nextTick()
-    expect(instruction.value).toBe('ship it, commit regularly.')
+    expect(instruction().value).toBe('ship it and push.')
+  })
+
+  it('turns a queue\'s default prompt on and saves a changed text, off with ", commit regularly." by default', async () => {
+    const calls = stubFetch((_m, _p, body) => ({ status: 200, body: { ...queue([], 'idle'), defaultPrompt: body } }))
+    await mountPanel(queue([], 'idle'))
+    const form = $$('form[aria-label="Default prompt"]')[0]
+    const box = form.querySelector('input[type="checkbox"]') as HTMLInputElement
+    const text = form.querySelector('[data-testid="queue-default-prompt-text"]') as HTMLInputElement
+    expect(box.checked).toBe(false)
+    expect(text.value).toBe(', commit regularly.')
+    expect(button('Save default prompt')).toBeFalsy()
+    box.click()
+    await flushPromises()
+    expect(calls).toEqual([{ method: 'PUT', path: '/api/queues/q1/default-prompt', body: { enabled: true, text: ', commit regularly.' } }])
+    expect(box.checked).toBe(true)
+    expect(($$('[data-testid="new-item-instruction"]')[0] as HTMLTextAreaElement).value).toBe(', commit regularly.')
+    text.value = ', commit and push regularly.'
+    text.dispatchEvent(new Event('input'))
+    await nextTick()
+    button('Save default prompt')!.click()
+    await flushPromises()
+    expect(calls[1]).toEqual({ method: 'PUT', path: '/api/queues/q1/default-prompt', body: { enabled: true, text: ', commit and push regularly.' } })
+    expect(($$('[data-testid="new-item-instruction"]')[0] as HTMLTextAreaElement).value).toBe(', commit and push regularly.')
+    text.value = 'x'.repeat(1001)
+    text.dispatchEvent(new Event('input'))
+    await nextTick()
+    button('Save default prompt')!.click()
+    await flushPromises()
+    expect(calls).toHaveLength(2)
+    expect(form.textContent).toContain('1000')
   })
 
   it('defaults permission modes by agent, exposes a quick toggle, and preserves custom flags', async () => {

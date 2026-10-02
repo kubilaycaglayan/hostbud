@@ -137,6 +137,10 @@ type Queue struct {
 	LoopStartedAt         *time.Time `json:"-"`
 	LoopPassStartedAt     *time.Time `json:"-"`
 	LoopCount             int        `json:"-"`
+	// DefaultPromptEnabled and DefaultPrompt: the queue's opt-in text that
+	// prefills its new items' instructions (the view shows `defaultPrompt`).
+	DefaultPromptEnabled bool   `json:"-"`
+	DefaultPrompt        string `json:"-"`
 }
 
 // LinkedAt is when the queue's current link was set.
@@ -314,7 +318,8 @@ type RunUpdate struct {
 
 const (
 	queueCols = `id, machine_id, project_id, name, status, created_at, updated_at, waiting_since, after_run_id, started_at, ended_at, scheduled_at, after_session,
-		loop_enabled, loop_max_runtime_seconds, loop_started_at, loop_pass_started_at, loop_count, after_linked_at, after_released`
+		loop_enabled, loop_max_runtime_seconds, loop_started_at, loop_pass_started_at, loop_count, after_linked_at, after_released,
+		default_prompt_enabled, default_prompt`
 	itemCols = `id, queue_id, machine_id, position, agent, flags, instruction, status, created_at, updated_at,
 		verify_command, requires_approval, started_at, ended_at, execution_mode, target_session, command`
 	runCols = `id, item_id, machine_id, session_name, agent_session_id, transcript_path, transcript_offset,
@@ -330,7 +335,8 @@ func scanQueue(row scanner) (Queue, error) {
 	var waiting, started, ended, scheduled, loopStarted, passStarted, linked sql.NullTime
 	var afterRun, afterSession sql.NullString
 	err := row.Scan(&q.ID, &q.MachineID, &q.ProjectID, &q.Name, &q.Status, &q.CreatedAt, &q.UpdatedAt, &waiting, &afterRun, &started, &ended, &scheduled, &afterSession,
-		&q.LoopEnabled, &q.LoopMaxRuntimeSeconds, &loopStarted, &passStarted, &q.LoopCount, &linked, &q.AfterReleased)
+		&q.LoopEnabled, &q.LoopMaxRuntimeSeconds, &loopStarted, &passStarted, &q.LoopCount, &linked, &q.AfterReleased,
+		&q.DefaultPromptEnabled, &q.DefaultPrompt)
 	if linked.Valid {
 		t := linked.Time.UTC()
 		q.AfterLinkedAt = &t
@@ -728,6 +734,33 @@ func (s *Store) SetQueueLoop(ctx context.Context, id string, enabled bool, maxRu
 	}
 	q, err := scanQueue(s.db.QueryRowContext(ctx, `UPDATE queues SET loop_enabled = $2, loop_max_runtime_seconds = $3, updated_at = $4 WHERE id = $1 RETURNING `+queueCols,
 		id, enabled, int64(maxRuntime/time.Second), s.now()))
+	return q, notFound(err)
+}
+
+// DefaultQueuePrompt is a queue's default prompt until the owner changes it.
+const DefaultQueuePrompt = ", commit regularly."
+
+// MaxDefaultPromptLen bounds a queue's default prompt (bytes).
+const MaxDefaultPromptLen = 1000
+
+// ErrDefaultPrompt means a default prompt with a line break or over
+// MaxDefaultPromptLen bytes.
+var ErrDefaultPrompt = errors.New("the default prompt must be one line of at most 1000 characters")
+
+// DefaultPrompt is a queue's default prompt: when Enabled, each new item's
+// instruction starts with Text (opt-in, off by default).
+type DefaultPrompt struct {
+	Enabled bool   `json:"enabled"`
+	Text    string `json:"text"`
+}
+
+// SetQueueDefaultPrompt stores the queue's default prompt.
+func (s *Store) SetQueueDefaultPrompt(ctx context.Context, id string, p DefaultPrompt) (Queue, error) {
+	if len(p.Text) > MaxDefaultPromptLen || strings.ContainsAny(p.Text, "\r\n") {
+		return Queue{}, ErrDefaultPrompt
+	}
+	q, err := scanQueue(s.db.QueryRowContext(ctx, `UPDATE queues SET default_prompt_enabled = $2, default_prompt = $3, updated_at = $4 WHERE id = $1 RETURNING `+queueCols,
+		id, p.Enabled, p.Text, s.now()))
 	return q, notFound(err)
 }
 

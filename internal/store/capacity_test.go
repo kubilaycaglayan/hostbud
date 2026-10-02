@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -269,48 +268,6 @@ func TestParallelQueuesSetting(t *testing.T) {
 		t.Fatalf("clearing the cap changed the switch: %v", v)
 	}
 	if err := s.SetParallelQueuesSetting(ctx, "server-a", true); !errors.Is(err, ErrNotFound) {
-		t.Errorf("unknown machine: %v, want ErrNotFound", err)
-	}
-}
-
-// The queue default prompt: off with ", commit regularly." without a row,
-// stored per machine, validated, and independent of the cap and the switch.
-func TestQueueDefaultPrompt(t *testing.T) {
-	ctx := context.Background()
-	s, _ := queueFixture(t)
-	if p, err := s.QueueDefaultPrompt(ctx, HostMachineID); err != nil || p != (DefaultPrompt{Text: ", commit regularly."}) {
-		t.Fatalf("no row: %+v %v, want off with the built-in text", p, err)
-	}
-	two := 2
-	if err := s.SetMachineCapacity(ctx, HostMachineID, &two); err != nil {
-		t.Fatal(err)
-	}
-	if p, _ := s.QueueDefaultPrompt(ctx, HostMachineID); p != (DefaultPrompt{Text: DefaultQueuePrompt}) {
-		t.Fatalf("cap only: %+v, want the default", p)
-	}
-	for _, want := range []DefaultPrompt{{Enabled: true, Text: DefaultQueuePrompt}, {Enabled: true, Text: " and run make test."}, {Enabled: false, Text: ""}} {
-		if err := s.SetQueueDefaultPrompt(ctx, HostMachineID, want); err != nil {
-			t.Fatal(err)
-		}
-		if p, err := s.QueueDefaultPrompt(ctx, HostMachineID); err != nil || p != want {
-			t.Fatalf("set %+v read back as %+v, %v", want, p, err)
-		}
-	}
-	if err := s.SetParallelQueuesSetting(ctx, HostMachineID, true); err != nil {
-		t.Fatal(err)
-	}
-	if c, _ := s.MachineCapacity(ctx, HostMachineID); c == nil || *c != 2 {
-		t.Fatalf("the prompt changed the cap: %v", c)
-	}
-	if p, _ := s.QueueDefaultPrompt(ctx, HostMachineID); p != (DefaultPrompt{}) {
-		t.Fatalf("the switch changed the prompt: %+v", p)
-	}
-	for _, bad := range []string{"a\nb", "a\rb", strings.Repeat("x", MaxDefaultPromptLen+1)} {
-		if err := s.SetQueueDefaultPrompt(ctx, HostMachineID, DefaultPrompt{Enabled: true, Text: bad}); !errors.Is(err, ErrDefaultPrompt) {
-			t.Errorf("%q: %v, want ErrDefaultPrompt", bad[:3], err)
-		}
-	}
-	if err := s.SetQueueDefaultPrompt(ctx, "server-a", DefaultPrompt{}); !errors.Is(err, ErrNotFound) {
 		t.Errorf("unknown machine: %v, want ErrNotFound", err)
 	}
 }
