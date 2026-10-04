@@ -2,6 +2,7 @@
 import { nextTick, ref, watch } from 'vue'
 import { projectsApi } from '@/api/client'
 import { directorySessionName, normalizeSessionName, uniqueSessionName } from '@/lib/names'
+import { sessionRef } from '@/lib/tree'
 import { useSessionsStore } from '@/stores/sessions'
 import type { Project } from '@/api/types'
 import { describeError, useToastsStore } from '@/stores/toasts'
@@ -9,6 +10,7 @@ import { describeError, useToastsStore } from '@/stores/toasts'
 // "New session here": a session in a saved project's directory. Open while
 // `project` is set; Cancel or a created session clears it.
 const project = defineModel<Project | null>('project', { default: null })
+// created carries the session ref (the name on the host, "machine/name" on a server).
 const emit = defineEmits<{ created: [name: string] }>()
 const toasts = useToastsStore()
 const sessions = useSessionsStore()
@@ -52,12 +54,13 @@ async function createSession() {
     const requestedName = normalizeSessionName(sessionName.value)
     const typed = requestedName !== defaultName.value
     const startCommand = command.value.trim() ? command.value : undefined
+    const machine = project.value.machineId
     const result = await projectsApi.createSession(project.value.id, { name: requestedName || undefined, startCommand })
     project.value = null
     if (requestedName && typed && result.name !== requestedName) {
       toasts.push({ title: 'Session name changed', message: `Named "${result.name}": "${requestedName}" was already taken.`, tone: 'info' })
     }
-    emit('created', result.name)
+    emit('created', sessionRef(machine, result.name))
   } catch (e) { error.value = describeError(e).message }
   finally { busy.value = false }
 }

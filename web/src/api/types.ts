@@ -36,6 +36,8 @@ export interface Session {
   title?: string
   agentUsage?: { agent: 'codex' | 'claude'; contextTokens: number; totalTokens: number; contextWindow: number }
   projectId?: string
+  /** The machine it runs on, set by the client for tree rows (V2-M13); the host when absent. */
+  machine?: string
   attached: number
   windows: number
   created: string

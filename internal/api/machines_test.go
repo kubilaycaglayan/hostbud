@@ -62,13 +62,16 @@ func (f *fakeRegistry) Rename(_ context.Context, id, label string) (inventory.Ma
 }
 func (f *fakeRegistry) Remove(_ context.Context, id string) error { return f.err }
 
+var registryProjects *fakeProjects
+
 func registryEnv(t *testing.T) (*fakeRegistry, http.Handler) {
 	t.Helper()
 	reg := &fakeRegistry{list: []*fakeMachine{host()}, fs: map[string]*fakeFileBrowser{"host": {}}}
+	registryProjects = &fakeProjects{}
 	h := New(Config{
 		Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Dist: fstest.MapFS{},
 		Origins: AllowedOrigins("hostbud.example.com", 9055), Bus: events.NewBus(),
-		Registry: reg, Sessions: &fakeService{}, Auth: &fakeAuth{}, Projects: &fakeProjects{},
+		Registry: reg, Sessions: &fakeService{}, Auth: &fakeAuth{}, Projects: registryProjects,
 	})
 	return reg, h
 }
@@ -110,6 +113,10 @@ func TestServerRoutes(t *testing.T) {
 	}
 	if code, _ := call(t, h, http.MethodGet, "/api/machines/s-0011223344/sessions", ""); code != http.StatusOK {
 		t.Fatalf("server sessions = %d", code)
+	}
+	// Every machine's projects in one list.
+	if code, body := call(t, h, http.MethodGet, "/api/projects?machine=*", ""); code != http.StatusOK || body != "{\"projects\":[]}\n" || len(registryProjects.calls) != 2 {
+		t.Fatalf("all projects = %d %q calls=%v", code, body, registryProjects.calls)
 	}
 	if code, _ := call(t, h, http.MethodGet, "/api/machines/s-missing/fs/home", ""); code != http.StatusNotFound {
 		t.Fatalf("unknown fs = %d", code)

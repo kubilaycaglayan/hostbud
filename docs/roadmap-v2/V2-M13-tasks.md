@@ -18,7 +18,7 @@ Design (v1 ARCHITECTURE §4.2–4.3, *Later* multi-machine, narrowed):
 | T1 Store and sshx: server rows, dynamic ssh config, host-key scan | Done |
 | T2 Machine registry and server API | Done |
 | T3 Servers dialog (add / remove) | Done |
-| T4 Multi-server tree and nickname chips | Not started |
+| T4 Multi-server tree and nickname chips | Done |
 | T5 Server picker in New session and Browse files | Not started |
 | T6 Docs, verification and deploy | Not started |
 | T7 Safe Docker cleanup | Not started |

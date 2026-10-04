@@ -1,7 +1,7 @@
 import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { getUIState, putUIState } from '@/api/client'
-import { emptyTreeState, OTHER_GROUP, ordered, orderedProjectSections, projectTree, validateTreeState, type ProjectSection, type SectionColor, type TreeState } from '@/lib/tree'
+import { emptyTreeState, OTHER_GROUP, ordered, orderedProjectSections, projectTree, refOf, refOfKey, sessionRef, validateTreeState, type ProjectSection, type SectionColor, type TreeState } from '@/lib/tree'
 import { useProjectsStore } from './projects'
 import { useSessionsStore } from './sessions'
 import { useMachinesStore } from './machines'
@@ -27,7 +27,7 @@ export const useTreeStore = defineStore('tree', () => {
   let generation = 0
   let quiet = false // applying a change that isn't the user's; don't save it
 
-  const groups = computed(() => projectTree(projectsStore.items, sessionsStore.list('host'), order.value))
+  const groups = computed(() => projectTree(projectsStore.items, sessionsStore.all, order.value))
 
   async function load() {
     const gen = ++generation
@@ -139,12 +139,13 @@ export const useTreeStore = defineStore('tree', () => {
     for (const p of projectsStore.items) if (!state.projects.includes(p.id)) state.projects.push(p.id)
 
     // A healthy machine status can arrive before the first events snapshot.
-    // Until the host's session list is authoritative, preserve saved row order
-    // rather than pruning it against the empty pre-snapshot store.
-    const reachable = machinesStore.byId('host')?.status === 'ok' && Object.hasOwn(sessionsStore.byMachine, 'host')
+    // Until every machine's session list is authoritative, preserve saved
+    // row order rather than pruning it against an empty or stale list.
+    const known = (id: string) => machinesStore.byId(id)?.status === 'ok' && Object.hasOwn(sessionsStore.byMachine, id)
+    const reachable = known('host') && machinesStore.machines.every((m) => known(m.id))
     const projectIds = new Set(projectsStore.items.map((p) => p.id))
-    const sessionList = sessionsStore.list('host')
-    const sessionNames = new Set(sessionList.map((s) => s.name))
+    const sessionList = sessionsStore.all
+    const sessionRefs = new Set(sessionList.map(refOf))
     const projection = projectTree(projectsStore.items, sessionList, state)
     if (projectsStore.loaded) {
       state.projects = state.projects.filter((id) => projectIds.has(id))
@@ -166,22 +167,23 @@ export const useTreeStore = defineStore('tree', () => {
     const merge = (previous: string[], observed: string[]) => [...previous, ...observed.filter((name) => !previous.includes(name))]
     for (const group of projection.groups) {
       const id = group.project.id
-      const observed = ordered(group.sessions, state.sessions[id] ?? [], (s) => s.name).map((s) => s.name)
+      const observed = ordered(group.sessions, state.sessions[id] ?? [], refOf).map(refOf)
       next[id] = reachable ? observed : merge(state.sessions[id] ?? [], observed)
     }
-    const observedOther = ordered(projection.other, state.sessions.__other__ ?? [], (s) => s.name).map((s) => s.name)
+    const observedOther = ordered(projection.other, state.sessions.__other__ ?? [], refOf).map(refOf)
     next.__other__ = reachable ? observedOther : merge(state.sessions.__other__ ?? [], observedOther)
     state.sessions = next
 
     if (reachable) {
-      state.hidden.sessions = state.hidden.sessions.filter((key) => {
+      // Keys of live sessions stay; so do keys of machines whose list isn't
+      // known. A removed server's keys go.
+      const keep = (key: string) => {
         const [machine, name] = key.split('/')
-        return machine !== 'host' || sessionNames.has(name)
-      })
-      state.expanded = state.expanded.filter((key) => {
-        const [machine, name] = key.split('/')
-        return machine !== 'host' || sessionNames.has(name)
-      })
+        if (!machinesStore.byId(machine)) return false
+        return !known(machine) || sessionRefs.has(sessionRef(machine, name))
+      }
+      state.hidden.sessions = state.hidden.sessions.filter(keep)
+      state.expanded = state.expanded.filter(keep)
     }
     if (JSON.stringify(state) !== before) apply(state)
   }
@@ -264,12 +266,13 @@ export const useTreeStore = defineStore('tree', () => {
     if (sectionId) order.value.projectSections[projectId] = sectionId
     else delete order.value.projectSections[projectId]
   }
+  /** Reorders a group's sessions; names are session refs (refOf). */
   function reorderSessions(group: string, names: string[]) {
     const rows = group === '__other__' ? groups.value.other : groups.value.groups.find((g) => g.project.id === group)?.sessions ?? []
-    const allowed = new Set(rows.map((s) => s.name))
+    const allowed = new Set(rows.map(refOf))
     const requested = names.filter((name, i) => allowed.has(name) && names.indexOf(name) === i)
     if (!order.value.showHidden) {
-      const hidden = new Set(order.value.hidden.sessions.filter((key) => key.startsWith('host/')).map((key) => key.slice('host/'.length)))
+      const hidden = new Set(order.value.hidden.sessions.map(refOfKey))
       const previous = order.value.sessions[group] ?? []
       let index = 0
       order.value.sessions[group] = previous.map((name) => hidden.has(name) ? name : requested[index++] ?? name)
@@ -282,17 +285,20 @@ export const useTreeStore = defineStore('tree', () => {
   function renameSession(machine: string, from: string, to: string, position?: SessionRenamePosition) {
     const oldKey = `${machine}/${from}`
     const newKey = `${machine}/${to}`
+    // Saved order lists hold session refs (the bare name on the host).
+    const fromRef = sessionRef(machine, from)
+    const toRef = sessionRef(machine, to)
     const replacePrefix = (key: string) => key === oldKey || key.startsWith(oldKey + '/')
       ? newKey + key.slice(oldKey.length)
       : key
     const sessions = Object.fromEntries(Object.entries(order.value.sessions).map(([group, names]) => {
-      const renamed = names.map((name) => name === from ? to : name)
+      const renamed = names.map((name) => name === fromRef ? toRef : name)
       // The inventory can report the new name before the rename request
       // resolves. A sync in that window may prune `from` and append `to`;
       // restore the position captured when editing began in that case.
-      if (position?.group === group && !names.includes(from) && names.includes(to)) {
-        const without = renamed.filter((name) => name !== to)
-        without.splice(Math.min(position.index, without.length), 0, to)
+      if (position?.group === group && !names.includes(fromRef) && names.includes(toRef)) {
+        const without = renamed.filter((name) => name !== toRef)
+        without.splice(Math.min(position.index, without.length), 0, toRef)
         return [group, without]
       }
       return [group, renamed]

@@ -185,6 +185,9 @@ func TestIntegrationServersAddUseAndRemove(t *testing.T) {
 	if project.MachineID != second {
 		t.Fatalf("project = %+v", project)
 	}
+	if rec := e.do(t, http.MethodGet, "/api/projects?machine=*", "", nil); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"machineId":"`+second+`"`) {
+		t.Fatalf("all projects = %d %s", rec.Code, rec.Body)
+	}
 	if rec := e.do(t, http.MethodDelete, "/api/machines/"+second, "", nil); rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), "projects") {
 		t.Fatalf("remove in use = %d %s", rec.Code, rec.Body)
 	}

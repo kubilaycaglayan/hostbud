@@ -62,7 +62,7 @@ const signedIn = () =>
           ? { status: 404, body: { error: 'nothing saved yet' } }
           : path === '/api/ui-state/theme'
             ? { status: 404, body: { error: 'nothing saved yet' } }
-      : path === '/api/projects?machine=host'
+      : path === '/api/projects?machine=*'
             ? { status: 200, body: { projects: [] } }
             : method === 'POST' && path === '/api/machines/host/sessions'
               ? { status: 201, body: { name: 'dev' } }
@@ -324,7 +324,7 @@ describe('App shell', () => {
         ? { status: 200, body: { email: 'person@example.com' } }
         : path.startsWith('/api/ui-state/')
           ? { status: 404, body: { error: 'nothing saved yet' } }
-          : path === '/api/projects?machine=host'
+          : path === '/api/projects?machine=*'
             ? { status: 200, body: { projects: [project] } }
           : path === '/api/projects/p1/recent-commands'
               ? { status: 200, body: { commands: [] } }
@@ -389,7 +389,7 @@ describe('tabs', () => {
     const gate = new Promise<void>((r) => (release = r))
     stubFetch((method, path) => {
       if (path === '/api/auth/me') return { status: 200, body: { email: 'person@example.com' } }
-      if (path === '/api/projects?machine=host') return { status: 200, body: { projects: [] } }
+      if (path === '/api/projects?machine=*') return { status: 200, body: { projects: [] } }
       if (path === '/api/ui-state/tree' && method === 'GET') return { status: 404, body: { error: 'nothing saved yet' } }
       if (path === '/api/ui-state/layout' && method === 'GET')
         return saved === null ? { status: 404, body: { error: 'nothing saved yet' } } : { status: 200, body: saved }

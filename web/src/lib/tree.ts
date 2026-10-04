@@ -45,6 +45,12 @@ function validExpandedKey(value: string): boolean {
     (parts.length === 2 || (parts.length === 3 && /^@[0-9]+$/u.test(parts[2])))
 }
 
+// A saved session order holds host sessions by name and other servers'
+// sessions as "machine/name" (V2-M13 session refs).
+function validOrderEntry(value: string): boolean {
+  return sessionName.test(value) || validSessionKey(value)
+}
+
 export function validateTreeState(value: unknown): TreeState | null {
   if (!value || typeof value !== 'object') return null
   const v = value as Record<string, unknown>
@@ -57,7 +63,7 @@ export function validateTreeState(value: unknown): TreeState | null {
     if (!group || group.length > 128 || group === '__proto__' || group === 'constructor' || (group !== OTHER_GROUP && group.includes('/'))) return null
     const names = cleanList(list)
     if (!names) return null
-    if (names.some((name) => !sessionName.test(name))) return null
+    if (names.some((name) => !validOrderEntry(name))) return null
     Object.defineProperty(sessions, group, { value: names, writable: true, enumerable: true, configurable: true })
   }
   if (v.version === 1) return { ...emptyTreeState(), projects, sessions }
@@ -97,6 +103,23 @@ export function validateTreeState(value: unknown): TreeState | null {
 export const validateTreeOrder = validateTreeState
 
 export function sessionKey(machineId: string, name: string): string { return machineId + '/' + name }
+
+/** The machine a session runs on (the host unless set). */
+export function sessionMachine(session: { machine?: string }): string { return session.machine ?? 'host' }
+
+/** A session's identity in the tree and app (V2-M13): its name on the host,
+ * "machine/name" on another server, so host-only saved state stays valid. */
+export function sessionRef(machine: string, name: string): string { return machine === 'host' ? name : machine + '/' + name }
+export function refOf(session: { machine?: string; name: string }): string { return sessionRef(sessionMachine(session), session.name) }
+export function parseSessionRef(ref: string): { machine: string; name: string } {
+  const i = ref.indexOf('/')
+  return i < 0 ? { machine: 'host', name: ref } : { machine: ref.slice(0, i), name: ref.slice(i + 1) }
+}
+/** The ref of a "machine/name" hidden or expanded key. */
+export function refOfKey(key: string): string {
+  const { machine, name } = parseSessionRef(key)
+  return sessionRef(machine, name)
+}
 export function windowKey(machineId: string, name: string, id: string): string { return machineId + '/' + name + '/' + id }
 
 export function ordered<T>(items: T[], ids: string[], key: (item: T) => string): T[] {
@@ -128,35 +151,37 @@ function belongs(sessionPath: string, projectPath: string): boolean {
 }
 
 export function projectForSession(session: Session, projects: Project[]): Project | undefined {
+  const machine = sessionMachine(session)
   if (session.projectId) {
-    const linked = projects.find((project) => project.id === session.projectId && project.machineId === 'host')
+    const linked = projects.find((project) => project.id === session.projectId && project.machineId === machine)
     if (linked) return linked
   }
-  return projects.filter((p) => p.machineId === 'host')
+  return projects.filter((p) => p.machineId === machine)
     .filter((p) => belongs(session.path, p.path))
     .sort((a, b) => b.path.length - a.path.length || a.id.localeCompare(b.id))[0]
 }
 
 export function projectTree(projects: Project[], sessions: Session[], order: TreeState): TreeProjection {
   const orderedProjects = ordered(projects, order.projects, (p) => p.id)
-  const placement = new Map(sessions.map((session) => [session.name, projectForSession(session, projects)?.id]))
+  const placement = new Map(sessions.map((session) => [refOf(session), projectForSession(session, projects)?.id]))
   const groups = orderedProjects.map((project) => {
-    const rows = sessions.filter((session) => placement.get(session.name) === project.id)
-    return { project, sessions: ordered(rows, order.sessions[project.id] ?? [], (s) => s.name) }
+    const rows = sessions.filter((session) => placement.get(refOf(session)) === project.id)
+    return { project, sessions: ordered(rows, order.sessions[project.id] ?? [], refOf) }
   })
-  const matched = new Set(groups.flatMap((group) => group.sessions.map((s) => s.name)))
-  const otherRows = sessions.filter((s) => !matched.has(s.name))
+  const matched = new Set(groups.flatMap((group) => group.sessions.map(refOf)))
+  const otherRows = sessions.filter((s) => !matched.has(refOf(s)))
   const pinned = new Set(order.pinned)
   return {
     groups,
     pinned: groups.filter((group) => pinned.has(group.project.id)),
     unpinned: groups.filter((group) => !pinned.has(group.project.id)),
-    other: ordered(otherRows, order.sessions[OTHER_GROUP] ?? [], (s) => s.name),
+    other: ordered(otherRows, order.sessions[OTHER_GROUP] ?? [], refOf),
   }
 }
 
-/** Session names in the order and visibility of the left tree, restricted to
- * open terminal views. Collapsed project/section descendants are omitted. */
+/** Session refs in the order and visibility of the left tree, restricted to
+ * open terminal views (openNames holds sessionKey values). Collapsed
+ * project/section descendants are omitted. */
 export function visibleOpenSessionNames(
   groups: ProjectGroup[],
   other: Session[],
@@ -165,7 +190,7 @@ export function visibleOpenSessionNames(
 ): string[] {
   const visibleGroups = groups.filter((group) => order.showHidden || !order.hidden.projects.includes(group.project.id))
   const rows = (group: ProjectGroup) => group.sessions.filter((session) =>
-    (order.showHidden || !order.hidden.sessions.includes(sessionKey('host', session.name))) && openNames.has(sessionKey('host', session.name)),
+    (order.showHidden || !order.hidden.sessions.includes(sessionKey(sessionMachine(session), session.name))) && openNames.has(sessionKey(sessionMachine(session), session.name)),
   )
   const orderedGroups = [
     ...visibleGroups.filter((group) => order.pinned.includes(group.project.id) && !order.projectSections[group.project.id]),
@@ -178,11 +203,11 @@ export function visibleOpenSessionNames(
   const names = orderedGroups.flatMap((group) => {
     const section = order.projectSections[group.project.id]
     if ((section && order.collapsedSections.includes(section)) || order.collapsed.includes(group.project.id)) return []
-    return rows(group).map((session) => session.name)
+    return rows(group).map(refOf)
   })
   const visibleOther = other.filter((session) =>
-    (order.showHidden || !order.hidden.sessions.includes(sessionKey('host', session.name))) && openNames.has(sessionKey('host', session.name)),
+    (order.showHidden || !order.hidden.sessions.includes(sessionKey(sessionMachine(session), session.name))) && openNames.has(sessionKey(sessionMachine(session), session.name)),
   )
-  if (visibleOther.length && !order.collapsed.includes(OTHER_GROUP)) names.push(...visibleOther.map((session) => session.name))
+  if (visibleOther.length && !order.collapsed.includes(OTHER_GROUP)) names.push(...visibleOther.map(refOf))
   return names
 }

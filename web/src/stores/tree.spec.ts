@@ -187,21 +187,21 @@ describe('tree order store', () => {
         pinned: ['removed'], hidden: { projects: ['removed'], sessions: ['host/old'] },
         collapsed: ['removed'], expanded: ['host/old'], showHidden: true,
       } }
-      if (path === '/api/projects?machine=host') return { status: 200, body: { projects: [project('kept', '/kept')] } }
+      if (path === '/api/projects?machine=*') return { status: 200, body: { projects: [project('kept', '/kept')] } }
       return { status: 204 }
     })
     const tree = useTreeStore()
     await tree.load()
     tree.sync()
     expect(tree.order.projects).toContain('removed')
-    await useProjectsStore().load('host')
+    await useProjectsStore().load()
     tree.sync()
     expect(tree.order.projects).toEqual(['kept'])
     expect(tree.order.pinned).toEqual([])
     expect(tree.order.hidden.projects).toEqual([])
     expect(tree.order.collapsed).toEqual([])
     expect(tree.order.sessions).not.toHaveProperty('removed')
-    expect(calls).toContainEqual(expect.objectContaining({ method: 'GET', path: '/api/projects?machine=host' }))
+    expect(calls).toContainEqual(expect.objectContaining({ method: 'GET', path: '/api/projects?machine=*' }))
   })
 
   it('prunes ended host session keys only after a reachable snapshot', async () => {
@@ -274,12 +274,12 @@ describe('tree order store', () => {
   it('prunes stale data before enforcing the serialized size limit', async () => {
     const calls = stubFetch((method, path) => {
       if (path === '/api/ui-state/tree' && method === 'GET') return { status: 200, body: emptyTreeState() }
-      if (path === '/api/projects?machine=host') return { status: 200, body: { projects: [project('p0', '/kept')] } }
+      if (path === '/api/projects?machine=*') return { status: 200, body: { projects: [project('p0', '/kept')] } }
       return { status: 204 }
     })
     const tree = useTreeStore()
     await tree.load()
-    await useProjectsStore().load('host')
+    await useProjectsStore().load()
     useMachinesStore().apply({ type: 'snapshot', machines: [{ id: 'host', label: 'Host', status: 'ok', os: '', home: '/home/dev', tmuxVersion: '', tmuxMissing: false }], sessions: { host: [] } })
     useSessionsStore().apply({ type: 'snapshot', machines: [], sessions: { host: [session('actual', '/kept')] } })
     tree.order.projects = Array.from({ length: 500 }, (_, i) => `p${i}`)

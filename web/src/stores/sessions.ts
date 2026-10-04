@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import type { ServerEvent, Session } from '@/api/types'
 
 export type SessionsByMachine = Record<string, Session[]>
@@ -42,6 +42,14 @@ export const useSessionsStore = defineStore('sessions', () => {
   function list(machine: string): Session[] {
     return byMachine.value[machine] ?? []
   }
+  /** Every machine's sessions, host first; other servers' rows carry their
+   * machine (V2-M13). */
+  const all = computed<Session[]>(() => [
+    ...list('host'),
+    ...Object.entries(byMachine.value)
+      .filter(([machine]) => machine !== 'host')
+      .flatMap(([machine, rows]) => rows.map((session) => ({ ...session, machine }))),
+  ])
   function renameLocal(machine: string, from: string, to: string): Session | undefined {
     const rows = list(machine)
     const original = rows.find((session) => session.name === from)
@@ -64,5 +72,5 @@ export const useSessionsStore = defineStore('sessions', () => {
     byMachine.value = {}
     pendingRenames.clear()
   }
-  return { byMachine, apply, list, renameLocal, beginRename, finishRename, reset }
+  return { byMachine, all, apply, list, renameLocal, beginRename, finishRename, reset }
 })

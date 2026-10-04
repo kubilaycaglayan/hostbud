@@ -39,7 +39,7 @@ import { useToastsStore } from '@/stores/toasts'
 import { useSessionsStore } from '@/stores/sessions'
 import { EyeOff, FolderSearch, ListOrdered, PanelLeftClose, PanelLeftOpen, Search, Server, SquareTerminal, UserRound } from 'lucide-vue-next'
 import { isEditableTarget, isTerminalTarget, isTreeTarget, matchingShortcut, shortcutLabels, shortcutPlatform, shortcuts } from '@/lib/shortcuts'
-import { projectTree, sessionKey, visibleOpenSessionNames, windowKey } from '@/lib/tree'
+import { parseSessionRef, projectTree, refOf, sessionKey, sessionMachine, sessionRef, visibleOpenSessionNames, windowKey } from '@/lib/tree'
 import { dispatchPaletteAction } from '@/lib/paletteActions'
 import { buildPaletteItems } from '@/lib/palette'
 import { projectsApi, queuesApi } from '@/api/client'
@@ -60,9 +60,13 @@ const notifications = useNotificationsStore()
 const queuesStore = useQueuesStore()
 const hasRunningQueue = computed(() => queuesStore.queues.some((queue) => queue.status === 'running'))
 
-// v1 has one machine: the host.
+// The host: banner, queue and settings. Sessions and projects may also be
+// on servers added in the UI (V2-M13); the tree and dialogs pass session
+// refs (the name on the host, "machine/name" elsewhere).
 const MACHINE = 'host'
 const host = computed(() => machines.byId(MACHINE))
+// The focused pane's session ref.
+const selectedSession = computed(() => layout.focused ? sessionRef(layout.focused.machine, layout.focused.session) : undefined)
 
 const creating = ref(false)
 const browsing = ref(false)
@@ -153,8 +157,10 @@ const paletteItems = computed(() => {
   const orderedSessions = [...projectGroups.flatMap((group) => group.sessions.map((session) => ({ session, group }))), ...tree.groups.other.map((session) => ({ session, group: undefined }))]
   return buildPaletteItems({
     sessions: orderedSessions.map(({ session, group }) => {
-      const hidden = tree.order.hidden.sessions.includes(sessionKey(MACHINE, session.name)) || Boolean(group && tree.order.hidden.projects.includes(group.project.id))
-      return { name: session.name, path: session.path, projectName: group?.project.name, hidden, windows: windows.bySession[sessionKey(MACHINE, session.name)] }
+      const key = sessionKey(sessionMachine(session), session.name)
+      const hidden = tree.order.hidden.sessions.includes(key) || Boolean(group && tree.order.hidden.projects.includes(group.project.id))
+      const label = sessionMachine(session) === 'host' ? undefined : `${session.name} (${machines.label(sessionMachine(session))})`
+      return { name: refOf(session), label, path: session.path, projectName: group?.project.name, hidden, windows: windows.bySession[key] }
     }),
     projects: projectGroups.map(({ project }) => ({
       id: project.id,
@@ -183,7 +189,7 @@ const removePreview = computed(() => {
 })
 const removingProjectPath = computed(() => {
   const path = removingProject.value?.path ?? ''
-  const homePath = host.value?.home ?? ''
+  const homePath = machines.byId(removingProject.value?.machineId ?? MACHINE)?.home ?? ''
   return homePath && (path === homePath || path.startsWith(homePath + '/')) ? '~' + path.slice(homePath.length) : path
 })
 function askKill(name: string) {
@@ -197,7 +203,8 @@ function askRemoveProject(id: string) {
 function askKillProjectSessions(id: string) {
   const group = tree.groups.groups.find((item) => item.project.id === id)
   if (!group?.sessions.length) return
-  // Snapshot the names: the list shrinks as the kills land.
+  // Snapshot the names: the list shrinks as the kills land. A project's
+  // sessions all run on its machine.
   killingProjectSessions.value = group.sessions.map((session) => session.name)
   killingProject.value = group.project
 }
@@ -207,17 +214,22 @@ function onProjectRemoved(id: string) {
     sessionProject.value = null
     toasts.push({ title: 'Project removed', message: 'The New session here dialog closed because its project was removed.', tone: 'info' })
   }
-  projects.load(MACHINE).then(() => tree.sync()).catch((error) => console.warn("hostbud: can't refresh projects after removal", error))
+  projects.load().then(() => tree.sync()).catch((error) => console.warn("hostbud: can't refresh projects after removal", error))
 }
 function onKilled(name: string) {
   layout.closeSession(MACHINE, name)
 }
+function onKilledOn(machine: string, name: string) {
+  layout.closeSession(machine, name)
+}
+const killTarget = computed(() => parseSessionRef(target.value))
 
-/** Shows a session: its open tab, or a new one. */
-function openSession(name: string) {
+/** Shows a session (a ref): its open tab, or a new one. */
+function openSession(ref: string) {
+  const { machine, name } = parseSessionRef(ref)
   if (drawerOpen.value) focusTerminalOnNextDrawerClose = true
   drawerOpen.value = false
-  if (layout.open(MACHINE, name)) {
+  if (layout.open(machine, name)) {
     app.showTerminal()
     // The newly active xterm may not be in the DOM until Vue applies the
     // layout update. Focus it after that update so typing works immediately.
@@ -225,16 +237,18 @@ function openSession(name: string) {
   }
 }
 
-function openAtWindow(name: string, window: string, pane?: string) {
+function openAtWindow(ref: string, window: string, pane?: string) {
+  const { machine, name } = parseSessionRef(ref)
   drawerOpen.value = false
-  if (!windows.openAt(MACHINE, name, window, pane)) return
+  if (!windows.openAt(machine, name, window, pane)) return
   app.showTerminal()
 }
 
 /** A list row's "Open in split": beside the active tab's focused pane. */
-function openInSplit(name: string, dir: SplitDir) {
+function openInSplit(ref: string, dir: SplitDir) {
+  const { machine, name } = parseSessionRef(ref)
   drawerOpen.value = false
-  if (layout.splitFocused(dir, MACHINE, name)) app.showTerminal()
+  if (layout.splitFocused(dir, machine, name)) app.showTerminal()
 }
 
 // "New session…" from a pane's split picker: the created session opens in a
@@ -257,7 +271,7 @@ function createProjectSession(project: Project) {
   drawerOpen.value = false
   const name = uniqueSessionName(directorySessionName(project.path), sessions.list(project.machineId).map((session) => session.name))
   void projectsApi.createSession(project.id, { name }).then((result) => {
-    onCreated(result.name)
+    onCreated(sessionRef(project.machineId, result.name))
   }).catch((error) => toasts.error("Couldn't create the session", error))
 }
 
@@ -288,6 +302,10 @@ notifications.onOpen(openQueueItem)
 /** A session row's "Create queue": a new queue on the session's directory
  * (saved as a project first if it isn't one), shown in the Queue panel. */
 async function createQueueFor(session: Session) {
+  if (sessionMachine(session) !== MACHINE) {
+    toasts.push({ title: "Couldn't create the queue", message: 'Queues run on the host only for now.', tone: 'error' })
+    return
+  }
   try {
     const project = projects.byPath(session.path) ?? await projectsApi.create(MACHINE, session.path, '')
     projects.remember(project)
@@ -345,12 +363,13 @@ function onDrawerPointerUp(event: PointerEvent) {
   swipeStart.value = null
   if (dx <= -60 && Math.abs(dx) > Math.abs(dy)) drawerOpen.value = false
 }
-function onCreated(name: string) {
+function onCreated(ref: string) {
+  const { machine, name } = parseSessionRef(ref)
   browsing.value = false
   const t = splitTarget.value
   splitTarget.value = null
-  if (t && layout.split(t.pane, t.dir, MACHINE, name)) app.showTerminal()
-  else openSession(name)
+  if (t && layout.split(t.pane, t.dir, machine, name)) app.showTerminal()
+  else openSession(ref)
   // Creating a session is an explicit request to start working in it. Wait
   // until its terminal is mounted before placing the cursor there.
   void nextTick(focusActiveTerminal)
@@ -388,7 +407,7 @@ function revealTreeSession(name: string, rename = false) {
 }
 
 function collapseAll() {
-  for (const project of projects.items.filter((item) => item.machineId === MACHINE)) tree.setCollapsed(project.id, true)
+  for (const project of projects.items) tree.setCollapsed(project.id, true)
   tree.setCollapsed('__other__', true)
   for (const key of [...tree.order.expanded]) tree.setExpanded(key, false)
 }
@@ -397,18 +416,19 @@ function expandAll() {
   for (const key of [...tree.order.collapsed]) tree.setCollapsed(key, false)
   for (const key of [...tree.order.expanded]) tree.setExpanded(key, false)
   const expanded = new Set<string>()
-  for (const session of sessions.list(MACHINE)) {
-    const key = sessionKey(MACHINE, session.name)
+  for (const session of sessions.all) {
+    const machine = sessionMachine(session)
+    const key = sessionKey(machine, session.name)
     expanded.add(key)
     const entry = windows.bySession[key]
     if (entry?.status === 'ok') {
       for (const item of entry.windows) {
-        if (item.panes.length > 1) expanded.add(windowKey(MACHINE, session.name, item.id))
+        if (item.panes.length > 1) expanded.add(windowKey(machine, session.name, item.id))
       }
     }
   }
   for (const key of expanded) tree.setExpanded(key, true)
-  for (const session of sessions.list(MACHINE)) void windows.ensure(MACHINE, session.name)
+  for (const session of sessions.all) void windows.ensure(sessionMachine(session), session.name)
 }
 
 function selectPaletteItem(id: string) {
@@ -477,8 +497,8 @@ const paletteActionHandlers = {
   renameSession: (name: string) => revealTreeSession(name, true),
   hideProject: (id: string) => tree.hideProject(id),
   unhideProject: (id: string) => tree.unhideProject(id),
-  hideSession: (name: string) => tree.hideSession(MACHINE, name),
-  unhideSession: (name: string) => tree.unhideSession(MACHINE, name),
+  hideSession: (ref: string) => tree.hideSession(parseSessionRef(ref).machine, parseSessionRef(ref).name),
+  unhideSession: (ref: string) => tree.unhideSession(parseSessionRef(ref).machine, parseSessionRef(ref).name),
   pinProject: (id: string) => tree.pinProject(id),
   unpinProject: (id: string) => tree.unpinProject(id),
   killSession: askKill,
@@ -541,7 +561,7 @@ function focusActiveTerminal() {
 watch(() => layout.activeTab?.id, (id, previous) => {
   if (id && previous && auth.status === 'authenticated') void nextTick(focusActiveTerminal)
 })
-watch(() => layout.focused?.session, (session) => {
+watch(() => selectedSession.value, (session) => {
   if (session) recentSessionNames.value = [session, ...recentSessionNames.value.filter((name) => name !== session)]
 })
 
@@ -584,7 +604,7 @@ function cycleVisibleOpenSession(offset: 1 | -1) {
   const openNames = new Set(layout.tabs.flatMap((tab) => panesOf(tab.root).map((pane) => sessionKey(pane.machine, pane.session))))
   const names = visibleOpenSessionNames(tree.groups.groups, tree.groups.other, tree.order, openNames)
   if (names.length < 2) return false
-  const current = layout.focused?.session
+  const current = selectedSession.value
   const index = current ? names.indexOf(current) : -1
   const next = index < 0
     ? (offset > 0 ? names[0] : names[names.length - 1])
@@ -592,9 +612,10 @@ function cycleVisibleOpenSession(offset: 1 | -1) {
   return activateOpenSession(next)
 }
 
-function activateOpenSession(session: string) {
+function activateOpenSession(ref: string) {
+  const { machine, name: session } = parseSessionRef(ref)
   const candidates = layout.tabs.flatMap((tab) => panesOf(tab.root)
-    .filter((pane) => pane.machine === MACHINE && pane.session === session)
+    .filter((pane) => pane.machine === machine && pane.session === session)
     .map((pane) => ({ tab, pane })))
   const target = candidates.find(({ tab }) => tab.id === layout.layout.activeTab) ?? candidates[0]
   if (!target) return false
@@ -607,9 +628,9 @@ function activateOpenSession(session: string) {
 }
 
 function toggleLastSession() {
-  const current = layout.focused?.session
+  const current = selectedSession.value
   const openNames = new Set(layout.tabs.flatMap((tab) => panesOf(tab.root).map((pane) => sessionKey(pane.machine, pane.session))))
-  const target = recentSessionNames.value.find((name) => name !== current && openNames.has(sessionKey(MACHINE, name)))
+  const target = recentSessionNames.value.find((ref) => ref !== current && openNames.has(sessionKey(parseSessionRef(ref).machine, parseSessionRef(ref).name)))
   return target ? activateOpenSession(target) : false
 }
 
@@ -637,7 +658,6 @@ function closeTab(id: string) {
   if (layout.tabs.length === 0) app.showList()
 }
 
-const selectedSession = computed(() => layout.focused?.session)
 const focusInitialTerminal = ref(true)
 
 // Signed in: the saved layout first (before any terminal mounts), then live
@@ -659,7 +679,7 @@ watch(
       layout.load(),
       tree.load(),
       theme.load(),
-      projects.load(MACHINE).catch((error) => console.warn("hostbud: can't load projects", error)),
+      projects.load().catch((error) => console.warn("hostbud: can't load projects", error)),
     ])
     tree.sync()
     windows.restore()
@@ -876,10 +896,10 @@ onUnmounted(() => {
     />
     <KillSessionDialog
       v-model:open="killing"
-      :machine="MACHINE"
+      :machine="killTarget.machine"
       :compact="compact"
-      :session="target"
-      @killed="onKilled"
+      :session="killTarget.name"
+      @killed="onKilledOn(killTarget.machine, $event)"
     />
     <QueuePanel
       v-model:open="queueOpen"
@@ -891,7 +911,7 @@ onUnmounted(() => {
     <ServersDialog v-model:open="serversOpen" :compact="compact" />
     <SettingsDialog v-model:open="settingsOpen" :compact="compact" :machine="MACHINE" />
     <ShortcutsDialog :open="shortcutsOpen" @update:open="closeShortcuts" />
-    <KillProjectSessionsDialog :machine="MACHINE" :project="killingProject" :sessions="killingProjectSessions" :compact="compact" @killed="onKilled" @done="killingProject = null" @cancel="killingProject = null" />
+    <KillProjectSessionsDialog :machine="killingProject?.machineId ?? MACHINE" :project="killingProject" :sessions="killingProjectSessions" :compact="compact" @killed="onKilledOn(killingProject?.machineId ?? MACHINE, $event)" @done="killingProject = null" @cancel="killingProject = null" />
     <RemoveProjectDialog :project="removingProject" :session-count="removePreview.count" :destinations="removePreview.destinations" :display-path="removingProjectPath" @cancel="removingProject = null" @removed="onProjectRemoved" />
     <CommandPalette
       :open="paletteOpen"

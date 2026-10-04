@@ -12,7 +12,10 @@ export interface PaletteItem {
 }
 
 export interface PaletteSessionSource {
+  /** The session ref (its name on the host, "machine/name" elsewhere). */
   name: string
+  /** What the palette shows; defaults to name. */
+  label?: string
   path: string
   projectName?: string
   hidden: boolean
@@ -40,7 +43,7 @@ export interface PaletteData {
 export function buildPaletteItems(data: PaletteData): PaletteItem[] {
   const sessionItems: PaletteItem[] = data.sessions.map((session) => ({
     id: `session:${session.name}`,
-    label: session.name,
+    label: session.label ?? session.name,
     group: 'Sessions',
     secondary: session.projectName ?? session.path,
     hidden: session.hidden,
@@ -50,7 +53,7 @@ export function buildPaletteItems(data: PaletteData): PaletteItem[] {
       id: `window:${session.name}:${window.id}`,
       label: window.name || `Window ${window.index}`,
       group: 'Windows' as const,
-      secondary: session.name,
+      secondary: session.label ?? session.name,
       detail: `window ${window.index}`,
     }))
     : [])
@@ -96,9 +99,9 @@ export function buildPaletteItems(data: PaletteData): PaletteItem[] {
     actions.push(action(`${project.pinned ? 'unpin' : 'pin'}-project:${project.id}`, `${project.pinned ? 'Unpin' : 'Pin'} ${project.name}`, 'Organize', project.path, 'tree-pin'))
   }
   for (const session of data.sessions) {
-    actions.push(action(`rename-session:${session.name}`, `Rename ${session.name}`, 'Organize', session.projectName ?? session.path, 'tree-rename'))
-    actions.push(action(`${session.hidden ? 'unhide' : 'hide'}-session:${session.name}`, `${session.hidden ? 'Unhide' : 'Hide'} ${session.name}`, 'Organize', session.projectName ?? session.path, 'tree-hide'))
-    actions.push(action(`kill-session:${session.name}`, `Kill ${session.name}`, 'Destructive', session.projectName ?? session.path, 'tree-kill'))
+    actions.push(action(`rename-session:${session.name}`, `Rename ${session.label ?? session.name}`, 'Organize', session.projectName ?? session.path, 'tree-rename'))
+    actions.push(action(`${session.hidden ? 'unhide' : 'hide'}-session:${session.name}`, `${session.hidden ? 'Unhide' : 'Hide'} ${session.label ?? session.name}`, 'Organize', session.projectName ?? session.path, 'tree-hide'))
+    actions.push(action(`kill-session:${session.name}`, `Kill ${session.label ?? session.name}`, 'Destructive', session.projectName ?? session.path, 'tree-kill'))
   }
   const groups = data.selectingSplitTarget
     ? [...sessionItems, ...actions.filter((item) => item.id === 'action:new-session' || item.id.startsWith('action:new-project-session:'))]

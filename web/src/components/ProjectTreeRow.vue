@@ -5,6 +5,7 @@ import type { Project, Session } from '@/api/types'
 import type { SplitDir } from '@/lib/layout'
 import type { ProjectGroup, ProjectSection } from '@/lib/tree'
 import { computed } from 'vue'
+import { useMachinesStore } from '@/stores/machines'
 import SessionList from './SessionList.vue'
 import InlineRename from './InlineRename.vue'
 
@@ -48,6 +49,11 @@ const emit = defineEmits<{
   reorderSessions: [group: string, names: string[]]
 }>()
 
+const machines = useMachinesStore()
+/** A project on another server shows that server's nickname (V2-M13). */
+const machineChip = computed(() => props.group.project.machineId !== 'host' ? machines.label(props.group.project.machineId) : '')
+const home = computed(() => props.group.project.machineId === 'host' ? props.home : machines.byId(props.group.project.machineId)?.home ?? '')
+
 /** A project with a working (🟢) session shows its name in green. */
 const hasWorkingSession = computed(() => props.group.sessions.some((s) => s.status === 'working'))
 const sectionColorValues = { red: 'var(--hb-section-red)', green: 'var(--hb-section-green)', blue: 'var(--hb-section-blue)', yellow: 'var(--hb-section-yellow)', orange: 'var(--hb-section-orange)', purple: 'var(--hb-section-purple)' }
@@ -57,9 +63,9 @@ function renameSessionCommit(from: string, to: string) {
 }
 
 function shortPath(path: string): string {
-  if (!props.home) return path
-  if (path === props.home) return '~'
-  return path.startsWith(props.home + '/') ? '~' + path.slice(props.home.length) : path
+  if (!home.value) return path
+  if (path === home.value) return '~'
+  return path.startsWith(home.value + '/') ? '~' + path.slice(home.value.length) : path
 }
 
 function renameOnFinePointer() {
@@ -91,7 +97,7 @@ function onMenuCloseAutoFocus(event: Event) {
     :aria-expanded="!props.collapsed"
     :aria-selected="props.selectionProxy ? 'true' : undefined"
     :tabindex="props.focusedKey === ('project:' + props.group.project.id) ? 0 : -1"
-    :aria-label="props.group.project.name + (props.hidden ? ', hidden' : '')"
+    :aria-label="props.group.project.name + (machineChip ? ', on ' + machineChip : '') + (props.hidden ? ', hidden' : '')"
     :data-tree-key="'project:' + props.group.project.id"
     data-tree-kind="project"
     class="rounded"
@@ -113,6 +119,7 @@ function onMenuCloseAutoFocus(event: Event) {
       <Folder :size="16" class="shrink-0 text-muted" aria-hidden="true" />
       <InlineRename v-if="props.editingKey === 'project:' + props.group.project.id" :name="props.group.project.name" :error="props.editError" :commit="(value) => props.renameProject(props.group.project.id, value)" @cancel="emit('cancelRename', 'project:' + props.group.project.id)" />
       <span v-else data-project-name class="min-w-0 flex-1 truncate cursor-pointer font-semibold" :class="{ 'text-ok': hasWorkingSession }" :data-working="hasWorkingSession || undefined" @dblclick.stop="renameOnFinePointer">{{ props.group.project.name }}</span>
+      <span v-if="machineChip && props.editingKey !== 'project:' + props.group.project.id" data-machine-chip class="max-w-[40%] shrink-0 truncate rounded-full border border-border px-1.5 text-[10px] leading-4 text-muted" :title="'On ' + machineChip">{{ machineChip }}</span>
       <div data-project-actions class="flex shrink-0 items-center">
       <button v-if="props.pinned" type="button" class="row-action touch-target inline-flex min-h-7 min-w-6 items-center justify-center rounded text-muted" :aria-label="'Unpin ' + props.group.project.name" title="Pinned" tabindex="-1" @click.stop="emit('togglePin', props.group.project.id)">
         <Pin :size="16" aria-hidden="true" />

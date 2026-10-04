@@ -98,6 +98,21 @@ func (s *server) listProjects(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	machineID := q.Get("machine")
+	if machineID == "*" {
+		// Every tracked machine's projects, host first (V2-M13 servers).
+		all := []store.Project{}
+		for _, m := range s.machineList() {
+			info, _ := m.Snapshot()
+			items, err := s.cfg.Projects.List(r.Context(), info.ID)
+			if err != nil {
+				s.projectError(w, err)
+				return
+			}
+			all = append(all, items...)
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"projects": all})
+		return
+	}
 	if machineID == "" {
 		if _, ok := s.lookupMachine(store.HostMachineID); ok {
 			machineID = store.HostMachineID

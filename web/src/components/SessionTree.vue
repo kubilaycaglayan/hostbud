@@ -15,12 +15,14 @@ import { normalizeSessionName, projectNameError, sessionNameError } from '@/lib/
 import { useLayoutStore } from '@/stores/layout'
 import type { SplitDir } from '@/lib/layout'
 import type { ProjectGroup } from '@/lib/tree'
-import { canReorderProjectSections, sessionKey, windowKey } from '@/lib/tree'
+import { canReorderProjectSections, parseSessionRef, refOf, sessionKey, sessionMachine, sessionRef, windowKey } from '@/lib/tree'
 import { SECTION_COLORS, type ProjectSection, type SectionColor } from '@/lib/tree'
 import { matchingTreeShortcut } from '@/lib/shortcuts'
 import SessionList from './SessionList.vue'
 import ProjectTreeRow from './ProjectTreeRow.vue'
 
+// selected and the session events are session refs (refOf): the name on the
+// host, "machine/name" on another server (V2-M13).
 const props = defineProps<{ selected?: string }>()
 const emit = defineEmits<{
   select: [name: string]
@@ -55,15 +57,16 @@ const projectMenuId = ref('')
 const longPressedProjectId = ref('')
 const projectPointerStart = ref<{ x: number; y: number; id: string } | null>(null)
 let projectLongPressTimer: ReturnType<typeof setTimeout> | undefined
+function hiddenKey(session: Session) { return sessionKey(sessionMachine(session), session.name) }
 const projectRows = computed(() => tree.groups.groups
     .filter((group) => tree.order.showHidden || !tree.order.hidden.projects.includes(group.project.id))
     .map((group) => ({
       ...group,
       id: group.project.id,
-      sessions: tree.order.showHidden ? group.sessions : group.sessions.filter((session) => !tree.order.hidden.sessions.includes(sessionKey('host', session.name))),
+      sessions: tree.order.showHidden ? group.sessions : group.sessions.filter((session) => !tree.order.hidden.sessions.includes(hiddenKey(session))),
     })))
 const selectedProjectId = computed(() => props.selected
-  ? tree.groups.groups.find((group) => group.sessions.some((session) => session.name === props.selected))?.project.id
+  ? tree.groups.groups.find((group) => group.sessions.some((session) => refOf(session) === props.selected))?.project.id
   : undefined)
 const selectedSectionId = computed(() => selectedProjectId.value ? tree.order.projectSections[selectedProjectId.value] : undefined)
 const pinnedProjectRows = computed({
@@ -89,18 +92,18 @@ function sectionCollapsed(id: string) { return tree.order.collapsedSections.incl
 function sectionHasSelectedSession(id: string) { return sectionCollapsed(id) && selectedSectionId.value === id }
 const otherRows = computed(() => tree.order.showHidden
   ? tree.groups.other
-  : tree.groups.other.filter((session) => !tree.order.hidden.sessions.includes(sessionKey('host', session.name))))
+  : tree.groups.other.filter((session) => !tree.order.hidden.sessions.includes(hiddenKey(session))))
 const totalRows = computed(() => tree.groups.groups.length + tree.groups.groups.reduce((count, group) => count + group.sessions.length, 0) + tree.groups.other.length)
 const home = computed(() => machines.byId('host')?.home ?? '')
 const visibleKeys = computed(() => {
   const keys: string[] = []
   const appendSessions = (rows: Session[]) => {
     for (const session of rows) {
-      const sessionID = sessionKey('host', session.name)
-      keys.push('session:' + session.name)
+      const sessionID = hiddenKey(session)
+      keys.push('session:' + refOf(session))
       if (!tree.order.expanded.includes(sessionID)) continue
       for (const window of windows.bySession[sessionID]?.windows ?? []) {
-        const winKey = windowKey('host', session.name, window.id)
+        const winKey = windowKey(sessionMachine(session), session.name, window.id)
         keys.push('window:' + winKey)
         if (window.panes.length > 1 && tree.order.expanded.includes(winKey)) {
           keys.push(...window.panes.map((pane) => 'pane:' + winKey + '/' + pane.id))
@@ -163,8 +166,8 @@ watch(visibleKeys, (keys) => {
       fallback = 'window:' + focusedKey.value.slice('pane:'.length).split('/').slice(0, 3).join('/')
     }
     if (focusedKey.value.startsWith('window:')) {
-      const [, name] = focusedKey.value.slice('window:'.length).split('/')
-      fallback = `session:${name}`
+      const [machine, name] = focusedKey.value.slice('window:'.length).split('/')
+      fallback = `session:${sessionRef(machine, name)}`
     }
     if (!keys.includes(fallback)) fallback = keys[0] ?? ''
     focusedKey.value = fallback ?? ''
@@ -194,7 +197,7 @@ async function revealProject(id: string, rename = false) {
 
 async function revealSession(name: string, rename = false) {
   tree.setShowHidden(true)
-  const group = tree.groups.groups.find((candidate) => candidate.sessions.some((session) => session.name === name))
+  const group = tree.groups.groups.find((candidate) => candidate.sessions.some((session) => refOf(session) === name))
   tree.setCollapsed(group?.project.id ?? '__other__', false)
   await nextTick()
   focusKey('session:' + name)
@@ -205,10 +208,11 @@ async function revealSession(name: string, rename = false) {
  * session): its project expands and its selected row scrolls into view, but
  * focus stays on the terminal. */
 async function showSession(name: string) {
-  const group = tree.groups.groups.find((candidate) => candidate.sessions.some((session) => session.name === name))
-  const inOther = tree.groups.other.some((session) => session.name === name)
+  const group = tree.groups.groups.find((candidate) => candidate.sessions.some((session) => refOf(session) === name))
+  const inOther = tree.groups.other.some((session) => refOf(session) === name)
   if (!group && !inOther) return
-  if (tree.order.hidden.sessions.includes(`host/${name}`) || (group && tree.order.hidden.projects.includes(group.project.id))) tree.setShowHidden(true)
+  const ref = parseSessionRef(name)
+  if (tree.order.hidden.sessions.includes(sessionKey(ref.machine, ref.name)) || (group && tree.order.hidden.projects.includes(group.project.id))) tree.setShowHidden(true)
   tree.setCollapsed(group?.project.id ?? '__other__', false)
   await nextTick()
   const row = [...(root.value?.querySelectorAll<HTMLElement>('[data-tree-key]') ?? [])].find((item) => item.dataset.treeKey === `session:${name}`)
@@ -270,8 +274,9 @@ async function toggleProjectPin(id: string) {
 function hideSession(name: string, hidden: boolean) {
   const key = 'session:' + name
   const index = visibleKeys.value.indexOf(key)
-  if (hidden) tree.unhideSession('host', name)
-  else tree.hideSession('host', name)
+  const ref = parseSessionRef(name)
+  if (hidden) tree.unhideSession(ref.machine, ref.name)
+  else tree.hideSession(ref.machine, ref.name)
   if (hidden) focusKey(key)
   else focusAfterHide(index)
 }
@@ -297,55 +302,57 @@ function cancelRename(key: string) {
   focusKey(key)
 }
 
-async function renameSession(from: string, raw: string) {
+async function renameSession(fromRef: string, raw: string) {
+  const { machine, name: from } = parseSessionRef(fromRef)
   const to = normalizeSessionName(raw)
+  const toRef = sessionRef(machine, to)
   const invalid = sessionNameError(to, true)
   if (invalid) { editError.value = invalid; throw new Error(invalid) }
-  if (to === from) { cancelRename('session:' + from); return }
+  if (to === from) { cancelRename('session:' + fromRef); return }
   // Refused before the optimistic rename: re-keying the tree onto a live
   // name would merge both rows, and the rollback couldn't tell them apart.
-  if (sessions.list('host').some((session) => session.name === to)) {
+  if (sessions.list(machine).some((session) => session.name === to)) {
     editError.value = `a session named "${to}" already exists. Pick another name.`
     throw new Error(editError.value)
   }
   const position = tree.groups.groups
-    .map((group) => ({ group: group.project.id, index: group.sessions.findIndex((session) => session.name === from) }))
-    .concat([{ group: '__other__', index: tree.groups.other.findIndex((session) => session.name === from) }])
+    .map((group) => ({ group: group.project.id, index: group.sessions.findIndex((session) => refOf(session) === fromRef) }))
+    .concat([{ group: '__other__', index: tree.groups.other.findIndex((session) => refOf(session) === fromRef) }])
     .find((entry) => entry.index >= 0)
-  const renamedKeyPrefix = `host/${from}`
+  const renamedKeyPrefix = `${machine}/${from}`
   const renameState = position ? {
     ...position,
     hiddenKeys: tree.order.hidden.sessions.filter((key) => key === renamedKeyPrefix || key.startsWith(renamedKeyPrefix + '/')),
     expandedKeys: tree.order.expanded.filter((key) => key === renamedKeyPrefix || key.startsWith(renamedKeyPrefix + '/')),
   } : undefined
-  layout.expectRename('host', from, to)
-  sessions.beginRename('host', from, to)
-  tree.renameSession('host', from, to, renameState)
+  layout.expectRename(machine, from, to)
+  sessions.beginRename(machine, from, to)
+  tree.renameSession(machine, from, to, renameState)
   // The row keeps its place under the new key. Left on the old key, the
   // vanished-row fallback would pull focus from the selected terminal.
-  if (focusedKey.value === 'session:' + from) focusedKey.value = 'session:' + to
-  if (deferredFocusKey.value === 'session:' + from) deferredFocusKey.value = ''
-  if (windows.bySession[`host/${from}`]) {
-    windows.bySession[`host/${to}`] = windows.bySession[`host/${from}`]
-    delete windows.bySession[`host/${from}`]
+  if (focusedKey.value === 'session:' + fromRef) focusedKey.value = 'session:' + toRef
+  if (deferredFocusKey.value === 'session:' + fromRef) deferredFocusKey.value = ''
+  if (windows.bySession[`${machine}/${from}`]) {
+    windows.bySession[`${machine}/${to}`] = windows.bySession[`${machine}/${from}`]
+    delete windows.bySession[`${machine}/${from}`]
   }
   editingKey.value = ''
   editError.value = ''
-  emit('select', from)
+  emit('select', fromRef)
   try {
-    await sessionsApi.rename('host', from, to)
-    sessions.finishRename('host', from, to, true)
-    layout.renamed('host', from, to)
+    await sessionsApi.rename(machine, from, to)
+    sessions.finishRename(machine, from, to, true)
+    layout.renamed(machine, from, to)
   } catch (e) {
-    sessions.finishRename('host', from, to, false)
-    tree.renameSession('host', to, from)
-    if (focusedKey.value === 'session:' + to) focusedKey.value = 'session:' + from
-    if (windows.bySession[`host/${to}`]) {
-      windows.bySession[`host/${from}`] = windows.bySession[`host/${to}`]
-      delete windows.bySession[`host/${to}`]
+    sessions.finishRename(machine, from, to, false)
+    tree.renameSession(machine, to, from)
+    if (focusedKey.value === 'session:' + toRef) focusedKey.value = 'session:' + fromRef
+    if (windows.bySession[`${machine}/${to}`]) {
+      windows.bySession[`${machine}/${from}`] = windows.bySession[`${machine}/${to}`]
+      delete windows.bySession[`${machine}/${to}`]
     }
-    layout.renameAbandoned('host', from)
-    editingKey.value = 'session:' + from
+    layout.renameAbandoned(machine, from)
+    editingKey.value = 'session:' + fromRef
     editError.value = [describeError(e).message, describeError(e).hint].filter(Boolean).join(' ')
     throw e
   }
@@ -406,7 +413,8 @@ function onTreeKeydown(event: KeyboardEvent) {
     if (kind === 'project') hideProject(key.slice('project:'.length))
     else {
       const name = key.slice('session:'.length)
-      hideSession(name, tree.order.hidden.sessions.includes(sessionKey('host', name)))
+      const ref = parseSessionRef(name)
+      hideSession(name, tree.order.hidden.sessions.includes(sessionKey(ref.machine, ref.name)))
     }
     return
   }
@@ -482,7 +490,7 @@ function onTreeKeydown(event: KeyboardEvent) {
       const rows = group === '__other__'
         ? tree.groups.other
         : tree.groups.groups.find((entry) => entry.project.id === group)?.sessions ?? []
-      const names = rows.map((session) => session.name)
+      const names = rows.map(refOf)
       const from = names.indexOf(key.slice('session:'.length))
       const to = from + offset
       if (to >= 0 && to < names.length) {
@@ -502,9 +510,9 @@ function onTreeKeydown(event: KeyboardEvent) {
     if ((kind === 'project' || kind === 'other') && item.getAttribute('aria-expanded') === 'false') {
       tree.setCollapsed(kind === 'other' ? '__other__' : key.slice('project:'.length), false)
     } else if (kind === 'session' && item.getAttribute('aria-expanded') === 'false') {
-      windows.toggleSession('host', name)
+      windows.toggleSession(parseSessionRef(name).machine, parseSessionRef(name).name)
     } else if (kind === 'window' && item.getAttribute('aria-expanded') === 'false') {
-      windows.toggleWindow('host', name, windowID)
+      windows.toggleWindow(parseSessionRef(name).machine, parseSessionRef(name).name, windowID)
     } else if (item.getAttribute('aria-expanded') === 'true') moveFocus(index + 1)
     return
   }
@@ -513,9 +521,9 @@ function onTreeKeydown(event: KeyboardEvent) {
     if ((kind === 'project' || kind === 'other') && item.getAttribute('aria-expanded') === 'true') {
       tree.setCollapsed(kind === 'other' ? '__other__' : key.slice('project:'.length), true)
     } else if (kind === 'session' && item.getAttribute('aria-expanded') === 'true') {
-      windows.toggleSession('host', name)
+      windows.toggleSession(parseSessionRef(name).machine, parseSessionRef(name).name)
     } else if (kind === 'window' && item.getAttribute('aria-expanded') === 'true') {
-      windows.toggleWindow('host', name, windowID)
+      windows.toggleWindow(parseSessionRef(name).machine, parseSessionRef(name).name, windowID)
     } else {
       const parent = item.closest('[role="group"]')?.parentElement?.closest<HTMLElement>('[role="treeitem"][data-tree-key]')
       if (parent?.dataset.treeKey) focusKey(parent.dataset.treeKey)
@@ -538,10 +546,11 @@ function onTreeKeydown(event: KeyboardEvent) {
 }
 
 async function saveAsProject(session: Session) {
-  busySession.value = session.name
+  busySession.value = refOf(session)
   error.value = null
   try {
-    const project = projects.byPath(session.path) ?? await projectsApi.create('host', session.path, '')
+    const machine = sessionMachine(session)
+    const project = projects.byPath(session.path, machine) ?? await projectsApi.create(machine, session.path, '')
     projects.remember(project)
     tree.sync()
   } catch (e) { error.value = describeError(e) }
@@ -643,6 +652,7 @@ async function saveAsProject(session: Session) {
           :edit-error="editError"
           :commit-edit="renameSession"
           group-key="__other__"
+          machine-chips
           sortable
           can-save-as-project
           list-label="Other sessions"
