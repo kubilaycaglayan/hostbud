@@ -369,7 +369,7 @@ func TestHardeningLimitsOnlyReachHostbud(t *testing.T) {
 // switch (off by default).
 func TestQueueSettingsOnlyReachHostbud(t *testing.T) {
 	c := load(t)
-	for key, want := range map[string]string{"HOSTBUD_HOOK_BASE_URL": "", "HOSTBUD_RUN_STALE_AFTER": "2h", "HOSTBUD_PARALLEL_QUEUES": "false"} {
+	for key, want := range map[string]string{"HOSTBUD_HOOK_BASE_URL": "", "HOSTBUD_SERVER_HOOK_BASE_URL": "", "HOSTBUD_RUN_STALE_AFTER": "2h", "HOSTBUD_PARALLEL_QUEUES": "false"} {
 		if got, ok := env(c.Services["hostbud"], key); !ok || got != want {
 			t.Errorf("hostbud %s = %q, present=%v; want %q", key, got, ok, want)
 		}

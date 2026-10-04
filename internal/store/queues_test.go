@@ -911,3 +911,46 @@ func TestQueueDefaultPrompt(t *testing.T) {
 		t.Errorf("unknown queue: %v, want ErrNotFound", err)
 	}
 }
+
+// Queues on servers (V2-M13 follow-up): a server project's queue carries the
+// server's machine id; AllQueues lists every machine's queues, Queues one
+// machine's, and history "" covers every machine.
+func TestQueuesOnServers(t *testing.T) {
+	ctx := context.Background()
+	s, p := queueFixture(t)
+	if _, err := s.db.ExecContext(ctx, `INSERT INTO machines (id, source, ssh_alias, label, active, created_at, updated_at) VALUES ('server-a', 'custom', 'server-a', 'server-a', TRUE, now(), now())`); err != nil {
+		t.Fatal(err)
+	}
+	remote, err := s.CreateProject(ctx, "server-a", "/home/dev/app", "Remote app")
+	if err != nil {
+		t.Fatal(err)
+	}
+	hq, err := s.CreateQueue(ctx, p.ID, "Host queue")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sq, err := s.CreateQueue(ctx, remote.ID, "Server queue")
+	if err != nil || sq.MachineID != "server-a" {
+		t.Fatalf("server queue = %+v, %v", sq, err)
+	}
+	it, err := s.AddQueueItem(ctx, sq.ID, "claude", "", "/goal remote")
+	if err != nil || it.MachineID != "server-a" {
+		t.Fatalf("server item = %+v, %v", it, err)
+	}
+	all, err := s.AllQueues(ctx)
+	if err != nil || len(all) != 2 || all[0].ID != hq.ID || all[1].ID != sq.ID {
+		t.Fatalf("AllQueues = %+v, %v", all, err)
+	}
+	if mine, err := s.Queues(ctx, "server-a"); err != nil || len(mine) != 1 || mine[0].ID != sq.ID {
+		t.Fatalf("Queues(server-a) = %+v, %v", mine, err)
+	}
+	if host, err := s.Queues(ctx, HostMachineID); err != nil || len(host) != 1 || host[0].ID != hq.ID {
+		t.Fatalf("Queues(host) = %+v, %v", host, err)
+	}
+	if rows, err := s.QueueItemHistory(ctx, "", 100, 0); err != nil || len(rows) == 0 || rows[0].MachineID != "server-a" {
+		t.Fatalf("history across machines = %+v, %v", rows, err)
+	}
+	if rows, err := s.QueueItemHistory(ctx, HostMachineID, 100, 0); err != nil || len(rows) != 0 {
+		t.Fatalf("host history = %+v, %v", rows, err)
+	}
+}

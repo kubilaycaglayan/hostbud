@@ -235,6 +235,28 @@ func TestLoadHookBaseURL(t *testing.T) {
 	}
 }
 
+// Queue runs on servers (V2-M13 follow-up): their hooks call
+// HOSTBUD_SERVER_HOOK_BASE_URL, else https://${HOSTBUD_DOMAIN}, else nothing.
+func TestLoadServerHookBaseURL(t *testing.T) {
+	cfg, err := Load(envFrom(map[string]string{"HOST_SSH_USER": "dev"}))
+	if err != nil || cfg.ServerHookURL() != "" {
+		t.Fatalf("default: %q %v", cfg.ServerHookURL(), err)
+	}
+	cfg, err = Load(envFrom(map[string]string{"HOST_SSH_USER": "dev", "HOSTBUD_DOMAIN": "hostbud.example.com"}))
+	if err != nil || cfg.ServerHookURL() != "https://hostbud.example.com" {
+		t.Fatalf("domain: %q %v", cfg.ServerHookURL(), err)
+	}
+	cfg, err = Load(envFrom(map[string]string{"HOST_SSH_USER": "dev", "HOSTBUD_DOMAIN": "hostbud.example.com", "HOSTBUD_SERVER_HOOK_BASE_URL": " http://hostbud.example.net:9055/ "}))
+	if err != nil || cfg.ServerHookURL() != "http://hostbud.example.net:9055" || cfg.HookURL() == cfg.ServerHookURL() {
+		t.Fatalf("override: %q %v", cfg.ServerHookURL(), err)
+	}
+	for _, raw := range []string{"hostbud.example.com", "ftp://example.com", "http://example.com/api"} {
+		if _, err := Load(envFrom(map[string]string{"HOST_SSH_USER": "dev", "HOSTBUD_SERVER_HOOK_BASE_URL": raw})); err == nil || !strings.Contains(err.Error(), "HOSTBUD_SERVER_HOOK_BASE_URL") {
+			t.Errorf("%q accepted: %v", raw, err)
+		}
+	}
+}
+
 func TestLoadRunStaleAfter(t *testing.T) {
 	cfg, err := Load(envFrom(map[string]string{"HOST_SSH_USER": "dev", "HOSTBUD_RUN_STALE_AFTER": "90m"}))
 	if err != nil || cfg.RunStaleAfter != 90*time.Minute {

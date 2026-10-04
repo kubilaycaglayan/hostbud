@@ -58,6 +58,7 @@ export interface QueueWarning {
 
 export interface Queue {
   id: string
+  machineId: string
   projectId: string
   name: string
   status: 'idle' | 'running' | 'paused' | 'finished'
@@ -93,12 +94,13 @@ export async function listQueues(request: APIRequestContext): Promise<Queue[]> {
   return (await res.json() as { queues: Queue[] }).queues
 }
 
-/** A saved project in a fresh folder on the target. */
-export async function newProject(request: APIRequestContext, target: Target, prefix = 'e2e-queue'): Promise<{ id: string; name: string; path: string }> {
+/** A saved project in a fresh folder on the target (machineId: the host,
+ * or a server added in the UI whose target this is). */
+export async function newProject(request: APIRequestContext, target: Target, prefix = 'e2e-queue', machineId = MACHINE): Promise<{ id: string; name: string; path: string }> {
   const name = uniqueName(prefix)
   const path = `/home/dev/${name}`
   await target.run(`mkdir -p ${shq(path)}`)
-  const res = await mutate(request, 'POST', '/api/projects', { machineId: MACHINE, path, name })
+  const res = await mutate(request, 'POST', '/api/projects', { machineId, path, name })
   expect(res.status(), await res.text()).toBe(201)
   return { id: (await res.json() as { id: string }).id, name, path }
 }

@@ -15,6 +15,8 @@ import { AGENTS, type Agent, completedSessions, DEFAULT_LOOP_RUNTIME_SECONDS, DE
 import { useQueuesStore } from '@/stores/queues'
 import { useProjectsStore } from '@/stores/projects'
 import { useSessionsStore } from '@/stores/sessions'
+import { useMachinesStore } from '@/stores/machines'
+import { sessionRef } from '@/lib/tree'
 import { killSessions } from '@/lib/killSessions'
 import { describeError, useToastsStore } from '@/stores/toasts'
 import { clipboardImages, insertWord, relativePath } from '@/lib/clipboardImages'
@@ -34,10 +36,15 @@ const emit = defineEmits<{ openSession: [name: string]; killed: [name: string] }
 
 const store = useQueuesStore()
 const projects = useProjectsStore()
+const machines = useMachinesStore()
+/** A server's nickname for a project or queue off the host, else ''. */
+function serverLabel(machineId: string | undefined) { return machineId && machines.isServer(machineId) ? machines.label(machineId) : '' }
 const sessions = useSessionsStore()
 // The shown queue: the one picked in the switcher, else the first.
 const selectedId = ref<string | null>(null)
 const queue = computed(() => store.queues.find((q) => q.id === selectedId.value) ?? store.queues[0] ?? null)
+// Queues run on their project's machine: the host or a server (V2-M13).
+const queueMachine = computed(() => queue.value?.machineId ?? props.machine)
 const selectModel = computed({
   get: () => queue.value?.id ?? '',
   set: (id: string) => { selectedId.value = id },
@@ -195,7 +202,8 @@ const activeGoalRuns = computed(() => store.queues.flatMap((q) => q.items
   .map((it) => ({ id: it.run!.id, session: it.run!.sessionName, queue: q.name, goal: it.instruction.replace(/^\/goal\s+/, '') }))))
 const linkableSessions = computed(() => {
   const goalSessions = new Set(activeGoalRuns.value.map((run) => run.session))
-  return sessions.list(props.machine).filter((s) => !goalSessions.has(s.name))
+  const machine = projects.items.find((p) => p.id === newProjectId.value)?.machineId ?? props.machine
+  return sessions.list(machine).filter((s) => !goalSessions.has(s.name))
 })
 watch(() => projects.items, (list) => { if (!newProjectId.value && list.length) newProjectId.value = list[0].id }, { immediate: true })
 // With queues present, "New queue" opens the form (with or without the switch).
@@ -303,7 +311,7 @@ function savePrompt(enabled: boolean) {
 
 // ---- adding and editing items ----
 interface Draft { agent: Agent; flags: string; instruction: string; executionMode: 'agent' | 'session'; targetSession: string; command: string; verifyCommand: string; requiresApproval: boolean }
-const VERIFY_HINT = "Runs as argv in the project directory on the host, not in the agent's session; quote words like flags. For pipes or &&: sh -c '…'."
+const VERIFY_HINT = "Runs as argv in the project directory on the project's machine, not in the agent's session; quote words like flags. For pipes or &&: sh -c '…'."
 /** The gate fields to send: none when unset (the server's default). */
 function gates(d: Pick<Draft, 'verifyCommand' | 'requiresApproval'>) {
   const verifyCommand = d.verifyCommand.trim()
@@ -360,7 +368,7 @@ async function pasteInstructionImages(event: ClipboardEvent, target: Draft) {
   }
   for (const file of files) {
     try {
-      const result = await filesystemApi.uploadPhotoUnique(props.machine, directory, file)
+      const result = await filesystemApi.uploadPhotoUnique(queueMachine.value, directory, file)
       const pastedPath = relativePath(directory, result.path)
       const next = insertWord(target.instruction, box.selectionStart, box.selectionEnd, pastedPath)
       target.instruction = next.value
@@ -523,14 +531,15 @@ function retry(item: QueueItem) {
   void act("Couldn't retry the item", () => queuesApi.retry(item.id))
 }
 // The open run sessions of this queue's done items.
-const openSessions = computed(() => new Set(sessions.list(props.machine).map((s) => s.name)))
+const openSessions = computed(() => new Set(sessions.list(queueMachine.value).map((s) => s.name)))
 const completedOpen = computed(() => completedSessions(items.value, openSessions.value))
 /** Kills the sessions in one request; a failure doesn't stop the rest. */
 async function killOpenSessions(names: string[]) {
   busy.value = true
   error.value = null
-  const outcome = await killSessions(props.machine, names)
-  for (const name of outcome.killed) emit('killed', name)
+  const machine = queueMachine.value
+  const outcome = await killSessions(machine, names)
+  for (const name of outcome.killed) emit('killed', sessionRef(machine, name))
   const failed = outcome.failed
   if (outcome.error) error.value = { title: `Couldn't kill ${failed.length === 1 ? 'session' : 'sessions'} ${failed.join(', ')}`, ...outcome.error }
   busy.value = false
@@ -538,7 +547,7 @@ async function killOpenSessions(names: string[]) {
 function openSession(item: QueueItem) {
   if (!item.run?.sessionName) return
   open.value = false
-  emit('openSession', item.run.sessionName)
+  emit('openSession', sessionRef(queueMachine.value, item.run.sessionName))
 }
 
 const badge: Record<QueueItem['status'], string> = {
@@ -641,7 +650,7 @@ const badge: Record<QueueItem['status'], string> = {
           <div v-if="store.queues.length" data-testid="queue-switcher" class="sticky -top-3 z-10 -mx-3 flex flex-wrap items-center gap-2 bg-surface px-3 py-1">
             <label v-if="props.compact" class="block min-w-0 flex-1">Queue
               <select v-model="selectModel" autocomplete="off" class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 text-base">
-                <option v-for="q in store.queues" :key="q.id" :value="q.id">{{ q.name }} · {{ q.projectName }} ({{ q.status }})</option>
+                <option v-for="q in store.queues" :key="q.id" :value="q.id">{{ q.name }} · {{ q.projectName }}{{ serverLabel(q.machineId) ? ` · ${serverLabel(q.machineId)}` : '' }} ({{ q.status }})</option>
               </select>
             </label>
             <nav v-else aria-label="Queues" class="flex min-w-0 flex-wrap gap-1">
@@ -659,7 +668,7 @@ const badge: Record<QueueItem['status'], string> = {
               >
                 <TriangleAlert v-if="q.warnings?.length" :size="14" aria-hidden="true" class="shrink-0" :class="q.id === queue?.id ? 'text-bg' : 'text-danger'" />
                 <span class="truncate">{{ q.name }}</span>
-                <span class="truncate" :class="q.id === queue?.id ? 'font-normal opacity-80' : 'text-muted'">· {{ q.projectName }} · {{ q.status }}</span>
+                <span class="truncate" :class="q.id === queue?.id ? 'font-normal opacity-80' : 'text-muted'">· {{ q.projectName }}{{ serverLabel(q.machineId) ? ` · ${serverLabel(q.machineId)}` : '' }} · {{ q.status }}</span>
               </button>
             </nav>
             <button
@@ -695,7 +704,7 @@ const badge: Record<QueueItem['status'], string> = {
             </p>
             <label class="block">Project
               <select v-model="newProjectId" autocomplete="off" class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 text-base">
-                <option v-for="p in projects.items" :key="p.id" :value="p.id">{{ p.name }} — {{ p.path }}</option>
+                <option v-for="p in projects.items" :key="p.id" :value="p.id">{{ p.name }} — {{ p.path }}{{ serverLabel(p.machineId) ? ` (${serverLabel(p.machineId)})` : '' }}</option>
               </select>
             </label>
             <label class="block">Queue name
@@ -745,6 +754,7 @@ const badge: Record<QueueItem['status'], string> = {
               </form>
               <h3 v-else class="min-w-0 font-bold">
                 {{ queue.name }} <span class="font-normal text-muted">· {{ queue.projectName }}</span>
+                <span v-if="serverLabel(queue.machineId)" data-testid="queue-server" class="ml-1 rounded border border-border px-1.5 text-xs font-normal text-muted" :title="`Runs on ${serverLabel(queue.machineId)}`">{{ serverLabel(queue.machineId) }}</span>
               </h3>
               <button v-if="!renaming" type="button" class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded border border-border" aria-label="Rename queue" title="Rename" @click="startRename">
                 <Pencil :size="15" aria-hidden="true" />
@@ -874,7 +884,7 @@ const badge: Record<QueueItem['status'], string> = {
                   <template v-if="!gatesOnly && edit.executionMode === 'session'">
                     <label class="block">Existing session
                       <select v-model="edit.targetSession" autocomplete="off" class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 text-base">
-                        <option value="">Choose a session</option><option v-for="s in sessions.list(props.machine)" :key="s.name" :value="s.name">{{ s.name }} · {{ s.path }}</option>
+                        <option value="">Choose a session</option><option v-for="s in sessions.list(queueMachine)" :key="s.name" :value="s.name">{{ s.name }} · {{ s.path }}</option>
                       </select>
                     </label>
                     <label class="block">Command
@@ -1003,7 +1013,7 @@ const badge: Record<QueueItem['status'], string> = {
               <template v-if="draft.executionMode === 'session'">
                 <label class="block">Existing session
                   <select v-model="draft.targetSession" autocomplete="off" class="mt-1 min-h-11 w-full rounded border border-border bg-bg px-3 text-base">
-                    <option value="">Choose a session</option><option v-for="s in sessions.list(props.machine)" :key="s.name" :value="s.name">{{ s.name }} · {{ s.path }}</option>
+                    <option value="">Choose a session</option><option v-for="s in sessions.list(queueMachine)" :key="s.name" :value="s.name">{{ s.name }} · {{ s.path }}</option>
                   </select>
                 </label>
                 <label class="block">Command

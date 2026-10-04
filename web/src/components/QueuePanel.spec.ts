@@ -6,10 +6,11 @@ import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import QueuePanel from './QueuePanel.vue'
 import DurationPicker from './DurationPicker.vue'
-import type { Queue } from '@/api/types'
+import type { Machine, Queue } from '@/api/types'
 import { useQueuesStore } from '@/stores/queues'
 import { useSessionsStore } from '@/stores/sessions'
 import { useProjectsStore } from '@/stores/projects'
+import { useMachinesStore } from '@/stores/machines'
 import { stubFetch } from '@/test-utils'
 
 const queue = (items: Queue['items'], status: Queue['status'] = 'paused'): Queue => ({ id: 'q1', projectId: 'p1', name: 'Milestones', status, projectName: 'app', projectPath: '/home/dev/app', items })
@@ -21,6 +22,7 @@ const queued: Queue['items'][number] = { id: 'i2', queueId: 'q1', position: 2, a
 
 beforeEach(() => setActivePinia(createPinia()))
 afterEach(() => {
+  panel?.unmount()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
   document.body.innerHTML = ''
@@ -402,6 +404,24 @@ describe('QueuePanel', () => {
     await flushPromises()
     expect(w.emitted('openSession')).toEqual([['app-q1']])
     expect(w.emitted('update:open')).toEqual([[false]])
+  })
+
+  it('runs a server queue on its server: chip, open and kill target that machine', async () => {
+    const done = { ...attention, status: 'done' as const, run: { ...attention.run!, status: 'achieved' as const } }
+    const calls = stubFetch(() => ({ status: 200, body: { killed: ['app-q1'], failed: [] } }))
+    useMachinesStore().machines = [{ id: 's-abc123', label: 'server-a', source: 'custom', status: 'ok' } as Machine]
+    useSessionsStore().$patch({ byMachine: { 's-abc123': [{ id: '$1', name: 'app-q1', path: '/home/dev/app', attached: 0, windows: 1, created: '', activity: '' }] } })
+    const w = await mountPanel({ ...queue([done, queued]), machineId: 's-abc123' })
+    expect(document.body.querySelector('[data-testid="queue-server"]')?.textContent).toBe('server-a')
+    button('Kill session of item 1')!.click()
+    await flushPromises()
+    $$('[role="alertdialog"] button').find((b) => b.textContent?.trim() === 'Kill session')!.click()
+    await flushPromises()
+    expect(calls).toEqual([{ method: 'POST', path: '/api/machines/s-abc123/sessions/kill', body: { names: ['app-q1'] } }])
+    expect(w.emitted('killed')).toEqual([['s-abc123/app-q1']])
+    button('Open session of item 1')!.click()
+    await flushPromises()
+    expect(w.emitted('openSession')).toEqual([['s-abc123/app-q1']])
   })
 
   it('kills a done item\'s open session after a confirmation', async () => {

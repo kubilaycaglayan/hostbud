@@ -238,3 +238,74 @@ func TestIntegrationQueueRoutesUsePostgres(t *testing.T) {
 		t.Fatalf("queue.changed events: %d, want one per change plus peers (19)", n)
 	}
 }
+
+// Queues on servers (V2-M13 follow-up): POST /api/queues for a server's
+// project creates the queue on that server; it is listed with the host's.
+func TestIntegrationQueueOnAServer(t *testing.T) {
+	ctx := context.Background()
+	host := os.Getenv("HOSTBUD_TEST_DB_HOST")
+	if host == "" {
+		host = "hostbud-test-postgres"
+	}
+	password := os.Getenv("HOSTBUD_TEST_DB_PASSWORD")
+	if password == "" {
+		password = "hostbud-test-password" //nolint:gosec // disposable integration database
+	}
+	schema := fmt.Sprintf("queue_srv_%x", sha256.Sum256([]byte(t.TempDir())))[:24]
+	repo, err := store.Open(ctx, store.Config{Host: host, Port: 5432, Name: "hostbud_test", User: "hostbud_test", Password: password, SSLMode: "disable", Schema: schema})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = repo.Close() }()
+	if _, err := repo.EnsureHostMachine(ctx, "Host machine"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repo.CreateMachine(ctx, store.NewMachine{ID: "s-abc123", SSHAlias: "hostbud-s-abc123", Label: "server-a", HostName: "server-a.example.com", Port: 22, SSHUser: "dev", HostKeys: "server-a.example.com ssh-ed25519 AAAA"}); err != nil {
+		t.Fatal(err)
+	}
+	project, err := repo.CreateProject(ctx, "s-abc123", "/home/dev/app", "remote")
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc := queue.NewService(repo, agents.NewRegistry(agents.NewClaude(nil, nil, nil), agents.NewCodex(nil, 0)), events.NewBus())
+	server := httptest.NewServer(New(Config{
+		Log: slog.New(slog.DiscardHandler), Dist: fstest.MapFS{}, Origins: AllowedOrigins("", 9055), Bus: events.NewBus(), Auth: &fakeAuth{}, Queues: svc,
+	}))
+	defer server.Close()
+	call := func(method, path, body string) (int, []byte) {
+		t.Helper()
+		var reader io.Reader
+		if body != "" {
+			reader = strings.NewReader(body)
+		}
+		req, err := http.NewRequestWithContext(ctx, method, server.URL+path, reader)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if body != "" {
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Origin", origin)
+		}
+		req.AddCookie(&http.Cookie{Name: SessionCookie, Value: testToken})
+		res, err := server.Client().Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = res.Body.Close() }()
+		data, _ := io.ReadAll(res.Body)
+		return res.StatusCode, data
+	}
+	status, body := call("POST", "/api/queues", `{"projectId":"`+project.ID+`","name":"Remote"}`)
+	var q queue.View
+	if err := json.Unmarshal(body, &q); status != 201 || err != nil || q.MachineID != "s-abc123" || q.ProjectName != "remote" {
+		t.Fatalf("create queue on a server: %d %s", status, body)
+	}
+	if status, body = call("POST", "/api/queues/"+q.ID+"/items", `{"agent":"claude","instruction":"/goal remote"}`); status != 201 {
+		t.Fatalf("add item: %d %s", status, body)
+	}
+	status, body = call("GET", "/api/queues", "")
+	var list struct{ Queues []queue.View }
+	if err := json.Unmarshal(body, &list); status != 200 || err != nil || len(list.Queues) != 1 || list.Queues[0].ID != q.ID || len(list.Queues[0].Items) != 1 {
+		t.Fatalf("list: %d %s", status, body)
+	}
+}

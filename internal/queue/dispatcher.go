@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sync"
 	"time"
 
@@ -94,11 +95,11 @@ type Dispatcher struct {
 	follows   map[string][]Timer // follow-up reads per run
 	waiting   map[string]bool    // queues last published as waiting for a slot
 	scheduled map[string]Timer   // durable delayed queue starts, re-armed on restart
-	// sessions is the latest inventory snapshot by name (nil until the first
-	// one): queues linked to an existing session start from it. sessionsAt
-	// is when it arrived.
-	sessions   map[string]tmux.Session
-	sessionsAt time.Time
+	// sessions is each machine's latest inventory snapshot by name (absent
+	// until its first one): queues linked to an existing session start from
+	// it. sessionsAt is when each arrived.
+	sessions   map[string]map[string]tmux.Session
+	sessionsAt map[string]time.Time
 
 	dispatching, again bool // dispatch is running / was asked for again meanwhile
 
@@ -138,6 +139,7 @@ func NewDispatcher(st DispatchStore, adapters Adapters, starter *Starter, servic
 	d := &Dispatcher{
 		store: st, adapters: adapters, starter: starter, service: service, bus: bus, clock: realClock{}, log: log, staleAfter: staleAfter,
 		work: make(chan func(context.Context), 4096), timers: map[string]Timer{}, follows: map[string][]Timer{}, waiting: map[string]bool{}, scheduled: map[string]Timer{},
+		sessions: map[string]map[string]tmux.Session{}, sessionsAt: map[string]time.Time{},
 	}
 	service.SetDispatcher(d)
 	starter.inSlot = service.ParallelQueues
@@ -249,7 +251,11 @@ func (d *Dispatcher) Run(ctx context.Context) {
 			}
 			if e.Type == events.SessionsChanged {
 				if payload, ok := e.Payload.(inventory.SessionsChanged); ok {
-					d.safely(ctx, func(ctx context.Context) { d.sessionsChanged(ctx, payload) })
+					machine := e.Machine
+					if machine == "" {
+						machine = store.HostMachineID
+					}
+					d.safely(ctx, func(ctx context.Context) { d.sessionsChanged(ctx, machine, payload) })
 				}
 			}
 		}
@@ -288,7 +294,7 @@ func (d *Dispatcher) recover(ctx context.Context) {
 		d.dispatch(ctx, store.SourcePoller)
 		return
 	}
-	queues, err := d.store.Queues(ctx, store.HostMachineID)
+	queues, err := d.store.AllQueues(ctx)
 	if err != nil {
 		d.log.Error("queue recovery: list queues", "err", err)
 		return
@@ -427,7 +433,7 @@ func (d *Dispatcher) loopAgain(ctx context.Context, q store.Queue) bool {
 // until its linked goal achieves. Stale is active because it can achieve late.
 func (d *Dispatcher) predecessorReady(ctx context.Context, q store.Queue) bool {
 	if q.AfterSession != nil {
-		return q.AfterReleased || d.sessionIdle(*q.AfterSession, q.LinkedAt())
+		return q.AfterReleased || d.sessionIdle(q.MachineID, *q.AfterSession, q.LinkedAt())
 	}
 	if q.AfterRunID == nil {
 		return true
@@ -452,13 +458,14 @@ func (d *Dispatcher) predecessorReady(ctx context.Context, q store.Queue) bool {
 // exits. Before the first inventory snapshot nothing is known: not idle.
 // A session missing from a snapshot older than the link (linkedAt) may just
 // not be listed yet, so only a newer snapshot shows it gone.
-func (d *Dispatcher) sessionIdle(name string, linkedAt time.Time) bool {
-	if d.sessions == nil {
+func (d *Dispatcher) sessionIdle(machine, name string, linkedAt time.Time) bool {
+	sessions, known := d.sessions[machine]
+	if !known {
 		return false
 	}
-	s, ok := d.sessions[name]
+	s, ok := sessions[name]
 	if !ok {
-		return d.sessionsAt.After(linkedAt)
+		return d.sessionsAt[machine].After(linkedAt)
 	}
 	switch s.Status {
 	case tmux.AgentWorking:
@@ -563,7 +570,11 @@ func (d *Dispatcher) next(ctx context.Context, queueID, source string) {
 // so it really goes to the back.
 func (d *Dispatcher) toBack(ctx context.Context, queueID string) {
 	at := d.clock.Now().UTC().Truncate(time.Microsecond) // the column's precision
-	if waiting, err := d.store.WaitingQueues(ctx, store.HostMachineID); err == nil {
+	machine := store.HostMachineID
+	if q, err := d.store.Queue(ctx, queueID); err == nil {
+		machine = q.MachineID
+	}
+	if waiting, err := d.store.WaitingQueues(ctx, machine); err == nil {
 		for _, q := range waiting {
 			if q.ID != queueID && !q.WaitingSince.Before(at) {
 				at = q.WaitingSince.Add(time.Microsecond)
@@ -573,11 +584,12 @@ func (d *Dispatcher) toBack(ctx context.Context, queueID string) {
 	_, _ = d.store.SetQueueWaiting(ctx, queueID, &at)
 }
 
-// dispatch is the machine-wide decision point (it only runs on the
-// dispatcher goroutine): free slots go to the running queues without an
-// active run, oldest waiting_since first; the store re-checks the cap when
-// it creates each run. It then publishes queue.changed for every queue
-// whose "waiting for a free slot" state changed.
+// dispatch is the decision point (it only runs on the dispatcher
+// goroutine): on each machine with queues, its free slots go to its
+// running queues without an active run, oldest waiting_since first; the
+// store re-checks the machine's cap when it creates each run. It then
+// publishes queue.changed for every queue whose "waiting for a free slot"
+// state changed.
 func (d *Dispatcher) dispatch(ctx context.Context, source string) {
 	// A start that fails inside the loop pauses its queue, which asks for
 	// another dispatch: run it after this pass instead of nested.
@@ -587,13 +599,31 @@ func (d *Dispatcher) dispatch(ctx context.Context, source string) {
 	}
 	d.dispatching = true
 	defer func() { d.dispatching = false }()
-	machine := store.HostMachineID
 	for again := true; again; {
 		d.again = false
-		d.dispatchOnce(ctx, machine, source)
+		for _, machine := range d.machines(ctx) {
+			d.dispatchOnce(ctx, machine, source)
+		}
 		again = d.again
 	}
-	d.publishWaiting(ctx, machine)
+	d.publishWaiting(ctx)
+}
+
+// machines lists the host and every other machine that has queues (V2-M13
+// servers), the host first.
+func (d *Dispatcher) machines(ctx context.Context) []string {
+	out := []string{store.HostMachineID}
+	queues, err := d.store.AllQueues(ctx)
+	if err != nil {
+		d.log.Error("queue: list queues", "err", err)
+		return out
+	}
+	for _, q := range queues {
+		if !slices.Contains(out, q.MachineID) {
+			out = append(out, q.MachineID)
+		}
+	}
+	return out
 }
 
 func (d *Dispatcher) dispatchOnce(ctx context.Context, machine, source string) {
@@ -669,8 +699,8 @@ func (d *Dispatcher) slotFree(ctx context.Context, machine string) bool {
 
 // publishWaiting publishes queue.changed for each queue whose "waiting for
 // a free slot" state changed since the last dispatch.
-func (d *Dispatcher) publishWaiting(ctx context.Context, machine string) {
-	queues, err := d.store.Queues(ctx, machine)
+func (d *Dispatcher) publishWaiting(ctx context.Context) {
+	queues, err := d.store.AllQueues(ctx)
 	if err != nil {
 		return
 	}
@@ -922,13 +952,16 @@ func (d *Dispatcher) ended(ctx context.Context, rc runCtx, source, detail string
 }
 
 // sessionsChanged treats a run whose session left tmux like a SessionEnd.
-func (d *Dispatcher) sessionsChanged(ctx context.Context, payload inventory.SessionsChanged) {
+// Each machine's inventory sends its own snapshot; only that machine's runs
+// are checked against it.
+func (d *Dispatcher) sessionsChanged(ctx context.Context, machine string, payload inventory.SessionsChanged) {
 	names := map[string]bool{}
-	d.sessions = make(map[string]tmux.Session, len(payload.Sessions))
-	d.sessionsAt = d.clock.Now()
+	sessions := make(map[string]tmux.Session, len(payload.Sessions))
+	d.sessions[machine] = sessions
+	d.sessionsAt[machine] = d.clock.Now()
 	for _, s := range payload.Sessions {
 		names[s.Name] = true
-		d.sessions[s.Name] = s
+		sessions[s.Name] = s
 	}
 	d.releaseSessionDependents(ctx)
 	runs, err := d.store.ActiveRuns(ctx)
@@ -936,7 +969,7 @@ func (d *Dispatcher) sessionsChanged(ctx context.Context, payload inventory.Sess
 		return
 	}
 	for _, run := range runs {
-		if run.SessionName == "" || names[run.SessionName] || d.clock.Now().Sub(run.StartedAt) < sessionGrace {
+		if run.MachineID != machine || run.SessionName == "" || names[run.SessionName] || d.clock.Now().Sub(run.StartedAt) < sessionGrace {
 			continue
 		}
 		if rc, ok := d.load(ctx, run.ID); ok && rc.adapter != nil {
@@ -1109,12 +1142,12 @@ func (d *Dispatcher) releaseDependents(ctx context.Context, runID string) {
 // releaseSessionDependents advances running queues linked to an existing
 // session once that session is idle (each inventory snapshot).
 func (d *Dispatcher) releaseSessionDependents(ctx context.Context) {
-	queues, err := d.store.Queues(ctx, store.HostMachineID)
+	queues, err := d.store.AllQueues(ctx)
 	if err != nil {
 		return
 	}
 	for _, q := range queues {
-		if q.AfterSession == nil || q.AfterReleased || q.Status != store.QueueRunning || !d.sessionIdle(*q.AfterSession, q.LinkedAt()) {
+		if q.AfterSession == nil || q.AfterReleased || q.Status != store.QueueRunning || !d.sessionIdle(q.MachineID, *q.AfterSession, q.LinkedAt()) {
 			continue
 		}
 		if d.slots() {

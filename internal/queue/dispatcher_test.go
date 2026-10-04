@@ -482,7 +482,9 @@ func TestQueueDependencyWaitsForExistingSession(t *testing.T) {
 	e := newDispEnv(t)
 	e.svc.SetParallelQueues(true)
 	snapshot := func(sessions ...tmux.Session) {
-		e.d.enqueue(func(ctx context.Context) { e.d.sessionsChanged(ctx, inventory.SessionsChanged{Sessions: sessions}) })
+		e.d.enqueue(func(ctx context.Context) {
+			e.d.sessionsChanged(ctx, store.HostMachineID, inventory.SessionsChanged{Sessions: sessions})
+		})
 		e.d.Sync()
 	}
 	dependent, err := e.svc.CreateLinked(e.ctx(), "project_a", "After manual", store.QueueLink{Session: "manual-work"})
@@ -544,7 +546,9 @@ func TestSetLinkOnExistingQueueGatesNextItem(t *testing.T) {
 	e := newDispEnv(t, "m1", "m2", "m3")
 	e.svc.SetParallelQueues(true)
 	snapshot := func(sessions ...tmux.Session) {
-		e.d.enqueue(func(ctx context.Context) { e.d.sessionsChanged(ctx, inventory.SessionsChanged{Sessions: sessions}) })
+		e.d.enqueue(func(ctx context.Context) {
+			e.d.sessionsChanged(ctx, store.HostMachineID, inventory.SessionsChanged{Sessions: sessions})
+		})
 		e.d.Sync()
 	}
 	achieve := func(n int, sid string) {
@@ -589,7 +593,7 @@ func TestSetLinkClearsAndValidates(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.d.enqueue(func(ctx context.Context) {
-		e.d.sessionsChanged(ctx, inventory.SessionsChanged{Sessions: []tmux.Session{{Name: "busy", Status: tmux.AgentWorking, Agents: []string{"claude"}}}})
+		e.d.sessionsChanged(ctx, store.HostMachineID, inventory.SessionsChanged{Sessions: []tmux.Session{{Name: "busy", Status: tmux.AgentWorking, Agents: []string{"claude"}}}})
 	})
 	e.d.Sync()
 	r := e.run(1)
@@ -627,7 +631,9 @@ func TestQueueLinkedSessionMissingFromOlderSnapshotWaits(t *testing.T) {
 	e := newDispEnv(t)
 	e.svc.SetParallelQueues(true)
 	snapshot := func(sessions ...tmux.Session) {
-		e.d.enqueue(func(ctx context.Context) { e.d.sessionsChanged(ctx, inventory.SessionsChanged{Sessions: sessions}) })
+		e.d.enqueue(func(ctx context.Context) {
+			e.d.sessionsChanged(ctx, store.HostMachineID, inventory.SessionsChanged{Sessions: sessions})
+		})
 		e.d.Sync()
 	}
 	snapshot(tmux.Session{Name: "unrelated"})
@@ -668,24 +674,29 @@ func TestQueueLinkedSessionMissingFromOlderSnapshotWaits(t *testing.T) {
 
 func TestExistingSessionIdle(t *testing.T) {
 	d := &Dispatcher{}
-	if d.sessionIdle("x", time.Time{}) {
+	if d.sessionIdle("host", "x", time.Time{}) {
 		t.Fatal("idle before any snapshot")
 	}
-	d.sessions = map[string]tmux.Session{
+	at := time.Date(2026, 9, 27, 12, 0, 0, 0, time.UTC)
+	d.sessions = map[string]map[string]tmux.Session{"host": {
 		"shell":   {Name: "shell"},
 		"working": {Name: "working", Status: tmux.AgentWorking},
 		"blocked": {Name: "blocked", Status: tmux.AgentBlocked, Agents: []string{"claude"}},
 		"ended":   {Name: "ended", Status: tmux.AgentEnded},
 		"agent":   {Name: "agent", Agents: []string{"claude"}},
-	}
-	d.sessionsAt = time.Date(2026, 9, 27, 12, 0, 0, 0, time.UTC)
+	}}
+	d.sessionsAt = map[string]time.Time{"host": at}
 	for name, want := range map[string]bool{"shell": true, "working": false, "blocked": true, "ended": true, "agent": false, "gone": true} {
-		if got := d.sessionIdle(name, d.sessionsAt.Add(-time.Second)); got != want {
+		if got := d.sessionIdle("host", name, at.Add(-time.Second)); got != want {
 			t.Errorf("sessionIdle(%s) = %v, want %v", name, got, want)
 		}
 	}
-	if d.sessionIdle("gone", d.sessionsAt) {
+	if d.sessionIdle("host", "gone", at) {
 		t.Error("a session missing from a snapshot not newer than the link counts as gone")
+	}
+	// Each machine has its own snapshot: a server without one knows nothing.
+	if d.sessionIdle("s-abc123", "shell", at.Add(-time.Second)) {
+		t.Error("a server session counted idle from the host's snapshot")
 	}
 }
 
@@ -1018,5 +1029,65 @@ func TestQueueCodeNeverTouchesSessions(t *testing.T) {
 				t.Errorf("%s contains %q", f, bad)
 			}
 		}
+	}
+}
+
+// Queue runs on servers (V2-M13 follow-up): a server queue's run session
+// starts on the server with the server hook URL, next to a host run; each
+// machine's inventory snapshot only ends that machine's runs.
+func TestServerQueueRunsOnTheServer(t *testing.T) {
+	e := newDispEnv(t, "host goal")
+	e.d.starter.SetServerHookURL("https://hostbud.example.com")
+	e.svc.SetParallelQueues(true)
+	e.st.addProject(store.Project{ID: "project_s", MachineID: "s-abc123", Name: "remote", Path: "/home/dev/remote"})
+	sq, err := e.svc.Create(e.ctx(), "project_s", "Remote")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.svc.AddItem(e.ctx(), sq.ID, "claude", "", "/goal remote"); err != nil {
+		t.Fatal(err)
+	}
+	e.startQueue()
+	if _, err := e.svc.Start(e.ctx(), sq.ID); err != nil {
+		t.Fatal(err)
+	}
+	e.d.Sync()
+	if len(e.sessions.specs) != 2 {
+		t.Fatalf("sessions created = %d, want 2", len(e.sessions.specs))
+	}
+	host, remote := e.sessions.specs[0], e.sessions.specs[1]
+	if host.Machine != store.HostMachineID || host.Env[EnvURL] != "http://127.0.0.1:9055" {
+		t.Fatalf("host spec %+v", host)
+	}
+	if remote.Machine != "s-abc123" || remote.Path != "/home/dev/remote" || remote.Env[EnvURL] != "https://hostbud.example.com" {
+		t.Fatalf("server spec %+v", remote)
+	}
+	e.clock.advance(sessionGrace + time.Second)
+	snapshot := func(machine string, names ...string) {
+		var sessions []tmux.Session
+		for _, n := range names {
+			sessions = append(sessions, tmux.Session{Name: n})
+		}
+		e.d.enqueue(func(ctx context.Context) {
+			e.d.sessionsChanged(ctx, machine, inventory.SessionsChanged{Sessions: sessions})
+		})
+		e.d.Sync()
+	}
+	// The server lists only its own session: the host run stays active.
+	snapshot("s-abc123", remote.Name)
+	if r := e.run(1); !r.Active() {
+		t.Fatalf("a server snapshot ended the host run: %+v", r)
+	}
+	// The server's session is gone from the server's snapshot: its run ends.
+	snapshot(store.HostMachineID, host.Name, remote.Name)
+	snapshot("s-abc123")
+	runs, _ := e.st.LatestRuns(e.ctx(), sq.ID)
+	for _, r := range runs {
+		if r.Active() {
+			t.Fatalf("server run still active after its session left the server: %+v", r)
+		}
+	}
+	if r := e.run(1); !r.Active() {
+		t.Fatalf("host run ended: %+v", r)
 	}
 }

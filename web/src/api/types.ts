@@ -142,6 +142,8 @@ export interface QueueWarning {
 
 export interface Queue {
   id: string
+  /** The project's machine: 'host' or a server added in the UI (V2-M13). */
+  machineId?: string
   projectId: string
   name: string
   status: QueueStatus

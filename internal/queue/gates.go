@@ -221,10 +221,14 @@ func verifyPayload(res VerifyResult) []byte {
 // effects); the item needs attention. One without an open attempt starts
 // one, once.
 func (d *Dispatcher) recoverGates(ctx context.Context) {
-	items, err := d.store.ItemsWithStatus(ctx, store.HostMachineID, store.ItemVerifying)
-	if err != nil {
-		d.log.Error("queue recovery: verifying items", "err", err)
-		return
+	var items []store.QueueItem
+	for _, machine := range d.machines(ctx) {
+		mine, err := d.store.ItemsWithStatus(ctx, machine, store.ItemVerifying)
+		if err != nil {
+			d.log.Error("queue recovery: verifying items", "err", err)
+			return
+		}
+		items = append(items, mine...)
 	}
 	for _, item := range items {
 		run, err := d.store.LatestRunForItem(ctx, item.ID)

@@ -138,3 +138,28 @@ func TestStartFailuresFailTheRunWithADetail(t *testing.T) {
 		}
 	}
 }
+
+// Queue runs on servers (V2-M13 follow-up): the session is created on the
+// server with the server hook URL; without one the run fails with a hint.
+func TestStartOnAServerUsesTheServerHookURL(t *testing.T) {
+	remote := store.Project{ID: "project_s", MachineID: "s-abc123", Path: "/home/dev/remote", Name: "remote"}
+	agent := &fakeAgent{version: "2.1.283", argv: []string{"claude"}}
+	st, sessions := newMemStore(), &fakeSessions{}
+	s := NewStarter(st, sessions, "http://127.0.0.1:9055", nil)
+	run, err := s.Start(context.Background(), store.SourceUser, remote, "", testItem, agent)
+	if err != nil || run.Status != store.RunFailed || run.Detail != msgNoServerHookURL || len(sessions.specs) != 0 {
+		t.Fatalf("no server hook URL: run %+v, err %v, specs %d", run, err, len(sessions.specs))
+	}
+	s.SetServerHookURL("https://hostbud.example.com")
+	run, err = s.Start(context.Background(), store.SourceUser, remote, "", testItem, agent)
+	if err != nil || run.Status != store.RunStarting || len(sessions.specs) != 1 {
+		t.Fatalf("server run: %+v, %v", run, err)
+	}
+	if spec := sessions.specs[0]; spec.Machine != "s-abc123" || spec.Path != "/home/dev/remote" || spec.Env[EnvURL] != "https://hostbud.example.com" {
+		t.Fatalf("spec %+v", spec)
+	}
+	// The host keeps its own URL.
+	if _, err := s.Start(context.Background(), store.SourceUser, testProject, "", testItem, agent); err != nil || sessions.specs[1].Env[EnvURL] != "http://127.0.0.1:9055" {
+		t.Fatalf("host run env %v, %v", sessions.specs[1].Env, err)
+	}
+}

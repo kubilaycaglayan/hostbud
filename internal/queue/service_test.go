@@ -297,16 +297,34 @@ func TestServiceDeleteQueue(t *testing.T) {
 	}
 }
 
-// V2-M13: servers added in the UI don't run queues yet.
-func TestServiceRefusesQueuesOnServers(t *testing.T) {
+// Queues on servers (V2-M13 follow-up): a server project's queue is
+// created, listed next to the host's, and its events carry its machine.
+// The same path on two machines isn't a shared directory.
+func TestServiceQueuesOnServers(t *testing.T) {
 	e := newServiceEnv(t)
-	e.st.addProject(store.Project{ID: "project_s", MachineID: "s-abc123", Name: "remote", Path: "/home/dev/remote"})
-	_, err := e.svc.Create(context.Background(), "project_s", "Q")
-	var qe *Error
-	if !errors.As(err, &qe) || qe.Status != http.StatusBadRequest || !strings.Contains(qe.Message, "host only") {
-		t.Fatalf("server project queue: %v", err)
+	ctx := context.Background()
+	e.st.addProject(store.Project{ID: "project_s", MachineID: "s-abc123", Name: "remote", Path: "/home/dev/app"})
+	q, err := e.svc.Create(ctx, "project_s", "Q")
+	if err != nil || q.MachineID != "s-abc123" || q.ProjectName != "remote" {
+		t.Fatalf("server project queue: %+v, %v", q, err)
 	}
-	if got := e.drain(); len(got) != 0 {
-		t.Fatalf("events: %+v", got)
+	if ev := <-e.events; ev.Type != events.QueueChanged || ev.Machine != "s-abc123" {
+		t.Fatalf("event %+v", ev)
+	}
+	hq, err := e.svc.Create(ctx, "project_a", "Host Q")
+	if err != nil {
+		t.Fatal(err)
+	}
+	list, err := e.svc.List(ctx)
+	if err != nil || len(list) != 2 {
+		t.Fatalf("list: %+v, %v", list, err)
+	}
+	if _, err := e.svc.AddItem(ctx, q.ID, "claude", "", "/goal remote"); err != nil {
+		t.Fatalf("add item on a server queue: %v", err)
+	}
+	_, _ = e.st.TransitionQueue(ctx, q.ID, []string{store.QueueIdle}, store.QueueRunning)
+	_, _ = e.st.TransitionQueue(ctx, hq.ID, []string{store.QueueIdle}, store.QueueRunning)
+	if v, err := e.svc.Get(ctx, q.ID); err != nil || len(v.Warnings) != 0 {
+		t.Fatalf("same path on another machine warned: %+v, %v", v.Warnings, err)
 	}
 }

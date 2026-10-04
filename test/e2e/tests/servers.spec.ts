@@ -103,3 +103,31 @@ test('(V2-M13 T5) New session and Browse files ask for the server', async ({ pag
     await server.tmux('kill-session', '-t', `=${session}`).catch(() => {})
   }
 })
+
+test('(V2-M13 queues) Create queue on a server session opens its queue with the server chip', async ({ page, request, ui }) => {
+  const added = await addServer(request, 'E2E second')
+  await waitForStatus(request, added.id, 'ok')
+  const name = uniqueName('e2e-srv-queue')
+  const dir = `/home/dev/${name}`
+  await server.run(`mkdir -p ${shq(dir)}`)
+  const project = await mutate(request, 'POST', '/api/projects', { machineId: added.id, path: dir, name })
+  expect(project.status(), await project.text()).toBe(201)
+  const session = uniqueName('e2e-srv-qsess')
+  await server.tmux('new-session', '-d', '-s', session, '-c', dir)
+  try {
+    await ui.open()
+    const row = ui.treeItem(`${name}, on E2E second`)
+    await expect(row.getByRole('treeitem', { name: session, exact: true })).toBeVisible({ timeout: 20_000 })
+    await row.getByRole('button', { name: `More actions for ${session}` }).click()
+    await page.getByRole('menuitem', { name: 'Create queue' }).click()
+    const panel = page.getByRole('dialog', { name: 'Queue' })
+    await expect(panel.getByTestId('queue-server')).toHaveText('E2E second')
+    await expect(panel.getByText(dir, { exact: true })).toBeVisible()
+    const { queues } = await (await request.get('/api/queues')).json() as { queues: { id: string; machineId: string; projectPath: string }[] }
+    const mine = queues.filter((q) => q.projectPath === dir)
+    expect(mine.map((q) => q.machineId)).toEqual([added.id])
+    for (const q of mine) await mutate(request, 'DELETE', `/api/queues/${q.id}`)
+  } finally {
+    await server.tmux('kill-session', '-t', `=${session}`).catch(() => {})
+  }
+})

@@ -134,6 +134,8 @@ services:
       HOSTBUD_LOCAL_PORT: "9055"
       # V2-M1: run hooks on the target reach Caddy's loopback site by name.
       HOSTBUD_HOOK_BASE_URL: http://hostbud-e2e-caddy:9055
+      # Queue runs on the second server (V2-M13 follow-up) report there too.
+      HOSTBUD_SERVER_HOOK_BASE_URL: http://hostbud-e2e-caddy:9055
       # A short stale window so the stale scenarios finish quickly.
       HOSTBUD_RUN_STALE_AFTER: 10s
       # V2-M4: a short verify timeout for the timeout scenario.

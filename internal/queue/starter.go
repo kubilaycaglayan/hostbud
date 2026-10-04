@@ -53,8 +53,11 @@ type Starter struct {
 	sessions  SessionCreator
 	commander SessionCommander
 	hookURL   string
-	log       *slog.Logger
-	now       func() time.Time
+	// serverHookURL is HOSTBUD_URL in run sessions on servers added in
+	// the UI ("": not configured, their runs fail with a hint).
+	serverHookURL string
+	log           *slog.Logger
+	now           func() time.Time
 	// inSlot reports whether runs are created behind the machine's cap
 	// (V2-M2, the parallel-queues switch; set by the dispatcher).
 	inSlot func() bool
@@ -69,6 +72,23 @@ func NewStarter(st StarterStore, sessions SessionCreator, hookURL string, log *s
 	s.commander, _ = sessions.(SessionCommander)
 	return s
 }
+
+// SetServerHookURL sets HOSTBUD_URL for run sessions on servers (V2-M13):
+// an address the server can reach, e.g. https://${HOSTBUD_DOMAIN}.
+func (s *Starter) SetServerHookURL(u string) { s.serverHookURL = u }
+
+// hookURLFor returns HOSTBUD_URL for a run session on machine.
+func (s *Starter) hookURLFor(machine string) (string, error) {
+	if machine == store.HostMachineID {
+		return s.hookURL, nil
+	}
+	if s.serverHookURL == "" {
+		return "", errors.New(msgNoServerHookURL)
+	}
+	return s.serverHookURL, nil
+}
+
+const msgNoServerHookURL = "queue runs on a server need an address of hostbud the server can reach — set HOSTBUD_DOMAIN or HOSTBUD_SERVER_HOOK_BASE_URL in .env and redeploy"
 
 func (s *Starter) SendCommand(ctx context.Context, machine, name, command string) error {
 	if s.commander == nil {
@@ -124,6 +144,10 @@ func (s *Starter) Start(ctx context.Context, source string, project store.Projec
 	if agent == nil {
 		return s.fail(ctx, source, run, "unknown agent "+strconv.Quote(item.Agent)+" — edit the item and pick claude or codex")
 	}
+	hookURL, err := s.hookURLFor(project.MachineID)
+	if err != nil {
+		return s.fail(ctx, source, run, err.Error())
+	}
 	version, err := agent.CheckVersion(ctx, project.MachineID)
 	if err != nil {
 		return s.fail(ctx, source, run, detailOf(err))
@@ -139,7 +163,7 @@ func (s *Starter) Start(ctx context.Context, source string, project store.Projec
 		Machine:   project.MachineID,
 		Name:      RunSessionName(project.Name, queueName, item.Position),
 		Path:      project.Path,
-		Env:       map[string]string{EnvURL: s.hookURL, EnvRunID: run.ID, EnvToken: token},
+		Env:       map[string]string{EnvURL: hookURL, EnvRunID: run.ID, EnvToken: token},
 		StartArgv: argv,
 	})
 	if err != nil {

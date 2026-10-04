@@ -187,6 +187,7 @@ func run() error {
 		log.Warn("parallel-queues setting unreadable; using HOSTBUD_PARALLEL_QUEUES", "err", err)
 	}
 	starter := queue.NewStarter(st, sessions, cfg.HookURL(), log)
+	starter.SetServerHookURL(cfg.ServerHookURL())
 	dispatcher := queue.NewDispatcher(st, adapters, starter, queues, bus, cfg.RunStaleAfter, log)
 	dispatcher.SetLLMFlags(supervisorStatus.Enabled)
 	// V2-M4: items' verify commands run on the host through sshx.

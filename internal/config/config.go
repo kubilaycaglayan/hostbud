@@ -50,6 +50,7 @@ type Config struct {
 	AllowedTSUsers      string        // HOSTBUD_ALLOWED_TS_USERS (optional, comma-separated)
 	TailscaleSocket     string        // TAILSCALED_SOCKET (optional, required when allowlist is enabled)
 	HookBaseURL         string        // HOSTBUD_HOOK_BASE_URL (optional: HOSTBUD_URL inside run sessions)
+	ServerHookBaseURL   string        // HOSTBUD_SERVER_HOOK_BASE_URL (optional: HOSTBUD_URL inside run sessions on servers)
 	RunStaleAfter       time.Duration // HOSTBUD_RUN_STALE_AFTER (v2: no-signal window before a run is stale)
 	ParallelQueues      bool          // HOSTBUD_PARALLEL_QUEUES (V2-M2 opt-in: several queues, parallel runs)
 	QueueDispatcher     bool          // HOSTBUD_QUEUE_DISPATCHER (default true; false for an extra instance sharing the database)
@@ -78,6 +79,19 @@ func (c Config) HookURL() string {
 		return c.HookBaseURL
 	}
 	return fmt.Sprintf("http://127.0.0.1:%d", c.LocalPort)
+}
+
+// ServerHookURL is HOSTBUD_URL for run sessions on servers added in the UI
+// (V2-M13): the override, or https://${HOSTBUD_DOMAIN} (Caddy's TLS site on
+// the Tailscale IP). "" when neither is set: server runs can't report back.
+func (c Config) ServerHookURL() string {
+	if c.ServerHookBaseURL != "" {
+		return c.ServerHookBaseURL
+	}
+	if c.Domain != "" {
+		return "https://" + c.Domain
+	}
+	return ""
 }
 
 // Push reports whether Web Push is configured (V2-M3).
@@ -239,6 +253,11 @@ func Load(getenv func(string) string) (Config, error) {
 		errs = append(errs, fmt.Errorf("HOSTBUD_HOOK_BASE_URL: %w", err))
 	}
 	cfg.HookBaseURL = strings.TrimSuffix(cfg.HookBaseURL, "/")
+	cfg.ServerHookBaseURL = strings.TrimSpace(getenv("HOSTBUD_SERVER_HOOK_BASE_URL"))
+	if err := validHookBaseURL(cfg.ServerHookBaseURL); err != nil {
+		errs = append(errs, fmt.Errorf("HOSTBUD_SERVER_HOOK_BASE_URL: %w", err))
+	}
+	cfg.ServerHookBaseURL = strings.TrimSuffix(cfg.ServerHookBaseURL, "/")
 	switch get("HOSTBUD_PARALLEL_QUEUES", "false") {
 	case "true":
 		cfg.ParallelQueues = true

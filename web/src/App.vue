@@ -216,8 +216,10 @@ function onProjectRemoved(id: string) {
   }
   projects.load().then(() => tree.sync()).catch((error) => console.warn("hostbud: can't refresh projects after removal", error))
 }
-function onKilled(name: string) {
-  layout.closeSession(MACHINE, name)
+/** The Queue panel kills its queue's sessions on the queue's machine (a ref). */
+function onQueueSessionKilled(ref: string) {
+  const { machine, name } = parseSessionRef(ref)
+  layout.closeSession(machine, name)
 }
 function onKilledOn(machine: string, name: string) {
   layout.closeSession(machine, name)
@@ -302,12 +304,9 @@ notifications.onOpen(openQueueItem)
 /** A session row's "Create queue": a new queue on the session's directory
  * (saved as a project first if it isn't one), shown in the Queue panel. */
 async function createQueueFor(session: Session) {
-  if (sessionMachine(session) !== MACHINE) {
-    toasts.push({ title: "Couldn't create the queue", message: 'Queues run on the host only for now.', tone: 'error' })
-    return
-  }
+  const machine = sessionMachine(session)
   try {
-    const project = projects.byPath(session.path) ?? await projectsApi.create(MACHINE, session.path, '')
+    const project = projects.byPath(session.path, machine) ?? await projectsApi.create(machine, session.path, '')
     projects.remember(project)
     tree.sync()
     if (!queuesStore.loaded) await queuesStore.load()
@@ -906,7 +905,7 @@ onUnmounted(() => {
       :compact="compact"
       :machine="MACHINE"
       @open-session="openQueueSession"
-      @killed="onKilled"
+      @killed="onQueueSessionKilled"
     />
     <ServersDialog v-model:open="serversOpen" :compact="compact" />
     <SettingsDialog v-model:open="settingsOpen" :compact="compact" :machine="MACHINE" />

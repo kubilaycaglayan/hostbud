@@ -657,7 +657,16 @@ func duplicateName(err error) error {
 
 // Queues lists a machine's queues in creation order.
 func (s *Store) Queues(ctx context.Context, machineID string) ([]Queue, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT `+queueCols+` FROM queues WHERE machine_id = $1 ORDER BY created_at, id`, machineID)
+	return s.queues(ctx, `SELECT `+queueCols+` FROM queues WHERE machine_id = $1 ORDER BY created_at, id`, machineID)
+}
+
+// AllQueues lists every machine's queues in creation order.
+func (s *Store) AllQueues(ctx context.Context) ([]Queue, error) {
+	return s.queues(ctx, `SELECT `+queueCols+` FROM queues ORDER BY created_at, id`)
+}
+
+func (s *Store) queues(ctx context.Context, query string, args ...any) ([]Queue, error) {
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -673,7 +682,8 @@ func (s *Store) Queues(ctx context.Context, machineID string) ([]Queue, error) {
 	return out, rows.Err()
 }
 
-// QueueItemHistory returns bounded newest-first metadata history for a machine.
+// QueueItemHistory returns bounded newest-first metadata history for a
+// machine ("": every machine).
 func (s *Store) QueueItemHistory(ctx context.Context, machineID string, limit, offset int) ([]QueueItemHistory, error) {
 	if limit < 1 || limit > 200 {
 		limit = 100
@@ -683,7 +693,7 @@ func (s *Store) QueueItemHistory(ctx context.Context, machineID string, limit, o
 	}
 	rows, err := s.db.QueryContext(ctx, `SELECT id, machine_id, queue_id, queue_name, project_name, item_id,
 		position, execution_mode, target_session, agent, flags, instruction, command, verify_command, requires_approval, item_status, action, detail, agent_session_id, occurred_at
-		FROM queue_item_history WHERE machine_id = $1 ORDER BY occurred_at DESC, id DESC LIMIT $2 OFFSET $3`, machineID, limit, offset)
+		FROM queue_item_history WHERE ($1 = '' OR machine_id = $1) ORDER BY occurred_at DESC, id DESC LIMIT $2 OFFSET $3`, machineID, limit, offset)
 	if err != nil {
 		return nil, err
 	}

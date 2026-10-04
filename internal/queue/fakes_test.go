@@ -68,7 +68,13 @@ func (m *memStore) CreateRun(_ context.Context, itemID string, hash []byte, star
 	defer m.mu.Unlock()
 	m.seq++
 	id, _ := store.NewULID(startedAt)
-	r := store.Run{ID: id, ItemID: itemID, MachineID: store.HostMachineID, TokenHash: hash, Status: store.RunStarting, StartedAt: startedAt}
+	machine := store.HostMachineID // the item's, as in the store
+	for _, it := range m.q().items {
+		if it.ID == itemID {
+			machine = it.MachineID
+		}
+	}
+	r := store.Run{ID: id, ItemID: itemID, MachineID: machine, TokenHash: hash, Status: store.RunStarting, StartedAt: startedAt}
 	m.runs[id] = r
 	m.order = append(m.order, id)
 	m.maxActive = max(m.maxActive, m.activeLocked())
@@ -365,11 +371,19 @@ func (m *memStore) Project(_ context.Context, id string) (store.Project, error) 
 }
 
 func (m *memStore) Queues(_ context.Context, machine string) ([]store.Queue, error) {
+	return m.queuesWhere(func(q store.Queue) bool { return q.MachineID == machine })
+}
+
+func (m *memStore) AllQueues(context.Context) ([]store.Queue, error) {
+	return m.queuesWhere(func(store.Queue) bool { return true })
+}
+
+func (m *memStore) queuesWhere(keep func(store.Queue) bool) ([]store.Queue, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	var out []store.Queue
 	for _, q := range m.q().queues {
-		if q.MachineID == machine {
+		if keep(q) {
 			out = append(out, q)
 		}
 	}
