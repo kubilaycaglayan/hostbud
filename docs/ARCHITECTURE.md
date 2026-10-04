@@ -13,14 +13,14 @@ It is reachable two ways:
 ## 1. Goals and non-goals
 
 **v1 goals**
-- Single target: the **host machine**, reached over SSH from the container. It is always active; hostbud continuously reads its tmux sessions.
+- Single target: the **host machine**, reached over SSH from the container. It is always active; hostbud continuously reads its tmux sessions. (V2-M13 adds **servers**: other SSH targets added in the UI; see §4.1–4.3.)
 - Left-gutter tree: **Project → Session**, expandable/collapsible, sortable, renameable, persisted. (The data model is Machine → Project → Session; the machine level is hidden while there is only one.)
 - Full-fidelity terminal in the browser (attach to tmux as if in a local terminal). Multiple open terminal layouts, split view, mobile-friendly; select open sessions from the left tree.
 - File-system browser to pick a directory, create folders, and start a session there. Chosen directories become **projects**.
 - Deployed via Docker Compose behind Caddy: plain HTTP on loopback for port-forward access, TLS on the Tailscale IP for the domain.
 
 **v1 non-goals**
-- Multiple machines: `~/.ssh/config` discovery, custom connections, activation, host-key trust UI (deferred; see ROADMAP *Later*).
+- `~/.ssh/config` discovery and activation (deferred; see ROADMAP *Later*). Custom connections with a host-key trust UI arrived in V2-M13 (*servers*, §4.1–4.3).
 - Storing terminal output, scrollback, or agent state.
 - Installing software on targets (missing tmux → warning only).
 - File editing / previews, git integration.
@@ -111,7 +111,10 @@ Host hostbud-host
   User ${HOST_SSH_USER}
   HostKeyAlias hostbud-host          # pinned key is stored under this name
 
-# (later) 2. App-managed custom connections (from DB): Host hostbud-custom-<id> …
+# 2. Servers added in the UI (V2-M13, from DB), one block each:
+Host hostbud-custom-<id>
+  HostName <host>  Port <port>  User <user>
+  HostKeyAlias hostbud-custom-<id>   # the keys the owner confirmed are pinned here
 # (later) 3. The user's real config (read-only mount): Include ~/.ssh/config
 
 # 4. App defaults — last, so user settings win
@@ -130,7 +133,14 @@ Host *
 - `ControlPath` uses `%C` (hash) to stay under the Unix socket path length limit.
 - `BatchMode yes` for all non-interactive calls; interactive attach also relies on agent auth (no password prompts in v1).
 
-### 4.2 Host discovery (later — multi-machine)
+### 4.2 Servers (V2-M13) and host discovery (later)
+- **Servers** are `machines` rows with `source = 'custom'`: id `s-<10 hex>`, alias `hostbud-custom-<id>`, a nickname (`label`, 1–40 characters, unique case-insensitively), `host_name`, `port`, `ssh_user` and the confirmed `host_keys`. They persist in PostgreSQL; on startup and on every add/remove, sshx rewrites the generated config and `known_hosts` atomically from them. Host names, users and ports are validated before they reach any argv or config line.
+- A runtime registry (`internal/machines`) owns one inventory poller and one SFTP browser per machine. Adding a server starts its poller; removing one stops it, ends its ControlMasters and publishes `machine.removed`. Removal is refused while projects use the server, and never touches its tmux sessions.
+- Authentication is the agent key only: the server's `authorized_keys` must accept it. Status messages name *the server* instead of *the host* and point at the Servers dialog.
+- The v2 queue stays host-only: creating a queue for a server's project is refused (multi-machine runs need the target to reach `HOSTBUD_URL`; v2 ROADMAP *Later*).
+- In the UI, sessions are identified by a **session ref**: the bare name on the host, `machine/name` on a server, so saved tree state from before V2-M13 stays valid. Projects place only sessions on their own machine. A server's project rows and its unplaced sessions show a chip with the server's nickname. New session and Browse files show a *Server* select once a server exists.
+
+**Host discovery (later — multi-machine)**
 - Parse the user's config with `github.com/kevinburke/ssh_config` **for display only** (list concrete `Host` aliases; skip wildcard/negated patterns). Resolve effective settings for display via `ssh -G <alias>`.
 - Machine sources: `host` (built-in, `host.docker.internal`, user `${HOST_SSH_USER}`, label `${HOSTBUD_HOST_LABEL}`), `sshconfig` (discovered; re-scanned on startup and via "Refresh"), `custom` (DB).
 - Discovered hosts are shown but **inactive by default**; activation state persists in DB.
@@ -138,7 +148,7 @@ Host *
 ### 4.3 Host-key trust
 Never trust on first use.
 - **v1 (host machine):** on startup hostbud reads the read-only mounted `/run/host-keys/ssh_host_*_key.pub` and writes them to `/data/ssh/known_hosts` as `hostbud-host <key>`. The key comes from the host's filesystem, not from the network, so no UI confirmation is needed. Missing key files → startup error with instructions.
-- *Later (other machines):* `ssh-keyscan` → show fingerprints in UI → on user confirmation append to `/data/ssh/known_hosts`.
+- **Servers (V2-M13):** `ssh-keyscan` (argv only, validated host and port, 10 s) → the UI shows the SHA256 fingerprints → only the keys the owner confirms are stored with the server and pinned under its `HostKeyAlias`. A key that later differs is a hard error asking to remove and re-add the server.
 - Mismatch → hard error surfaced in UI.
 
 ### 4.4 Command execution rules
@@ -159,7 +169,7 @@ tmux list-sessions -F '#{session_id}\t#{session_name}\t#{session_path}\t#{sessio
 ```
 (“no server running” ⇒ empty list, not an error.) Window and pane listing is fetched lazily when a session node is expanded, in one side-channel exec using `list-windows -t '=<name>'` followed by `list-panes -s -t '=<name>'`, under `LC_ALL=C.UTF-8` so tmux preserves tab separators and Unicode for the non-interactive SSH client. The response is sorted by window/pane index and capped at 256 windows and 64 panes per window; free-form names and commands are sanitized and capped at 256 bytes. This layout is not polled or published as an event. An authenticated `POST /api/machines/:id/sessions/:name/select` validates window/pane ids against that session before issuing `select-window` / `select-pane`; selecting a window is visible to every client attached to the session, as with tmux's `prefix n`.
 
-The poller diffs against the in-memory cache and publishes `sessions.changed` / `machine.status` events on the bus. Browsers receive them over the events WebSocket. Pollers back off exponentially on failure and mark the machine `unreachable`.
+The poller diffs against the in-memory cache and publishes `sessions.changed` / `machine.status` events on the bus (one poller per machine; removing a server publishes `machine.removed`). Browsers receive them over the events WebSocket. Pollers back off exponentially on failure and mark the machine `unreachable`.
 
 **Foreground agent marks and status (M8 T12–T13):** each inventory poll reads `list-panes -a` and checks recognized process names on each pane's TTY (one `ps -A` per poll joined to the panes in `awk`, not one `ps` per pane), so launchers whose foreground command is a generic runtime such as `node` can still be identified. Only recognized agent names are returned to hostbud; other process names and all arguments stay on the host. Inventory also reads the hostbud pane user option `@hostbud_agent_status`. Optional user-wide Codex/Claude Code hooks write fixed `working`, `blocked`, or `ended` values to the client's pane (`scripts/agent-status-hook.py`). Codex runs hooks in its shared app-server daemon without `TMUX_PANE`, so the script matches the `codex` process with a terminal in the event's `cwd` to a pane by tty, remembering each session's pane/pid claim in the user's state directory; ambiguous matches are skipped; hostbud reads but never writes tmux options. A stale `ended` marker is omitted while a recognized Codex process remains in that pane because the live process alone cannot establish whether Codex is still working or has stopped; a tracked active status becomes ended when a known interactive shell resumes, covering common forced exits. Per-session status precedence is blocked, working, ended. Hook configuration stays user-managed and is documented in the README. Status and agent marks travel in collapsed session events, so the UI needs no window/pane expansion. Process-name detection remains best effort; background or differently named agents may not receive a logo.
 
@@ -248,8 +258,8 @@ A session belongs to its `session_links` project when a link exists on the same 
 machines(id, source TEXT CHECK(source IN ('host','sshconfig','custom')),
          ssh_alias, label, active BOOL, sort_order, hidden BOOL,
          os, tmux_version, tmux_missing BOOL, last_seen_at, created_at, updated_at)
--- later (multi-machine): created by a future migration
-custom_connections(machine_id PK/FK, hostname, user, port, proxy_jump, identity_agent, extra_options_json)
+-- V2-M13 (0021): a server's connection lives on its machines row:
+--   host_name, port (1–65535, default 22), ssh_user, host_keys ("<type> <base64>" lines the owner confirmed)
 projects(id, machine_id FK, path, name, sort_order, pinned BOOL,
          last_used_at, created_at, UNIQUE(machine_id, path))
 session_links(machine_id, session_name, project_id, created_at, PRIMARY KEY(machine_id, session_name))
@@ -373,14 +383,16 @@ POST   /api/notifications/subscriptions {endpoint, keys: {p256dh, auth}} — 204
 DELETE /api/notifications/subscriptions {endpoint} — 204; the caller's own subscription only (sign-out, revoked permission)
 POST   /api/notifications/test          {endpoint} — 202; a test push to that device of the caller only (404 if it isn't theirs, 409 push off); 3 at once, then one per 10 s per account (429 + Retry-After)
 
+# V2-M13 servers (other SSH targets)
+POST   /api/machines/scan                 {host, port?} → {hostKeys: [{type, key, fingerprint}]}; nothing is trusted (502/504 with a hint when no keys come back)
+POST   /api/machines                      {label, host, port?, user, hostKeys: [{type, key}]} → 201 machine; the confirmed keys are pinned (400 invalid, 409 nickname taken)
+PATCH  /api/machines/:id                  {label} — a server's nickname (404 for the host)
+DELETE /api/machines/:id                  servers only; 409 while projects use it; 204, publishes machine.removed {id}; tmux untouched
+GET    /api/projects?machine=*            every machine's projects, host first
+
 # later (multi-machine)
-POST   /api/machines                      add custom connection
-PATCH  /api/machines/:id                  label, sort, hidden, connection fields
-DELETE /api/machines/:id                  custom only
 POST   /api/machines/:id/activate | /deactivate
 POST   /api/machines/refresh              re-scan ~/.ssh/config
-GET    /api/machines/:id/hostkey          keyscan fingerprints
-POST   /api/machines/:id/hostkey/trust
 ```
 The copy-mode endpoint body is `{action, lines?}` and its response is `{inMode, scrollPosition, historySize}`. `lines` is valid only for `scroll-up`/`scroll-down`/`wheel-up`/`wheel-down`, from 1 to 500. Unknown actions, names and values are rejected before SSH execution; an old tmux version returns 409 with an upgrade hint.
 The windows endpoint returns `{windows, truncated}` with windows and panes in index order; it does not include pane paths. `select` returns the refreshed listing after changing the active window and optional pane. These routes read tmux state on demand and publish no hostbud event: tmux owns the window layout and all attached clients observe selection directly.
@@ -584,6 +596,7 @@ hostbud/
 ├─ internal/archtest/                    # import-boundary tests (SQL only in store, …)
 ├─ internal/{queue,agents}/              # v2: queue service, dispatcher, run hooks; agent adapters
 ├─ internal/llm/                         # V2-M5: bounded provider classifier and quiet-run supervisor
+├─ internal/machines/                    # V2-M13: runtime registry of the host and added servers
 ├─ web/                                  # Vue app (built into web/dist, embedded)
 ├─ deploy/caddy/{Dockerfile,Caddyfile}
 ├─ test/sshd/                            # target image (integration tests + e2e target)

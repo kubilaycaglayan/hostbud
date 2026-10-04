@@ -20,7 +20,7 @@ This repo is **public**. Never commit:
 All such values come from environment variables. **If you need a config value that doesn't exist yet, add it to `.env.example` with a placeholder and a comment, read it from env in `internal/config`, and mention it in your summary so the owner can fill it in.** Use `example.com`, `server-a`, `/home/dev` in docs, tests and fixtures. Run `gitleaks` before every commit (`make gitleaks`; the pre-commit hook runs it via Docker).
 
 ## Scope (v1)
-- **Single target: the host machine** hostbud runs on, reached over SSH from the container. Multi-machine support is deferred (ROADMAP *Later*), but keep `machine_id` in the schema, API and `sshx` so it can return without a rewrite.
+- **Primary target: the host machine** hostbud runs on, reached over SSH from the container. Since V2-M13 the owner can add other SSH **servers** in the UI (confirmed host keys, agent auth; docs/ARCHITECTURE.md §4.2). `~/.ssh/config` discovery and multi-machine queue runs stay deferred (ROADMAP *Later*); keep `machine_id` in the schema, API and `sshx`.
 - **Access paths:** (1) SSH port forward to `127.0.0.1:${HOSTBUD_LOCAL_PORT}` (plain HTTP) and (2) `https://${HOSTBUD_DOMAIN}` on the Tailscale IP. Reachability alone isn't enough: the web app requires an account (whitelisted email + password, login throttling; ARCHITECTURE §8).
 - **v2** follows its own roadmap: [docs/roadmap-v2/ROADMAP.md](docs/roadmap-v2/ROADMAP.md) (V2-M1 implemented; later milestones are opt-in). Keep the v1 obligations in ARCHITECTURE §10.
 - No CI and no git remote for now; the repo will be published to GitHub later.
@@ -53,7 +53,7 @@ All such values come from environment variables. **If you need a config value th
 ## Security checklist (must stay true)
 - [ ] Caddy publishes ports only on `${TAILSCALE_IP}` (TLS) and `127.0.0.1:${HOSTBUD_LOCAL_PORT}` (plain HTTP, port-forward access), never `0.0.0.0`; hostbud publishes no ports.
 - [ ] All remote commands are built from shell-quoted args via the single `sshx` helper; session names validated.
-- [ ] `StrictHostKeyChecking yes`; the host's key is pinned from the read-only mounted `/etc/ssh/ssh_host_*_key.pub` (never trust-on-first-use); `BatchMode yes` for non-interactive calls. (Multi-machine, later: UI fingerprint confirmation.)
+- [ ] `StrictHostKeyChecking yes`; the host's key is pinned from the read-only mounted `/etc/ssh/ssh_host_*_key.pub` (never trust-on-first-use); `BatchMode yes` for non-interactive calls. Servers (V2-M13): only keys whose fingerprints the owner confirmed in the UI are pinned.
 - [ ] WebSocket and state-changing requests check `Origin` against the allowlist: `https://${HOSTBUD_DOMAIN}` and `http://localhost:${HOSTBUD_LOCAL_PORT}`.
 - [ ] Destructive actions require UI confirmation.
 - [ ] Container runs as non-root `${HOST_UID}:${HOST_GID}`; private keys are never mounted (agent socket only).
