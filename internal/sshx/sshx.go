@@ -31,7 +31,9 @@ type Config struct {
 	HostPort    int    // 0 = ssh's default
 	HostUser    string // User of the host entry
 	SSHBinary   string // default "ssh"
-	Timeout     time.Duration
+	// KeyscanBinary scans a new server's host keys (default "ssh-keyscan").
+	KeyscanBinary string
+	Timeout       time.Duration
 }
 
 // Client runs remote commands.
@@ -44,6 +46,12 @@ type Client struct {
 	timeouts   map[string]int
 	recovering map[string]chan struct{}
 	long       longLived
+
+	// targetsMu guards the servers (V2-M13) and serializes rewrites of the
+	// generated files.
+	targetsMu sync.RWMutex
+	targets   map[string]Target
+	hostKnown string // known_hosts lines pinning the host's mounted keys
 }
 
 // New writes the ssh config and known_hosts (pinning the keys found in
@@ -53,14 +61,22 @@ func New(cfg Config) (*Client, error) {
 	if cfg.SSHBinary == "" {
 		cfg.SSHBinary = "ssh"
 	}
+	if cfg.KeyscanBinary == "" {
+		cfg.KeyscanBinary = "ssh-keyscan"
+	}
 	if cfg.Timeout == 0 {
 		cfg.Timeout = DefaultTimeout
 	}
-	path, err := writeFiles(cfg)
+	hostKnown, err := knownHosts(cfg.HostKeysDir)
 	if err != nil {
 		return nil, err
 	}
-	c := &Client{cfg: cfg, configPath: path, agent: checkAgent, timeouts: map[string]int{}, recovering: map[string]chan struct{}{}}
+	path, err := writeFiles(cfg, hostKnown, nil)
+	if err != nil {
+		return nil, err
+	}
+	c := &Client{cfg: cfg, configPath: path, agent: checkAgent, timeouts: map[string]int{}, recovering: map[string]chan struct{}{},
+		targets: map[string]Target{}, hostKnown: hostKnown}
 	c.masterOps = commandMasterOperations{client: c}
 	return c, nil
 }
@@ -68,10 +84,16 @@ func New(cfg Config) (*Client, error) {
 // ConfigPath is the generated ssh config (for `ssh -F`).
 func (c *Client) ConfigPath() string { return c.configPath }
 
-// Alias returns the ssh config alias of a machine.
-func Alias(machine string) (string, error) {
+// Alias returns the ssh config alias of a machine: the host or a server.
+func (c *Client) Alias(machine string) (string, error) {
 	if machine == HostMachineID {
 		return HostAlias, nil
+	}
+	c.targetsMu.RLock()
+	t, ok := c.targets[machine]
+	c.targetsMu.RUnlock()
+	if ok {
+		return t.Alias, nil
 	}
 	return "", fmt.Errorf("unknown machine %q", machine)
 }
@@ -79,7 +101,7 @@ func Alias(machine string) (string, error) {
 // Args returns the ssh argv (without the binary) that runs args on machine;
 // extra ssh options (e.g. "-tt") go before the alias.
 func (c *Client) Args(machine string, sshOpts []string, args ...string) ([]string, error) {
-	alias, err := Alias(machine)
+	alias, err := c.Alias(machine)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +120,7 @@ func (c *Client) Timeout() time.Duration { return c.cfg.Timeout }
 // builds a remote shell command. The returned stream owns the child process and should
 // be closed when the SFTP client is closed.
 func (c *Client) OpenSFTP(ctx context.Context, machine string) (io.ReadWriteCloser, error) {
-	alias, err := Alias(machine)
+	alias, err := c.Alias(machine)
 	if err != nil {
 		return nil, err
 	}
@@ -249,7 +271,7 @@ func (c *Client) exec(ctx context.Context, machine string, input []byte, args ..
 	if code := exitErr.ExitCode(); code != 255 {
 		return stdout.Bytes(), &Error{Kind: KindRemote, ExitCode: code, Stderr: stderr.String()}
 	}
-	return nil, classify(ctx, stderr.String(), c.agent)
+	return nil, forMachine(machine, classify(ctx, stderr.String(), c.agent))
 }
 
 // ExecTo runs args (each shell-quoted) on machine and streams its stdout to
@@ -283,7 +305,7 @@ func (c *Client) ExecTo(ctx context.Context, machine string, w io.Writer, args .
 	if code := exitErr.ExitCode(); code != 255 {
 		return &Error{Kind: KindRemote, ExitCode: code, Stderr: stderr.String()}
 	}
-	return classify(ctx, stderr.String(), c.agent)
+	return forMachine(machine, classify(ctx, stderr.String(), c.agent))
 }
 
 // capped keeps the first max bytes written to it.
@@ -350,10 +372,26 @@ func checkAgent(parent context.Context) agentState {
 	return agentOK
 }
 
-// Close stops the host's ControlMaster, if one is running.
+// Close stops the command ControlMasters of the host and every server.
 func (c *Client) Close(ctx context.Context) error {
-	argv := []string{"-F", c.configPath, "-O", "exit", HostAlias}
-	cmd := exec.CommandContext(ctx, c.cfg.SSHBinary, argv...) //nolint:gosec // fixed argv
+	aliases := []string{HostAlias}
+	c.targetsMu.RLock()
+	for _, t := range c.targets {
+		aliases = append(aliases, t.Alias)
+	}
+	c.targetsMu.RUnlock()
+	var errs []error
+	for _, alias := range aliases {
+		errs = append(errs, c.exitMaster(ctx, alias))
+	}
+	return errors.Join(errs...)
+}
+
+// exitMaster stops alias's master (sshOpts may select a long-lived one's
+// ControlPath); a master that isn't running is not an error.
+func (c *Client) exitMaster(ctx context.Context, alias string, sshOpts ...string) error {
+	argv := append(append([]string{"-F", c.configPath}, sshOpts...), "-O", "exit", alias)
+	cmd := exec.CommandContext(ctx, c.cfg.SSHBinary, argv...) //nolint:gosec // fixed argv; alias from the generated config
 	cmd.WaitDelay = time.Second
 	if out, err := cmd.CombinedOutput(); err != nil && !strings.Contains(string(out), "No such file") &&
 		!strings.Contains(string(out), "Control socket connect") {

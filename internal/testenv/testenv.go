@@ -149,3 +149,18 @@ func WrongHostKeys(t testing.TB) string {
 	}
 	return pubs
 }
+
+// AddServer scans host's keys and pins them on c as the server id (V2-M13),
+// the way the UI does after the owner confirms the fingerprints.
+func AddServer(t testing.TB, c *sshx.Client, id, host string) sshx.Target {
+	t.Helper()
+	keys, err := c.Scan(context.Background(), host, 22)
+	if err != nil {
+		t.Fatalf("scan %s: %v", host, err)
+	}
+	target := sshx.Target{ID: id, Alias: sshx.TargetAliasPrefix + id, HostName: host, Port: 22, User: User, Keys: keys}
+	if err := c.SetTargets(append(c.Targets(), target)); err != nil {
+		t.Fatal(err)
+	}
+	return target
+}

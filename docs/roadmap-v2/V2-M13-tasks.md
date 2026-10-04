@@ -15,7 +15,7 @@ Design (v1 ARCHITECTURE §4.2–4.3, *Later* multi-machine, narrowed):
 
 | Task | Status |
 |---|---|
-| T1 Store and sshx: server rows, dynamic ssh config, host-key scan | Not started |
+| T1 Store and sshx: server rows, dynamic ssh config, host-key scan | Done |
 | T2 Machine registry and server API | Not started |
 | T3 Servers dialog (add / remove) | Not started |
 | T4 Multi-server tree and nickname chips | Not started |

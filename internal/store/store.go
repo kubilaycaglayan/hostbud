@@ -53,6 +53,12 @@ type Machine struct {
 	LastSeenAt  *time.Time
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	// Connection of a custom machine (V2-M13); empty for the host, whose
+	// connection comes from the environment.
+	HostName string
+	Port     int
+	SSHUser  string
+	HostKeys string // confirmed known_hosts key lines: "<type> <base64>\n"…
 }
 
 // Repository is the data-access interface the rest of hostbud depends on.
@@ -61,6 +67,11 @@ type Repository interface {
 	Machine(ctx context.Context, id string) (Machine, error)
 	// EnsureHostMachine creates the built-in host row, or updates its label.
 	EnsureHostMachine(ctx context.Context, label string) (Machine, error)
+	// CreateMachine, RenameMachine and DeleteMachine manage custom machines
+	// (V2-M13 servers); DeleteMachine returns ErrInUse while projects use one.
+	CreateMachine(ctx context.Context, m NewMachine) (Machine, error)
+	RenameMachine(ctx context.Context, id, label string) (Machine, error)
+	DeleteMachine(ctx context.Context, id string) error
 	// SaveCapabilities records a machine's probe results and when it was seen.
 	SaveCapabilities(ctx context.Context, id string, c Capabilities, seen time.Time) error
 	// UIState returns the stored JSON for key, or ErrNotFound.
@@ -241,14 +252,16 @@ func (s *Store) Close() error { return s.db.Close() }
 func (s *Store) Ping(ctx context.Context) error { return s.db.PingContext(ctx) }
 
 const machineCols = `id, source, ssh_alias, label, active, sort_order, hidden,
-	os, home, tmux_version, tmux_missing, last_seen_at, created_at, updated_at`
+	os, home, tmux_version, tmux_missing, last_seen_at, created_at, updated_at,
+	host_name, port, ssh_user, host_keys`
 
 func scanMachine(row interface{ Scan(...any) error }) (Machine, error) {
 	var m Machine
 	var lastSeen sql.NullString
 	var created, updated string
 	err := row.Scan(&m.ID, &m.Source, &m.SSHAlias, &m.Label, &m.Active, &m.SortOrder, &m.Hidden,
-		&m.OS, &m.Home, &m.TmuxVersion, &m.TmuxMissing, &lastSeen, &created, &updated)
+		&m.OS, &m.Home, &m.TmuxVersion, &m.TmuxMissing, &lastSeen, &created, &updated,
+		&m.HostName, &m.Port, &m.SSHUser, &m.HostKeys)
 	if err != nil {
 		return m, err
 	}

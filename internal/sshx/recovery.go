@@ -20,8 +20,8 @@ const controlTimeout = 3 * time.Second
 var masterPID = regexp.MustCompile(`pid=([0-9]+)`)
 
 type masterOperations interface {
-	exit(context.Context) error
-	check(context.Context) ([]byte, error)
+	exit(ctx context.Context, alias string) error
+	check(ctx context.Context, alias string) ([]byte, error)
 	kill(int) error
 	sockets() ([]string, error)
 	remove(string) error
@@ -29,8 +29,8 @@ type masterOperations interface {
 
 type commandMasterOperations struct{ client *Client }
 
-func (m commandMasterOperations) command(ctx context.Context, op string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, m.client.cfg.SSHBinary, "-F", m.client.configPath, "-O", op, HostAlias) //nolint:gosec // fixed ssh control argv
+func (m commandMasterOperations) command(ctx context.Context, op, alias string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, m.client.cfg.SSHBinary, "-F", m.client.configPath, "-O", op, alias) //nolint:gosec // fixed ssh control argv; alias from the generated config
 	cmd.WaitDelay = time.Second
 	output, err := cmd.CombinedOutput()
 	if ctx.Err() != nil {
@@ -39,13 +39,13 @@ func (m commandMasterOperations) command(ctx context.Context, op string) ([]byte
 	return output, err
 }
 
-func (m commandMasterOperations) exit(ctx context.Context) error {
-	_, err := m.command(ctx, "exit")
+func (m commandMasterOperations) exit(ctx context.Context, alias string) error {
+	_, err := m.command(ctx, "exit", alias)
 	return err
 }
 
-func (m commandMasterOperations) check(ctx context.Context) ([]byte, error) {
-	return m.command(ctx, "check")
+func (m commandMasterOperations) check(ctx context.Context, alias string) ([]byte, error) {
+	return m.command(ctx, "check", alias)
 }
 
 func (commandMasterOperations) kill(pid int) error {
@@ -107,9 +107,12 @@ func (c *Client) recordExecResult(machine string, err error, ctx context.Context
 	c.recovering[machine] = done
 	c.timeoutMu.Unlock()
 
+	alias, aliasErr := c.Alias(machine)
 	go func() {
 		defer close(done)
-		if err := c.resetMaster(ctx); err != nil {
+		if aliasErr != nil {
+			// The machine was removed meanwhile: nothing to reset.
+		} else if err := c.resetMaster(ctx, alias); err != nil {
 			slog.Default().Warn("ssh ControlMaster recovery failed")
 		} else {
 			slog.Default().Warn("ssh ControlMaster reset after repeated timeouts")
@@ -122,17 +125,17 @@ func (c *Client) recordExecResult(machine string, err error, ctx context.Context
 	}()
 }
 
-func (c *Client) resetMaster(parent context.Context) error {
+func (c *Client) resetMaster(parent context.Context, alias string) error {
 	base := context.WithoutCancel(parent)
 	exitCtx, cancel := context.WithTimeout(base, controlTimeout)
-	exitErr := c.masterOps.exit(exitCtx)
+	exitErr := c.masterOps.exit(exitCtx, alias)
 	cancel()
 
 	checkCtx, cancel := context.WithTimeout(base, controlTimeout)
-	output, checkErr := c.masterOps.check(checkCtx)
+	output, checkErr := c.masterOps.check(checkCtx, alias)
 	cancel()
 	if checkErr != nil {
-		pid, err := c.findMasterProcess()
+		pid, err := c.findMasterProcess(alias)
 		if err != nil {
 			if exitErr == nil { // Exit succeeded and no matching master remains.
 				return c.removeSockets()
@@ -189,8 +192,8 @@ func (c *Client) removeSockets() error {
 }
 
 // findMasterProcess is the bounded-check fallback for a stopped master: the
-// process argv must name both this generated config and our fixed alias.
-func (c *Client) findMasterProcess() (int, error) {
+// process argv must name both this generated config and the machine's alias.
+func (c *Client) findMasterProcess(alias string) (int, error) {
 	sockets, err := c.masterOps.sockets()
 	if err != nil {
 		return 0, err
@@ -213,13 +216,13 @@ func (c *Client) findMasterProcess() (int, error) {
 			continue
 		}
 		parts := strings.Split(string(argv), "\x00")
-		config, alias, socket := false, false, false
+		config, named, socket := false, false, false
 		for i, part := range parts {
 			if part == "-F" && i+1 < len(parts) && parts[i+1] == c.configPath {
 				config = true
 			}
-			if part == HostAlias {
-				alias = true
+			if part == alias {
+				named = true
 			}
 			for _, path := range sockets {
 				if path != "" && strings.Contains(part, path) {
@@ -227,7 +230,7 @@ func (c *Client) findMasterProcess() (int, error) {
 				}
 			}
 		}
-		if (config && alias) || socket {
+		if (config && named) || socket {
 			return pid, nil
 		}
 	}

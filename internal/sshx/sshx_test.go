@@ -143,7 +143,7 @@ func TestNewWritesConfigInOrder(t *testing.T) {
 	}
 
 	cfg.HostPort = 2222
-	if !strings.Contains(renderConfig(cfg), "  Port 2222\n") {
+	if !strings.Contains(renderConfig(cfg, nil), "  Port 2222\n") {
 		t.Fatal("HostPort not rendered")
 	}
 }
@@ -298,11 +298,11 @@ type fakeMasterOps struct {
 	removed  []string
 }
 
-func (f *fakeMasterOps) exit(context.Context) error            { return f.exitErr }
-func (f *fakeMasterOps) check(context.Context) ([]byte, error) { return f.checkOut, f.checkErr }
-func (f *fakeMasterOps) kill(pid int) error                    { f.killed = append(f.killed, pid); return nil }
-func (f *fakeMasterOps) sockets() ([]string, error)            { return f.paths, nil }
-func (f *fakeMasterOps) remove(path string) error              { f.removed = append(f.removed, path); return nil }
+func (f *fakeMasterOps) exit(context.Context, string) error            { return f.exitErr }
+func (f *fakeMasterOps) check(context.Context, string) ([]byte, error) { return f.checkOut, f.checkErr }
+func (f *fakeMasterOps) kill(pid int) error                            { f.killed = append(f.killed, pid); return nil }
+func (f *fakeMasterOps) sockets() ([]string, error)                    { return f.paths, nil }
+func (f *fakeMasterOps) remove(path string) error                      { f.removed = append(f.removed, path); return nil }
 
 func TestControlMasterResetsAfterTwoTimeoutsAndRemovesOnlyOwnSocket(t *testing.T) {
 	c := fakeSSH(t, "exit 0")
@@ -345,7 +345,7 @@ func TestControlMasterRefusesSocketOutsideItsDirectory(t *testing.T) {
 	c := fakeSSH(t, "exit 0")
 	ops := &fakeMasterOps{exitErr: errors.New("exit failed"), checkOut: []byte("Master running (pid=4321)\n"), paths: []string{filepath.Join(t.TempDir(), "foreign")}}
 	c.masterOps = ops
-	if err := c.resetMaster(context.Background()); err == nil || !strings.Contains(err.Error(), "outside") {
+	if err := c.resetMaster(context.Background(), HostAlias); err == nil || !strings.Contains(err.Error(), "outside") {
 		t.Fatalf("outside socket was not rejected: %v", err)
 	}
 	if len(ops.removed) != 0 {

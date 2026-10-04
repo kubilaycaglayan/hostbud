@@ -332,3 +332,44 @@ func TestIntegrationStoppedControlMasterRecovers(t *testing.T) {
 	entries, _ := os.ReadDir(filepath.Join(filepath.Dir(c.ConfigPath()), "cm"))
 	t.Fatalf("ControlMaster did not recover; sockets=%v; config=%s; ps=%s", entries, c.ConfigPath(), ps)
 }
+
+func TestIntegrationServerTargetScanPinAndExec(t *testing.T) {
+	c := testenv.Connected(t, testenv.SSHD)
+	ctx := context.Background()
+	target := testenv.AddServer(t, c, "s-notmux1", testenv.SSHDNoTmux)
+	for _, k := range target.Keys {
+		if !strings.HasPrefix(k.Fingerprint, "SHA256:") {
+			t.Fatalf("fingerprint %+v", k)
+		}
+	}
+	out, err := c.Exec(ctx, "s-notmux1", "sh", "-c", "command -v tmux || echo none")
+	if err != nil || strings.TrimSpace(string(out)) != "none" {
+		t.Fatalf("exec on server = %q, %v (want the tmux-less target)", out, err)
+	}
+	if out, err := c.Exec(ctx, sshx.HostMachineID, "sh", "-c", "command -v tmux"); err != nil || !strings.Contains(string(out), "tmux") {
+		t.Fatalf("host exec = %q, %v", out, err)
+	}
+	if err := c.CloseMachine(ctx, "s-notmux1"); err != nil {
+		t.Fatal(err)
+	}
+
+	// A key the owner didn't confirm is refused with the server's wording.
+	wrong, err := os.ReadFile(filepath.Join(testenv.WrongHostKeys(t), "ssh_host_ed25519_key.pub"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := strings.Fields(string(wrong))
+	k, err := sshx.ParseHostKey(f[0], f[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	target.Keys = []sshx.HostKey{k}
+	if err := c.SetTargets([]sshx.Target{target}); err != nil {
+		t.Fatal(err)
+	}
+	_, err = c.Exec(ctx, "s-notmux1", "true")
+	var e *sshx.Error
+	if !errors.As(err, &e) || e.Kind != sshx.KindHostKey || !strings.Contains(e.Message, "server") {
+		t.Fatalf("wrong key: %v", err)
+	}
+}
