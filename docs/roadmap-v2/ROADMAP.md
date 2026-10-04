@@ -6,6 +6,14 @@ V2-M12 is implemented; see [V2-M12-acceptance.md](V2-M12-acceptance.md). Its bro
 
 This roadmap replaces the *v2 — Orchestration* section of the v1 ROADMAP (V2.1–V2.5). That section and v1 ARCHITECTURE §10 were aligned with it in V2-M1 T12 and now point here.
 
+V2-M13 (servers: other SSH targets) is in progress; see [V2-M13-tasks.md](V2-M13-tasks.md) · [V2-M13-acceptance.md](V2-M13-acceptance.md).
+
+---
+
+## V2-M13 — Servers (other SSH targets)
+
+**Goal.** Add other SSH servers from the UI (nickname, host, user, port, confirmed host-key fingerprints), pick the server when creating a session or adding a project from Browse files, and show a nickname chip on other servers' project rows. Servers and their pinned keys persist on disk. The queue stays host-only. Breakdown: [V2-M13-tasks.md](V2-M13-tasks.md).
+
 ---
 
 ## V2-M12 — Agent marks in queue items
