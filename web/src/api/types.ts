@@ -5,6 +5,10 @@ export type MachineStatus = 'unknown' | 'ok' | 'unreachable' | 'tmux_missing'
 export interface Machine {
   id: string
   label: string
+  /** 'custom': a server added in the UI (V2-M13); the host otherwise. */
+  source?: 'host' | 'custom'
+  /** A server's user@host:port. */
+  address?: string
   status: MachineStatus
   error?: string
   hint?: string
@@ -13,6 +17,13 @@ export interface Machine {
   tmuxVersion: string
   tmuxMissing: boolean
   lastSeen?: string
+}
+
+/** A server's public host key, as scanned (V2-M13). */
+export interface HostKey {
+  type: string
+  key: string
+  fingerprint: string
 }
 
 export interface Session {
@@ -284,6 +295,7 @@ export interface SupervisorStatus {
 export type ServerEvent =
   | { type: 'snapshot'; machines: Machine[]; sessions: Record<string, Session[]> }
   | { type: 'machine.status'; machine: string; payload: Machine }
+  | { type: 'machine.removed'; machine: string; payload: { id: string } }
   | { type: 'sessions.changed'; machine: string; payload: { sessions: Session[] } }
   | { type: 'projects.changed'; machine: string; payload: { action: string; project: Project } }
   | { type: 'queue.changed'; machine: string; payload: QueueChanged }

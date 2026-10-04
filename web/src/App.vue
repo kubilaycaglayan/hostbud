@@ -5,6 +5,7 @@ import AuthView from '@/components/AuthView.vue'
 import UnreachableView from '@/components/UnreachableView.vue'
 import CreateSessionDialog from '@/components/CreateSessionDialog.vue'
 import FileBrowserDialog from '@/components/FileBrowserDialog.vue'
+import ServersDialog from '@/components/ServersDialog.vue'
 import ProjectSessionDialog from '@/components/ProjectSessionDialog.vue'
 import TreePanel from '@/components/TreePanel.vue'
 import ShortcutsDialog from '@/components/ShortcutsDialog.vue'
@@ -36,7 +37,7 @@ import { useWindowsStore } from '@/stores/windows'
 import { useProjectsStore } from '@/stores/projects'
 import { useToastsStore } from '@/stores/toasts'
 import { useSessionsStore } from '@/stores/sessions'
-import { EyeOff, FolderSearch, ListOrdered, PanelLeftClose, PanelLeftOpen, Search, SquareTerminal, UserRound } from 'lucide-vue-next'
+import { EyeOff, FolderSearch, ListOrdered, PanelLeftClose, PanelLeftOpen, Search, Server, SquareTerminal, UserRound } from 'lucide-vue-next'
 import { isEditableTarget, isTerminalTarget, isTreeTarget, matchingShortcut, shortcutLabels, shortcutPlatform, shortcuts } from '@/lib/shortcuts'
 import { projectTree, sessionKey, visibleOpenSessionNames, windowKey } from '@/lib/tree'
 import { dispatchPaletteAction } from '@/lib/paletteActions'
@@ -67,6 +68,7 @@ const creating = ref(false)
 const browsing = ref(false)
 const queueOpen = ref(false) // V2-M1 Queue panel
 const settingsOpen = ref(false) // V2-M2 Settings (the run cap)
+const serversOpen = ref(false) // V2-M13 Servers (other SSH targets)
 const sessionProject = ref<Project | null>(null) // the project a New session here dialog is for
 const killing = ref(false)
 const drawerOpen = ref(false)
@@ -262,6 +264,11 @@ function createProjectSession(project: Project) {
 function browseFiles() {
   drawerOpen.value = false
   browsing.value = true
+}
+
+function openServers() {
+  drawerOpen.value = false
+  serversOpen.value = true
 }
 
 function openQueue() {
@@ -751,6 +758,9 @@ onUnmounted(() => {
       <IconButton label="Queue" :emphasized="hasRunningQueue" @click="openQueue">
         <ListOrdered :size="18" aria-hidden="true" />
       </IconButton>
+      <IconButton label="Add server" @click="openServers">
+        <Server :size="18" aria-hidden="true" />
+      </IconButton>
       <IconButton v-if="focusAvailable" label="Focus mode" :emphasized="focusArmed" :aria-pressed="focusArmed" @click="toggleFocusArmed">
         <EyeOff :size="18" aria-hidden="true" />
       </IconButton>
@@ -878,6 +888,7 @@ onUnmounted(() => {
       @open-session="openQueueSession"
       @killed="onKilled"
     />
+    <ServersDialog v-model:open="serversOpen" :compact="compact" />
     <SettingsDialog v-model:open="settingsOpen" :compact="compact" :machine="MACHINE" />
     <ShortcutsDialog :open="shortcutsOpen" @update:open="closeShortcuts" />
     <KillProjectSessionsDialog :machine="MACHINE" :project="killingProject" :sessions="killingProjectSessions" :compact="compact" @killed="onKilled" @done="killingProject = null" @cancel="killingProject = null" />

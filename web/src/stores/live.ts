@@ -47,6 +47,11 @@ export const useLiveStore = defineStore('live', () => {
    * reachable host counts: before its first poll (right after an app
    * restart) or while unreachable, the list is empty or stale. */
   function closeEndedSessions(e: ServerEvent) {
+    // A removed server's terminals close with it (V2-M13).
+    if (e.type === 'machine.removed') {
+      useLayoutStore().syncSessions(e.payload.id, new Set())
+      return
+    }
     const ids = e.type === 'snapshot' ? Object.keys(e.sessions) : e.type === 'sessions.changed' ? [e.machine] : []
     const machines = useMachinesStore()
     const sessions = useSessionsStore()

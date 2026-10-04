@@ -1,7 +1,7 @@
 // Typed client for hostbud's JSON API. Errors carry the server's
 // {error, hint} shape (and Retry-After for 429s).
 
-import type { Capacity, DefaultPrompt, Machine, NotificationSettings, ParallelQueues, Project, Queue, QueueItem, QueueList, Session, TmuxWindows } from './types'
+import type { Capacity, DefaultPrompt, HostKey, Machine, NotificationSettings, ParallelQueues, Project, Queue, QueueItem, QueueList, Session, TmuxWindows } from './types'
 
 export class ApiError extends Error {
   constructor(
@@ -134,6 +134,25 @@ export const sessionsApi = {
   /** Kills several sessions in one request, refreshing the list once; callers must have the user's confirmation. */
   killMany: (machine: string, names: string[]) =>
     request<KillSessionsResult>('POST', `${sessionsPath(machine)}/kill`, { names }, { signal: execSignal() }),
+}
+
+/** A server to add with the host keys the owner confirmed (V2-M13). */
+export interface AddServer {
+  label: string
+  host: string
+  port: number
+  user: string
+  hostKeys: { type: string; key: string }[]
+}
+
+export const serversApi = {
+  /** Fetches a server's host keys for the owner to compare; nothing is trusted yet. */
+  scan: (host: string, port: number) =>
+    request<{ hostKeys: HostKey[] }>('POST', '/api/machines/scan', { host, port }, { signal: AbortSignal.timeout(20_000) }),
+  add: (server: AddServer) => request<Machine>('POST', '/api/machines', server),
+  rename: (id: string, label: string) => request<Machine>('PATCH', `/api/machines/${encodeURIComponent(id)}`, { label }),
+  /** Forgets a server (its tmux keeps running): callers must have the user's confirmation. */
+  remove: (id: string) => request<void>('DELETE', `/api/machines/${encodeURIComponent(id)}`),
 }
 
 export const windowsApi = {

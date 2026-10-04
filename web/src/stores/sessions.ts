@@ -16,6 +16,11 @@ export function applySessions(state: SessionsByMachine, e: ServerEvent): Session
     }
     case 'sessions.changed':
       return { ...state, [e.machine]: e.payload.sessions }
+    case 'machine.removed': {
+      const next = { ...state }
+      delete next[e.payload.id]
+      return next
+    }
     default:
       return state
   }
