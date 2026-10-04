@@ -8,7 +8,7 @@ Design (v1 ARCHITECTURE §4.2–4.3, *Later* multi-machine, narrowed):
 - Authentication stays agent-only (the mounted agent socket); no passwords or private keys. A server that rejects the agent's key shows as unreachable with an actionable hint.
 - The generated ssh config gains one `Host hostbud-custom-<id>` block per server, written before the `Host *` defaults, rewritten atomically on every add/remove.
 - A runtime machine registry owns one inventory poller (and SFTP browser) per machine; adding a server starts its poller, removing it stops the poller, closes its masters and publishes `machine.removed`. Removing never touches tmux on the server, and is refused while projects still use the server.
-- The v2 queue stays host-only (v2 ROADMAP *Later*: multi-machine runs need the target to reach `HOSTBUD_URL`); queue creation for another server's project is refused with a hint.
+- The v2 queue stays host-only (v2 ROADMAP *Later*: multi-machine runs need the target to reach `HOSTBUD_URL`); queue creation for another server's project is refused with a hint. *Superseded by the follow-up task T7 below: server projects take queues.*
 - Frontend: an *Add server* header button opens the Servers dialog (list, add with fingerprint confirmation, remove with confirmation). New session and Browse files show a *Server* picker when more than one server exists. The tree shows every machine's sessions; a session's tree identity is its name on the host and `machine/name` elsewhere, so saved tree state stays valid. Project rows (and unplaced sessions) of another server carry a nickname chip.
 
 ## Progress
@@ -55,3 +55,9 @@ ARCHITECTURE §4 and §9 (servers, routes), README usage, this checklist. `make 
 
 ### T7 — Safe Docker cleanup
 v2 Rules and v1 M7 T15: `make docker-clean` (no `CACHE=1`) only when nothing is in use; otherwise skip and record. Tests/E2E: n/a (operations only).
+
+## T7 (follow-up, 2026-10-04) — Queues on servers
+
+A server's project takes queues. The service lists and warns across machines (shared directories only on the same machine); the dispatcher dispatches, recovers and releases session links per machine, and checks each machine's inventory snapshot only against that machine's runs (before, a server's snapshot could end host runs). The starter sets `HOSTBUD_URL` for server runs to `HOSTBUD_SERVER_HOOK_BASE_URL`, else `https://${HOSTBUD_DOMAIN}`; with neither the run fails with that hint. The Queue panel uses the queue's machine for sessions, kill, open and photo upload, and shows the server's nickname; *Create queue* on a server session saves the project on that server.
+
+Tests: U: config `TestLoadServerHookBaseURL`, store `TestQueuesOnServers`, queue `TestServiceQueuesOnServers`, `TestStartOnAServerUsesTheServerHookURL`, `TestServerQueueRunsOnTheServer`, `TestExistingSessionIdle` (per machine), QueuePanel.spec.ts *runs a server queue on its server*. I: `TestIntegrationQueueOnAServer` (API against PostgreSQL), deploytest (`HOSTBUD_SERVER_HOOK_BASE_URL` only reaches hostbud). E2E: `servers.api.spec.ts` *a server project's queue runs its item on the server* (and the creation in *server API*), `servers.spec.ts` *Create queue on a server session*.

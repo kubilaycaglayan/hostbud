@@ -568,7 +568,7 @@ Scope and task breakdown: [V2-M7-tasks.md](V2-M7-tasks.md) · [V2-M7-acceptance.
 
 - **Explicit-signal fallback for other clients** (v2 §2 option 2, §8): a documented `{"hostbud_goal":{"status":"achieved","condition":"…"}}` payload on `session_end`/`turn_end`, for clients without readable goal state. Never used for Claude Code or Codex.
 - **More agent clients** via the run protocol (v2 §8). Each one needs: an `Adapter`, fixtures for each supported version (achieved, pending, failed, decoy), an e2e stub binary, and documented flags and minimum version.
-- **Multi-machine runs:** together with v1 *Later* multi-machine. Targets must reach `HOSTBUD_URL` (the tailnet), host-key trust comes through the UI, and `machine_id` is already in every v2 table.
+- **Multi-machine runs:** queues on servers added in the UI (V2-M13) are done (V2-M13 follow-up: runs start on the server, hooks reach `HOSTBUD_SERVER_HOOK_BASE_URL` or `https://${HOSTBUD_DOMAIN}`). Still later: a per-server run cap in Settings and `~/.ssh/config` targets (v1 *Later* multi-machine).
 - **Queue templates**, e.g. "M1…Mn from `docs/roadmap/`" generated from a project's roadmap files.
 - Carried over from the old v1 ROADMAP v2 list: tmux control-mode push instead of polling; git status per project. (The "Postgres option" item is dropped: v1 already uses PostgreSQL.)
 

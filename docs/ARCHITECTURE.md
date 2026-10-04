@@ -137,7 +137,7 @@ Host *
 - **Servers** are `machines` rows with `source = 'custom'`: id `s-<10 hex>`, alias `hostbud-custom-<id>`, a nickname (`label`, 1–40 characters, unique case-insensitively), `host_name`, `port`, `ssh_user` and the confirmed `host_keys`. They persist in PostgreSQL; on startup and on every add/remove, sshx rewrites the generated config and `known_hosts` atomically from them. Host names, users and ports are validated before they reach any argv or config line.
 - A runtime registry (`internal/machines`) owns one inventory poller and one SFTP browser per machine. Adding a server starts its poller; removing one stops it, ends its ControlMasters and publishes `machine.removed`. Removal is refused while projects use the server, and never touches its tmux sessions.
 - Authentication is the agent key only: the server's `authorized_keys` must accept it. Status messages name *the server* instead of *the host* and point at the Servers dialog.
-- The v2 queue stays host-only: creating a queue for a server's project is refused (multi-machine runs need the target to reach `HOSTBUD_URL`; v2 ROADMAP *Later*).
+- **Queues on servers:** a server's project takes queues like a host project. Its runs start on that server (the queue, its items and runs carry the server's `machine_id`), and their hooks call `HOSTBUD_SERVER_HOOK_BASE_URL`, or `https://${HOSTBUD_DOMAIN}` when it is empty, so the server must reach hostbud there (usually over the tailnet; hook routes skip the Origin, cookie and Tailscale identity checks and use the per-run token). With neither set, a server run fails at start with that hint. The dispatcher hands out slots per machine: the host uses the cap from Settings, a server the default cap (`DefaultConcurrentRuns`). The parallel-queues switch applies to every machine. Each machine's inventory snapshot ends only that machine's runs and releases only its session-linked queues. Verify commands run in the project directory on the queue's machine.
 - In the UI, sessions are identified by a **session ref**: the bare name on the host, `machine/name` on a server, so saved tree state from before V2-M13 stays valid. Projects place only sessions on their own machine. A server's project rows and its unplaced sessions show a chip with the server's nickname. New session and Browse files show a *Server* select once a server exists.
 
 **Host discovery (later — multi-machine)**
@@ -505,6 +505,8 @@ v2 (V2-M1) adds two optional settings: `HOSTBUD_RUN_STALE_AFTER` (2 h,
 stale and its queue pauses, and `HOSTBUD_HOOK_BASE_URL` (empty = Caddy's
 loopback site `http://127.0.0.1:${HOSTBUD_LOCAL_PORT}`), the `HOSTBUD_URL`
 a run session's hooks call. Both reach only the `hostbud` service.
+`HOSTBUD_SERVER_HOOK_BASE_URL` (empty = `https://${HOSTBUD_DOMAIN}`, also only
+for `hostbud`) is the `HOSTBUD_URL` of run sessions on servers added in the UI.
 V2-M2 adds `HOSTBUD_PARALLEL_QUEUES` (`true` or `false`, default `false`, also
 only for `hostbud`): several queues and parallel runs. It is only the default:
 the Queue panel's switch (`PUT /api/machines/:id/parallel-queues`) is stored
