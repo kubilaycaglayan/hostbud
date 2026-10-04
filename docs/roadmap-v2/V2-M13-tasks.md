@@ -20,8 +20,8 @@ Design (v1 ARCHITECTURE §4.2–4.3, *Later* multi-machine, narrowed):
 | T3 Servers dialog (add / remove) | Done |
 | T4 Multi-server tree and nickname chips | Done |
 | T5 Server picker in New session and Browse files | Done |
-| T6 Docs, verification and deploy | Not started |
-| T7 Safe Docker cleanup | Not started |
+| T6 Docs, verification and deploy | Done: `make lint test`, E2E TypeScript check, `make gitleaks`, deploy and `/api/health` passed |
+| T7 Safe Docker cleanup | Done: skipped because hostbud toolbox containers and warm test targets were active |
 
 ## Tasks
 

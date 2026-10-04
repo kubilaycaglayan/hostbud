@@ -6,7 +6,7 @@ V2-M12 is implemented; see [V2-M12-acceptance.md](V2-M12-acceptance.md). Its bro
 
 This roadmap replaces the *v2 — Orchestration* section of the v1 ROADMAP (V2.1–V2.5). That section and v1 ARCHITECTURE §10 were aligned with it in V2-M1 T12 and now point here.
 
-V2-M13 (servers: other SSH targets) is in progress; see [V2-M13-tasks.md](V2-M13-tasks.md) · [V2-M13-acceptance.md](V2-M13-acceptance.md).
+V2-M13 (servers: other SSH targets) is implemented; see [V2-M13-tasks.md](V2-M13-tasks.md) · [V2-M13-acceptance.md](V2-M13-acceptance.md). Its browser scenarios are written and type-checked, with the on-demand run and the owner's check against a real server open. Docker cleanup was skipped because hostbud toolbox containers and warm test targets were active.
 
 ---
 
