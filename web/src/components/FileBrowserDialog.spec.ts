@@ -14,7 +14,7 @@ function stubListing(entries: unknown[] = []) {
     let body: unknown = {}
     if (url.endsWith('/fs/home')) body = { path: '/home/dev' }
     else if (url.includes('/api/machines/host/fs?')) body = { path: '/home/dev', entries }
-    else if (url.endsWith('/api/projects?machine=host')) body = { projects: [] }
+    else if (url.endsWith('/api/projects?machine=*')) body = { projects: [] }
     return { ok: true, status: 200, headers: new Headers(), json: async () => body, text: async () => JSON.stringify(body) }
   }))
 }

@@ -6,11 +6,18 @@ import { directorySessionName, normalizeSessionName, sessionNameError, uniqueSes
 import { useMachinesStore } from '@/stores/machines'
 import { useSessionsStore } from '@/stores/sessions'
 import FormError from './FormError.vue'
+import ServerPicker from './ServerPicker.vue'
+import { sessionRef } from '@/lib/tree'
 import { describeError, useToastsStore } from '@/stores/toasts'
 
+// machine is the default server; the picker can choose another (V2-M13).
+// created carries the session ref (the name on the host, "machine/name" on
+// a server).
 const props = defineProps<{ machine: string; compact?: boolean }>()
 const open = defineModel<boolean>('open', { default: false })
 const emit = defineEmits<{ created: [name: string] }>()
+const machine = ref(props.machine)
+const onServer = computed(() => machine.value !== 'host')
 const toasts = useToastsStore()
 const machines = useMachinesStore()
 const sessions = useSessionsStore()
@@ -28,8 +35,8 @@ const nameError = computed(() => sessionNameError(normalizeSessionName(name.valu
 // The prefilled name: the directory's name, unused right now. It follows the
 // directory until the name is edited.
 const defaultName = computed(() => uniqueSessionName(
-  directorySessionName(path.value, machines.byId(props.machine)?.home),
-  sessions.list(props.machine).map((s) => s.name),
+  directorySessionName(path.value, machines.byId(machine.value)?.home),
+  sessions.list(machine.value).map((s) => s.name),
 ))
 watch(defaultName, (next, prev) => {
   if (name.value === prev) name.value = next
@@ -45,6 +52,7 @@ watch(
   open,
   (o) => {
     if (o) {
+      machine.value = props.machine
       failure.value = null
       path.value = '~'
       name.value = defaultName.value
@@ -63,7 +71,7 @@ async function submit() {
   try {
     const requestedName = normalizeSessionName(name.value)
     const typed = requestedName !== defaultName.value
-    const res = await sessionsApi.create(props.machine, {
+    const res = await sessionsApi.create(machine.value, {
       name: requestedName || undefined,
       path: path.value.trim() || '~',
       startCommand: startCommand.value.trim() || undefined,
@@ -72,7 +80,7 @@ async function submit() {
     if (requestedName && typed && res.name !== requestedName) {
       toasts.push({ title: 'Session name changed', message: `Named "${res.name}": "${requestedName}" was already taken.`, tone: 'info' })
     }
-    emit('created', res.name)
+    emit('created', sessionRef(machine.value, res.name))
   } catch (e) {
     failure.value = describeError(e)
   } finally {
@@ -94,13 +102,14 @@ async function submit() {
           New session
         </DialogTitle>
         <DialogDescription class="mt-1 text-muted">
-          Starts a detached tmux session on the host.
+          Starts a detached tmux session on {{ onServer ? machines.label(machine) : 'the host' }}.
         </DialogDescription>
         <form
           class="mt-4 flex flex-col gap-3"
           novalidate
           @submit.prevent="submit"
         >
+          <ServerPicker v-model="machine" />
           <label class="flex flex-col gap-1">
             <span>Name <span class="text-muted">(optional)</span></span>
             <input

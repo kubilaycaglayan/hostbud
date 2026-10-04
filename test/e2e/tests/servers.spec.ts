@@ -62,3 +62,44 @@ test('(V2-M13 T4) A project on another server shows its nickname chip and opens 
     await server.tmux('kill-session', '-t', `=${session}`).catch(() => {})
   }
 })
+
+test('(V2-M13 T5) New session and Browse files ask for the server', async ({ page, request, ui }) => {
+  const added = await addServer(request, 'E2E second')
+  await waitForStatus(request, added.id, 'ok')
+  const folder = uniqueName('e2e-srv-browse')
+  const folderPath = `/home/dev/${folder}`
+  await server.run(`mkdir -p ${shq(folderPath)}`)
+  const session = uniqueName('e2e-srv-new')
+  try {
+    await ui.open()
+
+    // New session: the Server select defaults to the host.
+    await ui.headerAction('New session')
+    const create = page.getByRole('dialog', { name: 'New session' })
+    const picker = create.getByLabel('Server')
+    await expect(picker).toHaveValue('host')
+    await picker.selectOption({ label: 'E2E second' })
+    await expect(create).toContainText('on E2E second')
+    await create.getByLabel('Name').fill(session)
+    await create.getByRole('button', { name: 'Create' }).click()
+    await ui.waitForTerminal(session)
+    await expect.poll(() => server.sessions()).toContain(session)
+
+    // Browse files: the chosen server's files; the project lands there.
+    const dialog = await ui.openFileBrowser()
+    await dialog.getByLabel('Server').selectOption({ label: 'E2E second' })
+    await dialog.getByLabel('Current path').fill(folderPath)
+    await dialog.getByRole('button', { name: 'Go', exact: true }).click()
+    await dialog.getByRole('button', { name: 'Add this directory as project' }).click()
+    await expect(dialog.getByText(`Project: ${folder}`)).toBeVisible()
+    const listed = await (await request.get('/api/projects', { params: { machine: added.id } })).json()
+    expect((listed.projects as { path: string }[]).map((p) => p.path)).toContain(folderPath)
+    await dialog.getByRole('button', { name: 'Close file browser' }).click()
+    await ui.showList()
+    const row = ui.treeItem(`${folder}, on E2E second`)
+    await expect(row).toBeVisible()
+    await expect(row.locator('[data-machine-chip]').first()).toHaveText('E2E second')
+  } finally {
+    await server.tmux('kill-session', '-t', `=${session}`).catch(() => {})
+  }
+})

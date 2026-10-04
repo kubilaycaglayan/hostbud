@@ -19,7 +19,7 @@ Design (v1 ARCHITECTURE §4.2–4.3, *Later* multi-machine, narrowed):
 | T2 Machine registry and server API | Done |
 | T3 Servers dialog (add / remove) | Done |
 | T4 Multi-server tree and nickname chips | Done |
-| T5 Server picker in New session and Browse files | Not started |
+| T5 Server picker in New session and Browse files | Done |
 | T6 Docs, verification and deploy | Not started |
 | T7 Safe Docker cleanup | Not started |
 
@@ -43,12 +43,12 @@ Tests: U: ServersDialog.spec.ts (scan, fingerprint confirm, add, error, remove c
 ### T4 — Multi-server tree and nickname chips
 Sessions of every machine appear in the tree. Session refs (`name` on the host, `machine/name` elsewhere) flow through select/kill/rename/split/hide/windows; the saved tree state accepts both forms. Projects place only same-machine sessions. Project rows and unplaced sessions of another server show a nickname chip. Opening, renaming and killing a remote session use its machine.
 
-Tests: U: lib/tree.spec.ts (placement per machine, refs), tree store, ProjectTreeRow chip, SessionList chip. I: n/a (frontend only). E2E: `servers.spec.ts` *A project on another server shows its nickname chip and opens its session*.
+Tests: U: lib/tree.servers.spec.ts (refs, placement per machine, saved order), stores/tree.servers.spec.ts, SessionTree.servers.spec.ts (project and loose-session chips, ref events, rename on the server). I: n/a (frontend only). E2E: `servers.spec.ts` *A project on another server shows its nickname chip and opens its session*.
 
 ### T5 — Server picker in New session and Browse files
 New session and Browse files show a *Server* select when more than one machine exists (host first, default host). The file browser lists the chosen server's files and adds projects there; the projects store loads every machine's projects.
 
-Tests: U: CreateSessionDialog/FileBrowserDialog picker (SessionDialogs.spec.ts, FileBrowser.spec.ts), projects store multi-machine load. I: n/a (frontend only). E2E: `servers.spec.ts` *New session and Browse files ask for the server*.
+Tests: U: ServerPicker.spec.ts (New session and Browse files pickers; host-only hides the picker; the server's projects only), projects store multi-machine load (tree.spec.ts, FileBrowserDialog.spec.ts). I: n/a (frontend only). E2E: `servers.spec.ts` *New session and Browse files ask for the server*.
 
 ### T6 — Docs, verification and deploy
 ARCHITECTURE §4 and §9 (servers, routes), README usage, this checklist. `make lint test`, e2e type-check, `make gitleaks`, `make deploy`, `/api/health`. Browser e2e stays on demand.

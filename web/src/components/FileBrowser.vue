@@ -17,7 +17,8 @@ const entries = ref<FileEntry[]>([])
 const resolvingLinks = ref(new Set<string>())
 const linkErrors = ref<Record<string, string>>({})
 const projectStore = useProjectsStore()
-const projects = computed(() => projectStore.items)
+// This server's projects (V2-M13: the store holds every machine's).
+const projects = computed(() => projectStore.items.filter((project) => project.machineId === props.machine))
 const currentProject = computed(() => projects.value.find((project) => project.path === path.value))
 const hidden = ref(false)
 const loading = ref(false)
@@ -92,7 +93,7 @@ async function initialize() {
     const home = await filesystemApi.home(props.machine)
     // The user may already have gone somewhere while home was loading.
     if (!navigationController) await navigate(home.path)
-    await projectStore.load(props.machine)
+    await projectStore.load()
     useTreeStore().sync()
   } catch (e) { error.value = describeError(e) }
 }

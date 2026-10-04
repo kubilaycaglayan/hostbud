@@ -1,10 +1,17 @@
 <script setup lang="ts">
 import { DialogClose, DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
+import { ref, watch } from 'vue'
 import FileBrowser from './FileBrowser.vue'
+import ServerPicker from './ServerPicker.vue'
+import { useMachinesStore } from '@/stores/machines'
 
+// machine is the default server; the picker browses another (V2-M13).
 const props = defineProps<{ machine: string; startProjectId?: string; compact?: boolean }>()
 const open = defineModel<boolean>('open', { default: false })
 const emit = defineEmits<{ created: [name: string] }>()
+const machine = ref(props.machine)
+const machines = useMachinesStore()
+watch(open, (o) => { if (o) machine.value = props.machine })
 </script>
 
 <template>
@@ -29,9 +36,13 @@ const emit = defineEmits<{ created: [name: string] }>()
             ×
           </DialogClose>
         </div>
+        <div v-if="machines.machines.length > 1" class="border-b border-border px-3 py-2">
+          <ServerPicker v-model="machine" />
+        </div>
         <FileBrowser
           v-if="open"
-          :machine="props.machine"
+          :key="machine"
+          :machine="machine"
           :start-project-id="props.startProjectId"
           class="min-h-0 flex-1 overflow-y-auto"
           @created="emit('created', $event)"
