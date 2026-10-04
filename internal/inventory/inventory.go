@@ -40,9 +40,13 @@ type Capabilities struct {
 
 // Machine is the published state of one machine (machine.status payload).
 type Machine struct {
-	ID     string `json:"id"`
-	Label  string `json:"label"`
-	Status Status `json:"status"`
+	ID    string `json:"id"`
+	Label string `json:"label"`
+	// Source is "host" or "custom" (a server added in the UI, V2-M13);
+	// Address is a server's user@host:port, for display.
+	Source  string `json:"source,omitempty"`
+	Address string `json:"address,omitempty"`
+	Status  Status `json:"status"`
 	// Error and Hint are actionable, safe to show and log (no stderr).
 	Error string `json:"error,omitempty"`
 	Hint  string `json:"hint,omitempty"`
@@ -76,6 +80,8 @@ type Poller interface {
 type Options struct {
 	MachineID  string
 	Label      string
+	Source     string // "host" (default) or "custom"
+	Address    string // user@host:port of a server, for display
 	Interval   time.Duration
 	MaxBackoff time.Duration // default: 8×Interval, at most 30s (never below Interval)
 	Store      CapabilityStore
@@ -118,9 +124,15 @@ func New(exec Executor, bus *events.Bus, opt Options) *Inventory {
 	return &Inventory{
 		exec: exec, bus: bus, opt: opt,
 		refresh:   make(chan chan struct{}),
-		machine:   Machine{ID: opt.MachineID, Label: opt.Label, Status: StatusUnknown},
+		machine:   Machine{ID: opt.MachineID, Label: opt.Label, Source: opt.Source, Address: opt.Address, Status: StatusUnknown},
 		needProbe: true,
 	}
+}
+
+// SetLabel changes the machine's label (a server's nickname) and publishes
+// machine.status.
+func (inv *Inventory) SetLabel(label string) {
+	inv.setMachine(func(m *Machine) { m.Label = label })
 }
 
 // Snapshot returns the current machine state and a copy of its sessions
@@ -320,6 +332,14 @@ func (inv *Inventory) poll(ctx context.Context) bool {
 	return true
 }
 
+// noun names the machine in messages: the host, or a server added in the UI.
+func (inv *Inventory) noun() string {
+	if inv.opt.Source == "custom" {
+		return "server"
+	}
+	return "host"
+}
+
 // tmuxMissing marks the machine tmux_missing; the next poll re-probes.
 func (inv *Inventory) tmuxMissing(c Capabilities) {
 	inv.mu.Lock()
@@ -328,7 +348,7 @@ func (inv *Inventory) tmuxMissing(c Capabilities) {
 	inv.setMachine(func(m *Machine) {
 		m.Capabilities = c
 		m.Status = StatusTmuxMissing
-		m.Error = "tmux not found on the host"
+		m.Error = "tmux not found on the " + inv.noun()
 		m.Hint = "Install it with `sudo apt install tmux` (macOS: `brew install tmux`); hostbud picks it up automatically."
 	})
 }
@@ -345,14 +365,14 @@ func (inv *Inventory) saveCapabilities(ctx context.Context, c Capabilities) {
 // fail marks the machine unreachable with an actionable message and makes
 // the next poll re-probe.
 func (inv *Inventory) fail(err error) {
-	msg, hint := "can't list tmux sessions on the host", "Check `make logs` with HOSTBUD_LOG_LEVEL=debug."
+	msg, hint := "can't list tmux sessions on the "+inv.noun(), "Check `make logs` with HOSTBUD_LOG_LEVEL=debug."
 	var e *sshx.Error
 	if errors.As(err, &e) {
 		if e.Kind != sshx.KindRemote {
 			msg, hint = e.Message, e.Hint
 		}
 		if e.Kind == sshx.KindTimeout {
-			msg = fmt.Sprintf("The host timed out after %s", e.Timeout)
+			msg = fmt.Sprintf("The %s timed out after %s", inv.noun(), e.Timeout)
 		}
 		inv.opt.Log.Debug("poll failed", "machine", inv.opt.MachineID, "kind", e.Kind, "stderr", e.Stderr)
 	}

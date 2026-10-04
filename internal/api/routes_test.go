@@ -91,6 +91,7 @@ func TestRouteInventoryMatchesRouter(t *testing.T) {
 		"POST /api/projects/{id}/sessions": true,
 		"POST /api/queues":                 true, "PATCH /api/queues/{id}": true, "POST /api/queues/{id}/items": true,
 		"PUT /api/queues/{id}/order": true, "PUT /api/queues/{id}/loop": true, "PUT /api/queues/{id}/default-prompt": true, "PUT /api/queues/{id}/link": true, "PATCH /api/queue-items/{id}": true,
+		"POST /api/machines/scan": true, "POST /api/machines": true, "PATCH /api/machines/{machine}": true,
 		"PUT /api/machines/{machine}/capacity": true, "PUT /api/machines/{machine}/parallel-queues": true,
 		"PUT /api/notifications/settings": true, "POST /api/notifications/subscriptions": true, "DELETE /api/notifications/subscriptions": true, "POST /api/notifications/test": true,
 	}

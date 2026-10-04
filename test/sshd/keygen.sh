@@ -31,7 +31,7 @@ chown -R "$uid:$uid" /keys/client
 chmod 700 /keys/client
 
 for f in /keys/hostpub/*.pub; do
-	printf 'hostbud-e2e-target,hostbud-e2e-target-notmux %s\n' "$(cut -d' ' -f1,2 "$f")"
+	printf 'hostbud-e2e-target,hostbud-e2e-target-notmux,hostbud-e2e-target2 %s\n' "$(cut -d' ' -f1,2 "$f")"
 done >/keys/known_hosts
 
 # Host keys and known_hosts belong to <client-uid> too, so a bind-mounted

@@ -39,16 +39,17 @@ func (s *server) sessionOutput(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) listMachines(w http.ResponseWriter, _ *http.Request) {
-	out := make([]inventory.Machine, 0, len(s.order))
-	for _, id := range s.order {
-		m, _ := s.machines[id].Snapshot()
+	list := s.machineList()
+	out := make([]inventory.Machine, 0, len(list))
+	for _, t := range list {
+		m, _ := t.Snapshot()
 		out = append(out, m)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"machines": out})
 }
 
 func (s *server) machine(w http.ResponseWriter, r *http.Request) (Snapshotter, bool) {
-	m, ok := s.machines[r.PathValue("machine")]
+	m, ok := s.lookupMachine(r.PathValue("machine"))
 	if !ok {
 		writeError(w, http.StatusNotFound, "unknown machine", "")
 	}

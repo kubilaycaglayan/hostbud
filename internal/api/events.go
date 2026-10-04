@@ -80,10 +80,10 @@ func (s *server) eventsSocket(w http.ResponseWriter, r *http.Request) {
 	defer unsubscribe()
 
 	snap := snapshot{Type: "snapshot", Machines: []inventory.Machine{}, Sessions: map[string][]tmux.Session{}}
-	for _, id := range s.order {
-		m, sessions := s.machines[id].Snapshot()
+	for _, t := range s.machineList() {
+		m, sessions := t.Snapshot()
 		snap.Machines = append(snap.Machines, m)
-		snap.Sessions[id] = s.withProjectPlacement(r.Context(), id, sessions)
+		snap.Sessions[m.ID] = s.withProjectPlacement(r.Context(), m.ID, sessions)
 	}
 	if write(ctx, c, snap) != nil {
 		return

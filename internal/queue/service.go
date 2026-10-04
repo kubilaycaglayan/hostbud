@@ -33,12 +33,14 @@ func conflict(msg, hint string) *Error { return &Error{http.StatusConflict, msg,
 
 // Messages the owner sees (V2-M1 T8).
 const (
-	msgParallelOff = "Parallel queues are off — pause queue %s and wait for its run to end, or turn on Run queues in parallel in the Queue panel"
-	msgDuplicate   = "a queue named %q already exists in this project"
-	hintDuplicate  = "Pick another name; queue names are unique per project (case doesn't matter)."
-	msgActiveRun   = "A run is still active in this queue — pause it and wait for the run to end, or mark its item done/skip it first"
-	hintReload     = "Reload the queue and try again."
-	hintOnlyQueued = "Only queued items can be edited, deleted or moved. A needs-attention item goes back to the queue with Retry."
+	msgParallelOff  = "Parallel queues are off — pause queue %s and wait for its run to end, or turn on Run queues in parallel in the Queue panel"
+	msgDuplicate    = "a queue named %q already exists in this project"
+	hintDuplicate   = "Pick another name; queue names are unique per project (case doesn't matter)."
+	msgServerQueue  = "queues run on the host only"
+	hintServerQueue = "Queue runs on other servers aren't supported yet; create the queue in a project on the host."
+	msgActiveRun    = "A run is still active in this queue — pause it and wait for the run to end, or mark its item done/skip it first"
+	hintReload      = "Reload the queue and try again."
+	hintOnlyQueued  = "Only queued items can be edited, deleted or moved. A needs-attention item goes back to the queue with Retry."
 	// V2-M4 gate edits.
 	msgGatesFixed   = "gates are fixed while the item is %s; they apply as they were when the run started"
 	hintGatesFixed  = "Wait for the item to leave its gates (or Reject it), then edit its gates."
@@ -682,6 +684,11 @@ func (s *Service) CreateLinked(ctx context.Context, projectID, name string, link
 	named := name != ""
 	if !named {
 		name = "Queue"
+	}
+	// Runs need the target to reach HOSTBUD_URL; servers added in the UI
+	// (V2-M13) don't run queues yet.
+	if p, err := s.store.Project(ctx, projectID); err == nil && p.MachineID != store.HostMachineID {
+		return View{}, invalid(msgServerQueue, hintServerQueue)
 	}
 	q, err := s.store.CreateQueueLinked(ctx, projectID, name, link)
 	// An unnamed queue takes the first free "Queue n".

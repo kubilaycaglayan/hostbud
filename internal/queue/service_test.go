@@ -296,3 +296,17 @@ func TestServiceDeleteQueue(t *testing.T) {
 		t.Fatalf("a new queue after deleting the only one: %v", err)
 	}
 }
+
+// V2-M13: servers added in the UI don't run queues yet.
+func TestServiceRefusesQueuesOnServers(t *testing.T) {
+	e := newServiceEnv(t)
+	e.st.addProject(store.Project{ID: "project_s", MachineID: "s-abc123", Name: "remote", Path: "/home/dev/remote"})
+	_, err := e.svc.Create(context.Background(), "project_s", "Q")
+	var qe *Error
+	if !errors.As(err, &qe) || qe.Status != http.StatusBadRequest || !strings.Contains(qe.Message, "host only") {
+		t.Fatalf("server project queue: %v", err)
+	}
+	if got := e.drain(); len(got) != 0 {
+		t.Fatalf("events: %+v", got)
+	}
+}

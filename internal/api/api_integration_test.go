@@ -54,7 +54,7 @@ func TestIntegrationConcurrentTypedSessionCreateNumbersTheLoser(t *testing.T) {
 	tracker := host()
 	const name = "concurrent-create"
 	executor := &createBarrierExecutor{inner: client, name: name, ready: make(chan struct{})}
-	sessions := session.New(executor, map[string]session.Tracker{sshx.HostMachineID: tracker}, nil)
+	sessions := session.New(executor, session.Trackers{sshx.HostMachineID: tracker}, nil)
 	handler := New(Config{
 		Dist: fstest.MapFS{}, Origins: AllowedOrigins("", 9055), Bus: events.NewBus(),
 		Machines: []Snapshotter{tracker}, Sessions: sessions, Auth: &fakeAuth{},

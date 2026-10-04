@@ -154,7 +154,7 @@ func WrongHostKeys(t testing.TB) string {
 // the way the UI does after the owner confirms the fingerprints.
 func AddServer(t testing.TB, c *sshx.Client, id, host string) sshx.Target {
 	t.Helper()
-	keys, err := c.Scan(context.Background(), host, 22)
+	keys, err := c.Scan(t.Context(), host, 22)
 	if err != nil {
 		t.Fatalf("scan %s: %v", host, err)
 	}

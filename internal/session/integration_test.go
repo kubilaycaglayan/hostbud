@@ -37,7 +37,7 @@ func setup(t *testing.T) (*session.Service, *sshx.Client) {
 	if err := inv.Refresh(rctx); err != nil {
 		t.Fatal(err)
 	}
-	return session.New(c, map[string]session.Tracker{sshx.HostMachineID: inv}, nil), c
+	return session.New(c, session.Trackers{sshx.HostMachineID: inv}, nil), c
 }
 
 func display(t *testing.T, c *sshx.Client, name, format string) string {
@@ -131,7 +131,7 @@ func TestIntegrationRenameRacesKilledSession(t *testing.T) {
 	if _, err := c.Exec(context.Background(), sshx.HostMachineID, "tmux", "new-session", "-d", "-s", name, "-c", "/home/dev"); err != nil {
 		t.Fatal(err)
 	}
-	service := session.New(killBeforeRename{inner: c, name: name}, map[string]session.Tracker{sshx.HostMachineID: &fakeTrackerForRename{c: c}}, nil)
+	service := session.New(killBeforeRename{inner: c, name: name}, session.Trackers{sshx.HostMachineID: &fakeTrackerForRename{c: c}}, nil)
 	err := service.Rename(context.Background(), sshx.HostMachineID, name, "renamed-after-kill")
 	var serviceErr *session.Error
 	if !errors.As(err, &serviceErr) || serviceErr.Code != session.CodeNotFound {
@@ -427,7 +427,7 @@ func TestIntegrationCopyModeTmuxMissing(t *testing.T) {
 	if err := inv.Refresh(ctx); err != nil {
 		t.Fatal(err)
 	}
-	_, err := session.New(c, map[string]session.Tracker{sshx.HostMachineID: inv}, nil).CopyMode(ctx, sshx.HostMachineID, "work", "enter", 0)
+	_, err := session.New(c, session.Trackers{sshx.HostMachineID: inv}, nil).CopyMode(ctx, sshx.HostMachineID, "work", "enter", 0)
 	var e *session.Error
 	if !errors.As(err, &e) || e.Code != session.CodeTmuxMissing || !strings.Contains(e.Hint, "apt install tmux") {
 		t.Fatalf("missing tmux error = %+v", err)
@@ -569,7 +569,7 @@ func TestIntegrationSessionEndsBetweenListingAndSelect(t *testing.T) {
 		t.Fatal(err)
 	}
 	exec := &killBeforeSelect{inner: c, name: name}
-	svc := session.New(exec, map[string]session.Tracker{sshx.HostMachineID: inv}, nil)
+	svc := session.New(exec, session.Trackers{sshx.HostMachineID: inv}, nil)
 	listed, err := svc.ListWindows(ctx, sshx.HostMachineID, name)
 	if err != nil || len(listed.Windows) != 1 {
 		t.Fatalf("pre-race listing = %+v %v", listed, err)
@@ -591,7 +591,7 @@ func TestIntegrationWindowsTmuxMissing(t *testing.T) {
 	if err := inv.Refresh(ctx); err != nil {
 		t.Fatal(err)
 	}
-	_, err := session.New(c, map[string]session.Tracker{sshx.HostMachineID: inv}, nil).ListWindows(ctx, sshx.HostMachineID, "work")
+	_, err := session.New(c, session.Trackers{sshx.HostMachineID: inv}, nil).ListWindows(ctx, sshx.HostMachineID, "work")
 	var serviceErr *session.Error
 	if !errors.As(err, &serviceErr) || serviceErr.Code != session.CodeTmuxMissing || !strings.Contains(serviceErr.Hint, "apt install tmux") {
 		t.Fatalf("missing tmux error = %+v", err)

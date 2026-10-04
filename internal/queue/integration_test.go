@@ -80,7 +80,7 @@ func newITEnv(t *testing.T) *itEnv {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &itEnv{c: c, st: st, inv: inv, sessions: session.New(c, map[string]session.Tracker{sshx.HostMachineID: inv}, nil), bus: bus, project: p, queue: q}
+	return &itEnv{c: c, st: st, inv: inv, sessions: session.New(c, session.Trackers{sshx.HostMachineID: inv}, nil), bus: bus, project: p, queue: q}
 }
 
 func (e *itEnv) display(t *testing.T, name, format string) string {

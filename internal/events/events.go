@@ -17,6 +17,8 @@ const (
 	ProjectsChanged Type = "projects.changed"
 	// QueueChanged carries a queue.Changed payload (v2).
 	QueueChanged Type = "queue.changed"
+	// MachineRemoved carries {"id"}: a server was removed (V2-M13).
+	MachineRemoved Type = "machine.removed"
 	// RunChanged carries a queue.RunChanged payload (v2).
 	RunChanged Type = "run.changed"
 )

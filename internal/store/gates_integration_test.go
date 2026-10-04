@@ -116,7 +116,7 @@ func TestIntegrationCompletionGatesMigrationKeepsV2M3Data(t *testing.T) {
 		}
 	}
 	tables := map[string]string{
-		"machines": "*", "users": "*", "projects": "*", "machine_capacity": v2m2CapacityCols, "queues": v2m5QueueCols,
+		"machines": v1MachineCols, "users": "*", "projects": "*", "machine_capacity": v2m2CapacityCols, "queues": v2m5QueueCols,
 		"queue_items": v2m1ItemCols, "runs": v2m1RunCols, "run_events": "*", "notification_prefs": "*",
 	}
 	before := columnChecksums(t, db, tables)

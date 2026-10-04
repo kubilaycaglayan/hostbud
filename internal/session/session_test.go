@@ -79,7 +79,7 @@ func okHost(sessions ...string) *fakeTracker {
 }
 
 func newSvc(f *fakeExec, t *fakeTracker) *Service {
-	return New(f, map[string]Tracker{"host": t}, nil)
+	return New(f, Trackers{"host": t}, nil)
 }
 
 type lifecycleRecorder struct{ calls []string }
@@ -101,7 +101,7 @@ func TestLifecycleHooksRunBeforeInventoryRefresh(t *testing.T) {
 			t.Fatal("inventory refreshed before linked session metadata")
 		}
 	}
-	svc := New(&fakeExec{}, map[string]Tracker{"host": tracker}, nil, hooks)
+	svc := New(&fakeExec{}, Trackers{"host": tracker}, nil, hooks)
 	if err := svc.Rename(context.Background(), "host", "old", "renamed"); err != nil {
 		t.Fatal(err)
 	}
@@ -267,7 +267,7 @@ func TestWindowsNamesAndCommandsAreNotLoggedAtInfo(t *testing.T) {
 	var logs bytes.Buffer
 	f := &fakeExec{output: []byte("W\t@1\t0\t1\t1\tprivate-window-name\nP\t@1\t%1\t0\t1\t80\t24\tprivate-command-name\n")}
 	tracker := okHost("private-session-name")
-	svc := New(f, map[string]Tracker{"host": tracker}, slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelInfo})))
+	svc := New(f, Trackers{"host": tracker}, slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelInfo})))
 	if _, err := svc.ListWindows(context.Background(), "host", "private-session-name"); err != nil {
 		t.Fatal(err)
 	}
@@ -282,7 +282,7 @@ func TestCopyModeDoesNotLogSessionName(t *testing.T) {
 	var logs bytes.Buffer
 	tracker := okHost("private-session-name")
 	f := &fakeExec{output: []byte("0\t0\t0")}
-	svc := New(f, map[string]Tracker{"host": tracker}, slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelInfo})))
+	svc := New(f, Trackers{"host": tracker}, slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelInfo})))
 	if _, err := svc.CopyMode(context.Background(), "host", "private-session-name", tmux.CopyEnter, 0); err != nil {
 		t.Fatal(err)
 	}
@@ -301,7 +301,7 @@ func TestSessionLifecycleLogsNamesOnlyAtDebug(t *testing.T) {
 			var logs bytes.Buffer
 			log := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: level.level}))
 			tracker := okHost("before-canary")
-			svc := New(&fakeExec{}, map[string]Tracker{"host": tracker}, log)
+			svc := New(&fakeExec{}, Trackers{"host": tracker}, log)
 			if _, err := svc.Create(context.Background(), Spec{Machine: "host", Name: "created-canary", Path: "/home/dev/canary-path"}); err != nil {
 				t.Fatal(err)
 			}
@@ -681,7 +681,7 @@ func TestKillManyRefreshesOnce(t *testing.T) {
 		return nil
 	}}
 	tr := okHost("a", "b")
-	svc := New(f, map[string]Tracker{"host": tr}, nil, hooks)
+	svc := New(f, Trackers{"host": tr}, nil, hooks)
 	killed, failed, err := svc.KillMany(context.Background(), "host", []string{"a", "gone", "b"})
 	if err != nil {
 		t.Fatal(err)

@@ -235,7 +235,7 @@ func TestIntegrationTmuxServerKilledListsEmptyAndCanRecreate(t *testing.T) {
 	if machine.Status != inventory.StatusOK {
 		t.Fatalf("no-server status = %+v; want ok", machine)
 	}
-	service := session.New(c, map[string]session.Tracker{sshx.HostMachineID: inv}, nil)
+	service := session.New(c, session.Trackers{sshx.HostMachineID: inv}, nil)
 	name, err := service.Create(context.Background(), session.Spec{Machine: sshx.HostMachineID, Name: "server-recreated", Path: "/home/dev"})
 	if err != nil || name != "server-recreated" {
 		t.Fatalf("create after kill-server = %q, %v", name, err)

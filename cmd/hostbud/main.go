@@ -23,6 +23,7 @@ import (
 	"hostbud/internal/fsbrowse"
 	"hostbud/internal/inventory"
 	"hostbud/internal/llm"
+	"hostbud/internal/machines"
 	"hostbud/internal/notify"
 	"hostbud/internal/projects"
 	"hostbud/internal/queue"
@@ -111,24 +112,27 @@ func run() error {
 		defer cancel()
 		_ = ssh.Close(ctx)
 	}()
-	filesystem := deps.filesystem
-	defer func() { _ = filesystem.Close() }()
 
-	// Track the host's tmux sessions; every change goes out on the bus.
+	// Track the host's and the added servers' tmux sessions (V2-M13); every
+	// change goes out on the bus.
 	bus := events.NewBus()
 	projectService := projects.New(st, bus, log)
 	projectDone := make(chan struct{})
 	go func() { projectService.Run(ctx); close(projectDone) }()
 	defer func() { <-projectDone }()
-	inv := inventory.New(ssh, bus, inventory.Options{
-		MachineID: store.HostMachineID, Label: cfg.HostLabel, Interval: cfg.PollInterval,
-		Store: capabilityStore{st}, Log: log,
-	})
-	invDone := make(chan struct{})
-	go func() { inv.Run(ctx); close(invDone) }()
-	defer func() { <-invDone }()
+	opts := deps.machineOpts
+	opts.Capabilities, opts.Log = capabilityStore{st}, log
+	registry := machines.New(ssh, st, bus, opts)
+	if err := registry.Load(ctx); err != nil {
+		return err
+	}
+	defer func() { _ = registry.Close() }()
+	registry.Start(ctx)
+	defer registry.Wait()
+	inv, _ := registry.Inventory(store.HostMachineID)
+	filesystem, _ := registry.FileSystem(store.HostMachineID)
 
-	sessions := session.New(ssh, map[string]session.Tracker{store.HostMachineID: inv}, log, projectService)
+	sessions := session.New(ssh, trackers{registry}, log, projectService)
 	projectService.SetSessionCreator(sessions)
 
 	authKey, err := loadOrCreateKey(filepath.Join(cfg.DataDir, "auth-key"))
@@ -234,11 +238,10 @@ func run() error {
 			Origins:               origins,
 			ContentSecurityPolicy: csp,
 			Bus:                   bus,
-			Machines:              []api.Snapshotter{inv},
+			Registry:              apiRegistry{registry},
 			Sessions:              sessions,
 			Projects:              projectService,
-			FileSystem:            filesystem,
-			Terminal:              &term.Handler{SSH: ssh, Log: log, Shutdown: ctx.Done(), MaxPerUser: cfg.MaxTerminalsPerUser, MaxTotal: cfg.MaxTerminals, AttachTimeout: cfg.ExecTimeout, AccountID: api.AuthenticatedUserID, TmuxVersion: hostTmuxVersion(inv)},
+			Terminal:              &term.Handler{SSH: ssh, Log: log, Shutdown: ctx.Done(), MaxPerUser: cfg.MaxTerminalsPerUser, MaxTotal: cfg.MaxTerminals, AttachTimeout: cfg.ExecTimeout, AccountID: api.AuthenticatedUserID, TmuxVersion: tmuxVersion(registry)},
 			UIState:               st,
 			Auth:                  accounts,
 			TrustedProxies:        proxies,
@@ -275,8 +278,8 @@ func run() error {
 }
 
 type runtimeDeps struct {
-	ssh        *sshx.Client
-	filesystem *fsbrowse.Service
+	ssh         *sshx.Client
+	machineOpts machines.Options
 }
 
 func makeTSLogin(cfg config.Config) (func(context.Context, string) (string, error), error) {
@@ -311,8 +314,11 @@ func buildDepsAt(cfg config.Config, keysDir string) (runtimeDeps, error) {
 	if err != nil {
 		return runtimeDeps{}, err
 	}
-	filesystem := fsbrowse.New(client, store.HostMachineID, fsbrowse.DefaultIdleTimeout, cfg.SFTPTimeout, cfg.UploadTimeout)
-	return runtimeDeps{ssh: client, filesystem: filesystem}, nil
+	opts := machines.Options{
+		HostLabel: cfg.HostLabel, PollInterval: cfg.PollInterval,
+		SFTPIdle: fsbrowse.DefaultIdleTimeout, SFTPTimeout: cfg.SFTPTimeout, UploadTimeout: cfg.UploadTimeout,
+	}
+	return runtimeDeps{ssh: client, machineOpts: opts}, nil
 }
 
 // backup writes a consistent copy of the database to dest (make backup).
@@ -377,15 +383,47 @@ func loadOrCreateKey(path string) ([]byte, error) {
 	return b, nil
 }
 
-// hostTmuxVersion reports the host's tmux version from the inventory (zero
-// for other machines or before the first probe), for the attach flags.
-func hostTmuxVersion(inv *inventory.Inventory) func(machine string) tmux.Version {
+// tmuxVersion reports a machine's tmux version from its inventory (zero for
+// an unknown machine or before the first probe), for the attach flags.
+func tmuxVersion(registry *machines.Registry) func(machine string) tmux.Version {
 	return func(machine string) tmux.Version {
-		if machine != store.HostMachineID {
+		inv, ok := registry.Inventory(machine)
+		if !ok {
 			return tmux.Version{}
 		}
 		m, _ := inv.Snapshot()
 		v, _ := tmux.ParseVersion(m.TmuxVersion)
 		return v
 	}
+}
+
+// trackers looks up session trackers in the machine registry.
+type trackers struct{ r *machines.Registry }
+
+func (t trackers) Tracker(machine string) (session.Tracker, bool) {
+	inv, ok := t.r.Inventory(machine)
+	if !ok {
+		return nil, false
+	}
+	return inv, true
+}
+
+// apiRegistry adapts the machine registry to the API's interface.
+type apiRegistry struct{ *machines.Registry }
+
+func (a apiRegistry) Snapshotters() []api.Snapshotter {
+	invs := a.Inventories()
+	out := make([]api.Snapshotter, len(invs))
+	for i, inv := range invs {
+		out[i] = inv
+	}
+	return out
+}
+
+func (a apiRegistry) FileSystemFor(machine string) (api.FileBrowser, bool) {
+	fs, ok := a.FileSystem(machine)
+	if !ok {
+		return nil, false
+	}
+	return fs, true
 }

@@ -39,9 +39,11 @@ type Config struct {
 	Dist fs.FS // the built SPA (package web)
 	// Origins are the allowed Origin header values for WebSocket upgrades and
 	// state-changing requests (see AllowedOrigins).
-	Origins    []string
-	Bus        *events.Bus
-	Machines   []Snapshotter // v1: the host only
+	Origins  []string
+	Bus      *events.Bus
+	Machines []Snapshotter // a fixed machine set (tests); Registry replaces it
+	// Registry is the runtime machine set with the server routes (V2-M13).
+	Registry   MachineRegistry
 	Sessions   SessionService
 	Projects   ProjectService
 	FileSystem FileBrowser  // authenticated SFTP-backed filesystem service
@@ -146,12 +148,7 @@ func New(cfg Config) http.Handler {
 	if cfg.UploadTimeout <= 0 {
 		cfg.UploadTimeout = 5 * time.Minute
 	}
-	s := &server{cfg: cfg, machines: map[string]Snapshotter{}, eventUsers: map[string]int{}}
-	for _, m := range cfg.Machines {
-		info, _ := m.Snapshot()
-		s.machines[info.ID] = m
-		s.order = append(s.order, info.ID)
-	}
+	s := &server{cfg: cfg, eventUsers: map[string]int{}}
 
 	mux := http.NewServeMux()
 	mountRoutes(s, mux)
@@ -200,6 +197,10 @@ func mountRoutes(s *server, mux *http.ServeMux) {
 		addFunc("GET /api/machines/{machine}/sessions/{name}/select", s.selectWindow)
 	}
 	addFunc("GET /api/machines", s.listMachines)
+	addFunc("POST /api/machines/scan", s.scanServer)
+	addFunc("POST /api/machines", s.addServer)
+	addFunc("PATCH /api/machines/{machine}", s.renameServer)
+	addFunc("DELETE /api/machines/{machine}", s.removeServer)
 	addFunc("GET /api/machines/{machine}/sessions", s.listSessions)
 	addFunc("POST /api/machines/{machine}/sessions", s.createSession)
 	addFunc("PATCH /api/machines/{machine}/sessions/{name}", s.renameSession)
@@ -214,7 +215,7 @@ func mountRoutes(s *server, mux *http.ServeMux) {
 		addFunc("GET /api/ui-state/{key}", s.getUIState)
 		addFunc("PUT /api/ui-state/{key}", s.putUIState)
 	}
-	if cfg.FileSystem != nil {
+	if cfg.FileSystem != nil || cfg.Registry != nil {
 		addFunc("GET /api/machines/{machine}/fs/home", s.fsHome)
 		addFunc("GET /api/machines/{machine}/fs", s.fsList)
 		addFunc("GET /api/machines/{machine}/fs/stat", s.fsStat)
@@ -316,8 +317,6 @@ func (s *server) health(w http.ResponseWriter, r *http.Request) {
 
 type server struct {
 	cfg           Config
-	machines      map[string]Snapshotter
-	order         []string
 	eventMu       sync.Mutex
 	eventUsers    map[string]int
 	routePatterns []string

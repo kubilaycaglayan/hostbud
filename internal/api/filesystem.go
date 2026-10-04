@@ -23,22 +23,28 @@ type FileBrowser interface {
 
 const maxFSPathQuery = fsbrowse.MaxPathBytes
 
-func (s *server) fsMachine(w http.ResponseWriter, r *http.Request) bool {
+// fsMachine returns the requested machine's file browser, or writes 404.
+func (s *server) fsMachine(w http.ResponseWriter, r *http.Request) (FileBrowser, bool) {
 	if _, ok := s.machine(w, r); !ok {
-		return false
+		return nil, false
 	}
-	return true
+	fs, ok := s.fileSystem(r.PathValue("machine"))
+	if !ok {
+		writeError(w, http.StatusNotFound, "unknown machine", "")
+	}
+	return fs, ok
 }
 
 func (s *server) fsHome(w http.ResponseWriter, r *http.Request) {
-	if !s.fsMachine(w, r) {
+	fs, ok := s.fsMachine(w, r)
+	if !ok {
 		return
 	}
 	if !onlyFSQueryKeys(r, nil) {
 		writeError(w, http.StatusBadRequest, "unexpected query parameter", "This endpoint does not take query parameters.")
 		return
 	}
-	home, err := s.cfg.FileSystem.Home(r.Context())
+	home, err := fs.Home(r.Context())
 	if err != nil {
 		s.writeFilesystemError(w, err)
 		return
@@ -75,7 +81,8 @@ func onlyFSQueryKeys(r *http.Request, allowed []string) bool {
 }
 
 func (s *server) fsList(w http.ResponseWriter, r *http.Request) {
-	if !s.fsMachine(w, r) {
+	fs, ok := s.fsMachine(w, r)
+	if !ok {
 		return
 	}
 	if !onlyFSQueryKeys(r, []string{"path", "hidden"}) {
@@ -104,12 +111,12 @@ func (s *server) fsList(w http.ResponseWriter, r *http.Request) {
 	var entries []fsbrowse.Entry
 	var truncated bool
 	var err error
-	if paged, ok := s.cfg.FileSystem.(interface {
+	if paged, ok := fs.(interface {
 		ListPage(context.Context, string, bool) (string, []fsbrowse.Entry, bool, error)
 	}); ok {
 		full, entries, truncated, err = paged.ListPage(r.Context(), path, hidden)
 	} else {
-		full, entries, err = s.cfg.FileSystem.List(r.Context(), path, hidden)
+		full, entries, err = fs.List(r.Context(), path, hidden)
 	}
 	if err != nil {
 		s.writeFilesystemError(w, err)
@@ -119,7 +126,8 @@ func (s *server) fsList(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) fsStat(w http.ResponseWriter, r *http.Request) {
-	if !s.fsMachine(w, r) {
+	fs, ok := s.fsMachine(w, r)
+	if !ok {
 		return
 	}
 	if !onlyFSQueryKeys(r, []string{"path"}) {
@@ -131,7 +139,7 @@ func (s *server) fsStat(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid path", "Provide one target path no longer than 4096 bytes.")
 		return
 	}
-	result, err := s.cfg.FileSystem.Stat(r.Context(), path)
+	result, err := fs.Stat(r.Context(), path)
 	if err != nil {
 		s.writeFilesystemError(w, err)
 		return
@@ -145,7 +153,8 @@ type mkdirRequest struct {
 }
 
 func (s *server) fsMkdir(w http.ResponseWriter, r *http.Request) {
-	if !s.fsMachine(w, r) {
+	fs, ok := s.fsMachine(w, r)
+	if !ok {
 		return
 	}
 	if !onlyFSQueryKeys(r, nil) {
@@ -160,7 +169,7 @@ func (s *server) fsMkdir(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid path or directory name", "Provide a selected directory and one child name.")
 		return
 	}
-	full, err := s.cfg.FileSystem.Mkdir(r.Context(), req.Path, req.Name)
+	full, err := fs.Mkdir(r.Context(), req.Path, req.Name)
 	if err != nil {
 		s.writeFilesystemError(w, err)
 		return
@@ -169,7 +178,8 @@ func (s *server) fsMkdir(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) fsUpload(w http.ResponseWriter, r *http.Request) {
-	if _, ok := s.machine(w, r); !ok {
+	fs, ok := s.fsMachine(w, r)
+	if !ok {
 		return
 	}
 	if !onlyFSQueryKeys(r, []string{"directory", "name"}) {
@@ -186,7 +196,7 @@ func (s *server) fsUpload(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusRequestEntityTooLarge, "photo exceeds the 100 MiB upload limit", "Choose a smaller original photo.")
 		return
 	}
-	full, err := s.cfg.FileSystem.Upload(r.Context(), directory, name, r.Body, r.ContentLength)
+	full, err := fs.Upload(r.Context(), directory, name, r.Body, r.ContentLength)
 	if err != nil {
 		s.writeFilesystemError(w, err)
 		return

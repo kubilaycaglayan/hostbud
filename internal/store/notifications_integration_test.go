@@ -100,6 +100,7 @@ func TestIntegrationNotificationsMigrationKeepsV2M2Data(t *testing.T) {
 	for _, table := range []string{"machines", "users", "email_allowlist", "auth_sessions", "ui_state", "projects", "machine_capacity", "queues", "queue_items", "runs", "run_events"} {
 		tables[table] = "*"
 	}
+	tables["machines"] = v1MachineCols
 	tables["queues"] = v2m5QueueCols
 	tables["machine_capacity"] = v2m2CapacityCols
 	tables["queue_items"] = v2m1ItemCols

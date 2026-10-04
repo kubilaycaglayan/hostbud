@@ -82,7 +82,7 @@ func (s *server) createProjectSession(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) projectMachine(w http.ResponseWriter, id string) bool {
-	if _, ok := s.machines[id]; !ok {
+	if _, ok := s.lookupMachine(id); !ok {
 		writeError(w, http.StatusNotFound, "unknown machine", "")
 		return false
 	}
@@ -99,10 +99,11 @@ func (s *server) listProjects(w http.ResponseWriter, r *http.Request) {
 	}
 	machineID := q.Get("machine")
 	if machineID == "" {
-		if _, ok := s.machines[store.HostMachineID]; ok {
+		if _, ok := s.lookupMachine(store.HostMachineID); ok {
 			machineID = store.HostMachineID
-		} else if len(s.order) > 0 {
-			machineID = s.order[0]
+		} else if list := s.machineList(); len(list) > 0 {
+			first, _ := list[0].Snapshot()
+			machineID = first.ID
 		} else {
 			writeError(w, http.StatusNotFound, "unknown machine", "")
 			return

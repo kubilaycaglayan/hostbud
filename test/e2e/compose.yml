@@ -28,6 +28,16 @@ services:
       - keys:/keys:ro
       - hostpub:/keys/hostpub
 
+  # V2-M13: a second server with its own tmux, added through Add server.
+  hostbud-e2e-target2:
+    image: hostbud-e2e-target:local  # built by hostbud-e2e-keygen
+    pull_policy: never
+    container_name: hostbud-e2e-target2
+    depends_on:
+      hostbud-e2e-keygen: { condition: service_completed_successfully }
+    volumes:
+      - keys:/keys:ro
+
   # Same, without tmux ("tmux missing" scenario).
   hostbud-e2e-target-notmux:
     build: { context: ../sshd, args: { WITH_TMUX: "0" } }
@@ -112,6 +122,7 @@ services:
       options: { max-size: "10m", max-file: "5" }
     depends_on:
       hostbud-e2e-target: { condition: service_healthy }
+      hostbud-e2e-target2: { condition: service_healthy }
       hostbud-e2e-agent: { condition: service_healthy }
       hostbud-e2e-postgres: { condition: service_healthy }
       hostbud-e2e-pushfake: { condition: service_healthy }

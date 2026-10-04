@@ -503,8 +503,7 @@ func TestEmptySessionListWithProjectPlacementIsArray(t *testing.T) {
 	e := newEnv(t)
 	e.m.sessions = nil
 	s := &server{
-		cfg:      Config{Projects: placementResolverFake{}, Log: slog.New(slog.DiscardHandler)},
-		machines: map[string]Snapshotter{"host": e.m},
+		cfg: Config{Projects: placementResolverFake{}, Log: slog.New(slog.DiscardHandler), Machines: []Snapshotter{e.m}},
 	}
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/machines/host/sessions", nil)
 	req.SetPathValue("machine", "host")
@@ -1099,7 +1098,7 @@ func TestInfoLogsHoldNoPathOrCommand(t *testing.T) {
 	var buf bytes.Buffer
 	log := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	m := host()
-	svc := session.New(nopExec{}, map[string]session.Tracker{"host": m}, log)
+	svc := session.New(nopExec{}, session.Trackers{"host": m}, log)
 	h := New(Config{Log: log, Dist: fstest.MapFS{}, Origins: AllowedOrigins("", 9055),
 		Bus: events.NewBus(), Machines: []Snapshotter{m}, Sessions: svc, Auth: &fakeAuth{}})
 

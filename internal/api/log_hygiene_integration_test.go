@@ -90,7 +90,7 @@ func TestIntegrationInfoLogsOmitCanariesAcrossAccountAndHostCycle(t *testing.T) 
 		t.Fatal(err)
 	}
 	projectService := projects.New(repository, bus, logger)
-	sessions := session.New(c, map[string]session.Tracker{sshx.HostMachineID: inv}, logger, projectService)
+	sessions := session.New(c, session.Trackers{sshx.HostMachineID: inv}, logger, projectService)
 	projectService.SetSessionCreator(sessions)
 	filesystem := fsbrowse.New(c, sshx.HostMachineID, time.Minute, 5*time.Second)
 	defer func() { _ = filesystem.Close() }()

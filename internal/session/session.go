@@ -85,11 +85,26 @@ type Tracker interface {
 	Refresh(ctx context.Context) error
 }
 
+// TrackerSource looks up a machine's tracker (machines.Registry, or a fixed
+// Trackers map).
+type TrackerSource interface {
+	Tracker(machine string) (Tracker, bool)
+}
+
+// Trackers is a fixed set of machines.
+type Trackers map[string]Tracker
+
+// Tracker returns the machine's tracker.
+func (t Trackers) Tracker(machine string) (Tracker, bool) {
+	tr, ok := t[machine]
+	return tr, ok
+}
+
 // Service creates, renames and kills sessions. The API must have the user's
 // confirmation before calling Kill.
 type Service struct {
 	exec     inventory.Executor
-	machines map[string]Tracker
+	machines TrackerSource
 	log      *slog.Logger
 	hooks    LifecycleHooks
 }
@@ -102,8 +117,8 @@ type LifecycleHooks interface {
 	EndSessionLink(context.Context, string, string) error
 }
 
-// New returns a Service for the given machines (v1: just the host).
-func New(exec inventory.Executor, machines map[string]Tracker, log *slog.Logger, hooks ...LifecycleHooks) *Service {
+// New returns a Service for the given machines.
+func New(exec inventory.Executor, machines TrackerSource, log *slog.Logger, hooks ...LifecycleHooks) *Service {
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
@@ -117,7 +132,7 @@ func New(exec inventory.Executor, machines map[string]Tracker, log *slog.Logger,
 // ready returns the machine's tracker and state, or an error if the machine
 // can't take commands right now.
 func (s *Service) ready(machine string) (Tracker, inventory.Machine, []tmux.Session, error) {
-	t, ok := s.machines[machine]
+	t, ok := s.machines.Tracker(machine)
 	if !ok {
 		return nil, inventory.Machine{}, nil, errorf(CodeUnknownMachine, "", "unknown machine %q", machine)
 	}
@@ -219,7 +234,7 @@ func (s *Service) SendCommand(ctx context.Context, machine, name, command string
 	if strings.TrimSpace(command) == "" || len(command) > 16<<10 || strings.ContainsAny(command, "\x00\n\r") {
 		return errorf(CodeInvalid, "Use one command line (up to 16 KiB).", "invalid session command")
 	}
-	t, ok := s.machines[machine]
+	t, ok := s.machines.Tracker(machine)
 	if !ok {
 		return errorf(CodeUnknownMachine, "", "unknown machine")
 	}

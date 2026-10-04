@@ -16,7 +16,19 @@ import (
 	"github.com/pressly/goose/v3"
 )
 
+// v1MachineCols are the machines columns before V2-M13 added a server's
+// connection; later migrations may add columns, never change these.
+const v1MachineCols = "id, source, ssh_alias, label, active, sort_order, hidden, os, home, tmux_version, tmux_missing, last_seen_at, created_at, updated_at"
+
 var v1Tables = []string{"machines", "ui_state", "users", "email_allowlist", "auth_sessions", "login_rate_limits", "projects", "session_links", "recent_commands"}
+
+// checksumCols is the stable column list compared for table.
+func checksumCols(table string) string {
+	if table == "machines" {
+		return v1MachineCols
+	}
+	return "*"
+}
 
 // tableChecksums returns each table's row count and an md5 over its rows in
 // a stable order.
@@ -27,7 +39,7 @@ func tableChecksums(t *testing.T, db *sql.DB, tables []string) map[string]string
 		var n int
 		var sum sql.NullString
 		if err := db.QueryRowContext(context.Background(),
-			`SELECT count(*), md5(string_agg(x::text, E'\n' ORDER BY x::text)) FROM `+table+` x`).Scan(&n, &sum); err != nil {
+			`SELECT count(*), md5(string_agg(x::text, E'\n' ORDER BY x::text)) FROM (SELECT `+checksumCols(table)+` FROM `+table+`) x`).Scan(&n, &sum); err != nil {
 			t.Fatalf("checksum %s: %v", table, err)
 		}
 		out[table] = sum.String
@@ -392,7 +404,7 @@ func TestIntegrationParallelQueuesMigrationKeepsV2M1Data(t *testing.T) {
 		}
 	}
 	tables := map[string]string{
-		"machines":    "*",
+		"machines":    v1MachineCols,
 		"projects":    "*",
 		"queues":      "id, machine_id, project_id, name, status, created_at, updated_at",
 		"queue_items": v2m1ItemCols,

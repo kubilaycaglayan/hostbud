@@ -76,7 +76,7 @@ func TestIntegrationProjectSessionPlacementRenameEndAndRecreate(t *testing.T) {
 
 	repo := projectTestStore(t)
 	projectService := projects.New(repo, bus, nil)
-	sessions := session.New(client, map[string]session.Tracker{sshx.HostMachineID: inv}, nil, projectService)
+	sessions := session.New(client, session.Trackers{sshx.HostMachineID: inv}, nil, projectService)
 	projectService.SetSessionCreator(sessions)
 	runCtx, stopProjects := context.WithCancel(ctx)
 	runDone := make(chan struct{})
