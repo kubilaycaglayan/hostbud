@@ -116,9 +116,11 @@ test('(M8 T36) Installed PWA reports extra landscape rows below the viewport', a
   }).toBeGreaterThan(520)
   const rows = await page.evaluate(() => window.__hostbud!.termSize().rows)
   expect(rows).toBeGreaterThanOrEqual(27)
+  await expect.poll(async () => Number(await target.display(session, '#{pane_height}'))).toBeGreaterThanOrEqual(27)
+  const tmuxRows = Number(await target.display(session, '#{pane_height}'))
   // Simulate a TUI that anchors its composer to the final terminal row. The
   // row is reported to the app but should be physically below the phone edge.
-  await target.tmux('send-keys', '-t', session, `printf '\\033[${rows};1HCOMPOSER_MARKER'`, 'Enter')
+  await target.tmux('send-keys', '-t', session, `printf '\\033[${tmuxRows};1HCOMPOSER_MARKER'`, 'Enter')
   await expect.poll(() => page.evaluate(() => window.__hostbud!.termTextRect('COMPOSER_MARKER'))).not.toBeNull()
   await expect.poll(async () => page.evaluate(() => window.__hostbud!.termTextRect('COMPOSER_MARKER')?.y ?? 0)).toBeGreaterThanOrEqual(390)
   await expect.poll(async () => {
