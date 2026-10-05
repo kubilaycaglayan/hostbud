@@ -54,6 +54,7 @@ describe('SessionTree with servers', () => {
     expect(remote.find('[data-tree-key="session:s-abc/work"] [data-machine-chip]').exists()).toBe(false)
     const loose = w.get('[data-tree-key="session:s-abc/loose"]')
     expect(loose.get('[data-machine-chip]').text()).toBe('Build box')
+    expect(loose.get('[data-machine-chip]').classes()).toEqual(expect.arrayContaining(['bg-danger', 'font-black', 'text-bg']))
     expect(loose.attributes('aria-label')).toContain('on Build box')
     w.unmount()
   })

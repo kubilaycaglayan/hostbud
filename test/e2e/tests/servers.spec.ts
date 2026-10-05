@@ -44,13 +44,19 @@ test('(V2-M13 T4) A project on another server shows its nickname chip and opens 
   const project = await mutate(request, 'POST', '/api/projects', { machineId: added.id, path: dir, name })
   expect(project.status(), await project.text()).toBe(201)
   const session = uniqueName('e2e-srv-sess')
-  await server.tmux('new-session', '-d', '-s', session, '-c', dir)
+  const looseSession = uniqueName('e2e-srv-loose')
   try {
+    await server.tmux('new-session', '-d', '-s', session, '-c', dir)
+    await server.tmux('new-session', '-d', '-s', looseSession, '-c', '/tmp')
     await ui.open()
     const row = ui.treeItem(`${name}, on E2E second`)
     await expect(row).toBeVisible({ timeout: 20_000 })
     await expect(row.locator('[data-machine-chip]').first()).toHaveText('E2E second')
     await expect(row.getByRole('treeitem', { name: session, exact: true })).toBeVisible()
+    const looseRow = ui.treeItem(`${looseSession}, on E2E second`)
+    const looseChip = looseRow.locator('[data-machine-chip]')
+    await expect(looseChip).toHaveText('E2E second')
+    await expect(looseChip).toHaveCSS('font-weight', '900')
 
     // The terminal attaches to the server's tmux, not the host's.
     await row.getByRole('button', { name: session, exact: true }).click()
@@ -63,6 +69,7 @@ test('(V2-M13 T4) A project on another server shows its nickname chip and opens 
     await expect.poll(async () => server.capture(session), { timeout: 15_000 }).toContain(marker)
   } finally {
     await server.tmux('kill-session', '-t', `=${session}`).catch(() => {})
+    await server.tmux('kill-session', '-t', `=${looseSession}`).catch(() => {})
   }
 })
 

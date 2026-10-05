@@ -286,7 +286,7 @@ const sortableSessions = computed({
       <span
         v-if="chip(s)"
         data-machine-chip
-        class="shrink-0 truncate rounded-full border border-border px-1.5 text-[10px] leading-4 text-muted"
+        class="shrink-0 truncate rounded-full border-2 border-danger bg-danger px-2.5 font-sans text-xs font-black leading-4 text-bg"
         :title="'On ' + chip(s)"
       >{{ chip(s) }}</span>
       <div data-session-actions class="flex shrink-0 items-center">
