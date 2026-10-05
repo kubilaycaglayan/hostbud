@@ -675,7 +675,7 @@ defineExpose({ refit, reconnect, showKeyboard })
       <h2 data-terminal-session-name class="min-w-0 max-w-[45%] truncate text-base font-bold tracking-tight">
         {{ props.session }}
       </h2>
-      <span v-if="machineChip" data-terminal-machine-chip class="shrink-0 truncate rounded-full border border-danger/60 bg-danger/10 px-1.5 text-[10px] leading-4 text-danger" :title="'On ' + machineChip">{{ machineChip }}</span>
+      <span v-if="machineChip" data-terminal-machine-chip class="shrink-0 truncate rounded-full border border-danger bg-danger/15 px-1.5 text-[10px] font-bold leading-4 text-danger" :title="'On ' + machineChip">{{ machineChip }}</span>
       <span v-if="agentUsage" data-agent-usage :title="tokenDetail" :aria-label="tokenDetail" class="shrink-0 whitespace-nowrap text-center text-xs tabular-nums">
         {{ tokenNumber.format(agentUsage.contextTokens) }} ctx · {{ tokenNumber.format(agentUsage.totalTokens) }} used
       </span>
