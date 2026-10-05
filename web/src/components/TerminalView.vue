@@ -38,7 +38,6 @@ import { useThemeStore } from '@/stores/theme'
 import { shouldInterceptGlobalShortcut, shortcutPlatform } from '@/lib/shortcuts'
 import { attachTouchScroll } from '@/lib/touchScroll'
 import { isIOS, isStandalone } from '@/lib/notificationDevice'
-import { useMediaQuery } from '@/lib/media'
 
 const props = withDefaults(
   defineProps<{
@@ -71,7 +70,6 @@ const emit = defineEmits<{
   cyclePane: []
 }>()
 const standalonePwa = isStandalone()
-const landscape = useMediaQuery('(orientation: landscape)')
 const repeatIOSBackspace = standalonePwa && isIOS({ userAgent: navigator.userAgent, platform: navigator.platform, maxTouchPoints: navigator.maxTouchPoints })
 const takesInput = () => props.active && props.focused
 
@@ -762,7 +760,6 @@ defineExpose({ refit, reconnect, showKeyboard })
       :term="term"
       :modifiers="modifiers"
       :focused="takesInput()"
-      :force-visible="standalonePwa && landscape && props.active"
       :busy="busy"
       @scroll="enterScrollMode"
     />

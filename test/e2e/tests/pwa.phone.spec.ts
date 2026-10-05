@@ -20,6 +20,37 @@ test('(T33) Installed PWA keeps the in-app terminal shortcut buttons', async ({ 
   await expect(page.getByRole('button', { name: 'Slash' })).toBeVisible()
 })
 
+test('(M8 T35) Installed PWA landscape shows only the tmux terminal', async ({ page, ui, target }, testInfo) => {
+  await page.addInitScript(() => {
+    const nativeMatchMedia = window.matchMedia.bind(window)
+    window.matchMedia = (query: string) => query === '(display-mode: standalone)'
+      ? ({ matches: true, media: query, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent() { return false } } as MediaQueryList)
+      : nativeMatchMedia(query)
+  })
+  await target.resetTmux()
+  const session = uniqueName('pwa-landscape')
+  await target.tmux('new-session', '-d', '-s', session, '-c', '/home/dev')
+  await target.tmux('send-keys', '-t', session, 'echo LANDSCAPE-TMUX-CONTENT', 'Enter')
+  await ui.open()
+  await ui.openTerminal(session)
+  await page.setViewportSize({ width: 844, height: 390 })
+
+  const terminal = page.getByRole('region', { name: `Terminal: ${session}` })
+  await expect(page.locator('.pwa-landscape-terminal')).toBeVisible()
+  await expect(page.locator('header')).toBeHidden()
+  await expect(page.locator('[data-terminal-header]')).toBeHidden()
+  await expect(page.getByTestId('key-bar')).toBeHidden()
+  await expect(page.getByRole('button')).toHaveCount(0)
+  await expect(terminal).toBeVisible()
+  await expect.poll(() => target.capture(session)).toContain('LANDSCAPE-TMUX-CONTENT')
+  await expect(page.locator('.xterm-helper-textarea')).not.toBeFocused()
+  await expect.poll(async () => {
+    const box = await terminal.boundingBox()
+    return box ? { top: Math.round(box.y), height: Math.round(box.height) } : null
+  }).toEqual({ top: 0, height: 390 })
+  await page.screenshot({ path: testInfo.outputPath('landscape-terminal.png') })
+})
+
 test('(M8 T34) Installed iPhone PWA repeats Backspace while it is held', async ({ page, ui, target }) => {
   await page.addInitScript(() => {
     const nativeMatchMedia = window.matchMedia.bind(window)

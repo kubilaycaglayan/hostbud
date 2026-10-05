@@ -197,6 +197,32 @@ describe('App shell', () => {
     wrapper.unmount()
   })
 
+  it('uses the chrome-free terminal layout only for an installed PWA with an open terminal in landscape', async () => {
+    const listeners = new Map<string, () => void>()
+    let landscape = false
+    vi.stubGlobal('matchMedia', vi.fn((media: string) => ({
+      media,
+      get matches() {
+        return media === '(display-mode: standalone)' || (media === '(orientation: landscape)' && landscape)
+      },
+      addEventListener: (_: string, cb: () => void) => listeners.set(media, cb),
+      removeEventListener: vi.fn(),
+    })))
+    signedIn()
+    const wrapper = mount(App, { global: { stubs: { TabView: true } } })
+    await flushPromises()
+    useLayoutStore().open('host', 'dev')
+    await nextTick()
+    expect(wrapper.find('.pwa-landscape-terminal').exists()).toBe(false)
+
+    landscape = true
+    listeners.get('(orientation: landscape)')?.()
+    await nextTick()
+    expect(wrapper.find('.pwa-landscape-terminal').exists()).toBe(true)
+    expect(wrapper.get('.pwa-landscape-terminal').classes()).toContain('flex-col')
+    wrapper.unmount()
+  })
+
   it.each([
     ['the installed PWA', '(display-mode: standalone)'],
     ['a phone', '(max-width: 47.99rem), (pointer: coarse) and (max-height: 31.99rem)'],
