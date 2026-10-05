@@ -36,7 +36,7 @@ test('(T1) Header actions and compact controls', async ({ page, ui, isMobile }) 
 
   // Compact visuals: the bordered box is the icon plus ~4 px padding; touch
   // screens still get a 44 px target, desktop a small one.
-  for (const button of [create, browse, banner.locator('button[aria-controls="sessions-sidebar"]')]) {
+  for (const button of [create, browse, banner.locator('button[aria-controls="sessions-sidebar"]'), banner.locator('summary[aria-label="Account"]')]) {
     if (!(await button.isVisible())) continue
     const visual = await box(button.locator('[data-icon-box]'))
     expect(visual.width).toBeLessThanOrEqual(30)

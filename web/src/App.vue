@@ -776,7 +776,7 @@ onUnmounted(() => {
     class="flex h-full flex-col"
   >
     <HostBanner :machine="host" />
-    <header class="flex min-h-12 flex-wrap items-center gap-1 border-b border-border bg-surface px-2 sm:flex-nowrap sm:px-3">
+    <header class="flex min-h-12 items-center border-b border-border bg-surface sm:px-3" :class="installedApp ? 'flex-nowrap gap-0 px-1' : 'flex-wrap gap-1 px-2'">
       <IconButton
         v-if="!compact || hasTabs"
         :label="sidebarExpanded ? 'Hide sidebar' : 'Show sidebar'"
@@ -820,7 +820,8 @@ onUnmounted(() => {
       <div class="ml-auto min-w-0 text-sm text-muted">
         <details ref="accountMenu" class="relative" :open="accountOpen" @toggle="accountOpen = ($event.target as HTMLDetailsElement).open" @keydown.escape="accountOpen = false">
           <!-- WebKit and the accessibility tree don't expose <summary> as a button everywhere. -->
-          <summary role="button" aria-label="Account" :aria-expanded="accountOpen" class="flex min-h-11 cursor-pointer list-none items-center justify-center gap-1.5 rounded border border-border px-2 sm:px-3"><UserRound class="size-4 shrink-0" aria-hidden="true" /><span class="hidden sm:inline">Account</span></summary>
+          <!-- Same compact box and touch target as the IconButton actions. -->
+          <summary role="button" aria-label="Account" title="Account" :aria-expanded="accountOpen" class="touch-target group flex cursor-pointer list-none items-center justify-center rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"><span data-icon-box class="inline-flex items-center justify-center rounded border border-border p-1 group-hover:bg-tree-header"><UserRound :size="18" aria-hidden="true" /></span></summary>
           <div class="absolute right-0 top-full z-30 mt-1 w-56 rounded border border-border bg-surface p-2 shadow-lg">
             <p class="truncate px-2 py-2" data-testid="account-email">{{ auth.email }}</p>
             <fieldset class="px-2 py-1" aria-label="Theme">
