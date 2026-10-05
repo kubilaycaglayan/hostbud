@@ -662,6 +662,19 @@ watch([installedApp, landscape], ([isInstalledApp, isLandscape]) => {
   if (!isInstalledApp || !isLandscape) return
   focusInitialTerminal.value = false
   pwaKeyboardOpen.value = false
+  drawerOpen.value = false
+  accountOpen.value = false
+  creating.value = false
+  browsing.value = false
+  queueOpen.value = false
+  settingsOpen.value = false
+  serversOpen.value = false
+  sessionProject.value = null
+  killing.value = false
+  removingProject.value = null
+  killingProject.value = null
+  shortcutsOpen.value = false
+  paletteOpen.value = false
   window.dispatchEvent(new CustomEvent('hostbud:toggle-keyboard', { detail: { open: false } }))
 }, { immediate: true })
 const focusAvailable = computed(() => !compact.value && !coarsePointer.value && !installedApp.value)
@@ -969,5 +982,5 @@ onUnmounted(() => {
       <span class="text-2xl font-medium tracking-[0.3em]">focus</span>
     </button>
   </div>
-  <ToastRegion />
+  <ToastRegion v-if="!(installedApp && landscape && hasTabs)" />
 </template>

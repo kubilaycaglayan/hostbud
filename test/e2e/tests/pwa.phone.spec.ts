@@ -45,6 +45,7 @@ test('(M8 T35) Installed PWA landscape shows only the tmux terminal', async ({ p
   await ui.open()
 
   const terminal = page.getByRole('region', { name: `Terminal: ${session}` })
+  await expect(terminal).toBeVisible()
   const expectLandscape = async () => {
     await expect(page.locator('.pwa-landscape-terminal')).toBeVisible()
     await expect(page.locator('header')).toBeHidden()
@@ -67,8 +68,21 @@ test('(M8 T35) Installed PWA landscape shows only the tmux terminal', async ({ p
   await expect(page.locator('.pwa-landscape-terminal')).toHaveCount(0)
   await expect(page.locator('header')).toBeVisible()
   await expect(page.getByTestId('key-bar')).toBeVisible()
+
+  // Rotating while the native keyboard is open dismisses it and leaves the
+  // terminal as the only visible view.
+  await page.getByRole('button', { name: 'Show keyboard' }).click()
+  await expect(page.locator('.xterm-helper-textarea')).toBeFocused()
   await page.setViewportSize({ width: 844, height: 390 })
   await expectLandscape()
+
+  // A dialog opened in portrait also closes when entering the fullscreen view.
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.getByRole('button', { name: 'New session' }).first().click()
+  await expect(page.getByRole('dialog')).toBeVisible()
+  await page.setViewportSize({ width: 844, height: 390 })
+  await expectLandscape()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
 
   // Reload while landscape with a saved terminal layout. It remains fullscreen
   // and does not focus xterm to reopen the native keyboard.
