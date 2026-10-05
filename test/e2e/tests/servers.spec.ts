@@ -35,7 +35,7 @@ test('(V2-M13 T3) Add a server from the header and remove it', async ({ page, ui
   await expect(row).toHaveCount(0)
 })
 
-test('(V2-M13 T4) A project on another server shows its nickname chip and opens its session', async ({ request, ui }) => {
+test('(V2-M13 T4) A project on another server shows its nickname chip and opens its session', async ({ page, request, ui }) => {
   const added = await addServer(request, 'E2E second')
   await waitForStatus(request, added.id, 'ok')
   const name = uniqueName('e2e-srv-proj')

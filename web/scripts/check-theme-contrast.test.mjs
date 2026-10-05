@@ -20,6 +20,11 @@ function contrast(a, b) {
 }
 
 describe('UI theme token contrast', () => {
+  it('keeps section yellow title text readable', () => {
+    const root = css.slice(css.indexOf(':root {'), css.indexOf('}', css.indexOf(':root {')))
+    assert.ok(contrast(token(root, 'section-fg'), token(root, 'section-yellow')) >= 4.5, 'section title foreground/yellow background')
+  })
+
   it('meets text and control contrast on both surfaces', () => {
     for (const selector of [':root {', ":root[data-theme='light'] {", ":root[data-theme='solarized'] {", ":root[data-theme='dimmed'] {"]) {
       const start = css.indexOf(selector)

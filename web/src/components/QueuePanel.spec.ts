@@ -67,6 +67,7 @@ describe('QueuePanel', () => {
   it('shows each item with its status, reason and session, and only the allowed buttons', async () => {
     await mountPanel(queue([attention, queued]))
     const text = document.body.textContent ?? ''
+    expect($$('[data-queue-item]').every((item) => item.classList.contains('queue-separator-highlight'))).toBe(true)
     expect(text).toContain('Needs attention · no signal (stale)')
     expect(text).toContain('no signal from the agent for 2h0m0s')
     expect(text).toContain('app-q1')
@@ -102,6 +103,7 @@ describe('QueuePanel', () => {
     button('History')?.click()
     await flushPromises()
     expect(document.body.textContent).toContain('Old queue · app')
+    expect(document.body.querySelector('[data-testid="queue-history"] button[aria-expanded]')?.classList.contains('queue-history-title-row')).toBe(true)
     expect(document.body.textContent).not.toContain('/goal recover release')
     const toggle = document.body.querySelector<HTMLButtonElement>('[data-testid="queue-history"] button[aria-expanded]')
     expect(toggle?.getAttribute('aria-expanded')).toBe('false')

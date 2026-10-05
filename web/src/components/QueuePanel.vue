@@ -624,7 +624,7 @@ const badge: Record<QueueItem['status'], string> = {
                 <h3>
                   <button
                     type="button"
-                    class="touch-target flex min-h-11 w-full min-w-0 items-center gap-2 rounded border border-border px-3 text-left"
+                    class="queue-history-title-row touch-target flex min-h-11 w-full min-w-0 items-center gap-2 rounded border-2 px-3 text-left"
                     :aria-expanded="expandedHistory.has(group.id)"
                     :aria-controls="`queue-history-${group.id}`"
                     @click="toggleHistoryGroup(group.id)"
@@ -893,7 +893,7 @@ const badge: Record<QueueItem['status'], string> = {
                 :data-highlighted="highlighted === item.id ? 'true' : undefined"
                 :aria-label="`Item ${item.position}: ${item.instruction}`"
                 tabindex="0"
-                class="rounded border p-2"
+                class="queue-separator-highlight rounded border p-2"
                 :class="highlighted === item.id ? 'border-accent ring-2 ring-accent' : 'border-border'"
                 @keydown="onRowKey($event, item)"
               >
@@ -1097,3 +1097,19 @@ const badge: Record<QueueItem['status'], string> = {
     @confirm="confirmAction"
   />
 </template>
+
+<style scoped>
+.queue-separator-highlight {
+  background-image: linear-gradient(to bottom, color-mix(in srgb, var(--hb-section-yellow) 50%, transparent) 0 8px, transparent 11px);
+}
+
+.queue-history-title-row {
+  background-color: var(--hb-section-yellow);
+  border-color: var(--hb-section-fg);
+  color: var(--hb-section-fg);
+}
+
+.queue-history-title-row .text-muted {
+  color: var(--hb-section-fg);
+}
+</style>
