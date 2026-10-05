@@ -40,7 +40,7 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 | T31 Session header project and token alignment | Implemented; U written; E written and type-checked, browser run pending on demand |
 | T33 Installed PWA terminal keyboard space | Implemented; U written; E written and type-checked; browser run pending on demand |
 | T35 Chrome-free landscape view in the installed PWA | Implemented; U passes, focused iPhone WebKit scenario passes including keyboard and dialog dismissal; real-device check open |
-| T36 Extra terminal rows for landscape PWA clients | Implemented; U/I n/a, E written and type-checked; browser run pending on demand; Codex device check open |
+| T36 Extra terminal rows for landscape PWA clients | Implemented; U/I n/a; focused E2E passed in both iPhone profiles, confirms extra rows reach tmux and a bottom-row composer falls below the viewport; Codex device check open |
 
 **Progress note (T2–T4, 2026-09-27):** Vitest (447 tests), eslint, `vue-tsc` and the e2e `tsc` passed; deployed to the host from a clean checkout of `f664bb8` (a pre-deploy `pg_dump` is in `backups/`), and the stack came up healthy. Still open for these tasks:
 - **E2E runs:** the scenarios *(T2) Compact tree*, *(T3) Compact file browser* and *(T3) No browser autocomplete outside login password* type-check but haven't run: e2e runs only on demand. The T2 commit also updated two M6 scenarios that expanded single-window sessions (*(T4) Inline rename a session*, *(T3) Window rows follow the real terminal*). T22 replaces the former M8 *(T4) Custom tab order* scenario.
@@ -407,7 +407,8 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 
 **Tests:** U: n/a because the CSS height extension and xterm fit result require browser layout. I: n/a because the existing terminal resize protocol already carries row counts and no server behavior changes. E: T36 checks the browser terminal is taller than the phone viewport and xterm reports the added landscape rows.
 
-**E2E:** Add T36 *Installed PWA reports extra landscape rows below the viewport* to `test/e2e/tests/pwa.phone.spec.ts`; suite type-checks, browser run on demand. **Manual (owner, open):** confirm a real Codex composer is fully below the visible screen and its transcript remains usable in the iPhone PWA.
+**E2E:** T36 *Installed PWA reports extra landscape rows below the viewport* in `test/e2e/tests/pwa.phone.spec.ts` verifies xterm and tmux receive additional rows and a simulated bottom-row composer is clipped below the phone viewport. Focused WebKit E2E passed in both iPhone profiles. **Manual (owner, open):** confirm a real Codex composer is fully below the visible screen and its transcript remains usable in the iPhone PWA.
+
 
 ## Done
 
