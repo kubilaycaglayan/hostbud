@@ -13,6 +13,7 @@ Goal: preserve status transitions and useful queue item metadata as historical d
 | T5 Safe Docker cleanup | Done: skipped because hostbud toolbox containers were active; production services and volumes left untouched |
 | T6 Queue progress in the panel title | Done: web lint and E2E type-check passed; browser run remains on demand |
 | T7 Agent session id on history | Done: store/api integration tests, QueuePanel Vitest, lint and E2E type-check passed; browser run remains on demand |
+| T8 Queue-level history pages and run dates | Done: QueuePanel Vitest; E2E scenario written, browser run remains on demand |
 
 ## Tasks
 
@@ -36,3 +37,6 @@ Show a compact colored segment for each item beside the Queue heading, with an a
 
 ### T7 — Agent session id on history
 Owner request (2026-09-29): attach the coding agent's session id to history so past items can be checked later. Append-only migration 0018 adds `queue_item_history.agent_session_id`, redefines the history trigger to copy the latest bound run's `agent_session_id` (falling back to the last recorded one, so a delete snapshot keeps it) and backfills existing rows. The API returns `agentSessionId`; the History view shows it as selectable text. Snapshots taken before the hook binds (e.g. `running`) have none. Tests: U: store snapshot keeps the id across queue deletion; Vitest renders it; I: migration + trigger against PostgreSQL (store integration). E2E: extend the T2/T3 history scenario to check the API field and the History view.
+
+### T8 — Queue-level history pages and run dates
+Show queue run dates from recorded `running` status events, order queue groups by newest history activity, and paginate 20 queues per page. Load the bounded event API in pages until all queue history is present, so every queue is reachable through pagination. Tests: U: QueuePanel verifies run dates and 20-queue pagination/order. I: n/a (presentation uses the existing history API). E2E: add a browser scenario with 21 queues and verify both pages.

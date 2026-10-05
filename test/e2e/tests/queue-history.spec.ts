@@ -42,3 +42,24 @@ test('(V2-M9 T2/T3) queue history survives deletion, keeps the agent session id,
   await expect(view).not.toContainText('HISTORY_PRIVATE_OUTPUT_SENTINEL')
   expect(JSON.stringify(history)).not.toContain('HISTORY_PRIVATE_OUTPUT_SENTINEL')
 })
+
+test('(V2-M9 T8) queue history paginates all queues newest first, 20 queues per page', async ({ request, target, page, ui }) => {
+  const project = await newProject(request, target, 'e2e-history-pages')
+  const queues = []
+  for (let i = 0; i < 21; i++) {
+    const queue = await createQueue(request, project.id, `History page ${i} ${Date.now()}`)
+    await addItem(request, queue.id, { instruction: `/goal history page ${i}` })
+    queues.push(queue)
+  }
+  await ui.open()
+  await page.getByRole('banner').getByRole('button', { name: 'Queue', exact: true }).click()
+  const panel = page.getByRole('dialog', { name: 'Queue' })
+  await panel.getByRole('button', { name: 'History' }).click()
+  const view = panel.getByTestId('queue-history')
+  await expect(view.getByRole('button', { name: 'Page 1 of 2' })).toHaveCount(0)
+  await expect(view.locator('button[aria-expanded]')).toHaveCount(20)
+  await expect(view.getByText('Page 1 of 2')).toBeVisible()
+  await view.getByRole('button', { name: 'Next' }).click()
+  await expect(view.locator('button[aria-expanded]')).toHaveCount(1)
+  await expect(view.getByText(queues[0].name, { exact: false })).toBeVisible()
+})

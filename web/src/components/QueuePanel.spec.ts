@@ -97,7 +97,7 @@ describe('QueuePanel', () => {
       position: 1, executionMode: 'agent' as const, agent: 'claude' as const, flags: '--safe', instruction: '/goal recover release', command: '',
       status: 'needs_attention' as const, action: 'status' as const, detail: '<script>failed</script>', agentSessionId: 'c0ffee00-1111-2222-3333-444455556666', occurredAt: '2026-09-29T10:00:00Z',
     }
-    const calls = stubFetch((_method, path) => path === '/api/queue-history?limit=100&offset=0' ? { status: 200, body: { items: [historyEntry] } } : { status: 200, body: { queues: [], parallelQueues: false } })
+    const calls = stubFetch((_method, path) => path.startsWith('/api/queue-history?') ? { status: 200, body: { items: path.endsWith('offset=0') ? [historyEntry] : [] } } : { status: 200, body: { queues: [], parallelQueues: false } })
     await mountPanel(null)
     button('History')?.click()
     await flushPromises()
@@ -113,7 +113,29 @@ describe('QueuePanel', () => {
     expect(document.body.textContent).toContain('<script>failed</script>')
     expect(document.body.textContent).toContain('Claude session: c0ffee00-1111-2222-3333-444455556666')
     expect(document.body.querySelector('[data-testid="queue-history"] script')).toBeNull()
-    expect(calls.map((call) => call.path)).toContain('/api/queue-history?limit=100&offset=0')
+    expect(calls.map((call) => call.path)).toContain('/api/queue-history?limit=200&offset=0')
+  })
+
+  it('shows queue run dates and paginates every queue newest first in groups of 20', async () => {
+    const entries = Array.from({ length: 21 }, (_, i) => ({
+      id: i + 1, machineId: 'host', queueId: `q${i}`, queueName: `Queue ${i}`, projectName: 'app', itemId: `i${i}`,
+      position: 1, executionMode: 'agent' as const, agent: 'claude' as const, flags: '', instruction: '', command: '',
+      status: 'running' as const, action: 'status' as const, occurredAt: new Date(Date.UTC(2026, 0, i + 1)).toISOString(),
+    }))
+    stubFetch((_method, path) => path.startsWith('/api/queue-history?') ? { status: 200, body: { items: path.endsWith('offset=0') ? entries : [] } } : { status: 200, body: { queues: [], parallelQueues: false } })
+    await mountPanel(null)
+    button('History')?.click()
+    await flushPromises()
+    const view = document.querySelector('[data-testid="queue-history"]')!
+    expect(view.querySelectorAll('button[aria-expanded]')).toHaveLength(20)
+    expect(view.textContent).toContain('Run:')
+    expect(view.textContent).toContain('Page 1 of 2')
+    expect(view.querySelector('button[aria-label="Previous"]')).toBeNull()
+    $$('button').find((b) => b.textContent?.trim() === 'Next')?.click()
+    await nextTick()
+    expect(view.querySelectorAll('button[aria-expanded]')).toHaveLength(1)
+    expect(view.textContent).toContain('Page 2 of 2')
+    expect(view.textContent).toContain('Queue 0')
   })
 
   it('shows supervisor flags as text and explains completed as advisory', async () => {

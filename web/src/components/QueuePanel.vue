@@ -4,7 +4,7 @@ import {
   DialogClose, DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle,
 } from 'reka-ui'
 import { VueDraggable } from 'vue-draggable-plus'
-import { ArrowDown, ArrowUp, Check, ChevronsDown, CircleCheck, GripVertical, History, ListOrdered, ListX, Pause, Pencil, Play, Plus, PowerOff, RotateCcw, RotateCw, Save, ShieldCheck, SkipForward, SquareTerminal, ThumbsDown, Timer, ThumbsUp, Trash2, TriangleAlert, X } from 'lucide-vue-next'
+import { ArrowDown, ArrowUp, Check, CircleCheck, GripVertical, History, ListOrdered, ListX, Pause, Pencil, Play, Plus, PowerOff, RotateCcw, RotateCw, Save, ShieldCheck, SkipForward, SquareTerminal, ThumbsDown, Timer, ThumbsUp, Trash2, TriangleAlert, X } from 'lucide-vue-next'
 import { ApiError, filesystemApi, queuesApi } from '@/api/client'
 import type { QueueItem, QueueItemHistory } from '@/api/types'
 import ConfirmDialog from './ConfirmDialog.vue'
@@ -116,14 +116,19 @@ const busy = ref(false)
 const historyOpen = ref(false)
 const history = ref<QueueItemHistory[]>([])
 const historyGroups = computed(() => {
-  const groups = new Map<string, { id: string; name: string; project: string; entries: QueueItemHistory[] }>()
+  const groups = new Map<string, { id: string; name: string; project: string; entries: QueueItemHistory[]; latestAt: string; runDates: string[] }>()
   for (const entry of history.value) {
-    const group = groups.get(entry.queueId) ?? { id: entry.queueId, name: entry.queueName, project: entry.projectName, entries: [] }
+    const group = groups.get(entry.queueId) ?? { id: entry.queueId, name: entry.queueName, project: entry.projectName, entries: [], latestAt: entry.occurredAt, runDates: [] }
     group.entries.push(entry)
+    if (Date.parse(entry.occurredAt) > Date.parse(group.latestAt)) group.latestAt = entry.occurredAt
+    if (entry.action === 'status' && entry.status === 'running' && !group.runDates.includes(entry.occurredAt)) group.runDates.push(entry.occurredAt)
     groups.set(entry.queueId, group)
   }
-  return [...groups.values()]
+  return [...groups.values()].sort((a, b) => Date.parse(b.latestAt) - Date.parse(a.latestAt))
 })
+const historyPage = ref(0)
+const historyPageGroups = computed(() => historyGroups.value.slice(historyPage.value * 20, historyPage.value * 20 + 20))
+const historyPageCount = computed(() => Math.ceil(historyGroups.value.length / 20))
 const expandedHistory = ref(new Set<string>())
 function toggleHistoryGroup(id: string) {
   const next = new Set(expandedHistory.value)
@@ -131,7 +136,6 @@ function toggleHistoryGroup(id: string) {
   expandedHistory.value = next
 }
 const historyOffset = ref(0)
-const historyHasMore = ref(false)
 const historyLoading = ref(false)
 const historyError = ref('')
 async function loadHistory(reset = false) {
@@ -139,11 +143,20 @@ async function loadHistory(reset = false) {
   historyLoading.value = true
   historyError.value = ''
   try {
-    const offset = reset ? 0 : historyOffset.value
-    const page = await queuesApi.history(100, offset)
-    history.value = reset ? page.items : [...history.value, ...page.items]
-    historyOffset.value = offset + page.items.length
-    historyHasMore.value = page.items.length === 100
+    if (reset) {
+      history.value = []
+      historyOffset.value = 0
+      historyPage.value = 0
+    }
+    let offset = reset ? 0 : historyOffset.value
+    let more = true
+    while (more) {
+      const page = await queuesApi.history(200, offset)
+      history.value = [...history.value, ...page.items]
+      offset += page.items.length
+      more = page.items.length === 200
+    }
+    historyOffset.value = offset
   } catch (e) {
     historyError.value = describeError(e).message
   } finally {
@@ -603,7 +616,7 @@ const badge: Record<QueueItem['status'], string> = {
             <p v-if="historyError" role="alert" class="mt-2 text-danger">Couldn't load queue history: {{ historyError }}</p>
             <p v-if="!history.length && !historyLoading && !historyError" class="mt-4 text-muted">No queue history yet.</p>
             <ol class="mt-3 space-y-4">
-              <li v-for="group in historyGroups" :key="group.id" class="min-w-0">
+              <li v-for="group in historyPageGroups" :key="group.id" class="min-w-0">
                 <h3>
                   <button
                     type="button"
@@ -614,6 +627,7 @@ const badge: Record<QueueItem['status'], string> = {
                   >
                     <span aria-hidden="true" class="text-muted">{{ expandedHistory.has(group.id) ? '▾' : '▸' }}</span>
                     <span class="min-w-0 flex-1 break-words font-bold">{{ group.name }} <span class="font-normal text-muted">· {{ group.project }}</span></span>
+                    <span v-if="group.runDates.length" class="shrink-0 text-xs text-muted">Run: <time :datetime="group.runDates[0]">{{ new Date(group.runDates[0]).toLocaleDateString() }}</time><template v-if="group.runDates.length > 1"> +{{ group.runDates.length - 1 }} more</template></span>
                     <span class="shrink-0 text-xs text-muted">{{ group.entries.length }} {{ group.entries.length === 1 ? 'entry' : 'entries' }}</span>
                   </button>
                 </h3>
@@ -636,7 +650,11 @@ const badge: Record<QueueItem['status'], string> = {
                 </ol>
               </li>
             </ol>
-            <button v-if="historyHasMore" type="button" class="touch-target mt-3 inline-flex min-h-11 min-w-11 items-center justify-center rounded border border-border" :aria-label="historyLoading ? 'Loading…' : 'Load older'" title="Load older" :disabled="historyLoading" @click="loadHistory()"><ChevronsDown :size="18" aria-hidden="true" /></button>
+            <div v-if="historyPageCount > 1" class="mt-3 flex items-center justify-between gap-2">
+              <button type="button" class="touch-target min-h-11 rounded border border-border px-3" :disabled="historyPage === 0" @click="historyPage--">Previous</button>
+              <span class="text-sm text-muted">Page {{ historyPage + 1 }} of {{ historyPageCount }}</span>
+              <button type="button" class="touch-target min-h-11 rounded border border-border px-3" :disabled="historyPage + 1 >= historyPageCount" @click="historyPage++">Next</button>
+            </div>
             <p v-else-if="historyLoading" class="mt-3 text-sm text-muted">Loading…</p>
           </section>
           <template v-else>
