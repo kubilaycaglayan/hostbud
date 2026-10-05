@@ -22,7 +22,12 @@ export function trackAppHeight(win: Window = window): () => void {
     const full = standaloneScreenHeight(win)
     const keyboard = Math.max(win.innerHeight, full) - height > KEYBOARD_MIN_HEIGHT
     const shortOfScreen = full - win.innerHeight > SHORT_OF_SCREEN
-    root.style.setProperty('--app-height', `${height}px`)
+    // In an installed iOS PWA, the visual viewport can stop above the bottom
+    // of the physical screen even when the keyboard is closed. Extend the app
+    // through that unused strip; while the keyboard is open, keep the visual
+    // viewport height so the app ends at the keyboard instead.
+    const appHeight = shortOfScreen && !keyboard ? full : height
+    root.style.setProperty('--app-height', `${appHeight}px`)
     root.style.setProperty('--app-top', `${vv.offsetTop}px`)
     if (keyboard || shortOfScreen) root.style.setProperty('--app-pad-bottom', '0px')
     else root.style.removeProperty('--app-pad-bottom')

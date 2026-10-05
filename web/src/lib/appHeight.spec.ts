@@ -53,11 +53,11 @@ describe('trackAppHeight', () => {
     expect(prop('--app-pad-bottom')).toBe('')
   })
 
-  it('drops the bottom padding in an iOS home-screen app whose page stops short of the screen', () => {
+  it('extends an iOS home-screen app to the screen bottom when the page stops short', () => {
     const vv = new FakeVisualViewport()
     vv.height = 797
     stop = trackAppHeight(fakeWindow(vv, { innerHeight: 797, standalone: true }))
-    expect(prop('--app-height')).toBe('797px')
+    expect(prop('--app-height')).toBe('844px')
     expect(prop('--app-pad-bottom')).toBe('0px')
   })
 
