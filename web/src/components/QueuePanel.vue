@@ -171,6 +171,10 @@ function showHistory() {
 function actionLabel(action: QueueItemHistory['action']) {
   return ({ created: 'Added', edited: 'Edited', status: 'Status', deleted: 'Deleted' })[action]
 }
+function historyRunDate(value: string) {
+  const date = new Date(value)
+  return `${String(date.getUTCDate()).padStart(2, '0')}/${String(date.getUTCMonth() + 1).padStart(2, '0')}/${date.getUTCFullYear()}`
+}
 
 async function act(title: string, fn: () => Promise<unknown>) {
   busy.value = true
@@ -627,7 +631,7 @@ const badge: Record<QueueItem['status'], string> = {
                   >
                     <span aria-hidden="true" class="text-muted">{{ expandedHistory.has(group.id) ? '▾' : '▸' }}</span>
                     <span class="min-w-0 flex-1 break-words font-bold">{{ group.name }} <span class="font-normal text-muted">· {{ group.project }}</span></span>
-                    <span v-if="group.runDates.length" class="shrink-0 text-xs text-muted">Run: <time :datetime="group.runDates[0]">{{ new Date(group.runDates[0]).toLocaleDateString() }}</time><template v-if="group.runDates.length > 1"> +{{ group.runDates.length - 1 }} more</template></span>
+                    <span v-if="group.runDates.length" class="shrink-0 text-xs text-muted">Run: <time :datetime="group.runDates[0]">{{ historyRunDate(group.runDates[0]) }}</time><template v-if="group.runDates.length > 1"> +{{ group.runDates.length - 1 }} more</template></span>
                     <span class="shrink-0 text-xs text-muted">{{ group.entries.length }} {{ group.entries.length === 1 ? 'entry' : 'entries' }}</span>
                   </button>
                 </h3>

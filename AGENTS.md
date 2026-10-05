@@ -61,6 +61,7 @@ All such values come from environment variables. **If you need a config value th
 - [x] (v2) Hook endpoints use per-run tokens (stored hashed). Active since V2-M1 T3: `POST /api/hooks/{run}/{event}` only, 32-byte tokens stored as SHA-256, revoked when the run ends.
 
 ## Code conventions
+- Display calendar dates to users in `DD/MM/YYYY` format.
 - `internal/` packages as in ARCHITECTURE §14; keep `store` the only place with SQL.
 - All state changes publish typed events on the `events` bus; the UI updates from events, not polling.
 - Session creation goes through a single service function accepting `{machine, name, path, env, startCommand}`.

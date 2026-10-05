@@ -129,6 +129,7 @@ describe('QueuePanel', () => {
     const view = document.querySelector('[data-testid="queue-history"]')!
     expect(view.querySelectorAll('button[aria-expanded]')).toHaveLength(20)
     expect(view.textContent).toContain('Run:')
+    expect(view.textContent).toContain('Run: 21/01/2026')
     expect(view.textContent).toContain('Page 1 of 2')
     expect(view.querySelector('button[aria-label="Previous"]')).toBeNull()
     $$('button').find((b) => b.textContent?.trim() === 'Next')?.click()
