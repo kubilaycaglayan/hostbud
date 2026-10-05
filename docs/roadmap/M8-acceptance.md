@@ -234,10 +234,10 @@ T8 verification: native reader checked at 390px in Chromium and WebKit (358px co
 
 ## Project row width and terminal session context
 
-- [ ] Project names use the available row width on desktop, with actions at the trailing edge revealed on hover; phones retain visible inline controls. The focused terminal header starts with a directory icon, followed by the emphasized session name and its directory on the same row; the full path is available accessibly, the header uses its project's section color when assigned, and the name and directory share a foreground color.
-  - U: T25 `SessionTree.spec.ts` covers project action grouping and row structure; `TerminalView.spec.ts` covers icon/name/directory order, focused header section fill, matching name/directory foreground color, and full-path tooltip.
+- [ ] Project names use the available row width on desktop, with actions at the trailing edge revealed on hover; phones retain visible inline controls. The focused terminal header starts with a directory icon followed by the emphasized session name, without repeated directory or project labels; the full path is available accessibly from the icon, and the header uses its project's section color when assigned. Sessions on other servers show a bold nickname chip.
+  - U: T25 `SessionTree.spec.ts` covers project action grouping and row structure; `TerminalView.spec.ts` covers icon/name order, focused header section fill, full-path tooltip and absence of repeated directory/project labels.
   - I: n/a: these are frontend presentation changes.
-  - E: T25 *Project names use the row width and terminal header shows session context* (`tree.custom.spec.ts`, desktop and iPhone 13 Pro) checks project action reveal/phone visibility and terminal icon/session/directory order, section-colored header, and matching name/directory foreground color.
+  - E: T25 *Project names use the row width and terminal header shows session context* (`tree.custom.spec.ts`, desktop and iPhone 13 Pro) checks project action reveal/phone visibility and terminal icon/session order, absence of repeated labels, and section-colored header. V2-M13 T4 (`servers.spec.ts`) checks the bold server nickname chip.
   - Status: E written; type-check and browser execution pending on demand.
 
 ## Codex token usage in the terminal header

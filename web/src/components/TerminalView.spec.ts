@@ -245,7 +245,7 @@ describe('TerminalView', () => {
     }
   })
 
-  it('colors the focused session header by section and shows its directory in the same text color', async () => {
+  it('colors the focused session header by section and keeps directory details on the icon', async () => {
     useProjectsStore().remember({ id: 'project-a', machineId: 'host', path: '/home/dev/bright-work', name: 'Bright work', sortOrder: 0, pinned: false, createdAt: '', updatedAt: '' })
     useSessionsStore().$patch({ byMachine: { host: [{ id: '$1', name: 'acc-a', path: '/home/dev/bright-work', attached: 0, windows: 1, created: '', activity: '' }] } })
     const tree = useTreeStore()
@@ -254,19 +254,17 @@ describe('TerminalView', () => {
     tree.order.projectSections = { 'project-a': 'section-a' }
     const w = await mountTerm({ focused: true })
     const name = w.get('[data-terminal-session-name]')
-    const directory = w.get('[data-terminal-directory]')
     const icon = w.get('[data-terminal-directory-icon]')
     expect(name.text()).toBe('acc-a')
     expect(w.get('[data-terminal-header]').classes()).toContain('text-section-fg')
     expect(w.get('[data-terminal-header]').classes()).toContain('py-1.5')
     expect(w.get('[data-terminal-header]').attributes('style')).toContain('var(--hb-section-purple)')
-    expect(directory.classes()).not.toContain('text-accent')
-    expect(directory.classes()).not.toContain('text-accent')
-    expect(directory.text()).toBe('bright-work')
-    expect(directory.attributes('title')).toBe('/home/dev/bright-work')
-    expect(w.get('[data-terminal-project]').text()).toBe('Bright work')
+    expect(icon.attributes('title')).toBe('/home/dev/bright-work')
+    expect(icon.attributes('aria-label')).toBe('Directory: /home/dev/bright-work')
+    expect(w.find('[data-terminal-directory]').exists()).toBe(false)
+    expect(w.find('[data-terminal-project]').exists()).toBe(false)
     expect(icon.element.nextElementSibling).toBe(name.element)
-    expect(name.element.parentElement?.contains(directory.element)).toBe(true)
+    expect(name.element.parentElement?.contains(icon.element)).toBe(true)
     w.unmount()
   })
 
@@ -285,10 +283,8 @@ describe('TerminalView', () => {
     expect(w.get('[data-agent-usage]').classes()).toEqual(expect.arrayContaining(['shrink-0', 'whitespace-nowrap']))
     expect(w.get('[data-agent-usage]').classes()).not.toContain('min-w-0')
     expect(w.get('[data-terminal-session-name]').classes()).toEqual(expect.arrayContaining(['min-w-0', 'truncate']))
-    expect(w.get('[data-terminal-project]').text()).toBe('Usage project')
-    expect(w.get('[data-terminal-project]').attributes('aria-label')).toBe('Project: Usage project')
+    expect(w.find('[data-terminal-project]').exists()).toBe(false)
     expect(w.get('[data-agent-usage]').attributes('aria-label')).toContain('12,000 of 200,000 context tokens; 345,678 total tokens consumed')
-    expect(w.get('[data-agent-usage]').element.compareDocumentPosition(w.get('[data-terminal-project]').element) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     session.agentUsage = { agent: 'claude', contextTokens: 74243, totalTokens: 417626, contextWindow: 0 }
     await w.vm.$nextTick()
     expect(w.get('[data-agent-usage]').text()).toBe('74.2K ctx · 417.6K used')

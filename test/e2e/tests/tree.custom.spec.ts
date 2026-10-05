@@ -137,11 +137,11 @@ test('(T25) Project names use the row width and terminal header shows session co
   await expect(terminalHeader.locator('[data-terminal-directory-icon]').locator('xpath=following-sibling::*[1]')).toHaveAttribute('data-terminal-session-name', '')
   await expect(sessionTitle).toHaveText(sessionName)
   await expect(terminalHeader.locator('[data-terminal-header]')).toHaveAttribute('style', /hb-section-purple/)
-  await expect(terminalHeader.locator('[data-terminal-directory]')).toHaveText(path.split('/').at(-1)!)
+  await expect(terminalHeader.locator('[data-terminal-directory]')).toHaveCount(0)
+  await expect(terminalHeader.locator('[data-terminal-project]')).toHaveCount(0)
   await expect(terminalHeader.locator('[data-terminal-header]')).toHaveClass(/text-section-fg/)
   await expect(sessionTitle).toHaveCSS('color', 'rgb(23, 26, 33)')
-  await expect(terminalHeader.locator('[data-terminal-directory]')).toHaveCSS('color', 'rgb(23, 26, 33)')
-  await expect(terminalHeader.locator('[data-terminal-directory]')).toHaveAttribute('title', path)
+  await expect(terminalHeader.locator('[data-terminal-directory-icon]')).toHaveAttribute('title', path)
 })
 
 test('(T2) Tree state survives an app restart', async ({ page, ui, target, request }) => {

@@ -321,10 +321,10 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 ## T25 — Full-width project names and terminal session context
 
 - Give project names the full row width on desktop, with project actions floating at the trailing edge and appearing on hover. Keep the current inline controls on phones.
-- Place a directory icon first in the terminal header, followed by the focused session name and that session's directory on the same row. When its project belongs to a colored section, fill the focused header with that section color. Keep the name and directory in the same foreground color, and keep the full directory available as a tooltip and accessible label.
+- Place a directory icon first in the terminal header, followed by the focused session name. Keep the full directory available from the icon's tooltip and accessible label, without repeating directory or project names as text in the row. Show a bold, high-contrast nickname chip for sessions on another server. When the session's project belongs to a colored section, fill the focused header with that section color.
 - Keep pin state, keyboard focus, menus and touch targets usable.
 
-**Tests:** U: T25 `SessionTree.spec.ts` covers project action grouping and full-width row structure; `TerminalView.spec.ts` covers icon/name/directory order, focused header section fill, matching name/directory foreground color and full-path access; I: n/a (presentation-only); E: T25 *Project names use the row width and terminal header shows session context* checks desktop hover, phone inline controls, and the focused terminal's icon/session/directory context, section-colored header and matching name/directory foreground color.
+**Tests:** U: T25 `SessionTree.spec.ts` covers project action grouping and full-width row structure; `TerminalView.spec.ts` covers icon/name order, focused header section fill, full-path access on the icon, and absence of repeated directory/project labels; I: n/a (presentation-only); E: T25 *Project names use the row width and terminal header shows session context* checks desktop hover, phone inline controls, and the focused terminal's icon/session context, hidden directory/project labels and section-colored header. V2-M13 T4 checks the bold server nickname chip when opening a server session.
 
 **E2E:** Add T25 *Project names use the row width and terminal header shows session context* to `test/e2e/tests/tree.custom.spec.ts`; type-check only and leave browser execution on demand.
 
