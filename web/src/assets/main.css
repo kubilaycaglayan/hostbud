@@ -212,6 +212,13 @@ button {
   .pwa-landscape-terminal [data-testid='key-bar'] {
     display: none;
   }
+
+  /* Experimental: report extra rows below the phone edge so terminal TUIs
+     can give their transcript more height and place their composer offscreen. */
+  .pwa-landscape-terminal [data-focused='true'] [data-testid='terminal'] {
+    flex: none;
+    height: calc(100% + 9rem);
+  }
 }
 
 @media (pointer: coarse) {

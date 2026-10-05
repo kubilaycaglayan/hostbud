@@ -97,6 +97,32 @@ test('(M8 T35) Installed PWA landscape shows only the tmux terminal', async ({ p
   await page.screenshot({ path: testInfo.outputPath('landscape-terminal.png') })
 })
 
+test('(M8 T36) Installed PWA reports extra landscape rows below the viewport', async ({ page, ui, target }, testInfo) => {
+  await page.addInitScript(() => {
+    const nativeMatchMedia = window.matchMedia.bind(window)
+    window.matchMedia = (query: string) => query === '(display-mode: standalone)'
+      ? ({ matches: true, media: query, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent() { return false } } as MediaQueryList)
+      : nativeMatchMedia(query)
+  })
+  const session = await openShell(ui, target, 'pwa-landscape-rows')
+  const terminal = page.getByRole('region', { name: `Terminal: ${session}` })
+  await expect(terminal).toBeVisible()
+
+  await page.setViewportSize({ width: 844, height: 390 })
+  await expect(page.locator('.pwa-landscape-terminal')).toBeVisible()
+  await expect.poll(async () => {
+    const box = await page.getByTestId('terminal').boundingBox()
+    return box?.height ?? 0
+  }).toBeGreaterThan(520)
+  await expect.poll(() => page.evaluate(() => window.__hostbud!.termSize().rows)).toBeGreaterThanOrEqual(27)
+  await expect.poll(async () => {
+    const box = await terminal.boundingBox()
+    return box ? { top: Math.round(box.y), height: Math.round(box.height) } : null
+  }).toEqual({ top: 0, height: 390 })
+  await expect(page.locator('.xterm-helper-textarea')).not.toBeFocused()
+  await page.screenshot({ path: testInfo.outputPath('landscape-extra-rows.png') })
+})
+
 test('(M8 T34) Installed iPhone PWA repeats Backspace while it is held', async ({ page, ui, target }) => {
   await page.addInitScript(() => {
     const nativeMatchMedia = window.matchMedia.bind(window)

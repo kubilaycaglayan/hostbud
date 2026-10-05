@@ -279,3 +279,19 @@ T8 verification: native reader checked at 390px in Chromium and WebKit (358px co
   - E: T33 *Installed PWA offers a header keyboard toggle* (`pwa.spec.ts`, desktop Chromium standalone simulation) checks compact title-bar padding and active terminal focus/blur; *Installed PWA keeps the in-app terminal shortcut buttons* (`pwa.phone.spec.ts`) checks the shortcut bar and `/` button on a touch profile. The physical iOS suggestion/accessory rows and viewport bottom edge require the owner check below.
   - Status: E written and type-checked; browser run pending on demand.
   - **Manual (owner, open):** verify suggestion/accessory rows are absent and the terminal reaches the usable bottom edge in the installed iPhone PWA with the keyboard both open and closed.
+
+## Chrome-free landscape view in the installed PWA (T35)
+
+- [ ] With a terminal open in the installed PWA in landscape, the tmux terminal fills the available viewport; the app header, host banner, terminal title/actions, key bar and visible buttons are hidden. The terminal input is blurred so the native keyboard stays dismissed, including when a saved layout loads in landscape. The client-rendered content remains visible as part of the tmux terminal. Portrait PWA and regular browser layouts retain their controls.
+  - U: T35 `App.spec.ts` checks the standalone-landscape state and its orientation transition with an open terminal.
+  - I: n/a: layout and focus are browser presentation behavior; server and SSH contracts do not change.
+  - E: T35 *Installed PWA landscape shows only the tmux terminal* (`pwa.phone.spec.ts`) verifies visible controls are absent, the terminal fills the 844×390 viewport, live tmux output remains visible, rotation blurs the terminal input, and an open dialog closes. **Manual (owner):** confirm native iOS keyboard dismissal on rotation and a real Codex/Claude client display.
+  - Status: U passes; E is type-checked and the focused `iphone-13-pro` WebKit scenario passes. The full suite is on demand.
+
+## Extra terminal rows for landscape PWA clients (T36)
+
+- [ ] In installed-PWA landscape view, only the focused tmux pane receives an extra 9rem of terminal height. xterm fits and reports the added rows to tmux while the page clips content at the physical screen edge, giving terminal TUIs more transcript space and moving their bottom composer offscreen. Portrait PWAs, regular browsers and unfocused panes retain their normal dimensions.
+  - U: n/a: the added height is a browser CSS layout rule; its actual xterm row count and viewport clipping require a rendered browser.
+  - I: n/a: the existing terminal resize protocol is unchanged; the e2e scenario verifies the additional rows reach xterm.
+  - E: T36 *Installed PWA reports extra landscape rows below the viewport* (`pwa.phone.spec.ts`) checks the focused phone PWA's terminal extends beyond the visible viewport and reports additional rows while its visible terminal box remains full-screen. **Manual (owner):** verify the real Codex composer is below the screen and the transcript is usable on an iPhone PWA.
+  - Status: E written and type-checked; browser run pending on demand. Real-device check remains open.
