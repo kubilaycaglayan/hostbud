@@ -636,6 +636,7 @@ function toggleLastSession() {
 
 const compact = useMediaQuery(COMPACT_QUERY)
 const standaloneDisplay = useMediaQuery('(display-mode: standalone)')
+const landscape = useMediaQuery('(orientation: landscape)')
 const installedApp = computed(() => standaloneDisplay.value || (navigator as Navigator & { standalone?: boolean }).standalone === true)
 const pwaKeyboardOpen = ref(false)
 function updatePwaKeyboardState() {
@@ -653,6 +654,11 @@ onMounted(() => {
   window.visualViewport?.addEventListener('resize', updatePwaKeyboardState)
 })
 onUnmounted(() => window.visualViewport?.removeEventListener('resize', updatePwaKeyboardState))
+watch([installedApp, landscape], ([isInstalledApp, isLandscape]) => {
+  if (!isInstalledApp || !isLandscape) return
+  pwaKeyboardOpen.value = false
+  window.dispatchEvent(new CustomEvent('hostbud:toggle-keyboard', { detail: { open: false } }))
+})
 const focusAvailable = computed(() => !compact.value && !coarsePointer.value && !installedApp.value)
 watch(focusAvailable, (available) => {
   if (!available) disarmFocusMode()
@@ -774,6 +780,7 @@ onUnmounted(() => {
   <div
     v-else
     class="flex h-full flex-col"
+    :class="{ 'pwa-landscape-terminal': installedApp && landscape && hasTabs }"
   >
     <HostBanner :machine="host" />
     <header class="flex min-h-12 items-center border-b border-border bg-surface sm:px-3" :class="installedApp ? 'flex-nowrap gap-0 px-1' : 'flex-wrap gap-1 px-2'">

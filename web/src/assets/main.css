@@ -203,6 +203,17 @@ button {
   touch-action: manipulation;
 }
 
+/* In landscape, an installed PWA is a direct tmux window. Keep the terminal
+   itself full-height and remove app/terminal chrome and the touch key bar. */
+@media (orientation: landscape) {
+  .pwa-landscape-terminal > header,
+  .pwa-landscape-terminal > [role='alert'],
+  .pwa-landscape-terminal [data-terminal-header],
+  .pwa-landscape-terminal [data-testid='key-bar'] {
+    display: none;
+  }
+}
+
 @media (pointer: coarse) {
   button,
   a[href],
