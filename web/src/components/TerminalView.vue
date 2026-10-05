@@ -729,7 +729,7 @@ defineExpose({ refit, reconnect, showKeyboard })
     <TerminalTextDialog v-model:open="snapshotOpen" mode="snapshot" :snapshot="terminalSnapshot" :loading="snapshotLoading" :error="snapshotError" @retry="openSnapshot" />
     <PhotoUploadDialog v-model:open="photoUploadOpen" :machine="props.machine" :directory="uploadDirectory" @uploaded="pasteUploadedPhotoPath" />
     <KeyBar
-      v-if="!inMode && !standalonePwa"
+      v-if="!inMode"
       :term="term"
       :modifiers="modifiers"
       :focused="takesInput()"

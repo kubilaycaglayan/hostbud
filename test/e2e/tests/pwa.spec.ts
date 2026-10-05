@@ -7,7 +7,7 @@ test.use({
 })
 test.afterEach(async () => { await ctl.appStart() })
 
-test('(T33) Installed PWA offers a header keyboard toggle and omits the accessory key bar', async ({ page, ui, target }) => {
+test('(T33) Installed PWA offers a header keyboard toggle', async ({ page, ui, target }) => {
   await page.addInitScript(() => {
     const nativeMatchMedia = window.matchMedia.bind(window)
     window.matchMedia = (query: string) => query === '(display-mode: standalone)'
@@ -21,7 +21,6 @@ test('(T33) Installed PWA offers a header keyboard toggle and omits the accessor
   await ui.tree().waitFor()
   await ui.openTerminal(session)
   await expect(page.getByRole('button', { name: 'Show keyboard' })).toBeVisible()
-  await expect(page.locator('[data-testid="key-bar"]')).toHaveCount(0)
   await expect(page.locator('[data-terminal-header]')).toHaveClass(/py-0\.5/)
   const input = page.locator('.xterm-helper-textarea')
   await page.getByRole('button', { name: 'Show keyboard' }).click()

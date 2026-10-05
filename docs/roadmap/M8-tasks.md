@@ -382,13 +382,13 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 
 ## T33 — Reclaim the installed PWA terminal keyboard space
 
-- Hide the accessory key bar in the installed PWA, retaining the existing key bar in regular mobile browsers. Keep the xterm input's autocorrect, capitalization, autocomplete and spellcheck disabled so the iOS keyboard does not rewrite terminal commands or offer spelling suggestions.
+- Keep the in-app terminal shortcut bar, including `/`, visible in the installed PWA. Keep the xterm input's autocorrect, capitalization, autocomplete and spellcheck disabled so the iOS keyboard does not rewrite terminal commands or offer spelling suggestions.
 - Add an installed-PWA-only keyboard toggle in the app header. It focuses the active pane to show the keyboard or blurs it to hide the keyboard; inactive panes ignore the request. Keep the visual viewport sizing so the terminal fills the usable space when the keyboard is closed and resizes to the area above it when open.
 - Reduce vertical padding on the colored terminal title bar in the installed PWA so more screen space remains for terminal text; keep regular browser header sizing unchanged.
 
-**Tests:** U: T33 `App.spec.ts` verifies that the PWA header offers the keyboard action; `TerminalView.spec.ts` verifies compact title-bar padding while preserving its section color and regular-browser padding. I: n/a: no server or host behavior changes. E: T33 *Installed PWA offers a header keyboard toggle and omits the accessory key bar* (`pwa.spec.ts`) opens a session in standalone mode, checks key-bar removal and compact title-bar padding, and verifies header focus/blur.
+**Tests:** U: T33 `App.spec.ts` verifies that the PWA header offers the keyboard action; `TerminalView.spec.ts` verifies compact title-bar padding while preserving its section color and regular-browser padding. I: n/a: no server or host behavior changes. E: T33 *Installed PWA offers a header keyboard toggle* (`pwa.spec.ts`) checks compact title-bar padding and active terminal focus/blur; *Installed PWA keeps the in-app terminal shortcut buttons* (`pwa.phone.spec.ts`) checks the bar and `/` shortcut on a touch profile.
 
-**E2E:** Added T33 scenario in `test/e2e/tests/pwa.spec.ts`; TypeScript check passes, full run on demand. Manual (owner, open): verify suggestion/accessory rows are absent and the terminal reaches the usable bottom edge in the installed iPhone PWA with the keyboard both open and closed.
+**E2E:** Added T33 scenarios in `test/e2e/tests/pwa.spec.ts` and `test/e2e/tests/pwa.phone.spec.ts`; type-check only, full run on demand. Manual (owner, open): verify the iOS native suggestion/accessory rows and bottom spacing in the installed iPhone PWA with the keyboard both open and closed.
 
 
 ## Done
