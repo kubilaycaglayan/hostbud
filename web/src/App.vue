@@ -553,6 +553,9 @@ function onDrawerOpenAutoFocus(event: Event) {
 }
 
 function focusActiveTerminal() {
+  // Landscape standalone mode is a viewing surface; focusing xterm would
+  // reopen the iOS keyboard after a saved-layout load or session switch.
+  if (installedApp.value && landscape.value) return
   document.querySelector<HTMLElement>('[data-focused="true"] .xterm-helper-textarea')?.focus()
 }
 
