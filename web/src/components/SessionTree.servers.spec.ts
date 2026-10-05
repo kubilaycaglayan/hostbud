@@ -43,6 +43,7 @@ describe('SessionTree with servers', () => {
     const remote = w.get('[data-tree-key="project:remote"]')
     expect(remote.attributes('aria-label')).toBe('remote, on Build box')
     expect(remote.get('[data-machine-chip]').text()).toBe('Build box')
+    expect(remote.get('[data-machine-chip]').classes()).toEqual(expect.arrayContaining(['bg-danger', 'font-black', 'text-bg']))
     expect(remote.text()).toContain('~/app') // the server's own home
     expect(w.get('[data-tree-key="project:local"]').find('[data-machine-chip]').exists()).toBe(false)
 
