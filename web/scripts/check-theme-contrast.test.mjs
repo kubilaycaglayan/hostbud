@@ -18,6 +18,9 @@ function contrast(a, b) {
   const [high, low] = [luminance(a), luminance(b)].sort((x, y) => y - x)
   return (high + 0.05) / (low + 0.05)
 }
+function mix(a, b, amount) {
+  return `#${[1, 3, 5].map((start) => Math.round(parseInt(a.slice(start, start + 2), 16) * amount + parseInt(b.slice(start, start + 2), 16) * (1 - amount)).toString(16).padStart(2, '0')).join('')}`
+}
 
 describe('UI theme token contrast', () => {
   it('keeps section yellow title text readable', () => {
@@ -26,6 +29,9 @@ describe('UI theme token contrast', () => {
   })
 
   it('meets text and control contrast on both surfaces', () => {
+    const rootStart = css.indexOf(':root {')
+    const rootSection = css.slice(rootStart, css.indexOf('}', rootStart))
+    const sectionYellow = token(rootSection, 'section-yellow')
     for (const selector of [':root {', ":root[data-theme='light'] {", ":root[data-theme='solarized'] {", ":root[data-theme='dimmed'] {"]) {
       const start = css.indexOf(selector)
       assert.notEqual(start, -1, `missing ${selector} token block`)
@@ -37,6 +43,7 @@ describe('UI theme token contrast', () => {
       const border = token(section, 'border')
       const selected = token(section, 'selected')
       const selectedFg = token(section, 'selected-fg')
+      const queueInstructionFg = token(section, 'queue-instruction-fg')
       const icons = ['accent', 'danger', 'ok'].map((name) => token(section, name))
       assert.ok(contrast(fg, bg) >= 4.5, `${selector} foreground/background`)
       assert.ok(contrast(fg, surface) >= 4.5, `${selector} foreground/surface`)
@@ -45,6 +52,7 @@ describe('UI theme token contrast', () => {
       assert.ok(contrast(border, bg) >= 3, `${selector} border/background`)
       assert.ok(contrast(border, surface) >= 3, `${selector} border/surface`)
       assert.ok(contrast(selectedFg, selected) >= 4.5, `${selector} selected foreground/background`)
+      assert.ok(contrast(queueInstructionFg, mix(sectionYellow, surface, 0.5)) >= 4.5, `${selector} queue instruction foreground/yellow background`)
       assert.ok(contrast(selected, surface) >= 1.5, `${selector} selected background/surface distinction`)
       for (const icon of icons) {
         assert.ok(contrast(icon, bg) >= 3, `${selector} icon/background`)

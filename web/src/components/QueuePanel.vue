@@ -958,7 +958,7 @@ const badge: Record<QueueItem['status'], string> = {
                     </span>
                     <span class="min-w-6 pt-1 text-muted">{{ item.position }}.</span>
                     <div class="min-w-0 flex-1">
-                      <p class="break-words font-mono text-sm">{{ item.executionMode === 'session' ? item.command : item.instruction }}</p>
+                      <p class="queue-item-instruction break-words font-mono text-sm">{{ item.executionMode === 'session' ? item.command : item.instruction }}</p>
                       <p class="mt-1 break-words text-sm text-muted">
                         <template v-if="item.executionMode === 'session'">Command in <span class="font-mono">{{ item.targetSession }}</span></template>
                         <template v-else><span class="inline-flex items-center gap-1.5"><AgentMark :agent="item.agent" />{{ item.agent }}</span><template v-if="item.flags"> · <span class="font-mono">{{ item.flags }}</span></template>
@@ -1101,6 +1101,13 @@ const badge: Record<QueueItem['status'], string> = {
 <style scoped>
 .queue-separator-highlight {
   background-image: linear-gradient(to bottom, color-mix(in srgb, var(--hb-section-yellow) 50%, transparent) 0 8px, transparent 11px);
+}
+
+.queue-item-instruction {
+  background-color: color-mix(in srgb, var(--hb-section-yellow) 50%, var(--hb-surface));
+  border-radius: 0.25rem;
+  color: var(--hb-queue-instruction-fg);
+  padding: 0.25rem 0.375rem;
 }
 
 .queue-history-title-row {

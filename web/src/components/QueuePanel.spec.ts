@@ -68,6 +68,7 @@ describe('QueuePanel', () => {
     await mountPanel(queue([attention, queued]))
     const text = document.body.textContent ?? ''
     expect($$('[data-queue-item]').every((item) => item.classList.contains('queue-separator-highlight'))).toBe(true)
+    expect($$('[data-queue-item] .queue-item-instruction')).toHaveLength(2)
     expect(text).toContain('Needs attention · no signal (stale)')
     expect(text).toContain('no signal from the agent for 2h0m0s')
     expect(text).toContain('app-q1')

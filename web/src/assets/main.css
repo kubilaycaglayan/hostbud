@@ -49,6 +49,7 @@
   --hb-section-orange: #d98a4a;
   --hb-section-purple: #9b7acb;
   --hb-section-fg: #171a21;
+  --hb-queue-instruction-fg: #ffffff;
   color-scheme: dark;
 }
 
@@ -66,6 +67,7 @@
   --hb-danger: #cf222e;
   --hb-ok: #1a7f37;
   --hb-overlay: rgb(0 0 0 / 0.38);
+  --hb-queue-instruction-fg: #1f2328;
   color-scheme: light;
 }
 
@@ -83,6 +85,7 @@
   --hb-danger: #8f310d;
   --hb-ok: #405900;
   --hb-overlay: rgb(0 43 54 / 0.34);
+  --hb-queue-instruction-fg: #263f44;
   color-scheme: light;
 }
 
@@ -100,6 +103,7 @@
   --hb-danger: #ffb08e;
   --hb-ok: #d0e278;
   --hb-overlay: rgb(0 20 26 / 0.55);
+  --hb-queue-instruction-fg: #000000;
   color-scheme: dark;
 }
 
