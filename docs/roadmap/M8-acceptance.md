@@ -273,12 +273,20 @@ T8 verification: native reader checked at 390px in Chromium and WebKit (358px co
 
 ## Installed PWA terminal keyboard space (T33)
 
-- [ ] In the installed PWA, the app header has a keyboard toggle that focuses the active terminal pane to show the native keyboard and blurs it to hide it. Only the active focused pane responds. The in-app key bar remains visible, including shortcut buttons such as `/`. Terminal input keeps autocorrect, autocapitalization, autocomplete and spellcheck disabled. The colored terminal title bar has reduced vertical padding to leave more space for terminal text. The terminal uses the available viewport through the bottom edge when the keyboard is closed and fills the remaining area above it when open. Regular mobile browsers keep their existing key bar and title bar sizing.
-  - U: T33 `App.spec.ts` covers the PWA-only header action; existing `TerminalView.spec.ts` covers input attributes; title-bar sizing coverage checks PWA and regular browsers.
+- [ ] In the installed PWA in portrait, the app header has a keyboard toggle that focuses the active terminal pane to show the native keyboard and blurs it to hide it. Only the active focused pane responds. The app header stays on one compact row while retaining the iOS safe-area inset and usable touch targets. The in-app key bar remains visible, including shortcut buttons such as `/`. Terminal input keeps autocorrect, autocapitalization, autocomplete and spellcheck disabled. The colored terminal title bar has no vertical padding to leave more space for terminal text, and its three-dot actions mark has a heavier visual weight. The terminal uses the available viewport through the bottom edge when the keyboard is closed and fills the remaining area above it when open. Regular mobile browsers keep their existing key bar and title bar sizing.
+  - U: T33 `App.spec.ts` covers the PWA-only header action and one-row app header; existing `TerminalView.spec.ts` covers input attributes; title-bar sizing/color and bold dots coverage checks PWA and regular browsers.
   - I: n/a: this is browser presentation and focus behavior; server/SSH APIs do not change.
-  - E: T33 *Installed PWA offers a header keyboard toggle* (`pwa.spec.ts`, desktop Chromium standalone simulation) checks compact title-bar padding and active terminal focus/blur; *Installed PWA keeps the in-app terminal shortcut buttons* (`pwa.phone.spec.ts`) checks the shortcut bar and `/` button on a touch profile. The physical iOS suggestion/accessory rows and viewport bottom edge require the owner check below.
-  - Status: E written and type-checked; browser run pending on demand.
+  - E: T33 *Installed PWA offers a header keyboard toggle* (`pwa.spec.ts`, desktop Chromium standalone simulation) checks the compact one-row app header, title-bar padding, bold dots and active terminal focus/blur; *Installed PWA keeps the in-app terminal shortcut buttons* (`pwa.phone.spec.ts`) checks the shortcut bar and `/` button on a touch profile. The physical iOS suggestion/accessory rows and viewport bottom edge require the owner check below.
+  - Status: E updated; type-check pending after the latest layout assertions; browser run pending on demand.
   - **Manual (owner, open):** verify suggestion/accessory rows are absent and the terminal reaches the usable bottom edge in the installed iPhone PWA with the keyboard both open and closed.
+
+## Installed iOS PWA Backspace repeat (T34)
+
+- [ ] Holding the iOS software keyboard's Backspace key in the installed PWA repeatedly deletes terminal input after the initial press and stops when released or when the terminal loses focus. Regular browsers and other platforms retain their existing keyboard behavior.
+  - U: T34 `TerminalView.spec.ts` covers repeat timing and keyup stop behavior in the standalone iOS environment.
+  - I: n/a: this is client-side keyboard handling; no backend or SSH behavior changes.
+  - E: T34 *Installed iPhone PWA repeats Backspace while it is held* (`pwa.phone.spec.ts`) verifies repeated deletion against a real shell line.
+  - Status: E written; type-check and browser run pending (browser run on demand).
 
 ## Chrome-free landscape view in the installed PWA (T35)
 

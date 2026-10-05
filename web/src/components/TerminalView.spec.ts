@@ -195,7 +195,14 @@ async function clickMenuItem(text: string) {
 
 describe('TerminalView', () => {
   it('uses a thinner colored title bar in the installed PWA', async () => {
-    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(display-mode: standalone)' }))
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      media: query,
+      matches: query === '(display-mode: standalone)',
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+    }))
     useProjectsStore().remember({ id: 'project-a', machineId: 'host', path: '/home/dev/bright-work', name: 'Bright work', sortOrder: 0, pinned: false, createdAt: '', updatedAt: '' })
     useSessionsStore().$patch({ byMachine: { host: [{ id: '$1', name: 'acc-a', path: '/home/dev/bright-work', attached: 0, windows: 1, created: '', activity: '' }] } })
     const tree = useTreeStore()
@@ -203,9 +210,11 @@ describe('TerminalView', () => {
     tree.order.sections = [{ id: 'section-a', name: 'Research', color: 'purple' }]
     const w = await mountTerm()
     const header = w.get('[data-terminal-header]')
-    expect(header.classes()).toContain('py-0.5')
+    expect(header.classes()).toContain('py-0')
     expect(header.classes()).toContain('text-section-fg')
     expect(header.attributes('style')).toContain('var(--hb-section-purple)')
+    expect(w.get('button[aria-label="Terminal actions"]').classes()).toContain('font-extrabold')
+    expect(w.get('button[aria-label="Terminal actions"]').classes()).toContain('text-xl')
     w.unmount()
   })
 
@@ -740,7 +749,14 @@ describe('TerminalView', () => {
     Object.defineProperty(navigator, 'platform', { configurable: true, value: 'iPhone' })
     Object.defineProperty(navigator, 'userAgent', { configurable: true, value: 'iPhone' })
     Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, value: 5 })
-    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(display-mode: standalone)' }))
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      media: query,
+      matches: query === '(display-mode: standalone)',
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+    }))
     let w: Awaited<ReturnType<typeof mountTerm>> | undefined
     try {
       w = await mountTerm()

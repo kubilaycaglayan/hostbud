@@ -667,7 +667,7 @@ defineExpose({ refit, reconnect, showKeyboard })
     :data-focused="takesInput() ? 'true' : undefined"
     @focusin="emit('focus')"
   >
-    <div data-terminal-header class="flex min-w-0 items-center gap-2 border-b border-border px-2" :class="[takesInput() && sessionSectionColor ? 'text-section-fg' : 'text-fg', standalonePwa ? 'py-0.5' : 'py-1.5']" :style="takesInput() && sessionSectionColor ? { backgroundColor: sessionSectionColor } : undefined">
+    <div data-terminal-header class="flex min-w-0 items-center gap-2 border-b border-border px-2" :class="[takesInput() && sessionSectionColor ? 'text-section-fg' : 'text-fg', standalonePwa ? 'py-0' : 'py-1.5']" :style="takesInput() && sessionSectionColor ? { backgroundColor: sessionSectionColor } : undefined">
       <Folder data-terminal-directory-icon :size="16" class="shrink-0" aria-hidden="true" />
       <h2 data-terminal-session-name class="min-w-0 flex-1 truncate text-base font-bold tracking-tight">
         {{ props.session }}

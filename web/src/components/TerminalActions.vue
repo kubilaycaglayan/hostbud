@@ -47,7 +47,7 @@ function onCloseAutoFocus(event: Event) {
 
 <template>
   <DropdownMenuRoot v-model:open="open">
-    <DropdownMenuTrigger type="button" aria-label="Terminal actions" title="Terminal actions" class="touch-target rounded border border-border px-2">⋮</DropdownMenuTrigger>
+    <DropdownMenuTrigger type="button" aria-label="Terminal actions" title="Terminal actions" class="touch-target rounded px-2 text-xl font-extrabold leading-none">⋮</DropdownMenuTrigger>
     <DropdownMenuPortal>
       <DropdownMenuContent align="end" :side-offset="4" aria-label="Terminal actions" class="z-50 max-h-[min(80dvh,36rem)] min-w-48 overflow-y-auto rounded border border-border bg-surface p-1 text-fg shadow-lg" @close-auto-focus="onCloseAutoFocus">
         <DropdownMenuItem :class="item" @select="chooseAction('search')">Search</DropdownMenuItem>

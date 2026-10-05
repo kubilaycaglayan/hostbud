@@ -38,7 +38,8 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 | T29 Web focus mode toggle (mouse-leave overlay) | Implemented; U passes; E written and type-checked, browser run pending on demand |
 | T30 Claude Code token usage in the terminal header | Implemented; U and I pass; E written and type-checked, browser run pending on demand |
 | T31 Session header project and token alignment | Implemented; U written; E written and type-checked, browser run pending on demand |
-| T33 Installed PWA terminal keyboard space | Implemented; U written; E written and type-checked; browser run pending on demand |
+| T33 Installed PWA terminal keyboard space | Updated; U written; E written, type-check pending; browser run pending on demand |
+| T34 Repeat Backspace in the installed iOS PWA | Implemented; U written; E written and type-check pending; browser run pending on demand |
 | T35 Chrome-free landscape view in the installed PWA | Implemented; U passes, focused iPhone WebKit scenario passes including keyboard and dialog dismissal; real-device check open |
 | T36 Extra terminal rows for landscape PWA clients | Implemented; U/I n/a; focused E2E passed in both iPhone profiles, confirms extra rows reach tmux and a bottom-row composer falls below the viewport; Codex device check open |
 
@@ -386,12 +387,20 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 
 - Keep the in-app terminal shortcut bar, including `/`, visible in the installed PWA. Keep the xterm input's autocorrect, capitalization, autocomplete and spellcheck disabled so the iOS keyboard does not rewrite terminal commands or offer spelling suggestions.
 - Add an installed-PWA-only keyboard toggle in the app header. It focuses the active pane to show the keyboard or blurs it to hide the keyboard; inactive panes ignore the request. Keep the visual viewport sizing so the terminal fills the usable space when the keyboard is closed and resizes to the area above it when open.
-- Reduce vertical padding on the colored terminal title bar in the installed PWA so more screen space remains for terminal text; keep regular browser header sizing unchanged.
+- Keep the installed PWA app header on one compact row to reduce the gap before the terminal; retain the iOS safe-area inset and usable touch targets.
+- Reduce vertical padding on the colored terminal title bar in the installed PWA so more screen space remains for terminal text; keep regular browser title-bar sizing unchanged. Give the three-dot terminal actions mark a heavier visual weight while keeping its touch target.
 
-**Tests:** U: T33 `App.spec.ts` verifies that the PWA header offers the keyboard action; `TerminalView.spec.ts` verifies compact title-bar padding while preserving its section color and regular-browser padding. I: n/a: no server or host behavior changes. E: T33 *Installed PWA offers a header keyboard toggle* (`pwa.spec.ts`) checks compact title-bar padding and active terminal focus/blur; *Installed PWA keeps the in-app terminal shortcut buttons* (`pwa.phone.spec.ts`) checks the bar and `/` shortcut on a touch profile.
+**Tests:** U: T33 `App.spec.ts` verifies that the PWA header offers the keyboard action and stays on one row; `TerminalView.spec.ts` verifies zero vertical title-bar padding while preserving its section color and regular-browser padding, plus the bold dots control. I: n/a: no server or host behavior changes. E: T33 *Installed PWA offers a header keyboard toggle* (`pwa.spec.ts`) checks the compact one-row app header, title-bar padding, bold dots and active terminal focus/blur; *Installed PWA keeps the in-app terminal shortcut buttons* (`pwa.phone.spec.ts`) checks the bar and `/` shortcut on a touch profile.
 
 **E2E:** Added T33 scenarios in `test/e2e/tests/pwa.spec.ts` and `test/e2e/tests/pwa.phone.spec.ts`; type-check only, full run on demand. Manual (owner, open): verify the iOS native suggestion/accessory rows and bottom spacing in the installed iPhone PWA with the keyboard both open and closed.
 
+## T34 — Repeat Backspace while held in the installed iOS PWA
+
+- Make plain Backspace on the iOS software keyboard repeat after a short hold in the installed PWA, then stop on key release or focus loss. Keep browser-tab and non-iOS keyboard handling unchanged.
+
+**Tests:** U: `TerminalView.spec.ts` covers immediate Backspace, delayed repeats and stopping on keyup in the standalone iOS environment. I: n/a because this is browser keyboard event handling with no server behavior. E: T34 verifies a held Backspace edits the active shell line in the iPhone PWA.
+
+**E2E:** Add T34 *Installed iPhone PWA repeats Backspace while it is held* in `test/e2e/tests/pwa.phone.spec.ts`; type-check only, browser run on demand.
 
 ## T35 — Chrome-free landscape view in the installed PWA
 
