@@ -635,9 +635,8 @@ function toggleLastSession() {
 
 const compact = useMediaQuery(COMPACT_QUERY)
 const standaloneDisplay = useMediaQuery('(display-mode: standalone)')
-const focusAvailable = computed(
-  () => !compact.value && !coarsePointer.value && !standaloneDisplay.value && (navigator as Navigator & { standalone?: boolean }).standalone !== true,
-)
+const installedApp = computed(() => standaloneDisplay.value || (navigator as Navigator & { standalone?: boolean }).standalone === true)
+const focusAvailable = computed(() => !compact.value && !coarsePointer.value && !installedApp.value)
 watch(focusAvailable, (available) => {
   if (!available) disarmFocusMode()
 })
@@ -764,7 +763,8 @@ onUnmounted(() => {
         <PanelLeftClose v-if="sidebarExpanded" :size="18" aria-hidden="true" />
         <PanelLeftOpen v-else :size="18" aria-hidden="true" />
       </IconButton>
-      <h1 class="mx-1.5 font-bold text-accent">
+      <!-- The installed PWA hides the name so the actions and Account fit on one row. -->
+      <h1 class="mx-1.5 font-bold text-accent" :class="{ 'sr-only': installedApp }">
         hostbud
       </h1>
       <!-- M8 T1: the app-wide actions follow the host name. -->

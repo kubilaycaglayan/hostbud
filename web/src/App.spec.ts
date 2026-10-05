@@ -180,6 +180,20 @@ describe('App shell', () => {
     }
   })
 
+  it('hides the app name visually in the installed PWA', async () => {
+    vi.stubGlobal('matchMedia', vi.fn((media: string) => ({
+      media,
+      matches: media === '(display-mode: standalone)',
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })))
+    signedIn()
+    const wrapper = mount(App)
+    await flushPromises()
+    expect(wrapper.get('header h1').classes()).toContain('sr-only')
+    wrapper.unmount()
+  })
+
   it.each([
     ['the installed PWA', '(display-mode: standalone)'],
     ['a phone', '(max-width: 47.99rem), (pointer: coarse) and (max-height: 31.99rem)'],
