@@ -4,11 +4,11 @@ import type { Terminal } from '@xterm/xterm'
 import { useMediaQuery } from '@/lib/media'
 import { sendKey, toggleModifier, type KeyBarKey, type KeyModifiers } from '@/lib/keyBar'
 
-const props = withDefaults(defineProps<{ term?: Terminal; modifiers: KeyModifiers; focused: boolean; busy?: boolean; scrollEnabled?: boolean }>(), { scrollEnabled: true })
+const props = withDefaults(defineProps<{ term?: Terminal; modifiers: KeyModifiers; focused: boolean; forceVisible?: boolean; busy?: boolean; scrollEnabled?: boolean }>(), { forceVisible: false, scrollEnabled: true })
 const emit = defineEmits<{ scroll: [] }>()
 const coarse = useMediaQuery('(pointer: coarse)')
 const collapsed = ref(false)
-const visible = computed(() => coarse.value && props.focused && !!props.term)
+const visible = computed(() => coarse.value && (props.focused || props.forceVisible) && !!props.term)
 const leadingKeys: { key: KeyBarKey; label: string; text: string }[] = [
   { key: 'Escape', label: 'Escape', text: 'Esc' },
   { key: 'Tab', label: 'Tab', text: 'Tab' },

@@ -208,9 +208,17 @@ button {
 @media (orientation: landscape) {
   .pwa-landscape-terminal > header,
   .pwa-landscape-terminal > [role='alert'],
-  .pwa-landscape-terminal [data-terminal-header],
-  .pwa-landscape-terminal [data-testid='key-bar'] {
+  .pwa-landscape-terminal [data-terminal-header] {
     display: none;
+  }
+
+  /* Keep the shortcut buttons available without taking height from the
+     full-screen terminal pane. */
+  .pwa-landscape-terminal [data-testid='key-bar'] {
+    position: absolute;
+    inset-inline: 0;
+    bottom: env(safe-area-inset-bottom, 0px);
+    z-index: 10;
   }
 }
 
