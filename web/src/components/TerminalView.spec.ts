@@ -256,6 +256,10 @@ describe('TerminalView', () => {
     await w.vm.$nextTick()
     expect(w.get('[data-agent-usage]').text()).toBe('12K ctx · 345.7K used')
     expect(w.get('[data-agent-usage]').classes()).toContain('text-center')
+    // Keeps its width on narrow screens so it never overlaps the name or path; the name truncates instead.
+    expect(w.get('[data-agent-usage]').classes()).toEqual(expect.arrayContaining(['shrink-0', 'whitespace-nowrap']))
+    expect(w.get('[data-agent-usage]').classes()).not.toContain('min-w-0')
+    expect(w.get('[data-terminal-session-name]').classes()).toEqual(expect.arrayContaining(['min-w-0', 'truncate']))
     expect(w.get('[data-terminal-project]').text()).toBe('Usage project')
     expect(w.get('[data-terminal-project]').attributes('aria-label')).toBe('Project: Usage project')
     expect(w.get('[data-agent-usage]').attributes('aria-label')).toContain('12,000 of 200,000 context tokens; 345,678 total tokens consumed')

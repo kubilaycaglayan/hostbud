@@ -636,7 +636,7 @@ defineExpose({ refit, reconnect, showKeyboard })
       <h2 data-terminal-session-name class="min-w-0 flex-1 truncate text-base font-bold tracking-tight">
         {{ props.session }}
       </h2>
-      <span v-if="agentUsage" data-agent-usage :title="tokenDetail" :aria-label="tokenDetail" class="min-w-0 flex-1 shrink-0 whitespace-nowrap text-center text-xs tabular-nums">
+      <span v-if="agentUsage" data-agent-usage :title="tokenDetail" :aria-label="tokenDetail" class="shrink-0 whitespace-nowrap text-center text-xs tabular-nums">
         {{ tokenNumber.format(agentUsage.contextTokens) }} ctx · {{ tokenNumber.format(agentUsage.totalTokens) }} used
       </span>
       <div class="flex min-w-0 flex-1 items-center justify-end gap-2">
