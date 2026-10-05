@@ -30,6 +30,7 @@ import { clipboardKey, editingKey, searchKey } from '@/lib/terminalKeys'
 import { applyModifiers, createModifiers } from '@/lib/keyBar'
 import { createCopyModeController } from '@/lib/copyMode'
 import { useAuthStore } from '@/stores/auth'
+import { useMachinesStore } from '@/stores/machines'
 import { useProjectsStore } from '@/stores/projects'
 import { useSessionsStore } from '@/stores/sessions'
 import { useTreeStore } from '@/stores/tree'
@@ -106,12 +107,14 @@ let backspaceRepeatTimer: ReturnType<typeof setTimeout> | null = null
 let backspaceRepeatInterval: ReturnType<typeof setInterval> | null = null
 let last = { cols: 0, rows: 0 }
 const auth = useAuthStore()
+const machines = useMachinesStore()
 const theme = useThemeStore()
 const projects = useProjectsStore()
 const sessions = useSessionsStore()
 const tree = useTreeStore()
 const splitTargets = computed(() => sessions.list(props.machine).map((x) => x.name))
 const currentSession = computed(() => sessions.list(props.machine).find((x) => x.name === props.session))
+const machineChip = computed(() => props.machine !== 'host' ? machines.label(props.machine) : '')
 const agentUsage = computed(() => currentSession.value?.agentUsage)
 const tokenNumber = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 })
 const tokenDetail = computed(() => {
@@ -669,9 +672,10 @@ defineExpose({ refit, reconnect, showKeyboard })
   >
     <div data-terminal-header class="flex min-w-0 items-center gap-2 border-b border-border px-2" :class="[takesInput() && sessionSectionColor ? 'text-section-fg' : 'text-fg', standalonePwa ? 'py-0' : 'py-1.5']" :style="takesInput() && sessionSectionColor ? { backgroundColor: sessionSectionColor } : undefined">
       <Folder data-terminal-directory-icon :size="16" class="shrink-0" aria-hidden="true" />
-      <h2 data-terminal-session-name class="min-w-0 flex-1 truncate text-base font-bold tracking-tight">
+      <h2 data-terminal-session-name class="min-w-0 max-w-[45%] truncate text-base font-bold tracking-tight">
         {{ props.session }}
       </h2>
+      <span v-if="machineChip" data-terminal-machine-chip class="shrink-0 truncate rounded-full border border-danger/60 bg-danger/10 px-1.5 text-[10px] leading-4 text-danger" :title="'On ' + machineChip">{{ machineChip }}</span>
       <span v-if="agentUsage" data-agent-usage :title="tokenDetail" :aria-label="tokenDetail" class="shrink-0 whitespace-nowrap text-center text-xs tabular-nums">
         {{ tokenNumber.format(agentUsage.contextTokens) }} ctx · {{ tokenNumber.format(agentUsage.totalTokens) }} used
       </span>
