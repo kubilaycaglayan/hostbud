@@ -277,5 +277,5 @@ T8 verification: native reader checked at 390px in Chromium and WebKit (358px co
   - U: T33 `App.spec.ts` covers the PWA-only header action; `TerminalView.spec.ts` covers standalone key-bar suppression, input attributes, focus/blur routing and the compact colored title bar.
   - I: n/a: this is browser presentation and focus behavior; server/SSH APIs do not change.
   - E: T33 *Installed PWA offers a header keyboard toggle and omits the accessory key bar* (`pwa.spec.ts`, desktop Chromium standalone simulation) checks key-bar removal, compact title-bar padding and active terminal focus/blur. The physical iOS suggestion/accessory rows and viewport bottom edge require the owner check below.
-  - Status: E written; type-check and browser run pending on demand.
+  - Status: E written and type-checked; browser run pending on demand.
   - **Manual (owner, open):** verify suggestion/accessory rows are absent and the terminal reaches the usable bottom edge in the installed iPhone PWA with the keyboard both open and closed.
