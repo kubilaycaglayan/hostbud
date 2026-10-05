@@ -1,5 +1,6 @@
 import { expect, test } from '../helpers/fixtures.ts'
 import { uniqueName } from '../helpers/target.ts'
+import { openShell } from '../helpers/shell.ts'
 
 test('(T33) Installed PWA keeps the in-app terminal shortcut buttons', async ({ page, ui, target }) => {
   await page.addInitScript(() => {
@@ -17,6 +18,22 @@ test('(T33) Installed PWA keeps the in-app terminal shortcut buttons', async ({ 
   await expect(page.getByRole('button', { name: 'Show keyboard' })).toBeVisible()
   await expect(page.getByTestId('key-bar')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Slash' })).toBeVisible()
+})
+
+test('(M8 T34) Installed iPhone PWA repeats Backspace while it is held', async ({ page, ui, target }) => {
+  await page.addInitScript(() => {
+    const nativeMatchMedia = window.matchMedia.bind(window)
+    window.matchMedia = (query: string) => query === '(display-mode: standalone)'
+      ? ({ matches: true, media: query, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent() { return false } } as MediaQueryList)
+      : nativeMatchMedia(query)
+  })
+  const name = await openShell(ui, target, 'pwa-backspace')
+  await ui.type('echo abcdef')
+  await page.keyboard.down('Backspace')
+  await page.waitForTimeout(700)
+  await page.keyboard.up('Backspace')
+  await ui.type('Z', true)
+  await expect.poll(() => target.capture(name)).toMatch(/^abZ$/m)
 })
 
 test('(T7) Theme and status-bar metadata are present on phones', async ({ page }) => {

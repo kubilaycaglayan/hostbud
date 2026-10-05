@@ -37,7 +37,7 @@ import { useToastsStore } from '@/stores/toasts'
 import { useThemeStore } from '@/stores/theme'
 import { shouldInterceptGlobalShortcut, shortcutPlatform } from '@/lib/shortcuts'
 import { attachTouchScroll } from '@/lib/touchScroll'
-import { isStandalone } from '@/lib/notificationDevice'
+import { isIOS, isStandalone } from '@/lib/notificationDevice'
 
 const props = withDefaults(
   defineProps<{
@@ -70,6 +70,7 @@ const emit = defineEmits<{
   cyclePane: []
 }>()
 const standalonePwa = isStandalone()
+const repeatIOSBackspace = standalonePwa && isIOS({ userAgent: navigator.userAgent, platform: navigator.platform, maxTouchPoints: navigator.maxTouchPoints })
 const takesInput = () => props.active && props.focused
 
 const el = ref<HTMLDivElement>()
@@ -101,6 +102,8 @@ let disposeClipboardImagePaste = () => {}
 let attachmentSuspended = false
 let disposed = false
 let touchSelectTimer: ReturnType<typeof setTimeout> | null = null
+let backspaceRepeatTimer: ReturnType<typeof setTimeout> | null = null
+let backspaceRepeatInterval: ReturnType<typeof setInterval> | null = null
 let last = { cols: 0, rows: 0 }
 const auth = useAuthStore()
 const theme = useThemeStore()
@@ -334,6 +337,13 @@ function prepareInput(input: HTMLTextAreaElement | undefined) {
   input.setAttribute('spellcheck', 'false')
 }
 
+function stopBackspaceRepeat() {
+  if (backspaceRepeatTimer) clearTimeout(backspaceRepeatTimer)
+  if (backspaceRepeatInterval) clearInterval(backspaceRepeatInterval)
+  backspaceRepeatTimer = null
+  backspaceRepeatInterval = null
+}
+
 /** Focuses the terminal, which brings up a phone's on-screen keyboard. */
 function showKeyboard() {
   term.value?.focus()
@@ -514,6 +524,21 @@ onMounted(async () => {
   // terminal sends, once per keydown, instead of xterm's or the browser's
   // default (Cmd+← would navigate back).
   t.attachCustomKeyEventHandler((ev) => {
+    if (repeatIOSBackspace && ev.key === 'Backspace' && !ev.altKey && !ev.ctrlKey && !ev.metaKey && !ev.shiftKey) {
+      if (ev.type === 'keyup') stopBackspaceRepeat()
+      if (ev.type === 'keydown') {
+        ev.preventDefault()
+        if (!backspaceRepeatTimer && !backspaceRepeatInterval) {
+          t.input('\x7f')
+          backspaceRepeatTimer = setTimeout(() => {
+            backspaceRepeatTimer = null
+            t.input('\x7f')
+            backspaceRepeatInterval = setInterval(() => t.input('\x7f'), 80)
+          }, 400)
+        }
+      }
+      return false
+    }
     if (ev.type === 'keydown') caretMove++ // typing stops an Option-click move
     if (ev.type === 'keydown' && shouldInterceptGlobalShortcut(ev, shortcutPlatform())) return false
     const bytes = editingKey(ev)
@@ -542,6 +567,7 @@ onMounted(async () => {
     }
     return false
   })
+  t.textarea?.addEventListener('blur', stopBackspaceRepeat)
   observer = new ResizeObserver(() => refit())
   observer.observe(el.value!)
   // An attached tmux client can constrain the shared session size even when
@@ -603,6 +629,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  stopBackspaceRepeat()
   window.removeEventListener('hostbud:toggle-keyboard', toggleStandaloneKeyboard)
   disposed = true
   clearTouchSelectTimer()

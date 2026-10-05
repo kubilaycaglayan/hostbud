@@ -732,6 +732,38 @@ describe('TerminalView', () => {
     expect(ws.sent).toHaveLength(1)
   })
 
+  it('repeats plain Backspace while held in the installed iOS PWA', async () => {
+    vi.useFakeTimers()
+    const platform = Object.getOwnPropertyDescriptor(navigator, 'platform')
+    const userAgent = Object.getOwnPropertyDescriptor(navigator, 'userAgent')
+    const points = Object.getOwnPropertyDescriptor(navigator, 'maxTouchPoints')
+    Object.defineProperty(navigator, 'platform', { configurable: true, value: 'iPhone' })
+    Object.defineProperty(navigator, 'userAgent', { configurable: true, value: 'iPhone' })
+    Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, value: 5 })
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(display-mode: standalone)' }))
+    let w: Awaited<ReturnType<typeof mountTerm>> | undefined
+    try {
+      w = await mountTerm()
+      const ws = FakeWS.all.at(-1)!
+      ws.onopen?.({} as Event)
+      const t = h.terms.at(-1)!
+      const down = new KeyboardEvent('keydown', { key: 'Backspace', cancelable: true })
+      expect(t.keyHandler(down)).toBe(false)
+      expect(down.defaultPrevented).toBe(true)
+      await vi.advanceTimersByTimeAsync(560)
+      expect(ws.sent.map((data) => typeof data === 'string' ? data : new TextDecoder().decode(data))).toEqual(['\x7f', '\x7f', '\x7f', '\x7f'])
+      t.keyHandler(new KeyboardEvent('keyup', { key: 'Backspace' }))
+      await vi.advanceTimersByTimeAsync(200)
+      expect(ws.sent).toHaveLength(4)
+    } finally {
+      w?.unmount()
+      vi.useRealTimers()
+      if (platform) Object.defineProperty(navigator, 'platform', platform)
+      if (userAgent) Object.defineProperty(navigator, 'userAgent', userAgent)
+      if (points) Object.defineProperty(navigator, 'maxTouchPoints', points)
+    }
+  })
+
   it('keeps registered global shortcuts out of xterm while passing ordinary terminal chords through', async () => {
     await mountTerm()
     const t = h.terms[0]
