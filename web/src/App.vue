@@ -639,6 +639,7 @@ const standaloneDisplay = useMediaQuery('(display-mode: standalone)')
 const landscape = useMediaQuery('(orientation: landscape)')
 const installedApp = computed(() => standaloneDisplay.value || (navigator as Navigator & { standalone?: boolean }).standalone === true)
 const pwaKeyboardOpen = ref(false)
+const focusInitialTerminal = ref(true)
 function updatePwaKeyboardState() {
   const viewport = window.visualViewport
   const standaloneHeight = installedApp.value ? window.screen.height : 0
@@ -656,9 +657,10 @@ onMounted(() => {
 onUnmounted(() => window.visualViewport?.removeEventListener('resize', updatePwaKeyboardState))
 watch([installedApp, landscape], ([isInstalledApp, isLandscape]) => {
   if (!isInstalledApp || !isLandscape) return
+  focusInitialTerminal.value = false
   pwaKeyboardOpen.value = false
   window.dispatchEvent(new CustomEvent('hostbud:toggle-keyboard', { detail: { open: false } }))
-})
+}, { immediate: true })
 const focusAvailable = computed(() => !compact.value && !coarsePointer.value && !installedApp.value)
 watch(focusAvailable, (available) => {
   if (!available) disarmFocusMode()
@@ -679,8 +681,6 @@ function closeTab(id: string) {
   if (layout.tabs.length === 0) app.showList()
 }
 
-const focusInitialTerminal = ref(true)
-
 // Signed in: the saved layout first (before any terminal mounts), then live
 // state; the server pushes every change.
 watch(
@@ -695,7 +695,7 @@ watch(
       app.showList()
       return
     }
-    focusInitialTerminal.value = true
+    focusInitialTerminal.value = !(installedApp.value && landscape.value)
     await Promise.all([
       layout.load(),
       tree.load(),
