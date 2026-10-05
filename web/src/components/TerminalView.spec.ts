@@ -194,6 +194,21 @@ async function clickMenuItem(text: string) {
 }
 
 describe('TerminalView', () => {
+  it('uses a thinner colored title bar in the installed PWA', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(display-mode: standalone)' }))
+    useProjectsStore().remember({ id: 'project-a', machineId: 'host', path: '/home/dev/bright-work', name: 'Bright work', sortOrder: 0, pinned: false, createdAt: '', updatedAt: '' })
+    useSessionsStore().$patch({ byMachine: { host: [{ id: '$1', name: 'acc-a', path: '/home/dev/bright-work', attached: 0, windows: 1, created: '', activity: '' }] } })
+    const tree = useTreeStore()
+    tree.order.projectSections = { 'project-a': 'section-a' }
+    tree.order.sections = [{ id: 'section-a', name: 'Research', color: 'purple' }]
+    const w = await mountTerm()
+    const header = w.get('[data-terminal-header]')
+    expect(header.classes()).toContain('py-0.5')
+    expect(header.classes()).toContain('text-section-fg')
+    expect(header.attributes('style')).toContain('var(--hb-section-purple)')
+    w.unmount()
+  })
+
   it('focuses the active pane once when loading the saved page layout', async () => {
     const descriptor = Object.getOwnPropertyDescriptor(document, 'visibilityState')
     try {
@@ -234,6 +249,7 @@ describe('TerminalView', () => {
     const icon = w.get('[data-terminal-directory-icon]')
     expect(name.text()).toBe('acc-a')
     expect(w.get('[data-terminal-header]').classes()).toContain('text-section-fg')
+    expect(w.get('[data-terminal-header]').classes()).toContain('py-1.5')
     expect(w.get('[data-terminal-header]').attributes('style')).toContain('var(--hb-section-purple)')
     expect(directory.classes()).not.toContain('text-accent')
     expect(directory.classes()).not.toContain('text-accent')

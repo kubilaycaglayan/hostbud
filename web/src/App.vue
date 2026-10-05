@@ -640,10 +640,13 @@ const installedApp = computed(() => standaloneDisplay.value || (navigator as Nav
 const pwaKeyboardOpen = ref(false)
 function updatePwaKeyboardState() {
   const viewport = window.visualViewport
-  pwaKeyboardOpen.value = !!viewport && window.innerHeight - viewport.height > 150
+  const standaloneHeight = installedApp.value ? window.screen.height : 0
+  pwaKeyboardOpen.value = !!viewport && Math.max(window.innerHeight, standaloneHeight) - viewport.height > 150
 }
 function togglePwaKeyboard() {
-  window.dispatchEvent(new CustomEvent('hostbud:toggle-keyboard'))
+  const open = !pwaKeyboardOpen.value
+  pwaKeyboardOpen.value = open
+  window.dispatchEvent(new CustomEvent('hostbud:toggle-keyboard', { detail: { open } }))
 }
 onMounted(() => {
   updatePwaKeyboardState()

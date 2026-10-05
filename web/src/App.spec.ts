@@ -191,6 +191,7 @@ describe('App shell', () => {
     const wrapper = mount(App)
     await flushPromises()
     expect(wrapper.get('header h1').classes()).toContain('sr-only')
+    expect(wrapper.get('header button[aria-label="Show keyboard"]')).toBeTruthy()
     wrapper.unmount()
   })
 

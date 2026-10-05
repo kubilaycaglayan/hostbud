@@ -38,6 +38,7 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 | T29 Web focus mode toggle (mouse-leave overlay) | Implemented; U passes; E written and type-checked, browser run pending on demand |
 | T30 Claude Code token usage in the terminal header | Implemented; U and I pass; E written and type-checked, browser run pending on demand |
 | T31 Session header project and token alignment | Implemented; U written; E written and type-checked, browser run pending on demand |
+| T33 Installed PWA terminal keyboard space | Implemented; U written; E written, type-check pending; browser run pending on demand |
 
 **Progress note (T2–T4, 2026-09-27):** Vitest (447 tests), eslint, `vue-tsc` and the e2e `tsc` passed; deployed to the host from a clean checkout of `f664bb8` (a pre-deploy `pg_dump` is in `backups/`), and the stack came up healthy. Still open for these tasks:
 - **E2E runs:** the scenarios *(T2) Compact tree*, *(T3) Compact file browser* and *(T3) No browser autocomplete outside login password* type-check but haven't run: e2e runs only on demand. The T2 commit also updated two M6 scenarios that expanded single-window sessions (*(T4) Inline rename a session*, *(T3) Window rows follow the real terminal*). T22 replaces the former M8 *(T4) Custom tab order* scenario.
@@ -378,6 +379,16 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 **Tests:** U: T32 `control-sizing.test.mjs` protects the global coarse-pointer selectors and compact control reset; component coverage checks touch-target labels remain present for terminal search and queue parallel controls. I: n/a because this is frontend CSS and markup only. E: T32 *Native choice controls stay compact on touch screens* (`notifications.phone.spec.ts`) checks rendered checkbox dimensions and 44px label targets in WebKit.
 
 **E2E:** Update T32 *Native choice controls stay compact on touch screens* in `test/e2e/tests/notifications.phone.spec.ts`; type-check only, run on demand.
+
+## T33 — Reclaim the installed PWA terminal keyboard space
+
+- Hide the accessory key bar in the installed PWA, retaining the existing key bar in regular mobile browsers. Keep the xterm input's autocorrect, capitalization, autocomplete and spellcheck disabled so the iOS keyboard does not rewrite terminal commands or offer spelling suggestions.
+- Add an installed-PWA-only keyboard toggle in the app header. It focuses the active pane to show the keyboard or blurs it to hide the keyboard; inactive panes ignore the request. Keep the visual viewport sizing so the terminal fills the usable space when the keyboard is closed and resizes to the area above it when open.
+- Reduce vertical padding on the colored terminal title bar in the installed PWA so more screen space remains for terminal text; keep regular browser header sizing unchanged.
+
+**Tests:** U: T33 `App.spec.ts` verifies that the PWA header offers the keyboard action; `TerminalView.spec.ts` verifies compact title-bar padding while preserving its section color and regular-browser padding. I: n/a: no server or host behavior changes. E: T33 *Installed PWA offers a header keyboard toggle and omits the accessory key bar* (`pwa.spec.ts`) opens a session in standalone mode, checks key-bar removal and compact title-bar padding, and verifies header focus/blur.
+
+**E2E:** Added T33 scenario in `test/e2e/tests/pwa.spec.ts`; type-check only, full run on demand. Manual (owner, open): verify suggestion/accessory rows are absent and the terminal reaches the usable bottom edge in the installed iPhone PWA with the keyboard both open and closed.
 
 
 ## Done

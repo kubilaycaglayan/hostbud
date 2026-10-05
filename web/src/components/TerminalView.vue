@@ -37,6 +37,7 @@ import { useToastsStore } from '@/stores/toasts'
 import { useThemeStore } from '@/stores/theme'
 import { shouldInterceptGlobalShortcut, shortcutPlatform } from '@/lib/shortcuts'
 import { attachTouchScroll } from '@/lib/touchScroll'
+import { isStandalone } from '@/lib/notificationDevice'
 
 const props = withDefaults(
   defineProps<{
@@ -68,6 +69,7 @@ const emit = defineEmits<{
   close: []
   cyclePane: []
 }>()
+const standalonePwa = isStandalone()
 const takesInput = () => props.active && props.focused
 
 const el = ref<HTMLDivElement>()
@@ -336,6 +338,11 @@ function prepareInput(input: HTMLTextAreaElement | undefined) {
 function showKeyboard() {
   term.value?.focus()
 }
+function toggleStandaloneKeyboard(event: Event) {
+  if (!props.active || !takesInput()) return
+  if ((event as CustomEvent<{ open: boolean }>).detail?.open) showKeyboard()
+  else term.value?.textarea?.blur()
+}
 
 /** Applies the one-time focus requested by App after restoring a saved layout. */
 function applyInitialTerminalFocus() {
@@ -442,6 +449,7 @@ function reconnect() {
 // browser keyboard opens from an explicit terminal tap or Show keyboard.
 
 onMounted(async () => {
+  window.addEventListener('hostbud:toggle-keyboard', toggleStandaloneKeyboard)
   disposeBackgroundBlur = blurActiveFieldOnHide(document)
   await document.fonts?.ready
   if (disposed) return
@@ -595,6 +603,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('hostbud:toggle-keyboard', toggleStandaloneKeyboard)
   disposed = true
   clearTouchSelectTimer()
   disposeBackgroundBlur()
@@ -631,7 +640,7 @@ defineExpose({ refit, reconnect, showKeyboard })
     :data-focused="takesInput() ? 'true' : undefined"
     @focusin="emit('focus')"
   >
-    <div data-terminal-header class="flex min-w-0 items-center gap-2 border-b border-border px-2 py-1.5" :class="takesInput() && sessionSectionColor ? 'text-section-fg' : 'text-fg'" :style="takesInput() && sessionSectionColor ? { backgroundColor: sessionSectionColor } : undefined">
+    <div data-terminal-header class="flex min-w-0 items-center gap-2 border-b border-border px-2" :class="[takesInput() && sessionSectionColor ? 'text-section-fg' : 'text-fg', standalonePwa ? 'py-0.5' : 'py-1.5']" :style="takesInput() && sessionSectionColor ? { backgroundColor: sessionSectionColor } : undefined">
       <Folder data-terminal-directory-icon :size="16" class="shrink-0" aria-hidden="true" />
       <h2 data-terminal-session-name class="min-w-0 flex-1 truncate text-base font-bold tracking-tight">
         {{ props.session }}
@@ -720,7 +729,7 @@ defineExpose({ refit, reconnect, showKeyboard })
     <TerminalTextDialog v-model:open="snapshotOpen" mode="snapshot" :snapshot="terminalSnapshot" :loading="snapshotLoading" :error="snapshotError" @retry="openSnapshot" />
     <PhotoUploadDialog v-model:open="photoUploadOpen" :machine="props.machine" :directory="uploadDirectory" @uploaded="pasteUploadedPhotoPath" />
     <KeyBar
-      v-if="!inMode"
+      v-if="!inMode && !standalonePwa"
       :term="term"
       :modifiers="modifiers"
       :focused="takesInput()"

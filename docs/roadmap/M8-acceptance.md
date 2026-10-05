@@ -270,3 +270,12 @@ T8 verification: native reader checked at 390px in Chromium and WebKit (358px co
   - I: n/a: presentation-only header change with no server behavior.
   - E: T31 *Active session header aligns project and token usage* (`codex-usage.spec.ts`, desktop and iPhone 13 Pro) checks left/center/right placement and project context with live usage.
   - Status: E written and type-checked; browser run pending on demand.
+
+## Installed PWA terminal keyboard space (T33)
+
+- [ ] In the installed PWA, the extra key bar is absent and the app header has a keyboard toggle that focuses the active terminal pane to show the native keyboard and blurs it to hide it. Only the active focused pane responds. Terminal input keeps autocorrect, autocapitalization, autocomplete and spellcheck disabled. The colored terminal title bar has reduced vertical padding to leave more space for terminal text. The terminal uses the available viewport through the bottom edge when the keyboard is closed and fills the remaining area above it when open. Regular mobile browsers keep their existing key bar and title bar sizing.
+  - U: T33 `App.spec.ts` covers the PWA-only header action; `TerminalView.spec.ts` covers standalone key-bar suppression, input attributes, focus/blur routing and the compact colored title bar.
+  - I: n/a: this is browser presentation and focus behavior; server/SSH APIs do not change.
+  - E: T33 *Installed PWA offers a header keyboard toggle and omits the accessory key bar* (`pwa.spec.ts`, desktop Chromium standalone simulation) checks key-bar removal, compact title-bar padding and active terminal focus/blur. The physical iOS suggestion/accessory rows and viewport bottom edge require the owner check below.
+  - Status: E written; type-check and browser run pending on demand.
+  - **Manual (owner, open):** verify suggestion/accessory rows are absent and the terminal reaches the usable bottom edge in the installed iPhone PWA with the keyboard both open and closed.

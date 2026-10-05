@@ -7,6 +7,29 @@ test.use({
 })
 test.afterEach(async () => { await ctl.appStart() })
 
+test('(T33) Installed PWA offers a header keyboard toggle and omits the accessory key bar', async ({ page, ui, target }) => {
+  await page.addInitScript(() => {
+    const nativeMatchMedia = window.matchMedia.bind(window)
+    window.matchMedia = (query: string) => query === '(display-mode: standalone)'
+      ? ({ matches: true, media: query, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent() { return false } } as MediaQueryList)
+      : nativeMatchMedia(query)
+  })
+  await target.resetTmux()
+  const session = `pwa-keyboard-${Date.now()}`
+  await target.tmux('new-session', '-d', '-s', session, '-c', '/home/dev')
+  await page.goto('/')
+  await ui.tree().waitFor()
+  await ui.openTerminal(session)
+  await expect(page.getByRole('button', { name: 'Show keyboard' })).toBeVisible()
+  await expect(page.locator('[data-testid="key-bar"]')).toHaveCount(0)
+  await expect(page.locator('[data-terminal-header]')).toHaveClass(/py-0\.5/)
+  const input = page.locator('.xterm-helper-textarea')
+  await page.getByRole('button', { name: 'Show keyboard' }).click()
+  await expect(input).toBeFocused()
+  await page.getByRole('button', { name: 'Hide keyboard' }).click()
+  await expect(input).not.toBeFocused()
+})
+
 test('(T7) Manifest and icons load through Caddy with no external requests', async ({ page }) => {
   const requests: string[] = []
   page.on('request', (request) => requests.push(request.url()))
