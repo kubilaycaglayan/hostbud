@@ -37,7 +37,7 @@ import { useWindowsStore } from '@/stores/windows'
 import { useProjectsStore } from '@/stores/projects'
 import { useToastsStore } from '@/stores/toasts'
 import { useSessionsStore } from '@/stores/sessions'
-import { EyeOff, FolderSearch, ListOrdered, PanelLeftClose, PanelLeftOpen, Search, Server, SquareTerminal, UserRound } from 'lucide-vue-next'
+import { EyeOff, FolderSearch, Keyboard, ListOrdered, PanelLeftClose, PanelLeftOpen, Search, Server, SquareTerminal, UserRound } from 'lucide-vue-next'
 import { isEditableTarget, isTerminalTarget, isTreeTarget, matchingShortcut, shortcutLabels, shortcutPlatform, shortcuts } from '@/lib/shortcuts'
 import { parseSessionRef, projectTree, refOf, sessionKey, sessionMachine, sessionRef, visibleOpenSessionNames, windowKey } from '@/lib/tree'
 import { dispatchPaletteAction } from '@/lib/paletteActions'
@@ -77,6 +77,7 @@ const sessionProject = ref<Project | null>(null) // the project a New session he
 const killing = ref(false)
 const drawerOpen = ref(false)
 const accountOpen = ref(false)
+const accountMenu = ref<HTMLDetailsElement | null>(null)
 const swipeStart = ref<{ x: number; y: number } | null>(null)
 const target = ref('') // the session the kill confirmation is about
 const removingProject = ref<Project | null>(null)
@@ -636,6 +637,19 @@ function toggleLastSession() {
 const compact = useMediaQuery(COMPACT_QUERY)
 const standaloneDisplay = useMediaQuery('(display-mode: standalone)')
 const installedApp = computed(() => standaloneDisplay.value || (navigator as Navigator & { standalone?: boolean }).standalone === true)
+const pwaKeyboardOpen = ref(false)
+function updatePwaKeyboardState() {
+  const viewport = window.visualViewport
+  pwaKeyboardOpen.value = !!viewport && window.innerHeight - viewport.height > 150
+}
+function togglePwaKeyboard() {
+  window.dispatchEvent(new CustomEvent('hostbud:toggle-keyboard'))
+}
+onMounted(() => {
+  updatePwaKeyboardState()
+  window.visualViewport?.addEventListener('resize', updatePwaKeyboardState)
+})
+onUnmounted(() => window.visualViewport?.removeEventListener('resize', updatePwaKeyboardState))
 const focusAvailable = computed(() => !compact.value && !coarsePointer.value && !installedApp.value)
 watch(focusAvailable, (available) => {
   if (!available) disarmFocusMode()
@@ -714,8 +728,14 @@ const onWorkerMessage = (e: MessageEvent) => {
   const target = queueTarget(data.path)
   if (target) openQueueItem(target.queueId, target.itemId)
 }
+// A click or tap outside the Account menu closes it (capture phase, so the
+// terminal or a dialog stopping propagation can't keep it open).
+const onOutsidePointerDown = (e: PointerEvent) => {
+  if (accountOpen.value && !accountMenu.value?.contains(e.target as Node)) accountOpen.value = false
+}
 onMounted(() => {
   void auth.check()
+  document.addEventListener('pointerdown', onOutsidePointerDown, true)
   navigator.serviceWorker?.addEventListener('message', onWorkerMessage)
   window.addEventListener('pagehide', flushState)
   document.addEventListener('visibilitychange', onVisibilityChange)
@@ -724,6 +744,7 @@ onMounted(() => {
   document.documentElement.addEventListener('mouseenter', onViewportMouseEnter)
 })
 onUnmounted(() => {
+  document.removeEventListener('pointerdown', onOutsidePointerDown, true)
   navigator.serviceWorker?.removeEventListener('message', onWorkerMessage)
   window.removeEventListener('pagehide', flushState)
   document.removeEventListener('visibilitychange', onVisibilityChange)
@@ -774,6 +795,9 @@ onUnmounted(() => {
       <IconButton label="Browse files" @click="browseFiles">
         <FolderSearch :size="18" aria-hidden="true" />
       </IconButton>
+      <IconButton v-if="installedApp" :label="pwaKeyboardOpen ? 'Hide keyboard' : 'Show keyboard'" @click="togglePwaKeyboard">
+        <Keyboard :size="18" aria-hidden="true" />
+      </IconButton>
       <IconButton label="Queue" :emphasized="hasRunningQueue" @click="openQueue">
         <ListOrdered :size="18" aria-hidden="true" />
       </IconButton>
@@ -791,7 +815,7 @@ onUnmounted(() => {
         <Search :size="18" aria-hidden="true" />
       </IconButton>
       <div class="ml-auto min-w-0 text-sm text-muted">
-        <details class="relative" :open="accountOpen" @toggle="accountOpen = ($event.target as HTMLDetailsElement).open" @keydown.escape="accountOpen = false">
+        <details ref="accountMenu" class="relative" :open="accountOpen" @toggle="accountOpen = ($event.target as HTMLDetailsElement).open" @keydown.escape="accountOpen = false">
           <!-- WebKit and the accessibility tree don't expose <summary> as a button everywhere. -->
           <summary role="button" aria-label="Account" :aria-expanded="accountOpen" class="flex min-h-11 cursor-pointer list-none items-center justify-center gap-1.5 rounded border border-border px-2 sm:px-3"><UserRound class="size-4 shrink-0" aria-hidden="true" /><span class="hidden sm:inline">Account</span></summary>
           <div class="absolute right-0 top-full z-30 mt-1 w-56 rounded border border-border bg-surface p-2 shadow-lg">

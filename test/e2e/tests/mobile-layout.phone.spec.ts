@@ -169,6 +169,10 @@ test('(T2) Account menu on the phone', async ({ page, ui }) => {
   await expect(page.locator('header button[aria-controls="sessions-sidebar"]')).toHaveCount(0)
   await trigger.tap()
   await expect(header.getByText(/@/)).toBeVisible()
+  // A tap outside the menu closes it.
+  await page.locator('main').tap({ position: { x: 20, y: 20 } })
+  await expect(header.getByRole('button', { name: 'Sign out' })).toBeHidden()
+  await trigger.tap()
   await expect(header.getByRole('button', { name: 'Sign out' })).toBeVisible()
   await header.getByRole('button', { name: 'Sign out' }).tap()
   await expect(ui.authForm().tab('Sign in')).toBeVisible()
