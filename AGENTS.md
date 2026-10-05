@@ -25,6 +25,12 @@ All such values come from environment variables. **If you need a config value th
 - **v2** follows its own roadmap: [docs/roadmap-v2/ROADMAP.md](docs/roadmap-v2/ROADMAP.md) (V2-M1 implemented; later milestones are opt-in). Keep the v1 obligations in ARCHITECTURE §10.
 - No CI and no git remote for now; the repo will be published to GitHub later.
 
+## Image and file provenance
+- Treat an image pasted into the conversation and an image file in the workspace as separate sources. Describe a pasted image from the image attached to that message; inspect a local image only when the user asks about that path or file.
+- Never assume `image.png`, `image-1.png`, or a similarly named path is the pasted image. Names and visual similarity do not establish identity.
+- If asked whether a pasted image and local file are the same, compare the actual content when both are accessible. If they differ or the mapping is unavailable, state that clearly and keep the two descriptions separate.
+- Use the user's exact local path when opening a file. If it cannot be found, check the directory for a near match and report the exact path found; don't silently substitute it as the pasted attachment.
+
 ## Environment
 - The dev machine **is** the deploy host. There is no separate staging environment. The app is deployed straight to the host with `make deploy` (`docker compose up -d --build`). The app holds no critical state (tmux sessions live on the targets), but:
   - never run destructive tmux commands (kill-session, kill-server) except on explicit user action behind a confirmation dialog;
