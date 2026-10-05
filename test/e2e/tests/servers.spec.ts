@@ -57,7 +57,7 @@ test('(V2-M13 T4) A project on another server shows its nickname chip and opens 
     await ui.waitForTerminal(session)
     const terminalHeader = page.getByRole('region', { name: `Terminal: ${session}` })
     await expect(terminalHeader.locator('[data-terminal-machine-chip]')).toHaveText('E2E second')
-    await expect(terminalHeader.locator('[data-terminal-machine-chip]')).toHaveCSS('font-weight', '800')
+    await expect(terminalHeader.locator('[data-terminal-machine-chip]')).toHaveCSS('font-weight', '900')
     const marker = uniqueName('on-server')
     await ui.type(`echo ${marker}`, true)
     await expect.poll(async () => server.capture(session), { timeout: 15_000 }).toContain(marker)
