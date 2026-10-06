@@ -35,10 +35,10 @@ New `internal/machines` registry: one inventory + SFTP browser per machine, star
 
 Tests: U: registry add/remove/order, API validation (bad host, user, port, key, label; host can't be removed), routes.json. I: API against `hostbud-test-sshd-notmux` added as a server (scan → add → status → sessions route → remove). E2E: `servers.api.spec.ts` — scan, add the e2e second target, list it, create a session on it, refuse removal while a project uses it, remove. Adds `hostbud-e2e-target2` to the e2e compose.
 
-### T3 — Servers dialog (add / remove)
-Header *Add server* button → Servers dialog: list servers with status; add form (nickname, host, user, port) → *Check host key* shows fingerprints → *Trust and add*; remove with confirmation. machines store handles `machine.removed`; API client methods.
+### T3 — Servers dialog (add / edit nickname / remove)
+Header *Add server* button → Servers dialog: list servers with status; add form (nickname, host, user, port) → *Check host key* shows fingerprints → *Trust and add*; edit a configured server's nickname inline and save through the rename API; remove with confirmation. Connection endpoint changes remain unavailable because they require scanning and confirming replacement host keys. machines store handles `machine.removed`; API client methods.
 
-Tests: U: ServersDialog.spec.ts (scan, fingerprint confirm, add, error, remove confirm), machines store removal. I: n/a (frontend only; API covered by T2). E2E: `servers.spec.ts` desktop *Add a server from the header and remove it*.
+Tests: U: ServersDialog.spec.ts (scan, fingerprint confirm, add, nickname edit, error, remove confirm), machines store removal. I: n/a (frontend only; API covered by T2). E2E: `servers.spec.ts` desktop *Add a server from the header, edit its nickname and remove it*.
 
 ### T4 — Multi-server tree and nickname chips
 Sessions of every machine appear in the tree. Session refs (`name` on the host, `machine/name` elsewhere) flow through select/kill/rename/split/hide/windows; the saved tree state accepts both forms. Projects place only same-machine sessions. Project rows and unplaced sessions of another server show a nickname chip. Opening, renaming and killing a remote session use its machine.

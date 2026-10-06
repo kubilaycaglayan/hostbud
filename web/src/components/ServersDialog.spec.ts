@@ -49,6 +49,19 @@ describe('ServersDialog (V2-M13 T3)', () => {
     expect($$('button[aria-label^="Remove "]').map((b) => b.getAttribute('aria-label'))).toEqual(['Remove Build box'])
   })
 
+  it('edits a configured server nickname through the server API', async () => {
+    const calls = await mountDialog((method, path, body) => method === 'PATCH' && path === `/api/machines/${server.id}`
+      ? { status: 200, body: { ...server, label: (body as { label: string }).label } }
+      : { status: 404 })
+    $$('button[aria-label="Edit Build box"]')[0].click()
+    await flushPromises()
+    type('edit-label', 'Build server')
+    $$('button').find((b) => b.textContent?.trim() === 'Save')!.click()
+    await flushPromises()
+    expect(calls.find((c) => c.method === 'PATCH')?.body).toEqual({ label: 'Build server' })
+    expect($$('[data-testid="server-row"]')[1].textContent).toContain('Build server')
+  })
+
   it('adds a server only after its host-key fingerprints are shown and trusted', async () => {
     const calls = await mountDialog((method, path) => {
       if (path === '/api/machines/scan') return { status: 200, body: scanned }

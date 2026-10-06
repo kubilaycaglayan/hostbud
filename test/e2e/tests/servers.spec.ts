@@ -28,7 +28,12 @@ test('(V2-M13 T3) Add a server from the header and remove it', async ({ page, ui
   await expect(row).toContainText(`dev@${SERVER_HOST}:22`)
   await expect(row).toContainText('Connected', { timeout: 20_000 })
 
-  await dialog.getByRole('button', { name: 'Remove E2E second' }).click()
+  await row.getByRole('button', { name: 'Edit E2E second' }).click()
+  await row.getByLabel('Nickname for E2E second').fill('E2E renamed')
+  await row.getByRole('button', { name: 'Save' }).click()
+  await expect(row).toContainText('E2E renamed')
+
+  await dialog.getByRole('button', { name: 'Remove E2E renamed' }).click()
   const confirm = page.getByRole('alertdialog')
   await expect(confirm).toContainText('tmux sessions keep running')
   await confirm.getByRole('button', { name: 'Remove server' }).click()

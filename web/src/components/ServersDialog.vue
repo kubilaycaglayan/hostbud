@@ -27,6 +27,8 @@ const busy = ref(false)
 const error = ref<{ title: string; message: string; hint?: string } | null>(null)
 const removing = ref<Machine | null>(null)
 const confirmOpen = ref(false)
+const editing = ref<Machine | null>(null)
+const editLabel = ref('')
 
 const portNumber = computed(() => Number(port.value.trim() || '22'))
 const portError = computed(() => Number.isInteger(portNumber.value) && portNumber.value >= 1 && portNumber.value <= 65535 ? '' : 'Use a port from 1 to 65535.')
@@ -101,6 +103,29 @@ async function add() {
   }
 }
 
+function beginEdit(m: Machine) {
+  editing.value = m
+  editLabel.value = m.label
+  error.value = null
+}
+
+async function saveEdit() {
+  const m = editing.value
+  if (!m) return
+  error.value = null
+  busy.value = true
+  try {
+    const updated = await serversApi.rename(m.id, editLabel.value.trim())
+    machines.machines = machines.machines.map((item) => item.id === updated.id ? updated : item)
+    editing.value = null
+    toasts.push({ title: 'Server updated', message: `Nickname changed to ${updated.label}.`, tone: 'info' })
+  } catch (e) {
+    error.value = { title: "Couldn't update the server", ...describeError(e) }
+  } finally {
+    busy.value = false
+  }
+}
+
 function askRemove(m: Machine) {
   removing.value = m
   confirmOpen.value = true
@@ -150,7 +175,13 @@ async function remove() {
                 :class="m.status === 'ok' ? 'bg-ok' : m.status === 'unknown' ? 'bg-muted' : 'bg-danger'"
                 aria-hidden="true"
               />
-              <div class="min-w-0 flex-1">
+              <div v-if="editing?.id === m.id" class="min-w-0 flex-1">
+                <label class="flex flex-col gap-1 text-sm">
+                  <span>Nickname</span>
+                  <input v-model="editLabel" name="edit-label" :aria-label="`Nickname for ${m.label}`" autocomplete="off" maxlength="40" class="rounded border border-border bg-bg px-2 py-1 text-base">
+                </label>
+              </div>
+              <div v-else class="min-w-0 flex-1">
                 <p class="truncate font-bold">
                   {{ m.label }} <span v-if="m.source !== 'custom'" class="font-normal text-muted">(this host)</span>
                 </p>
@@ -161,8 +192,21 @@ async function remove() {
                   {{ m.hint }}
                 </p>
               </div>
+              <template v-if="m.source === 'custom' && editing?.id === m.id">
+                <button type="button" class="touch-target min-h-11 shrink-0 rounded border border-border px-2 text-sm" :disabled="busy" @click="saveEdit">Save</button>
+                <button type="button" class="touch-target min-h-11 shrink-0 rounded border border-border px-2 text-sm" :disabled="busy" @click="editing = null">Cancel</button>
+              </template>
               <button
-                v-if="m.source === 'custom'"
+                v-else-if="m.source === 'custom'"
+                type="button"
+                class="touch-target min-h-11 shrink-0 rounded border border-border px-2 text-sm"
+                :aria-label="`Edit ${m.label}`"
+                @click="beginEdit(m)"
+              >
+                Edit
+              </button>
+              <button
+                v-if="m.source === 'custom' && editing?.id !== m.id"
                 type="button"
                 class="touch-target min-h-11 shrink-0 rounded border border-border px-2 text-sm"
                 :aria-label="`Remove ${m.label}`"
