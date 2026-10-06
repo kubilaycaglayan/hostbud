@@ -29,12 +29,24 @@ const removing = ref<Machine | null>(null)
 const confirmOpen = ref(false)
 const editing = ref<Machine | null>(null)
 const editLabel = ref('')
+const editHost = ref('')
+const editUser = ref('')
+const editPort = ref('22')
+const editKeys = ref<HostKey[] | null>(null)
+const editScanned = ref('')
 
 const portNumber = computed(() => Number(port.value.trim() || '22'))
 const portError = computed(() => Number.isInteger(portNumber.value) && portNumber.value >= 1 && portNumber.value <= 65535 ? '' : 'Use a port from 1 to 65535.')
 const target = computed(() => `${host.value.trim()}:${portNumber.value}`)
 // Keys belong to the host and port they were scanned from.
 const confirmedKeys = computed(() => (keys.value && scanned.value === target.value ? keys.value : null))
+const editTarget = computed(() => `${editHost.value.trim()}:${Number(editPort.value.trim() || '22')}`)
+const editConfirmedKeys = computed(() => editKeys.value && editScanned.value === editTarget.value ? editKeys.value : null)
+
+function unchangedConnection(m: Machine) {
+  const original = (m.address ?? '').match(/^(.*?)@(.*):(\d+)$/)
+  return !!original && editUser.value.trim() === original[1] && editHost.value.trim() === original[2] && Number(editPort.value) === Number(original[3])
+}
 
 watch(open, (isOpen) => {
   if (!isOpen) return
@@ -106,19 +118,43 @@ async function add() {
 function beginEdit(m: Machine) {
   editing.value = m
   editLabel.value = m.label
+  const match = (m.address ?? '').match(/^(.*?)@(.*):(\d+)$/)
+  editUser.value = match?.[1] ?? ''
+  editHost.value = match?.[2] ?? ''
+  editPort.value = match?.[3] ?? '22'
+  editKeys.value = null
+  editScanned.value = ''
   error.value = null
+}
+
+async function scanEdit() {
+  if (!editHost.value.trim() || !Number.isInteger(Number(editPort.value)) || Number(editPort.value)<1 || Number(editPort.value)>65535) {
+    error.value = { title: "Couldn't check the host key", message: 'Enter a host and a port from 1 to 65535.' }; return
+  }
+  busy.value = true; error.value = null
+  try { const res = await serversApi.scan(editHost.value.trim(), Number(editPort.value)); editKeys.value=res.hostKeys; editScanned.value=editTarget.value }
+  catch(e) { editKeys.value=null; error.value={title:"Couldn't check the host key",...describeError(e)} }
+  finally { busy.value=false }
 }
 
 async function saveEdit() {
   const m = editing.value
   if (!m) return
+  const unchangedTarget = unchangedConnection(m)
+  if (!unchangedTarget && !editConfirmedKeys.value) return
   error.value = null
   busy.value = true
   try {
-    const updated = await serversApi.rename(m.id, editLabel.value.trim())
+    const confirmed = editConfirmedKeys.value
+    const updated = unchangedTarget
+      ? await serversApi.rename(m.id, editLabel.value.trim())
+      : await serversApi.update(m.id, {
+          label: editLabel.value.trim(), host: editHost.value.trim(), port: Number(editPort.value), user: editUser.value.trim(),
+          hostKeys: (confirmed ?? []).map(({ type, key }) => ({ type, key })),
+        })
     machines.machines = machines.machines.map((item) => item.id === updated.id ? updated : item)
     editing.value = null
-    toasts.push({ title: 'Server updated', message: `Nickname changed to ${updated.label}.`, tone: 'info' })
+    toasts.push({ title: 'Server updated', message: `Updated ${updated.label}.`, tone: 'info' })
   } catch (e) {
     error.value = { title: "Couldn't update the server", ...describeError(e) }
   } finally {
@@ -175,11 +211,15 @@ async function remove() {
                 :class="m.status === 'ok' ? 'bg-ok' : m.status === 'unknown' ? 'bg-muted' : 'bg-danger'"
                 aria-hidden="true"
               />
-              <div v-if="editing?.id === m.id" class="min-w-0 flex-1">
+              <div v-if="editing?.id === m.id" class="min-w-0 flex-1 flex flex-col gap-2">
                 <label class="flex flex-col gap-1 text-sm">
                   <span>Nickname</span>
                   <input v-model="editLabel" name="edit-label" :aria-label="`Nickname for ${m.label}`" autocomplete="off" maxlength="40" class="rounded border border-border bg-bg px-2 py-1 text-base">
                 </label>
+                <label class="flex flex-col gap-1 text-sm"><span>Host</span><input v-model="editHost" name="edit-host" :aria-label="`Host for ${m.label}`" autocomplete="off" class="rounded border border-border bg-bg px-2 py-1 text-base"></label>
+                <div class="flex gap-2"><label class="flex-1 text-sm"><span>User</span><input v-model="editUser" name="edit-user" :aria-label="`User for ${m.label}`" autocomplete="off" class="w-full rounded border border-border bg-bg px-2 py-1 text-base"></label><label class="w-24 text-sm"><span>Port</span><input v-model="editPort" name="edit-port" :aria-label="`Port for ${m.label}`" inputmode="numeric" autocomplete="off" class="w-full rounded border border-border bg-bg px-2 py-1 text-base"></label></div>
+                <button type="button" class="touch-target min-h-11 self-start rounded border border-border px-2 text-sm" :disabled="busy" @click="scanEdit">Check host key</button>
+                <section v-if="editConfirmedKeys" aria-label="Edit host key fingerprints" class="rounded border border-border p-2 text-xs"><p>Confirm keys for {{ editScanned }}</p><p v-for="k in editConfirmedKeys" :key="k.key">{{ k.type }} {{ k.fingerprint }}</p></section>
               </div>
               <div v-else class="min-w-0 flex-1">
                 <p class="truncate font-bold">
@@ -193,7 +233,7 @@ async function remove() {
                 </p>
               </div>
               <template v-if="m.source === 'custom' && editing?.id === m.id">
-                <button type="button" class="touch-target min-h-11 shrink-0 rounded border border-border px-2 text-sm" :disabled="busy" @click="saveEdit">Save</button>
+                <button type="button" class="touch-target min-h-11 shrink-0 rounded border border-border px-2 text-sm" :disabled="busy || (!editConfirmedKeys && !unchangedConnection(m))" @click="saveEdit">Save</button>
                 <button type="button" class="touch-target min-h-11 shrink-0 rounded border border-border px-2 text-sm" :disabled="busy" @click="editing = null">Cancel</button>
               </template>
               <button

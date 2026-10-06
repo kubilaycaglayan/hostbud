@@ -30,8 +30,14 @@ test('(V2-M13 T3) Add a server from the header and remove it', async ({ page, ui
 
   await row.getByRole('button', { name: 'Edit E2E second' }).click()
   await row.getByLabel('Nickname for E2E second').fill('E2E renamed')
+  await row.getByLabel('Host for E2E second').fill('hostbud-e2e-target')
+  await row.getByLabel('User for E2E second').fill('dev')
+  await row.getByLabel('Port for E2E second').fill('22')
+  await row.getByRole('button', { name: 'Check host key' }).click()
+  await expect(row.getByTestId('fingerprint').first()).toContainText('SHA256:')
   await row.getByRole('button', { name: 'Save' }).click()
   await expect(row).toContainText('E2E renamed')
+  await expect(row).toContainText('dev@hostbud-e2e-target:22')
 
   await dialog.getByRole('button', { name: 'Remove E2E renamed' }).click()
   const confirm = page.getByRole('alertdialog')

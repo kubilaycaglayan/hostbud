@@ -89,6 +89,17 @@ func (f *fakeStore) RenameMachine(_ context.Context, id, label string) (store.Ma
 	}
 	return store.Machine{}, store.ErrNotFound
 }
+func (f *fakeStore) UpdateServer(_ context.Context, id string, m store.NewMachine) (store.Machine, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i := range f.rows {
+		if f.rows[i].ID == id && f.rows[i].Source == "custom" {
+			f.rows[i].Label, f.rows[i].HostName, f.rows[i].Port, f.rows[i].SSHUser, f.rows[i].HostKeys = m.Label, m.HostName, m.Port, m.SSHUser, m.HostKeys
+			return f.rows[i], nil
+		}
+	}
+	return store.Machine{}, store.ErrNotFound
+}
 func (f *fakeStore) DeleteMachine(_ context.Context, id string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()

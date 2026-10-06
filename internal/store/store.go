@@ -71,6 +71,7 @@ type Repository interface {
 	// (V2-M13 servers); DeleteMachine returns ErrInUse while projects use one.
 	CreateMachine(ctx context.Context, m NewMachine) (Machine, error)
 	RenameMachine(ctx context.Context, id, label string) (Machine, error)
+	UpdateServer(ctx context.Context, id string, m NewMachine) (Machine, error)
 	DeleteMachine(ctx context.Context, id string) error
 	// SaveCapabilities records a machine's probe results and when it was seen.
 	SaveCapabilities(ctx context.Context, id string, c Capabilities, seen time.Time) error

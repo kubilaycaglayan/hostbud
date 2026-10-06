@@ -54,6 +54,18 @@ func (s *Store) RenameMachine(ctx context.Context, id, label string) (Machine, e
 	return s.Machine(ctx, id)
 }
 
+// UpdateServer replaces the editable connection fields of a custom server.
+func (s *Store) UpdateServer(ctx context.Context, id string, m NewMachine) (Machine, error) {
+	res, err := s.db.ExecContext(ctx, `UPDATE machines SET label=$1, host_name=$2, port=$3, ssh_user=$4, host_keys=$5, updated_at=$6 WHERE id=$7 AND source='custom'`, m.Label, m.HostName, m.Port, m.SSHUser, m.HostKeys, formatTime(s.now()), id)
+	if err != nil {
+		return Machine{}, fmt.Errorf("update server: %w", err)
+	}
+	if n, err := res.RowsAffected(); err == nil && n == 0 {
+		return Machine{}, ErrNotFound
+	}
+	return s.Machine(ctx, id)
+}
+
 // DeleteMachine removes a custom machine with its session links and run cap.
 // It returns ErrNotFound for the host or an unknown id, and ErrInUse while
 // projects (or their queues and runs) still reference the machine.

@@ -22,6 +22,7 @@ type fakeRegistry struct {
 	list    []*fakeMachine
 	fs      map[string]*fakeFileBrowser
 	added   []machines.Server
+	updated machines.Server
 	err     error
 	scanErr error
 }
@@ -59,6 +60,10 @@ func (f *fakeRegistry) Rename(_ context.Context, id, label string) (inventory.Ma
 		return inventory.Machine{}, f.err
 	}
 	return inventory.Machine{ID: id, Label: label}, nil
+}
+func (f *fakeRegistry) Update(_ context.Context, id string, s machines.Server) (inventory.Machine, error) {
+	f.updated = s
+	return inventory.Machine{ID: id, Label: s.Label, Source: "custom"}, f.err
 }
 func (f *fakeRegistry) Remove(_ context.Context, id string) error { return f.err }
 
@@ -123,6 +128,12 @@ func TestServerRoutes(t *testing.T) {
 	}
 	if code, body := call(t, h, http.MethodPatch, "/api/machines/s-0011223344", `{"label":"CI"}`); code != http.StatusOK || !strings.Contains(body, `"label":"CI"`) {
 		t.Fatalf("rename = %d %s", code, body)
+	}
+	if code, body := call(t, h, http.MethodPatch, "/api/machines/s-0011223344", `{"label":"CI","host":"server-b","port":2222,"user":"ops","hostKeys":[{"type":"ssh-ed25519","key":"BBBB"}]}`); code != http.StatusOK || !strings.Contains(body, `"label":"CI"`) {
+		t.Fatalf("update server = %d %s", code, body)
+	}
+	if reg.updated.Host != "server-b" || reg.updated.Port != 2222 || reg.updated.User != "ops" || len(reg.updated.Keys) != 1 || reg.updated.Keys[0].Key != "BBBB" {
+		t.Fatalf("updated server = %+v", reg.updated)
 	}
 	if code, _ := call(t, h, http.MethodDelete, "/api/machines/s-0011223344", ""); code != http.StatusNoContent {
 		t.Fatalf("remove = %d", code)

@@ -19,6 +19,7 @@ type MachineRegistry interface {
 	Scan(ctx context.Context, host string, port int) ([]sshx.HostKey, error)
 	Add(ctx context.Context, s machines.Server) (inventory.Machine, error)
 	Rename(ctx context.Context, id, label string) (inventory.Machine, error)
+	Update(ctx context.Context, id string, s machines.Server) (inventory.Machine, error)
 	Remove(ctx context.Context, id string) error
 }
 
@@ -67,7 +68,11 @@ type addServerRequest struct {
 }
 
 type renameServerRequest struct {
-	Label string `json:"label"`
+	Label    string         `json:"label"`
+	Host     string         `json:"host"`
+	Port     int            `json:"port"`
+	User     string         `json:"user"`
+	HostKeys []hostKeyInput `json:"hostKeys"`
 }
 
 func (s *server) registry(w http.ResponseWriter) (MachineRegistry, bool) {
@@ -125,7 +130,17 @@ func (s *server) renameServer(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	m, err := reg.Rename(r.Context(), r.PathValue("machine"), req.Label)
+	var m inventory.Machine
+	var err error
+	if req.Host != "" || req.User != "" || req.Port != 0 || len(req.HostKeys) > 0 {
+		spec := machines.Server{Label: req.Label, Host: req.Host, Port: req.Port, User: req.User}
+		for _, k := range req.HostKeys {
+			spec.Keys = append(spec.Keys, sshx.HostKey{Type: k.Type, Key: k.Key})
+		}
+		m, err = reg.Update(r.Context(), r.PathValue("machine"), spec)
+	} else {
+		m, err = reg.Rename(r.Context(), r.PathValue("machine"), req.Label)
+	}
 	if err != nil {
 		s.writeMachineError(w, err)
 		return

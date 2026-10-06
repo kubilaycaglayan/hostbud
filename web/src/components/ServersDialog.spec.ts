@@ -62,6 +62,31 @@ describe('ServersDialog (V2-M13 T3)', () => {
     expect($$('[data-testid="server-row"]')[1].textContent).toContain('Build server')
   })
 
+  it('edits the connection fields only after confirming keys for the edited host and port', async () => {
+    const calls = await mountDialog((method, path, body) => {
+      if (path === '/api/machines/scan') return { status: 200, body: scanned }
+      if (method === 'PATCH' && path === `/api/machines/${server.id}`) return { status: 200, body: { ...server, label: (body as {label:string}).label } }
+      return { status: 404 }
+    })
+    $$('button[aria-label="Edit Build box"]')[0].click()
+    await flushPromises()
+    expect(field('edit-host').value).toBe('server-a.example.com')
+    expect(field('edit-user').value).toBe('dev')
+    expect(field('edit-port').value).toBe('22')
+    type('edit-label', 'Build updated')
+    type('edit-host', 'server-b.example.com')
+    type('edit-user', 'operator')
+    type('edit-port', '2222')
+    expect(($$('button').find((b) => b.textContent?.trim() === 'Save') as HTMLButtonElement).disabled).toBe(true)
+    $$('button').find((b) => b.textContent?.trim() === 'Check host key')!.click()
+    await flushPromises()
+    $$('button').find((b) => b.textContent?.trim() === 'Save')!.click()
+    await flushPromises()
+    expect(calls.find((c) => c.method === 'PATCH')?.body).toEqual({
+      label: 'Build updated', host: 'server-b.example.com', port: 2222, user: 'operator', hostKeys: [{ type: 'ssh-ed25519', key: 'AAAAC3' }],
+    })
+  })
+
   it('adds a server only after its host-key fingerprints are shown and trusted', async () => {
     const calls = await mountDialog((method, path) => {
       if (path === '/api/machines/scan') return { status: 200, body: scanned }

@@ -58,6 +58,7 @@ type Store interface {
 	Machines(ctx context.Context) ([]store.Machine, error)
 	CreateMachine(ctx context.Context, m store.NewMachine) (store.Machine, error)
 	RenameMachine(ctx context.Context, id, label string) (store.Machine, error)
+	UpdateServer(ctx context.Context, id string, m store.NewMachine) (store.Machine, error)
 	DeleteMachine(ctx context.Context, id string) error
 }
 
@@ -343,6 +344,86 @@ func (r *Registry) Rename(ctx context.Context, id, label string) (inventory.Mach
 	}
 	e.inv.SetLabel(label)
 	m, _ := e.inv.Snapshot()
+	return m, nil
+}
+
+// Update changes a server's nickname and SSH connection. The caller must supply
+// host keys confirmed for the submitted host and port.
+func (r *Registry) Update(ctx context.Context, id string, s Server) (inventory.Machine, error) {
+	s.Label = strings.TrimSpace(s.Label)
+	s.Host, s.User = strings.TrimSpace(s.Host), strings.TrimSpace(s.User)
+	if err := sshx.ValidateHostName(s.Host); err != nil {
+		return inventory.Machine{}, invalid("invalid host: "+err.Error(), "")
+	}
+	if err := sshx.ValidateUser(s.User); err != nil {
+		return inventory.Machine{}, invalid("invalid user: "+err.Error(), "")
+	}
+	if err := sshx.ValidatePort(s.Port); err != nil {
+		return inventory.Machine{}, invalid("invalid port: "+err.Error(), "")
+	}
+	if len(s.Keys) == 0 || len(s.Keys) > maxKeys {
+		return inventory.Machine{}, invalid("confirm the server's host key", "Check the host key first and compare its fingerprint.")
+	}
+	keys := make([]sshx.HostKey, 0, len(s.Keys))
+	var lines strings.Builder
+	for _, k := range s.Keys {
+		parsed, err := sshx.ParseHostKey(k.Type, k.Key)
+		if err != nil {
+			return inventory.Machine{}, invalid("invalid host key: "+err.Error(), "")
+		}
+		keys = append(keys, parsed)
+		lines.WriteString(parsed.Type + " " + parsed.Key + "\n")
+	}
+	target := sshx.Target{ID: id, Alias: sshx.TargetAliasPrefix + id, HostName: s.Host, Port: s.Port, User: s.User, Keys: keys}
+	if err := sshx.ValidateTarget(target); err != nil {
+		return inventory.Machine{}, invalid(err.Error(), "")
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, err := r.checkLabelLocked(s.Label, id); err != nil {
+		return inventory.Machine{}, err
+	}
+	e, ok := r.entries[id]
+	if !ok || id == store.HostMachineID {
+		return inventory.Machine{}, &Error{Code: CodeNotFound, Message: "no such server"}
+	}
+	// Apply SSH config first; retain the stored/current runtime state on failure.
+	targets := r.ssh.Targets()
+	found := false
+	for i := range targets {
+		if targets[i].ID == id {
+			targets[i] = target
+			found = true
+		}
+	}
+	if !found {
+		targets = append(targets, target)
+	}
+	if err := r.ssh.SetTargets(targets); err != nil {
+		return inventory.Machine{}, err
+	}
+	if _, err := r.store.UpdateServer(ctx, id, store.NewMachine{Label: s.Label, HostName: s.Host, Port: s.Port, SSHUser: s.User, HostKeys: lines.String()}); err != nil {
+		return inventory.Machine{}, err
+	}
+	if e.cancel != nil {
+		e.cancel()
+		<-e.done
+	}
+	_ = e.fs.Close()
+	closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	_ = r.ssh.CloseMachine(closeCtx, id)
+	cancel()
+	for i, v := range r.order {
+		if v == id {
+			r.order = append(r.order[:i], r.order[i+1:]...)
+			break
+		}
+	}
+	delete(r.entries, id)
+	e = r.register(id, s.Label, "custom", address(s.User, s.Host, s.Port))
+	r.run(e)
+	m, _ := e.inv.Snapshot()
+	r.bus.Publish(events.Event{Type: events.MachineStatus, Machine: id, Payload: m})
 	return m, nil
 }
 

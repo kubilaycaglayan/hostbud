@@ -150,6 +150,7 @@ export const serversApi = {
   scan: (host: string, port: number) =>
     request<{ hostKeys: HostKey[] }>('POST', '/api/machines/scan', { host, port }, { signal: AbortSignal.timeout(20_000) }),
   add: (server: AddServer) => request<Machine>('POST', '/api/machines', server),
+  update: (id: string, server: AddServer) => request<Machine>('PATCH', `/api/machines/${encodeURIComponent(id)}`, server),
   rename: (id: string, label: string) => request<Machine>('PATCH', `/api/machines/${encodeURIComponent(id)}`, { label }),
   /** Forgets a server (its tmux keeps running): callers must have the user's confirmation. */
   remove: (id: string) => request<void>('DELETE', `/api/machines/${encodeURIComponent(id)}`),
