@@ -127,7 +127,7 @@ Press ⌘K (Mac) or Ctrl+Shift+K to search sessions, loaded windows, projects an
 
 ### Keyboard shortcuts
 
-Press ⌘/ (Mac), Ctrl+Shift+/ or `?` to open **Keyboard shortcuts**. ⌘⇧E / Ctrl+Shift+E moves focus between the tree and terminal. Ctrl+Shift+] / [ switches hostbud tabs; Ctrl+Shift+D toggles between the two most recently selected hostbud tabs (on Mac, Ctrl+⌘+D also works). Tree-specific keys work only when a tree row has focus. Ctrl+K inside the terminal remains the shell's kill-to-end-of-line shortcut.
+Press ⌘/ (Mac), Ctrl+Shift+/ or `?` to open **Keyboard shortcuts**. ⌘⇧E / Ctrl+Shift+E moves focus between the tree and terminal. ⌘Z (Mac) or Ctrl+Shift+Z sends the line editor's undo key to the active terminal; in readline-compatible shells this undoes the last text edit, including a whole bracketed paste. Ctrl+Z remains available to terminal programs. Ctrl+Shift+] / [ switches hostbud tabs; Ctrl+Shift+D toggles between the two most recently selected hostbud tabs (on Mac, Ctrl+⌘+D also works). Tree-specific keys work only when a tree row has focus. Ctrl+K inside the terminal remains the shell's kill-to-end-of-line shortcut.
 
 ### Theme
 

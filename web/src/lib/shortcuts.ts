@@ -30,6 +30,7 @@ export const shortcuts: ShortcutEntry[] = [
   { id: 'palette', label: 'Command palette', group: 'General', bindings: [global('⌘K', { key: 'k', meta: true, platform: 'mac' }), global('Ctrl+Shift+K', { key: 'k', ctrl: true, shift: true }), outside('Ctrl+K', { key: 'k', ctrl: true })] },
   { id: 'help', label: 'Keyboard shortcuts', group: 'General', bindings: [global('⌘/', { code: 'Slash', meta: true, shift: null, platform: 'mac' }), global('Ctrl+Shift+/', { code: 'Slash', ctrl: true, shift: true }), outside('?', { key: '?', shift: true })] },
   { id: 'focus-tree-terminal', label: 'Focus tree ↔ terminal', group: 'General', bindings: [global('⌘⇧E', { key: 'e', meta: true, shift: true, platform: 'mac' }), global('Ctrl+Shift+E', { key: 'e', ctrl: true, shift: true })] },
+  { id: 'undo-terminal-edit', label: 'Undo terminal text edit', group: 'General', bindings: [global('⌘Z', { key: 'z', meta: true, platform: 'mac' }), global('Ctrl+Shift+Z', { key: 'z', ctrl: true, shift: true })] },
   { id: 'next-tab', label: 'Next open visible session', group: 'Sessions', bindings: [global('Ctrl+Shift+]', { code: 'BracketRight', ctrl: true, shift: true })] },
   { id: 'previous-tab', label: 'Previous open visible session', group: 'Sessions', bindings: [global('Ctrl+Shift+[', { code: 'BracketLeft', ctrl: true, shift: true })] },
   { id: 'last-tab', label: 'Switch to last session', group: 'Sessions', bindings: [global('Ctrl+Shift+D', { key: 'd', ctrl: true, shift: true }), global('Ctrl+⌘+D', { key: 'd', ctrl: true, meta: true, platform: 'mac' })] },

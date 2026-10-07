@@ -586,6 +586,10 @@ function onShortcutKeydown(event: KeyboardEvent) {
     else if (global.id === 'last-tab') toggleLastSession()
     else if (global.id === 'focus-tree-terminal') void toggleTreeTerminalFocus()
     else if (global.id === 'palette') openPalette()
+    else if (global.id === 'undo-terminal-edit') {
+      if (!isTerminalTarget(event.target)) return
+      event.preventDefault()
+    }
     else return
     event.preventDefault()
     return

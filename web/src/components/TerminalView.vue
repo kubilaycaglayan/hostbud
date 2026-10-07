@@ -36,7 +36,7 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useTreeStore } from '@/stores/tree'
 import { useToastsStore } from '@/stores/toasts'
 import { useThemeStore } from '@/stores/theme'
-import { shouldInterceptGlobalShortcut, shortcutPlatform } from '@/lib/shortcuts'
+import { matchingShortcut, shouldInterceptGlobalShortcut, shortcutPlatform } from '@/lib/shortcuts'
 import { attachTouchScroll } from '@/lib/touchScroll'
 import { isIOS, isStandalone } from '@/lib/notificationDevice'
 
@@ -541,6 +541,13 @@ onMounted(async () => {
       return false
     }
     if (ev.type === 'keydown') caretMove++ // typing stops an Option-click move
+    if (ev.type === 'keydown' && matchingShortcut(ev, shortcutPlatform(), 'global')?.id === 'undo-terminal-edit') {
+      ev.preventDefault()
+      // Readline and compatible line editors interpret Ctrl+_ as undo. xterm
+      // bracketed paste is recorded as one edit, so one undo removes the paste.
+      t.input('\x1f')
+      return false
+    }
     if (ev.type === 'keydown' && shouldInterceptGlobalShortcut(ev, shortcutPlatform())) return false
     const bytes = editingKey(ev)
     if (bytes !== undefined) {
