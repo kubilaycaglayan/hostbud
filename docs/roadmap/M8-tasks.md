@@ -421,7 +421,7 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 
 ## T37 — Change the active session's terminal font size
 
-- Add compact decrease/increase buttons to the colored title bar for the active terminal pane. Apply the chosen size to every split pane showing the same machine/session, with a bounded range, and keep other sessions independent.
+- Add compact decrease/increase buttons to the right side of the colored title bar for the active terminal pane, immediately before the three-dot actions button. Apply the chosen size to every split pane showing the same machine/session, with a bounded range, and keep other sessions independent.
 - Keep the setting in page memory only. Reloading the web app returns all sessions to the default size; do not include it in account state, local storage, or server APIs.
 
 **Tests:** U: T37 `TerminalView.spec.ts` checks the controls, default size, per-session isolation, split-pane synchronization, and inactive-pane control visibility. I: n/a because this is browser-local presentation state with no server contract. E: T37 verifies that changing one session's rendered font leaves another session unchanged and resets after reload.

@@ -694,10 +694,6 @@ defineExpose({ refit, reconnect, showKeyboard })
       <span v-if="agentUsage" data-agent-usage :title="tokenDetail" :aria-label="tokenDetail" class="shrink-0 whitespace-nowrap text-center text-xs tabular-nums">
         {{ tokenNumber.format(agentUsage.contextTokens) }} ctx · {{ tokenNumber.format(agentUsage.totalTokens) }} used
       </span>
-      <div v-if="takesInput()" data-terminal-font-controls class="flex shrink-0 items-center gap-0.5">
-        <button type="button" class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded px-1 text-xs font-bold hover:bg-bg/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-current" aria-label="Decrease terminal font size" title="Decrease terminal font size" :disabled="currentFontSize <= MIN_TERMINAL_FONT_SIZE" @click="changeFontSize(-1)">A−</button>
-        <button type="button" class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded px-1 text-xs font-bold hover:bg-bg/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-current" aria-label="Increase terminal font size" title="Increase terminal font size" :disabled="currentFontSize >= MAX_TERMINAL_FONT_SIZE" @click="changeFontSize(1)">A+</button>
-      </div>
       <div class="flex min-w-0 flex-1 items-center justify-end gap-2">
         <!-- Narrow screens show one pane of a split at a time. -->
         <button
@@ -710,6 +706,10 @@ defineExpose({ refit, reconnect, showKeyboard })
           Pane {{ props.paneIndex }} of {{ props.paneCount }}
         </button>
         <span class="ml-auto" />
+        <div v-if="takesInput()" data-terminal-font-controls class="flex shrink-0 items-center gap-0.5">
+          <button type="button" class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded px-1 text-xs font-bold hover:bg-bg/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-current" aria-label="Decrease terminal font size" title="Decrease terminal font size" :disabled="currentFontSize <= MIN_TERMINAL_FONT_SIZE" @click="changeFontSize(-1)">A−</button>
+          <button type="button" class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded px-1 text-xs font-bold hover:bg-bg/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-current" aria-label="Increase terminal font size" title="Increase terminal font size" :disabled="currentFontSize >= MAX_TERMINAL_FONT_SIZE" @click="changeFontSize(1)">A+</button>
+        </div>
         <TerminalActions
           :has-selection="hasSelection"
           :can-split="props.canSplit && !props.narrow"

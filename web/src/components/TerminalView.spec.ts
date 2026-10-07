@@ -200,6 +200,8 @@ describe('TerminalView', () => {
     await flushPromises()
     const decrease = w.get('button[aria-label="Decrease terminal font size"]')
     const increase = w.get('button[aria-label="Increase terminal font size"]')
+    const headerControls = [...w.element.querySelectorAll('[data-terminal-font-controls], button[aria-label="Terminal actions"]')]
+    expect(headerControls.map((el) => el.matches('[data-terminal-font-controls]'))).toEqual([true, false])
     expect(h.terms[0].options.fontSize).toBe(14)
     await increase.trigger('click')
     await flushPromises()

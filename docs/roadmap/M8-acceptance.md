@@ -306,7 +306,7 @@ T8 verification: native reader checked at 390px in Chromium and WebKit (358px co
 
 ## Web terminal font size (T37)
 
-- [ ] The active terminal's colored title bar has accessible decrease/increase controls. They change only that machine/session's terminal text, synchronize across its split panes, leave other sessions unchanged, and use a bounded range. The setting exists only in page memory and resets to the default after reload.
+- [ ] The active terminal's colored title bar has accessible decrease/increase controls on the right, immediately before the three-dot actions button. They change only that machine/session's terminal text, synchronize across its split panes, leave other sessions unchanged, and use a bounded range. The setting exists only in page memory and resets to the default after reload.
   - U: T37 `TerminalView.spec.ts` checks the initial size, both controls, split-pane synchronization, session isolation and inactive-pane visibility.
   - I: n/a: the font size is browser-local and makes no API or persistence request.
-  - E: T37 *Terminal font size controls affect only the active session and reset on reload* (`terminal-font.spec.ts`) checks rendered font size for two sessions and the reset after reload; written and type-checked, browser execution pending on demand.
+  - E: T37 *Terminal font size controls affect only the active session and reset on reload* (`terminal-font.spec.ts`) checks title-bar button order, rendered font size for two sessions and the reset after reload; written and type-checked, browser execution pending on demand.
