@@ -303,3 +303,10 @@ T8 verification: native reader checked at 390px in Chromium and WebKit (358px co
   - I: n/a: the existing terminal resize protocol is unchanged; the e2e scenario verifies the additional rows reach xterm.
   - E: T36 *Installed PWA reports extra landscape rows below the viewport* (`pwa.phone.spec.ts`) checks xterm and tmux receive extra rows, then simulates a bottom-row composer and verifies it falls below the visible viewport while the terminal box remains full-screen. **Manual (owner):** verify the real Codex composer is below the screen and the transcript is usable on an iPhone PWA.
   - Status: focused WebKit E2E passed in both iPhone profiles; real-device check remains open.
+
+## Web terminal font size (T37)
+
+- [ ] The active terminal's colored title bar has accessible decrease/increase controls. They change only that machine/session's terminal text, synchronize across its split panes, leave other sessions unchanged, and use a bounded range. The setting exists only in page memory and resets to the default after reload.
+  - U: T37 `TerminalView.spec.ts` checks the initial size, both controls, split-pane synchronization, session isolation and inactive-pane visibility.
+  - I: n/a: the font size is browser-local and makes no API or persistence request.
+  - E: T37 *Terminal font size controls affect only the active session and reset on reload* (`terminal-font.spec.ts`) checks rendered font size for two sessions and the reset after reload; written and type-checked, browser execution pending on demand.

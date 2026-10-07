@@ -38,6 +38,7 @@ import { useToastsStore } from '@/stores/toasts'
 import { useThemeStore } from '@/stores/theme'
 import { matchingShortcut, shouldInterceptGlobalShortcut, shortcutPlatform } from '@/lib/shortcuts'
 import { attachTouchScroll } from '@/lib/touchScroll'
+import { MAX_TERMINAL_FONT_SIZE, MIN_TERMINAL_FONT_SIZE, setTerminalFontSize, terminalFontSize } from '@/lib/terminalFontSize'
 import { isIOS, isStandalone } from '@/lib/notificationDevice'
 
 const props = withDefaults(
@@ -114,6 +115,7 @@ const sessions = useSessionsStore()
 const tree = useTreeStore()
 const splitTargets = computed(() => sessions.list(props.machine).map((x) => x.name))
 const currentSession = computed(() => sessions.list(props.machine).find((x) => x.name === props.session))
+const currentFontSize = computed(() => terminalFontSize(props.machine, props.session))
 const machineChip = computed(() => props.machine !== 'host' ? machines.label(props.machine) : '')
 const agentUsage = computed(() => currentSession.value?.agentUsage)
 const tokenNumber = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 })
@@ -456,6 +458,10 @@ function reconnect() {
   connect()
 }
 
+function changeFontSize(delta: number) {
+  setTerminalFontSize(props.machine, props.session, currentFontSize.value + delta)
+}
+
 // Tab and pane selection only changes which terminal receives keys. The
 // browser keyboard opens from an explicit terminal tap or Show keyboard.
 
@@ -468,7 +474,7 @@ onMounted(async () => {
     allowProposedApi: true, // unicode11
     cursorBlink: true,
     fontFamily: "'JetBrains Mono', ui-monospace, monospace",
-    fontSize: 14,
+    fontSize: currentFontSize.value,
     // Option+drag selects even when the program captures the mouse (Shift+drag
     // does on other platforms).
     macOptionClickForcesSelection: true,
@@ -514,6 +520,10 @@ onMounted(async () => {
     // No WebGL: xterm's DOM renderer is used.
   }
   term.value = t
+  watch(currentFontSize, (fontSize) => {
+    t.options.fontSize = fontSize
+    requestAnimationFrame(refit)
+  })
   selectionChange = t.onSelectionChange(() => { hasSelection.value = t.hasSelection() })
   watch(() => theme.resolved, (value) => { t.options.theme = value === 'dark' ? darkTerminalTheme : value === 'solarized' ? solarizedTerminalTheme : value === 'dimmed' ? dimmedTerminalTheme : lightTerminalTheme }, { immediate: true })
   t.onData((d) => {
@@ -684,6 +694,10 @@ defineExpose({ refit, reconnect, showKeyboard })
       <span v-if="agentUsage" data-agent-usage :title="tokenDetail" :aria-label="tokenDetail" class="shrink-0 whitespace-nowrap text-center text-xs tabular-nums">
         {{ tokenNumber.format(agentUsage.contextTokens) }} ctx · {{ tokenNumber.format(agentUsage.totalTokens) }} used
       </span>
+      <div v-if="takesInput()" data-terminal-font-controls class="flex shrink-0 items-center gap-0.5">
+        <button type="button" class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded px-1 text-xs font-bold hover:bg-bg/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-current" aria-label="Decrease terminal font size" title="Decrease terminal font size" :disabled="currentFontSize <= MIN_TERMINAL_FONT_SIZE" @click="changeFontSize(-1)">A−</button>
+        <button type="button" class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded px-1 text-xs font-bold hover:bg-bg/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-current" aria-label="Increase terminal font size" title="Increase terminal font size" :disabled="currentFontSize >= MAX_TERMINAL_FONT_SIZE" @click="changeFontSize(1)">A+</button>
+      </div>
       <div class="flex min-w-0 flex-1 items-center justify-end gap-2">
         <!-- Narrow screens show one pane of a split at a time. -->
         <button

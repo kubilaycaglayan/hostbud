@@ -194,6 +194,34 @@ async function clickMenuItem(text: string) {
 }
 
 describe('TerminalView', () => {
+  it('changes font size from the active title bar and shares it with split panes in memory', async () => {
+    const session = `font-${Math.random().toString(36).slice(2)}`
+    const w = mount(TerminalView, { props: { machine: 'host', session }, attachTo: document.body })
+    await flushPromises()
+    const decrease = w.get('button[aria-label="Decrease terminal font size"]')
+    const increase = w.get('button[aria-label="Increase terminal font size"]')
+    expect(h.terms[0].options.fontSize).toBe(14)
+    await increase.trigger('click')
+    await flushPromises()
+    expect(h.terms[0].options.fontSize).toBe(15)
+
+    const other = mount(TerminalView, { props: { machine: 'host', session: `${session}-other` }, attachTo: document.body })
+    await flushPromises()
+    expect(h.terms[1].options.fontSize).toBe(14)
+
+    const split = mount(TerminalView, { props: { machine: 'host', session, focused: false }, attachTo: document.body })
+    await flushPromises()
+    expect(h.terms[2].options.fontSize).toBe(15)
+    expect(split.find('[data-terminal-font-controls]').exists()).toBe(false)
+    await decrease.trigger('click')
+    await flushPromises()
+    expect(h.terms[0].options.fontSize).toBe(14)
+    expect(h.terms[2].options.fontSize).toBe(14)
+    w.unmount()
+    other.unmount()
+    split.unmount()
+  })
+
   it('uses a thinner colored title bar in the installed PWA', async () => {
     vi.stubGlobal('matchMedia', (query: string) => ({
       media: query,

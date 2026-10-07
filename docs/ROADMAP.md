@@ -147,6 +147,7 @@ Tasks: [roadmap/M8-tasks.md](roadmap/M8-tasks.md) · Checklist: [roadmap/M8-acce
 - Disable browser autocomplete/autofill on application inputs, except for the existing login-screen password behavior, which stays as it is.
 - Fix Option-click caret placement in editable text inputs: clicking a character/line should place the caret there, without it jumping to unrelated positions.
 - Improve the terminal's visual readability while mouse-wheel scrolling. Preserve the currently correct up/down direction and position behavior, while making changing text easier to follow and reducing flicker, especially with repeated output.
+- Add decrease/increase font-size buttons to the colored terminal title bar. Changes apply to that machine/session across split panes in the current page only and reset on reload; they never enter persisted UI state.
 - Provide a native dictation text editor with Send/Cancel that sends reviewed text through xterm's paste path once.
 - Prevent the PWA from reopening the keyboard after returning from another app or switching tabs/panes; terminal taps and Show keyboard remain explicit focus actions.
 - Consolidate per-terminal toolbar actions into a three-dot menu and provide a full-screen selectable snapshot of all history retained by tmux, including before browser attachment, with native text selection, wrapping and tmux colors/styles. In the installed PWA, terminal gestures no longer scroll tmux; use the dedicated text view for scrollback.
