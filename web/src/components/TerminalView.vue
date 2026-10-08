@@ -133,6 +133,8 @@ const tokenDetail = computed(() => {
 })
 const sessionDirectory = computed(() => currentSession.value?.path ?? '')
 const gitBranch = computed(() => currentSession.value?.gitBranch ?? '')
+const hasHeaderDetails = computed(() => Boolean(sessionDirectory.value || machineChip.value || agentUsage.value || gitBranch.value || (props.narrow && props.paneCount > 1)))
+const headerCanExpand = computed(() => standalonePwa ? hasHeaderDetails.value : headerOverflow.value)
 const sessionSectionColor = computed(() => {
   const projectId = tree.groups.groups.find((group) => group.sessions.some((session) => session.name === props.session))?.project.id
   if (!projectId) return ''
@@ -475,7 +477,7 @@ function measureHeader() {
   if (!headerOverflow.value) headerExpanded.value = false
 }
 function setHeaderExpanded(expanded: boolean) {
-  headerExpanded.value = expanded && headerOverflow.value
+  headerExpanded.value = expanded && headerCanExpand.value
   if (!headerExpanded.value) requestAnimationFrame(measureHeader)
 }
 function onOutsideHeader(event: PointerEvent) {
@@ -485,7 +487,7 @@ function onHeaderFocus(event: FocusEvent) {
   if (headerExpanded.value && !headerEl.value?.contains(event.target as Node)) setHeaderExpanded(false)
 }
 function onHeaderClick(event: MouseEvent) {
-  if (headerOverflow.value && !(event.target as HTMLElement).closest('button, a, input')) setHeaderExpanded(!headerExpanded.value)
+  if (headerCanExpand.value && !(event.target as HTMLElement).closest('button, a, input')) setHeaderExpanded(!headerExpanded.value)
 }
 function onHeaderKey(event: KeyboardEvent) {
   if (event.key === 'Escape' && headerExpanded.value) setHeaderExpanded(false)
@@ -730,20 +732,21 @@ defineExpose({ refit, reconnect, showKeyboard })
     :data-focused="takesInput() ? 'true' : undefined"
     @focusin="emit('focus')"
   >
-    <div ref="headerEl" data-terminal-header :data-overflow="headerOverflow || undefined" :data-expanded="headerExpanded || undefined" class="flex min-w-0 items-center gap-2 border-b border-border px-2" :class="[takesInput() && sessionSectionColor ? 'text-section-fg' : 'text-fg', standalonePwa ? 'py-0' : 'py-1.5', headerExpanded ? 'flex-wrap content-start max-h-24 overflow-y-auto' : standalonePwa && agentUsage ? 'flex-wrap content-start overflow-hidden' : 'flex-nowrap overflow-hidden', headerOverflow ? 'cursor-pointer' : '']" :style="takesInput() && sessionSectionColor ? { backgroundColor: sessionSectionColor } : undefined" @click="onHeaderClick">
-      <Folder data-terminal-directory-icon :size="16" class="shrink-0" :title="sessionDirectory" :aria-label="sessionDirectory ? `Directory: ${sessionDirectory}` : undefined" :aria-hidden="sessionDirectory ? undefined : true" />
-      <h2 data-terminal-session-name class="min-w-0 max-w-[45%] truncate text-base font-bold tracking-tight">
-        {{ props.session }}
+    <div ref="headerEl" data-terminal-header :data-overflow="headerOverflow || undefined" :data-expandable="headerCanExpand || undefined" :data-expanded="headerExpanded || undefined" class="flex min-w-0 items-center gap-2 border-b border-border px-2" :class="[takesInput() && sessionSectionColor ? 'text-section-fg' : 'text-fg', standalonePwa ? 'py-0' : 'py-1.5', headerExpanded ? 'flex-wrap content-start max-h-24 overflow-y-auto' : 'flex-nowrap overflow-hidden', headerCanExpand ? 'cursor-pointer' : '']" :style="takesInput() && sessionSectionColor ? { backgroundColor: sessionSectionColor } : undefined" @click="onHeaderClick">
+      <Folder v-if="!standalonePwa || headerExpanded" data-terminal-directory-icon :size="16" class="shrink-0" :title="sessionDirectory" :aria-label="sessionDirectory ? `Directory: ${sessionDirectory}` : undefined" :aria-hidden="sessionDirectory ? undefined : true" />
+      <h2 data-terminal-session-name class="min-w-0 max-w-[45%] truncate text-base font-bold tracking-tight" :class="standalonePwa && !headerExpanded ? 'max-w-full flex-1' : ''">
+        <button v-if="headerCanExpand" type="button" class="max-w-full truncate text-left text-inherit" :style="{ font: 'inherit', letterSpacing: 'inherit' }" :aria-label="headerExpanded ? 'Hide terminal details' : 'Show terminal details'" :aria-expanded="headerExpanded" @click.stop="setHeaderExpanded(!headerExpanded)">{{ props.session }}</button>
+        <template v-else>{{ props.session }}</template>
       </h2>
-      <span v-if="machineChip" data-terminal-machine-chip class="shrink-0 truncate rounded-full border-2 border-danger bg-danger px-2.5 font-sans text-xs font-black leading-4 text-bg" :title="'On ' + machineChip">{{ machineChip }}</span>
-      <span v-if="agentUsage" data-agent-usage :title="tokenDetail" :aria-label="tokenDetail" class="shrink-0 whitespace-nowrap text-center text-xs tabular-nums" :class="standalonePwa ? 'max-sm:order-last max-sm:basis-full max-sm:text-left' : ''">
+      <span v-if="(!standalonePwa || headerExpanded) && machineChip" data-terminal-machine-chip class="shrink-0 truncate rounded-full border-2 border-danger bg-danger px-2.5 font-sans text-xs font-black leading-4 text-bg" :title="'On ' + machineChip">{{ machineChip }}</span>
+      <span v-if="(!standalonePwa || headerExpanded) && agentUsage" data-agent-usage :title="tokenDetail" :aria-label="tokenDetail" class="shrink-0 whitespace-nowrap text-center text-xs tabular-nums" :class="standalonePwa ? 'max-sm:order-last max-sm:basis-full max-sm:text-left' : ''">
         {{ tokenNumber.format(agentUsage.contextTokens) }} ctx · {{ tokenNumber.format(agentUsage.totalTokens) }} used
       </span>
-      <span v-if="gitBranch" data-git-branch class="inline-flex min-w-0 shrink items-center gap-1 truncate text-xs" :title="`Branch: ${gitBranch}`" :aria-label="`Branch: ${gitBranch}`"><GitBranch :size="14" class="shrink-0" />{{ gitBranch }}</span>
+      <span v-if="(!standalonePwa || headerExpanded) && gitBranch" data-git-branch class="inline-flex min-w-0 shrink items-center gap-1 truncate text-xs" :title="`Branch: ${gitBranch}`" :aria-label="`Branch: ${gitBranch}`"><GitBranch :size="14" class="shrink-0" />{{ gitBranch }}</span>
       <div class="flex min-w-0 flex-1 items-center justify-end gap-2">
         <!-- Narrow screens show one pane of a split at a time. -->
         <button
-          v-if="props.narrow && props.paneCount > 1"
+          v-if="(!standalonePwa || headerExpanded) && props.narrow && props.paneCount > 1"
           type="button"
           class="touch-target shrink-0 rounded border border-border px-2"
           :aria-label="`Pane ${props.paneIndex} of ${props.paneCount}: show the next pane`"
@@ -752,7 +755,6 @@ defineExpose({ refit, reconnect, showKeyboard })
           Pane {{ props.paneIndex }} of {{ props.paneCount }}
         </button>
         <span class="ml-auto" />
-        <button v-if="headerOverflow" type="button" class="touch-target shrink-0 rounded px-1 text-xs font-medium" :aria-expanded="headerExpanded" :aria-label="headerExpanded ? 'Collapse terminal title bar' : 'Expand terminal title bar'" @click.stop="setHeaderExpanded(!headerExpanded)">{{ headerExpanded ? 'Less' : 'More' }}</button>
         <div v-if="takesInput()" data-terminal-font-controls class="flex shrink-0 items-center gap-0.5">
           <button type="button" class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded px-1 text-xs font-bold hover:bg-bg/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-current" aria-label="Decrease terminal font size" title="Decrease terminal font size" :disabled="currentFontSize <= MIN_TERMINAL_FONT_SIZE" @click="changeFontSize(-1)">A−</button>
           <button type="button" class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded px-1 text-xs font-bold hover:bg-bg/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-current" aria-label="Increase terminal font size" title="Increase terminal font size" :disabled="currentFontSize >= MAX_TERMINAL_FONT_SIZE" @click="changeFontSize(1)">A+</button>

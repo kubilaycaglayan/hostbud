@@ -239,7 +239,7 @@ describe('TerminalView', () => {
       removeListener: vi.fn(),
     }))
     useProjectsStore().remember({ id: 'project-a', machineId: 'host', path: '/home/dev/bright-work', name: 'Bright work', sortOrder: 0, pinned: false, createdAt: '', updatedAt: '' })
-    useSessionsStore().$patch({ byMachine: { host: [{ id: '$1', name: 'acc-a', path: '/home/dev/bright-work', attached: 0, windows: 1, created: '', activity: '' }] } })
+    useSessionsStore().$patch({ byMachine: { host: [{ id: '$1', name: 'acc-a', path: '/home/dev/bright-work', attached: 0, windows: 1, created: '', activity: '', gitBranch: 'feature/pwa-header', agentUsage: { agent: 'codex', contextTokens: 12000, totalTokens: 345678, contextWindow: 200000 } }] } })
     const tree = useTreeStore()
     tree.order.projectSections = { 'project-a': 'section-a' }
     tree.order.sections = [{ id: 'section-a', name: 'Research', color: 'purple' }]
@@ -248,8 +248,23 @@ describe('TerminalView', () => {
     expect(header.classes()).toContain('py-0')
     expect(header.classes()).toContain('text-section-fg')
     expect(header.attributes('style')).toContain('var(--hb-section-purple)')
+    expect(w.get('[data-terminal-session-name]').text()).toBe('acc-a')
+    expect(w.find('[data-terminal-directory-icon]').exists()).toBe(false)
+    expect(w.find('[data-agent-usage]').exists()).toBe(false)
+    expect(w.find('[data-git-branch]').exists()).toBe(false)
+    expect(header.attributes('data-expandable')).toBe('true')
+    expect(header.attributes('data-expanded')).toBeUndefined()
+    expect(w.find('[data-terminal-font-controls]').exists()).toBe(true)
     expect(w.get('button[aria-label="Terminal actions"]').classes()).toContain('font-extrabold')
     expect(w.get('button[aria-label="Terminal actions"]').classes()).toContain('text-xl')
+    await w.get('[aria-label="Show terminal details"]').trigger('click')
+    expect(header.attributes('data-expanded')).toBe('true')
+    expect(w.get('[data-git-branch]').text()).toContain('feature/pwa-header')
+    expect(w.get('[data-agent-usage]').text()).toContain('12K ctx')
+    expect(w.get('[data-agent-usage]').classes()).toContain('max-sm:basis-full')
+    await document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
+    await w.vm.$nextTick()
+    expect(header.attributes('data-expanded')).toBeUndefined()
     w.unmount()
   })
 

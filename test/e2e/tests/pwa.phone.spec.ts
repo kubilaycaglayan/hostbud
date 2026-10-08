@@ -2,7 +2,7 @@ import { expect, test } from '../helpers/fixtures.ts'
 import { uniqueName } from '../helpers/target.ts'
 import { openShell } from '../helpers/shell.ts'
 
-test('(T38) Installed phone PWA puts usage on row two and expands clipped branch context', async ({ page, ui, target }) => {
+test('(T38) Installed phone PWA keeps a compact title bar and expands details on demand', async ({ page, ui, target }) => {
   await page.addInitScript(() => {
     const nativeMatchMedia = window.matchMedia.bind(window)
     window.matchMedia = (query: string) => query === '(display-mode: standalone)'
@@ -22,15 +22,20 @@ test('(T38) Installed phone PWA puts usage on row two and expands clipped branch
     const header = page.getByRole('region', { name: `Terminal: ${name}` }).locator('[data-terminal-header]')
     const usage = header.locator('[data-agent-usage]')
     const branch = header.locator('[data-git-branch]')
+    await expect(header).toHaveAttribute('data-expandable', 'true')
+    await expect(header).not.toHaveAttribute('data-expanded', 'true')
+    await expect(header.locator('[data-terminal-session-name]')).toBeVisible()
+    await expect(header.locator('[data-terminal-font-controls]')).toBeVisible()
+    await expect(header.getByRole('button', { name: 'Terminal actions' })).toBeVisible()
+    await expect(usage).toHaveCount(0)
+    await expect(branch).toHaveCount(0)
+    await header.getByRole('button', { name: 'Show terminal details' }).click()
+    await expect(header).toHaveAttribute('data-expanded', 'true')
     await expect(usage).toBeVisible()
     await expect(branch).toContainText('feature/adaptive-phone-title-bar')
     const usageBox = await usage.boundingBox()
     const nameBox = await header.locator('[data-terminal-session-name]').boundingBox()
     expect(usageBox!.y).toBeGreaterThan(nameBox!.y)
-    await expect(header).toHaveAttribute('data-overflow', 'true')
-    const more = header.getByRole('button', { name: 'Expand terminal title bar' })
-    await more.click()
-    await expect(header).toHaveAttribute('data-expanded', 'true')
     await page.locator('body').click({ position: { x: 5, y: 5 } })
     await expect(header).not.toHaveAttribute('data-expanded', 'true')
   } finally {
