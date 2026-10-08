@@ -715,6 +715,9 @@ watch(() => props.active, syncAttachment)
 watch(state, (current) => {
   if (current !== 'open') copyMode.reset()
 })
+watch(() => [props.session, gitBranch.value, agentUsage.value?.agent, agentUsage.value?.contextTokens, agentUsage.value?.totalTokens] as const, () => {
+  requestAnimationFrame(measureHeader)
+})
 
 defineExpose({ refit, reconnect, showKeyboard })
 </script>
