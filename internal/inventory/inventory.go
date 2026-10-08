@@ -312,6 +312,7 @@ func (inv *Inventory) poll(ctx context.Context) bool {
 		// Branch labels are supplementary display metadata. Query each unique
 		// directory once; failures (including non-git directories) stay hidden.
 		branches := make(map[string]string)
+		changedFiles := make(map[string]int)
 		queriedBranches := make(map[string]bool)
 		for i := range sessions {
 			dir := sessions[i].Path
@@ -320,8 +321,12 @@ func (inv *Inventory) poll(ctx context.Context) bool {
 				if out, branchErr := inv.exec.Exec(ctx, inv.opt.MachineID, tmux.GitBranch(dir)...); branchErr == nil {
 					branches[dir] = strings.TrimSpace(string(out))
 				}
+				if out, statusErr := inv.exec.Exec(ctx, inv.opt.MachineID, tmux.GitStatus(dir)...); statusErr == nil {
+					changedFiles[dir] = tmux.CountGitChanges(string(out))
+				}
 			}
 			sessions[i].GitBranch = branches[dir]
+			sessions[i].GitChangedFiles = changedFiles[dir]
 		}
 		if paneOut, paneErr := inv.exec.Exec(ctx, inv.opt.MachineID, tmux.ListPaneCommands()...); paneErr == nil {
 			if metadata, parseErr := tmux.ParsePaneMetadata(string(paneOut)); parseErr == nil {

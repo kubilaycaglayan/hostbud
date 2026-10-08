@@ -73,7 +73,7 @@ test('(T38) Adaptive title bar expands only on overflow and shows branch context
   const name = uniqueName('e2e-branch-header')
   const second = uniqueName('e2e-nogit-header')
   const path = `/home/dev/${uniqueName('header-git')}`
-  await target.run(`mkdir -p ${shq(path)} && git -C ${shq(path)} init -q -b feature/adaptive-title-bar-with-a-long-branch-name`)
+  await target.run(`mkdir -p ${shq(path)} && git -C ${shq(path)} init -q -b feature/adaptive-title-bar-with-a-long-branch-name && touch ${shq(path)}/one.txt ${shq(path)}/two.txt`)
   await target.tmux('new-session', '-d', '-s', name, '-c', path)
   try {
     await ui.open()
@@ -81,6 +81,7 @@ test('(T38) Adaptive title bar expands only on overflow and shows branch context
     const header = page.getByRole('region', { name: `Terminal: ${name}`, exact: true }).locator('[data-terminal-header]')
     const branch = header.locator('[data-git-branch]')
     await expect(branch).toContainText('feature/adaptive-title-bar-with-a-long-branch-name')
+    await expect(branch.locator('[data-git-changed-files]')).toHaveText('(2)')
     await page.setViewportSize({ width: 320, height: 720 })
     await expect(header).toHaveAttribute('data-overflow', 'true')
     await expect(header).not.toHaveAttribute('data-expanded', 'true')

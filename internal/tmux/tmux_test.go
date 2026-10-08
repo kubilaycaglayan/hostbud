@@ -324,6 +324,14 @@ func TestGitBranchCommandKeepsDirectoryAsQuotedArg(t *testing.T) {
 	}
 }
 
+func TestCountGitChangesCountsPathsIncludingUntrackedAndRename(t *testing.T) {
+	// Porcelain -z emits the destination and source as separate NUL records for a rename.
+	out := " M tracked.txt\x00?? new.txt\x00R  renamed.txt\x00old.txt\x00"
+	if got := CountGitChanges(out); got != 3 {
+		t.Fatalf("CountGitChanges() = %d, want 3", got)
+	}
+}
+
 func TestParsePaneMetadataAgentAliases(t *testing.T) {
 	if got, want := ListPaneCommands(), []string{"sh", "-c", paneMetadataScript}; !slices.Equal(got, want) {
 		t.Fatalf("ListPaneCommands() = %q, want %q", got, want)

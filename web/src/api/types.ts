@@ -31,6 +31,7 @@ export interface Session {
   name: string
   path: string
   gitBranch?: string
+  gitChangedFiles?: number
   agents?: ('codex' | 'claude')[]
   status?: 'working' | 'blocked' | 'ended'
   /** Active pane's title (the agent's current task); absent for tmux's default. */

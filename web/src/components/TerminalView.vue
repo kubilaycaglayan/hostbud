@@ -133,6 +133,7 @@ const tokenDetail = computed(() => {
 })
 const sessionDirectory = computed(() => currentSession.value?.path ?? '')
 const gitBranch = computed(() => currentSession.value?.gitBranch ?? '')
+const gitChangedFiles = computed(() => currentSession.value?.gitChangedFiles ?? 0)
 const hasHeaderDetails = computed(() => Boolean(sessionDirectory.value || machineChip.value || agentUsage.value || gitBranch.value || (props.narrow && props.paneCount > 1)))
 const headerCanExpand = computed(() => standalonePwa ? hasHeaderDetails.value : headerOverflow.value)
 const sessionSectionColor = computed(() => {
@@ -746,7 +747,7 @@ defineExpose({ refit, reconnect, showKeyboard })
       <span v-if="(!standalonePwa || headerExpanded) && agentUsage" data-agent-usage :title="tokenDetail" :aria-label="tokenDetail" class="shrink-0 whitespace-nowrap text-center text-xs tabular-nums" :class="standalonePwa ? 'max-sm:order-last max-sm:basis-full max-sm:text-left' : ''">
         {{ tokenNumber.format(agentUsage.contextTokens) }} ctx · {{ tokenNumber.format(agentUsage.totalTokens) }} used
       </span>
-      <span v-if="(!standalonePwa || headerExpanded) && gitBranch" data-git-branch class="inline-flex min-w-0 shrink items-center gap-1 truncate text-xs" :title="`Branch: ${gitBranch}`" :aria-label="`Branch: ${gitBranch}`"><GitBranch :size="14" class="shrink-0" />{{ gitBranch }}</span>
+      <span v-if="(!standalonePwa || headerExpanded) && gitBranch" data-git-branch class="inline-flex min-w-0 shrink items-center gap-1 truncate text-xs" :title="`Branch: ${gitBranch}${gitChangedFiles ? ` (${gitChangedFiles} changed files)` : ''}`" :aria-label="`Branch: ${gitBranch}${gitChangedFiles ? ` (${gitChangedFiles} changed files)` : ''}`"><GitBranch :size="14" class="shrink-0" />{{ gitBranch }}<span v-if="gitChangedFiles" data-git-changed-files>({{ gitChangedFiles }})</span></span>
       <div class="flex min-w-0 flex-1 items-center justify-end gap-2">
         <!-- Narrow screens show one pane of a split at a time. -->
         <button

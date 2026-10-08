@@ -45,19 +45,20 @@ func target(name string) string { return "=" + name }
 
 // Session is one line of list-sessions.
 type Session struct {
-	ID         string      `json:"id"`
-	Name       string      `json:"name"`
-	Path       string      `json:"path"`
-	Agents     []string    `json:"agents,omitempty"`
-	Status     AgentStatus `json:"status,omitempty"`
-	AgentUsage *AgentUsage `json:"agentUsage,omitempty"`
-	GitBranch  string      `json:"gitBranch,omitempty"`
-	Title      string      `json:"title,omitempty"` // active pane's title, unless it is the default hostname
-	ProjectID  string      `json:"projectId,omitempty"`
-	Attached   int         `json:"attached"` // number of attached clients
-	Windows    int         `json:"windows"`
-	Created    time.Time   `json:"created"`
-	Activity   time.Time   `json:"activity"`
+	ID              string      `json:"id"`
+	Name            string      `json:"name"`
+	Path            string      `json:"path"`
+	Agents          []string    `json:"agents,omitempty"`
+	Status          AgentStatus `json:"status,omitempty"`
+	AgentUsage      *AgentUsage `json:"agentUsage,omitempty"`
+	GitBranch       string      `json:"gitBranch,omitempty"`
+	GitChangedFiles int         `json:"gitChangedFiles,omitempty"`
+	Title           string      `json:"title,omitempty"` // active pane's title, unless it is the default hostname
+	ProjectID       string      `json:"projectId,omitempty"`
+	Attached        int         `json:"attached"` // number of attached clients
+	Windows         int         `json:"windows"`
+	Created         time.Time   `json:"created"`
+	Activity        time.Time   `json:"activity"`
 }
 
 // AgentStatus is the most urgent hook-reported agent state in a session.
@@ -83,6 +84,28 @@ func ListSessions() []string {
 // GitBranch returns a read-only query for the branch at a session directory.
 // The path is an argv value and is shell-quoted by sshx.Exec.
 func GitBranch(dir string) []string { return []string{"git", "-C", dir, "branch", "--show-current"} }
+
+// GitStatus returns a NUL-delimited, read-only status query suitable for counting changed paths.
+func GitStatus(dir string) []string {
+	return []string{"git", "-C", dir, "status", "--porcelain=v1", "-z", "--untracked-files=all"}
+}
+
+// CountGitChanges counts changed paths in porcelain -z output, including untracked files.
+func CountGitChanges(out string) int {
+	items := strings.Split(out, "\x00")
+	count := 0
+	for i := 0; i < len(items); i++ {
+		item := items[i]
+		if len(item) < 3 {
+			continue
+		}
+		count++
+		if item[0] == 'R' || item[0] == 'C' || item[1] == 'R' || item[1] == 'C' {
+			i++
+		}
+	}
+	return count
+}
 
 // NoServer reports whether tmux's stderr means "no server running" (which
 // is an empty list, not an error).

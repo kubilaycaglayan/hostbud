@@ -355,10 +355,11 @@ describe('TerminalView', () => {
 
   it('expands an overflowing title bar temporarily and displays the session branch', async () => {
     const store = useSessionsStore()
-    store.$patch({ byMachine: { host: [{ id: '$1', name: 'acc-a', path: '/home/dev', attached: 0, windows: 1, created: '', activity: '', gitBranch: 'feature/adaptive-header' }] } })
+    store.$patch({ byMachine: { host: [{ id: '$1', name: 'acc-a', path: '/home/dev', attached: 0, windows: 1, created: '', activity: '', gitBranch: 'feature/adaptive-header', gitChangedFiles: 3 }] } })
     const w = await mountTerm()
     const header = w.get('[data-terminal-header]')
-    expect(w.get('[data-git-branch]').attributes('aria-label')).toBe('Branch: feature/adaptive-header')
+    expect(w.get('[data-git-branch]').attributes('aria-label')).toBe('Branch: feature/adaptive-header (3 changed files)')
+    expect(w.get('[data-git-changed-files]').text()).toBe('(3)')
     headerResizeCallbacks.forEach((callback) => callback())
     await w.vm.$nextTick()
     expect(header.attributes('data-overflow')).toBeUndefined()

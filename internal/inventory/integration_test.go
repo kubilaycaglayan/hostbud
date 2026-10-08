@@ -89,6 +89,7 @@ func TestIntegrationGitBranchInSessionInventory(t *testing.T) {
 	testenv.Sh(t, c, "tmux kill-session -t =inventory-branch-it 2>/dev/null; true")
 	t.Cleanup(func() { testenv.Sh(t, c, "tmux kill-session -t =inventory-branch-it 2>/dev/null; true") })
 	testenv.Sh(t, c, "mkdir -p /home/dev/branch-repo && git -C /home/dev/branch-repo init -q -b feature/adaptive-header")
+	testenv.Sh(t, c, "touch /home/dev/branch-repo/one.txt /home/dev/branch-repo/two.txt")
 	testenv.Sh(t, c, "tmux new-session -d -s inventory-branch-it -c /home/dev/branch-repo")
 	if err := inv.Refresh(context.Background()); err != nil {
 		t.Fatal(err)
@@ -97,6 +98,9 @@ func TestIntegrationGitBranchInSessionInventory(t *testing.T) {
 	got, ok := findSession(sessions, "inventory-branch-it")
 	if !ok || got.GitBranch != "feature/adaptive-header" {
 		t.Fatalf("branch session = %+v (found %v)", got, ok)
+	}
+	if got.GitChangedFiles != 2 {
+		t.Fatalf("changed files = %d, want 2", got.GitChangedFiles)
 	}
 	testenv.Sh(t, c, "tmux kill-session -t =inventory-branch-it")
 	testenv.Sh(t, c, "tmux new-session -d -s inventory-branch-it -c /home/dev")
