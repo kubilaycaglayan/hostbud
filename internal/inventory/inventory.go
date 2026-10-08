@@ -309,6 +309,20 @@ func (inv *Inventory) poll(ctx context.Context) bool {
 			sessions[i].Status = previous[sessions[i].Name].Status
 			sessions[i].Title = previous[sessions[i].Name].Title
 		}
+		// Branch labels are supplementary display metadata. Query each unique
+		// directory once; failures (including non-git directories) stay hidden.
+		branches := make(map[string]string)
+		queriedBranches := make(map[string]bool)
+		for i := range sessions {
+			dir := sessions[i].Path
+			if !queriedBranches[dir] {
+				queriedBranches[dir] = true
+				if out, branchErr := inv.exec.Exec(ctx, inv.opt.MachineID, tmux.GitBranch(dir)...); branchErr == nil {
+					branches[dir] = strings.TrimSpace(string(out))
+				}
+			}
+			sessions[i].GitBranch = branches[dir]
+		}
 		if paneOut, paneErr := inv.exec.Exec(ctx, inv.opt.MachineID, tmux.ListPaneCommands()...); paneErr == nil {
 			if metadata, parseErr := tmux.ParsePaneMetadata(string(paneOut)); parseErr == nil {
 				for i := range sessions {

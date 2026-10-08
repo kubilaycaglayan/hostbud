@@ -68,3 +68,33 @@ test('Claude Code header shows context and consumed tokens', async ({ page, ui, 
     await target.exec(`tmux kill-session -t ${shq('=' + name)} 2>/dev/null || true`)
   }
 })
+
+test('(T38) Adaptive title bar expands only on overflow and shows branch context', async ({ page, ui, target }) => {
+  const name = uniqueName('e2e-branch-header')
+  const second = uniqueName('e2e-nogit-header')
+  const path = `/home/dev/${uniqueName('header-git')}`
+  await target.run(`mkdir -p ${shq(path)} && git -C ${shq(path)} init -q -b feature/adaptive-title-bar-with-a-long-branch-name`)
+  await target.tmux('new-session', '-d', '-s', name, '-c', path)
+  try {
+    await ui.open()
+    await ui.openTerminal(name)
+    const header = page.getByRole('region', { name: `Terminal: ${name}`, exact: true }).locator('[data-terminal-header]')
+    const branch = header.locator('[data-git-branch]')
+    await expect(branch).toContainText('feature/adaptive-title-bar-with-a-long-branch-name')
+    await page.setViewportSize({ width: 320, height: 720 })
+    await expect(header).toHaveAttribute('data-overflow', 'true')
+    await header.click()
+    await expect(header).toHaveAttribute('data-expanded', 'true')
+    await page.locator('body').click({ position: { x: 10, y: 10 } })
+    await expect(header).not.toHaveAttribute('data-expanded', 'true')
+    // An unused directory has no branch label.
+    const noGit = `/home/dev/${uniqueName('header-nogit')}`
+    await target.run(`mkdir -p ${shq(noGit)}`)
+    await target.tmux('new-session', '-d', '-s', second, '-c', noGit)
+    await ui.openTerminal(second)
+    await expect(page.getByRole('region', { name: `Terminal: ${second}`, exact: true }).locator('[data-git-branch]')).toHaveCount(0)
+  } finally {
+    await target.exec(`tmux kill-session -t ${shq('=' + name)} 2>/dev/null || true`)
+    await target.exec(`tmux kill-session -t ${shq('=' + second)} 2>/dev/null || true`)
+  }
+})

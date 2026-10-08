@@ -51,6 +51,7 @@ type Session struct {
 	Agents     []string    `json:"agents,omitempty"`
 	Status     AgentStatus `json:"status,omitempty"`
 	AgentUsage *AgentUsage `json:"agentUsage,omitempty"`
+	GitBranch  string      `json:"gitBranch,omitempty"`
 	Title      string      `json:"title,omitempty"` // active pane's title, unless it is the default hostname
 	ProjectID  string      `json:"projectId,omitempty"`
 	Attached   int         `json:"attached"` // number of attached clients
@@ -78,6 +79,10 @@ const listFormat = "#{session_id}:#{session_name}:#{session_attached}:#{session_
 func ListSessions() []string {
 	return []string{"tmux", "list-sessions", "-F", listFormat}
 }
+
+// GitBranch returns a read-only query for the branch at a session directory.
+// The path is an argv value and is shell-quoted by sshx.Exec.
+func GitBranch(dir string) []string { return []string{"git", "-C", dir, "branch", "--show-current"} }
 
 // NoServer reports whether tmux's stderr means "no server running" (which
 // is an empty list, not an error).

@@ -43,6 +43,7 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 | T35 Chrome-free landscape view in the installed PWA | Implemented; U passes, focused iPhone WebKit scenario passes including keyboard and dialog dismissal; real-device check open |
 | T36 Extra terminal rows for landscape PWA clients | Implemented; U/I n/a; focused E2E passed in both iPhone profiles, confirms extra rows reach tmux and a bottom-row composer falls below the viewport; Codex device check open |
 | T37 Web terminal font size controls | Implemented; U passes; E written and type-checked, browser run pending on demand |
+| T38 Adaptive terminal title bar and branch context | Implemented; U/I pass; E written and type-checked, browser run pending on demand |
 
 **Progress note (T2–T4, 2026-09-27):** Vitest (447 tests), eslint, `vue-tsc` and the e2e `tsc` passed; deployed to the host from a clean checkout of `f664bb8` (a pre-deploy `pg_dump` is in `backups/`), and the stack came up healthy. Still open for these tasks:
 - **E2E runs:** the scenarios *(T2) Compact tree*, *(T3) Compact file browser* and *(T3) No browser autocomplete outside login password* type-check but haven't run: e2e runs only on demand. The T2 commit also updated two M6 scenarios that expanded single-window sessions (*(T4) Inline rename a session*, *(T3) Window rows follow the real terminal*). T22 replaces the former M8 *(T4) Custom tab order* scenario.
@@ -427,6 +428,16 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 **Tests:** U: T37 `TerminalView.spec.ts` checks the controls, default size, per-session isolation, split-pane synchronization, and inactive-pane control visibility. I: n/a because this is browser-local presentation state with no server contract. E: T37 verifies that changing one session's rendered font leaves another session unchanged and resets after reload.
 
 **E2E:** Added T37 *Terminal font size controls affect only the active session and reset on reload* in `test/e2e/tests/terminal-font.spec.ts`; type-check passes, browser execution on demand.
+
+## T38 — Adaptive terminal title bar and branch context
+
+- Keep the colored title bar on one line while its contents fit. When they overflow, clicking the bar expands it temporarily to at most three compact rows; a click or focus moving outside, or Escape, collapses it. The expansion affordance is available only while overflow exists.
+- Show the current Git branch for the active session directory when the directory is a Git worktree. Query read-only with shell-quoted argv, once per unique session directory per inventory poll; missing Git/repository/branch stays hidden.
+- In the installed PWA on phone widths, place token usage on the second title-bar row.
+
+**Tests:** U: T38 `TerminalView.spec.ts` covers fit/overflow affordance, expansion and outside/Escape collapse, branch display/hide, and PWA usage row ordering; `tmux_test.go` covers safely quoted branch query argv. I: T38 `TestIntegrationGitBranchInSessionInventory` covers a real branch and a non-repository against `test/sshd`. E: T38 *Adaptive title bar expands only on overflow and shows branch context* (`codex-usage.spec.ts`) checks a real throwaway Git branch and outside dismissal; *Installed phone PWA puts usage on row two and expands clipped branch context* (`pwa.phone.spec.ts`) checks mobile PWA placement, expansion and outside dismissal.
+
+**E2E:** Added T38 scenarios to `test/e2e/tests/codex-usage.spec.ts` and `test/e2e/tests/pwa.phone.spec.ts`; type-check passes, browser execution pending on demand.
 
 
 ## Done

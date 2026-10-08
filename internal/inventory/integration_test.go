@@ -84,6 +84,32 @@ func TestIntegrationPollerSeesCreateAndKill(t *testing.T) {
 	})
 }
 
+func TestIntegrationGitBranchInSessionInventory(t *testing.T) {
+	inv, _, c := run(t, testenv.SSHD)
+	testenv.Sh(t, c, "tmux kill-session -t =inventory-branch-it 2>/dev/null; true")
+	t.Cleanup(func() { testenv.Sh(t, c, "tmux kill-session -t =inventory-branch-it 2>/dev/null; true") })
+	testenv.Sh(t, c, "mkdir -p /home/dev/branch-repo && git -C /home/dev/branch-repo init -q -b feature/adaptive-header")
+	testenv.Sh(t, c, "tmux new-session -d -s inventory-branch-it -c /home/dev/branch-repo")
+	if err := inv.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	_, sessions := inv.Snapshot()
+	got, ok := findSession(sessions, "inventory-branch-it")
+	if !ok || got.GitBranch != "feature/adaptive-header" {
+		t.Fatalf("branch session = %+v (found %v)", got, ok)
+	}
+	testenv.Sh(t, c, "tmux kill-session -t =inventory-branch-it")
+	testenv.Sh(t, c, "tmux new-session -d -s inventory-branch-it -c /home/dev")
+	if err := inv.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	_, sessions = inv.Snapshot()
+	got, ok = findSession(sessions, "inventory-branch-it")
+	if !ok || got.GitBranch != "" {
+		t.Fatalf("non-repository branch = %+v (found %v)", got, ok)
+	}
+}
+
 func TestIntegrationPollerReportsForegroundAgentCommand(t *testing.T) {
 	inv, _, c := run(t, testenv.SSHD)
 	testenv.Sh(t, c, "tmux kill-session -t =inventory-agent-it 2>/dev/null; true")

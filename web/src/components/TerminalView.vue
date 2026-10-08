@@ -6,7 +6,7 @@ import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
-import { Folder } from 'lucide-vue-next'
+import { Folder, GitBranch } from 'lucide-vue-next'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
 import { TermSession, termURL, type SessionState } from '@/api/term'
 import { ApiError, copyModeApi, filesystemApi, terminalOutputApi } from '@/api/client'
@@ -76,6 +76,9 @@ const repeatIOSBackspace = standalonePwa && isIOS({ userAgent: navigator.userAge
 const takesInput = () => props.active && props.focused
 
 const el = ref<HTMLDivElement>()
+const headerEl = ref<HTMLDivElement>()
+const headerOverflow = ref(false)
+const headerExpanded = ref(false)
 const state = ref<SessionState>('connecting')
 const attempt = ref(0)
 const linkHover = ref<LinkHover | null>(null)
@@ -96,6 +99,7 @@ const modifiers = reactive(createModifiers())
 let fit: FitAddon | null = null
 let conn: TermSession | null = null
 let observer: ResizeObserver | null = null
+let headerObserver: ResizeObserver | null = null
 let selectionChange: { dispose: () => void } | null = null
 let disposeBackgroundBlur = () => {}
 let disposeVisibilityListener = () => {}
@@ -128,6 +132,7 @@ const tokenDetail = computed(() => {
   return `${agent}: ${number(usage.contextTokens)}${limit} context tokens; ${number(usage.totalTokens)} total tokens consumed (includes cached input). Last reported by ${agent}.`
 })
 const sessionDirectory = computed(() => currentSession.value?.path ?? '')
+const gitBranch = computed(() => currentSession.value?.gitBranch ?? '')
 const sessionSectionColor = computed(() => {
   const projectId = tree.groups.groups.find((group) => group.sessions.some((session) => session.name === props.session))?.project.id
   if (!projectId) return ''
@@ -462,6 +467,30 @@ function changeFontSize(delta: number) {
   setTerminalFontSize(props.machine, props.session, currentFontSize.value + delta)
 }
 
+function measureHeader() {
+  const header = headerEl.value
+  if (!header || headerExpanded.value) return
+  const clippedContent = [...header.querySelectorAll<HTMLElement>('.truncate')].some((node) => node.scrollWidth > node.clientWidth + 1)
+  headerOverflow.value = header.scrollWidth > header.clientWidth + 1 || header.scrollHeight > header.clientHeight + 1 || clippedContent
+  if (!headerOverflow.value) headerExpanded.value = false
+}
+function setHeaderExpanded(expanded: boolean) {
+  headerExpanded.value = expanded && headerOverflow.value
+  if (!headerExpanded.value) requestAnimationFrame(measureHeader)
+}
+function onOutsideHeader(event: PointerEvent) {
+  if (headerExpanded.value && !headerEl.value?.contains(event.target as Node)) setHeaderExpanded(false)
+}
+function onHeaderFocus(event: FocusEvent) {
+  if (headerExpanded.value && !headerEl.value?.contains(event.target as Node)) setHeaderExpanded(false)
+}
+function onHeaderClick(event: MouseEvent) {
+  if (headerOverflow.value && !(event.target as HTMLElement).closest('button, a, input')) setHeaderExpanded(!headerExpanded.value)
+}
+function onHeaderKey(event: KeyboardEvent) {
+  if (event.key === 'Escape' && headerExpanded.value) setHeaderExpanded(false)
+}
+
 // Tab and pane selection only changes which terminal receives keys. The
 // browser keyboard opens from an explicit terminal tap or Show keyboard.
 
@@ -588,6 +617,15 @@ onMounted(async () => {
   t.textarea?.addEventListener('blur', stopBackspaceRepeat)
   observer = new ResizeObserver(() => refit())
   observer.observe(el.value!)
+  headerObserver = new ResizeObserver(measureHeader)
+  if (headerEl.value) {
+    headerObserver.observe(headerEl.value)
+    for (const child of headerEl.value.children) headerObserver.observe(child)
+  }
+  window.addEventListener('pointerdown', onOutsideHeader, true)
+  window.addEventListener('focusin', onHeaderFocus, true)
+  window.addEventListener('keydown', onHeaderKey, true)
+  requestAnimationFrame(measureHeader)
   // An attached tmux client can constrain the shared session size even when
   // no resize frames are sent, so hidden pages detach and reattach on return.
   const onVisibilityChange = () => {
@@ -661,6 +699,10 @@ onBeforeUnmount(() => {
   caretMove++
   copyMode.reset()
   observer?.disconnect()
+  window.removeEventListener('pointerdown', onOutsideHeader, true)
+  window.removeEventListener('focusin', onHeaderFocus, true)
+  window.removeEventListener('keydown', onHeaderKey, true)
+  headerObserver?.disconnect()
   conn?.close()
   term.value?.dispose()
   if (import.meta.env.VITE_E2E === '1') unregisterPane(props.paneId)
@@ -685,15 +727,16 @@ defineExpose({ refit, reconnect, showKeyboard })
     :data-focused="takesInput() ? 'true' : undefined"
     @focusin="emit('focus')"
   >
-    <div data-terminal-header class="flex min-w-0 items-center gap-2 border-b border-border px-2" :class="[takesInput() && sessionSectionColor ? 'text-section-fg' : 'text-fg', standalonePwa ? 'py-0' : 'py-1.5']" :style="takesInput() && sessionSectionColor ? { backgroundColor: sessionSectionColor } : undefined">
+    <div ref="headerEl" data-terminal-header :data-overflow="headerOverflow || undefined" :data-expanded="headerExpanded || undefined" class="flex min-w-0 items-center gap-2 border-b border-border px-2" :class="[takesInput() && sessionSectionColor ? 'text-section-fg' : 'text-fg', standalonePwa ? 'py-0' : 'py-1.5', headerExpanded ? 'flex-wrap content-start max-h-24 overflow-y-auto' : standalonePwa && agentUsage ? 'flex-wrap content-start overflow-hidden' : 'flex-nowrap overflow-hidden', headerOverflow ? 'cursor-pointer' : '']" :style="takesInput() && sessionSectionColor ? { backgroundColor: sessionSectionColor } : undefined" @click="onHeaderClick">
       <Folder data-terminal-directory-icon :size="16" class="shrink-0" :title="sessionDirectory" :aria-label="sessionDirectory ? `Directory: ${sessionDirectory}` : undefined" :aria-hidden="sessionDirectory ? undefined : true" />
       <h2 data-terminal-session-name class="min-w-0 max-w-[45%] truncate text-base font-bold tracking-tight">
         {{ props.session }}
       </h2>
       <span v-if="machineChip" data-terminal-machine-chip class="shrink-0 truncate rounded-full border-2 border-danger bg-danger px-2.5 font-sans text-xs font-black leading-4 text-bg" :title="'On ' + machineChip">{{ machineChip }}</span>
-      <span v-if="agentUsage" data-agent-usage :title="tokenDetail" :aria-label="tokenDetail" class="shrink-0 whitespace-nowrap text-center text-xs tabular-nums">
+      <span v-if="agentUsage" data-agent-usage :title="tokenDetail" :aria-label="tokenDetail" class="shrink-0 whitespace-nowrap text-center text-xs tabular-nums" :class="standalonePwa ? 'max-sm:order-last max-sm:basis-full max-sm:text-left' : ''">
         {{ tokenNumber.format(agentUsage.contextTokens) }} ctx · {{ tokenNumber.format(agentUsage.totalTokens) }} used
       </span>
+      <span v-if="gitBranch" data-git-branch class="inline-flex min-w-0 shrink items-center gap-1 truncate text-xs" :title="`Branch: ${gitBranch}`" :aria-label="`Branch: ${gitBranch}`"><GitBranch :size="14" class="shrink-0" />{{ gitBranch }}</span>
       <div class="flex min-w-0 flex-1 items-center justify-end gap-2">
         <!-- Narrow screens show one pane of a split at a time. -->
         <button
@@ -706,6 +749,7 @@ defineExpose({ refit, reconnect, showKeyboard })
           Pane {{ props.paneIndex }} of {{ props.paneCount }}
         </button>
         <span class="ml-auto" />
+        <button v-if="headerOverflow" type="button" class="touch-target shrink-0 rounded px-1 text-xs font-medium" :aria-expanded="headerExpanded" :aria-label="headerExpanded ? 'Collapse terminal title bar' : 'Expand terminal title bar'" @click.stop="setHeaderExpanded(!headerExpanded)">{{ headerExpanded ? 'Less' : 'More' }}</button>
         <div v-if="takesInput()" data-terminal-font-controls class="flex shrink-0 items-center gap-0.5">
           <button type="button" class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded px-1 text-xs font-bold hover:bg-bg/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-current" aria-label="Decrease terminal font size" title="Decrease terminal font size" :disabled="currentFontSize <= MIN_TERMINAL_FONT_SIZE" @click="changeFontSize(-1)">A−</button>
           <button type="button" class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded px-1 text-xs font-bold hover:bg-bg/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-current" aria-label="Increase terminal font size" title="Increase terminal font size" :disabled="currentFontSize >= MAX_TERMINAL_FONT_SIZE" @click="changeFontSize(1)">A+</button>

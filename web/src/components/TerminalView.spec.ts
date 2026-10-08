@@ -159,21 +159,26 @@ class FakeWS {
   }
 }
 
-let resizeCallback: () => void = () => {}
+let terminalResizeCallbacks: (() => void)[] = []
+let headerResizeCallbacks: (() => void)[] = []
+const resizeCallback = () => terminalResizeCallbacks.forEach((callback) => callback())
 
 beforeEach(() => {
   setActivePinia(createPinia())
   h.terms = []
   h.fitSize = { cols: 100, rows: 30 }
   FakeWS.all = []
+  terminalResizeCallbacks = []
+  headerResizeCallbacks = []
   vi.stubGlobal('WebSocket', FakeWS)
   vi.stubGlobal(
     'ResizeObserver',
     class {
-      constructor(cb: () => void) {
-        resizeCallback = cb
+      constructor(private readonly cb: () => void) {}
+      observe(target: Element) {
+        if (target.matches('[data-terminal-header]')) headerResizeCallbacks.push(this.cb)
+        else terminalResizeCallbacks.push(this.cb)
       }
-      observe() {}
       disconnect() {}
     },
   )
@@ -325,6 +330,34 @@ describe('TerminalView', () => {
     delete session.agentUsage
     await w.vm.$nextTick()
     expect(w.find('[data-agent-usage]').exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('expands an overflowing title bar temporarily and displays the session branch', async () => {
+    const store = useSessionsStore()
+    store.$patch({ byMachine: { host: [{ id: '$1', name: 'acc-a', path: '/home/dev', attached: 0, windows: 1, created: '', activity: '', gitBranch: 'feature/adaptive-header' }] } })
+    const w = await mountTerm()
+    const header = w.get('[data-terminal-header]')
+    expect(w.get('[data-git-branch]').attributes('aria-label')).toBe('Branch: feature/adaptive-header')
+    headerResizeCallbacks.forEach((callback) => callback())
+    await w.vm.$nextTick()
+    expect(header.attributes('data-overflow')).toBeUndefined()
+    expect(header.find('[aria-label="Expand terminal title bar"]').exists()).toBe(false)
+    Object.defineProperty(header.element, 'clientWidth', { configurable: true, value: 180 })
+    Object.defineProperty(header.element, 'scrollWidth', { configurable: true, value: 360 })
+    headerResizeCallbacks.forEach((callback) => callback())
+    await w.vm.$nextTick()
+    expect(header.attributes('data-overflow')).toBe('true')
+    await header.trigger('click')
+    expect(header.attributes('data-expanded')).toBe('true')
+    headerResizeCallbacks.forEach((callback) => callback())
+    expect(header.attributes('data-expanded')).toBe('true')
+    await document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
+    await w.vm.$nextTick()
+    expect(header.attributes('data-expanded')).toBeUndefined()
+    await header.trigger('click')
+    await header.trigger('keydown', { key: 'Escape' })
+    expect(header.attributes('data-expanded')).toBeUndefined()
     w.unmount()
   })
 

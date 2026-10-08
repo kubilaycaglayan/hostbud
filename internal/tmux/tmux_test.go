@@ -316,6 +316,14 @@ func TestParseSessions(t *testing.T) {
 	}
 }
 
+func TestGitBranchCommandKeepsDirectoryAsQuotedArg(t *testing.T) {
+	args := GitBranch("/home/dev/a repo; $HOME")
+	want := []string{"git", "-C", "/home/dev/a repo; $HOME", "branch", "--show-current"}
+	if !slices.Equal(args, want) {
+		t.Fatalf("GitBranch argv = %#v, want %#v", args, want)
+	}
+}
+
 func TestParsePaneMetadataAgentAliases(t *testing.T) {
 	if got, want := ListPaneCommands(), []string{"sh", "-c", paneMetadataScript}; !slices.Equal(got, want) {
 		t.Fatalf("ListPaneCommands() = %q, want %q", got, want)

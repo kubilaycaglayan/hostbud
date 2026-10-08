@@ -310,3 +310,11 @@ T8 verification: native reader checked at 390px in Chromium and WebKit (358px co
   - U: T37 `TerminalView.spec.ts` checks the initial size, both controls, split-pane synchronization, session isolation and inactive-pane visibility.
   - I: n/a: the font size is browser-local and makes no API or persistence request.
   - E: T37 *Terminal font size controls affect only the active session and reset on reload* (`terminal-font.spec.ts`) checks title-bar button order, rendered font size for two sessions and the reset after reload; written and type-checked, browser execution pending on demand.
+
+## Adaptive terminal title bar and branch context (T38)
+
+- [ ] The colored title bar stays on one line whenever its content fits. Only when content overflows does it offer expansion; clicking expands to at most three compact rows, and clicking/focusing outside or pressing Escape collapses it. The current Git branch for the active session directory is shown when available; non-Git directories hide it. In the installed PWA at phone width, token usage is on the second row.
+  - U: T38 `TerminalView.spec.ts` covers fit/overflow affordance, temporary expansion, dismissal, branch visibility and PWA row placement; `tmux_test.go` covers branch command quoting.
+  - I: T38 `TestIntegrationGitBranchInSessionInventory` verifies branch reporting and non-repository handling over `test/sshd`.
+  - E: T38 *Adaptive title bar expands only on overflow and shows branch context* (`codex-usage.spec.ts`) verifies live branch context and outside dismissal; *Installed phone PWA puts usage on row two and expands clipped branch context* (`pwa.phone.spec.ts`) verifies second-row token usage, expansion and outside dismissal; written and type-checked, execution pending on demand.
+  - Status: U and I pass; E written and type-checked, browser execution pending on demand.

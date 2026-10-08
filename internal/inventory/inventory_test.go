@@ -38,6 +38,9 @@ func (f *fakeExec) Exec(_ context.Context, _ string, args ...string) ([]byte, er
 	if args[0] == "sh" {
 		return []byte(f.probeOut), f.probeErr
 	}
+	if args[0] == "git" {
+		return nil, nil
+	}
 	f.listCalls++
 	return []byte(f.listOut), f.listErr
 }

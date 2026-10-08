@@ -9,7 +9,7 @@ ARG WITH_TMUX=1
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       openssh-server openssh-client openssh-sftp-server tini procps vim htop less locales ca-certificates \
-      python3 curl \
+      python3 curl git \
  && if [ "$WITH_TMUX" = "1" ]; then apt-get install -y --no-install-recommends tmux; fi \
  && rm -rf /var/lib/apt/lists/* \
  && sed -i 's/^# *en_US.UTF-8/en_US.UTF-8/' /etc/locale.gen && locale-gen \

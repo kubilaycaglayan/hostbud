@@ -77,6 +77,7 @@ describe('ServersDialog (V2-M13 T3)', () => {
     type('edit-host', 'server-b.example.com')
     type('edit-user', 'operator')
     type('edit-port', '2222')
+    await flushPromises()
     expect(($$('button').find((b) => b.textContent?.trim() === 'Save') as HTMLButtonElement).disabled).toBe(true)
     $$('button').find((b) => b.textContent?.trim() === 'Check host key')!.click()
     await flushPromises()

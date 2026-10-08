@@ -2,6 +2,42 @@ import { expect, test } from '../helpers/fixtures.ts'
 import { uniqueName } from '../helpers/target.ts'
 import { openShell } from '../helpers/shell.ts'
 
+test('(T38) Installed phone PWA puts usage on row two and expands clipped branch context', async ({ page, ui, target }) => {
+  await page.addInitScript(() => {
+    const nativeMatchMedia = window.matchMedia.bind(window)
+    window.matchMedia = (query: string) => query === '(display-mode: standalone)'
+      ? ({ matches: true, media: query, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent() { return false } } as MediaQueryList)
+      : nativeMatchMedia(query)
+  })
+  await target.resetTmux()
+  const name = uniqueName('pwa-adaptive-header')
+  const path = `/home/dev/${name}`
+  await target.run(`mkdir -p ${path} && git -C ${path} init -q -b feature/adaptive-phone-title-bar`)
+  await target.tmux('new-session', '-d', '-s', name, '-c', path)
+  await target.tmux('set-option', '-p', '-t', `=${name}:.0`, '@hostbud_codex_usage', '12000,345678,200000')
+  try {
+    await page.goto('/')
+    await ui.tree().waitFor()
+    await ui.openTerminal(name)
+    const header = page.getByRole('region', { name: `Terminal: ${name}` }).locator('[data-terminal-header]')
+    const usage = header.locator('[data-agent-usage]')
+    const branch = header.locator('[data-git-branch]')
+    await expect(usage).toBeVisible()
+    await expect(branch).toContainText('feature/adaptive-phone-title-bar')
+    const usageBox = await usage.boundingBox()
+    const nameBox = await header.locator('[data-terminal-session-name]').boundingBox()
+    expect(usageBox!.y).toBeGreaterThan(nameBox!.y)
+    await expect(header).toHaveAttribute('data-overflow', 'true')
+    const more = header.getByRole('button', { name: 'Expand terminal title bar' })
+    await more.click()
+    await expect(header).toHaveAttribute('data-expanded', 'true')
+    await page.locator('body').click({ position: { x: 5, y: 5 } })
+    await expect(header).not.toHaveAttribute('data-expanded', 'true')
+  } finally {
+    await target.exec(`tmux kill-session -t '${name}' 2>/dev/null || true`)
+  }
+})
+
 test('(T33) Installed PWA keeps the in-app terminal shortcut buttons', async ({ page, ui, target }) => {
   await page.addInitScript(() => {
     const nativeMatchMedia = window.matchMedia.bind(window)
