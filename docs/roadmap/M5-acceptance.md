@@ -62,10 +62,10 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 
 ## On-screen key bar
 
-- [x] On touch screens, a key bar under the terminal offers Esc, Tab, Ctrl, Alt, ←↑↓→, `|`, `~`, `/`, `-` and Scroll history, each with an accessible name. It can be collapsed and expanded, and it scrolls inside itself if it doesn't fit; the page never scrolls.
-  - U: T4 `KeyBar` renders the keys, names and collapse state; hidden on fine pointer (Vitest).
+- [x] On touch screens, a key bar under the terminal offers Esc, Tab, Ctrl, Alt, ←↑↓→, `|`, `~`, `/`, `-` and Scroll history, each with an accessible name. It can be collapsed and expanded, and it scrolls inside itself if it doesn't fit; horizontal swipes across keys do not type them; the page never scrolls.
+  - U: T4 `KeyBar` renders the keys, names and collapse state; hidden on fine pointer; pointer movement cancels a pending key press (Vitest).
   - I: n/a (frontend only).
-  - E: T4 *Tab, Alt and symbols* (`keybar.phone.spec.ts`, both phone projects).
+  - E: T4 *Tab, Alt and symbols* · T4 *Dragging across the key bar does not type a key* (`keybar.phone.spec.ts`, both phone projects).
 - [x] Keys send the same bytes a hardware keyboard would, through xterm's input path. Arrows follow the program's cursor-key mode (`ESC [ A` normally, `ESC O A` in application mode), so shell history, vim, less and htop all work.
   - U: T4 `lib/keyBar.ts` table in both cursor modes (Vitest).
   - I: n/a (byte passthrough through the M1 T13 PTY bridge; no new server code).
@@ -156,6 +156,7 @@ Profiles: `desktop-chromium`, `iphone-13-pro` (`http://localhost:9055`) and `iph
 - [x] **(T4) Esc leaves vim insert mode:** in vim, insert text, Esc, then `dd` deletes the line (checked with `capture-pane`) (both phone projects).
 - [x] **(T4) Arrows recall history:** ↑ recalls the previous command and ← edits within the line (both phone projects).
 - [x] **(T4) Tab, Alt and symbols:** Tab completes, `|` `~` `/` `-` insert their characters, Alt then `b` moves back a word (both phone projects).
+- [x] **(T4) Dragging across the key bar does not type a key:** moving a touch pointer across a shortcut cancels its pending key press (both phone projects).
 - [x] **(T4) Key bar keeps the keyboard:** after several key taps, the focused element is still the terminal's textarea, and the keys meet the target size (both phone projects).
 - [x] **(T4) Application cursor keys:** ↓ moves by line in a program that enables application cursor mode (both phone projects).
 - [x] **(T5) Scroll into history:** after `seq 1 400`, Scroll history → `pane_in_mode` 1, `scroll_position` > 0, and earlier numbers are visible in the browser; Page up scrolls further (both phone projects).

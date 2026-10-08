@@ -45,15 +45,25 @@ test('(T4) Arrows recall history', async ({ page, target, ui }) => {
   await expect.poll(() => target.capture(name)).toContain('abXc')
 })
 
-test('(T4) Slash is pinned at the right edge of the key bar', async ({ page, target, ui }) => {
+test('(T4) Slash is part of the scrollable key bar', async ({ page, target, ui }) => {
   await session(page, target, ui, 'e2e-slash')
   const slash = page.getByRole('button', { name: 'Slash', exact: true })
-  const bar = await page.getByTestId('key-bar').boundingBox()
-  const box = await slash.boundingBox()
-  expect(bar && box).toBeTruthy()
-  // Visible without scrolling the key bar, as its rightmost key.
-  expect(box!.x + box!.width).toBeLessThanOrEqual(bar!.x + bar!.width)
-  expect(bar!.x + bar!.width - (box!.x + box!.width)).toBeLessThan(16)
+  await expect(slash.locator('xpath=..')).toHaveClass(/touch-pan-x/)
+})
+
+test('(T4) Dragging across the key bar does not type a key', async ({ page, target, ui }) => {
+  const name = await session(page, target, ui, 'e2e-keybar-swipe')
+  await ui.type('echo swipe')
+  const slash = page.getByRole('button', { name: 'Slash', exact: true })
+  await slash.evaluate((button) => {
+    const rect = button.getBoundingClientRect()
+    const init = { bubbles: true, cancelable: true, pointerId: 7, pointerType: 'touch' }
+    button.dispatchEvent(new PointerEvent('pointerdown', { ...init, clientX: rect.x + rect.width / 2, clientY: rect.y + rect.height / 2 }))
+    button.dispatchEvent(new PointerEvent('pointermove', { ...init, clientX: rect.x + rect.width / 2 - 30, clientY: rect.y + rect.height / 2 }))
+    button.dispatchEvent(new PointerEvent('pointerup', { ...init, clientX: rect.x + rect.width / 2 - 30, clientY: rect.y + rect.height / 2 }))
+  })
+  await expect.poll(() => target.capture(name)).toContain('echo swipe')
+  expect(await target.capture(name)).not.toContain('echo swipe/')
 })
 
 test('(T4) Tab, Alt and symbols', async ({ page, target, ui }) => {

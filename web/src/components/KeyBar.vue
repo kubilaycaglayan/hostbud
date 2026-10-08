@@ -20,12 +20,12 @@ const keys: { key: KeyBarKey; label: string; text: string }[] = [
   { key: 'ArrowRight', label: 'Right arrow', text: '→' },
   { key: '|', label: 'Pipe', text: '|' },
   { key: '~', label: 'Tilde', text: '~' },
+  { key: '/', label: 'Slash', text: '/' },
   { key: '-', label: 'Hyphen', text: '-' },
 ]
-// Pinned outside the scrolling keys so it's always in reach.
-const pinnedKey: { key: KeyBarKey; label: string; text: string } = { key: '/', label: 'Slash', text: '/' }
 let repeatTimer: ReturnType<typeof setTimeout> | null = null
 let repeatInterval: ReturnType<typeof setInterval> | null = null
+let pendingKey: { key?: KeyBarKey; action?: () => void; pointerId: number; x: number; y: number; sent: boolean } | null = null
 
 function input(key: KeyBarKey) {
   const terminal = props.term
@@ -46,23 +46,50 @@ function stopRepeat() {
 
 function press(event: PointerEvent, key: KeyBarKey) {
   event.preventDefault()
-  input(key)
-  if (!key.startsWith('Arrow')) return
   stopRepeat()
-  repeatTimer = setTimeout(() => {
-    input(key)
-    repeatInterval = setInterval(() => input(key), 80)
-  }, 400)
+  pendingKey = { key, pointerId: event.pointerId, x: event.clientX, y: event.clientY, sent: false }
+  if (key.startsWith('Arrow')) {
+    repeatTimer = setTimeout(() => {
+      if (!pendingKey || pendingKey.pointerId !== event.pointerId || !pendingKey.key) return
+      pendingKey.sent = true
+      input(key)
+      repeatInterval = setInterval(() => input(key), 80)
+    }, 400)
+  }
+}
+
+function move(event: PointerEvent) {
+  if (!pendingKey || pendingKey.pointerId !== event.pointerId) return
+  if (Math.abs(event.clientX - pendingKey.x) > 8 || Math.abs(event.clientY - pendingKey.y) > 8) {
+    pendingKey = null
+    stopRepeat()
+  }
+}
+
+function release(event: PointerEvent) {
+  if (pendingKey?.pointerId === event.pointerId) {
+    if (!pendingKey.sent) {
+      if (pendingKey.key) input(pendingKey.key)
+      else pendingKey.action?.()
+    }
+    pendingKey = null
+  }
+  stopRepeat()
+}
+
+function cancel(event: PointerEvent) {
+  if (pendingKey?.pointerId === event.pointerId) pendingKey = null
+  stopRepeat()
 }
 
 function arm(event: PointerEvent, name: 'ctrl' | 'alt') {
   event.preventDefault()
-  modifier(name)
+  pendingKey = { action: () => modifier(name), pointerId: event.pointerId, x: event.clientX, y: event.clientY, sent: false }
 }
 
 function scroll(event: PointerEvent) {
   event.preventDefault()
-  emit('scroll')
+  pendingKey = { action: () => emit('scroll'), pointerId: event.pointerId, x: event.clientX, y: event.clientY, sent: false }
 }
 
 onBeforeUnmount(stopRepeat)
@@ -88,7 +115,7 @@ onBeforeUnmount(stopRepeat)
       ⌃ Show key bar
     </button>
     <div v-else class="flex min-h-12 items-center gap-1 pr-1">
-      <div class="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-1">
+      <div class="flex min-w-0 flex-1 touch-pan-x items-center gap-1 overflow-x-auto px-1">
         <button
           v-for="item in leadingKeys"
           :key="item.key"
@@ -97,9 +124,10 @@ onBeforeUnmount(stopRepeat)
           :aria-label="item.label"
           tabindex="-1"
           @pointerdown="press($event, item.key)"
-          @pointerup="stopRepeat"
-          @pointercancel="stopRepeat"
-          @pointerleave="stopRepeat"
+          @pointermove="move"
+          @pointerup="release"
+          @pointercancel="cancel"
+          @pointerleave="cancel"
           @mousedown.prevent
         >
           {{ item.text }}
@@ -112,6 +140,10 @@ onBeforeUnmount(stopRepeat)
           :class="props.modifiers.ctrl.armed ? 'bg-accent text-bg' : ''"
           tabindex="-1"
           @pointerdown="arm($event, 'ctrl')"
+          @pointermove="move"
+          @pointerup="release"
+          @pointercancel="cancel"
+          @pointerleave="cancel"
           @mousedown.prevent
         >
           Ctrl
@@ -124,6 +156,10 @@ onBeforeUnmount(stopRepeat)
           :class="props.modifiers.alt.armed ? 'bg-accent text-bg' : ''"
           tabindex="-1"
           @pointerdown="arm($event, 'alt')"
+          @pointermove="move"
+          @pointerup="release"
+          @pointercancel="cancel"
+          @pointerleave="cancel"
           @mousedown.prevent
         >
           Alt
@@ -136,9 +172,10 @@ onBeforeUnmount(stopRepeat)
           :aria-label="item.label"
           tabindex="-1"
           @pointerdown="press($event, item.key)"
-          @pointerup="stopRepeat"
-          @pointercancel="stopRepeat"
-          @pointerleave="stopRepeat"
+          @pointermove="move"
+          @pointerup="release"
+          @pointercancel="cancel"
+          @pointerleave="cancel"
           @mousedown.prevent
         >
           {{ item.text }}
@@ -151,6 +188,10 @@ onBeforeUnmount(stopRepeat)
           :disabled="props.busy"
           tabindex="-1"
           @pointerdown="scroll"
+          @pointermove="move"
+          @pointerup="release"
+          @pointercancel="cancel"
+          @pointerleave="cancel"
           @mousedown.prevent
         >
           Scroll
@@ -167,16 +208,6 @@ onBeforeUnmount(stopRepeat)
           ⌄
         </button>
       </div>
-      <button
-        type="button"
-        class="touch-target shrink-0 rounded border border-border px-2"
-        :aria-label="pinnedKey.label"
-        tabindex="-1"
-        @pointerdown="press($event, pinnedKey.key)"
-        @mousedown.prevent
-      >
-        {{ pinnedKey.text }}
-      </button>
     </div>
   </section>
 </template>

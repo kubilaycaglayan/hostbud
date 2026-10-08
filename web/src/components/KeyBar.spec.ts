@@ -33,7 +33,7 @@ describe('KeyBar', () => {
     expect(wrapper.find('[aria-label="On-screen key bar"]').exists()).toBe(true)
     const names = wrapper.findAll('button').map((button) => button.attributes('aria-label'))
     expect(names).toEqual([
-      'Escape', 'Tab', 'Control', 'Alt', 'Left arrow', 'Up arrow', 'Down arrow', 'Right arrow', 'Pipe', 'Tilde', 'Hyphen', 'Scroll history', 'Hide key bar', 'Slash',
+      'Escape', 'Tab', 'Control', 'Alt', 'Left arrow', 'Up arrow', 'Down arrow', 'Right arrow', 'Pipe', 'Tilde', 'Slash', 'Hyphen', 'Scroll history', 'Hide key bar',
     ])
     expect(wrapper.findAll('button').every((button) => button.classes().includes('touch-target'))).toBe(true)
   })
@@ -64,10 +64,13 @@ describe('KeyBar', () => {
     const down = pointer('pointerdown')
     escape.element.dispatchEvent(down)
     expect(down.defaultPrevented).toBe(true)
+    expect(input).not.toHaveBeenCalled()
+    escape.element.dispatchEvent(pointer('pointerup'))
     expect(input).toHaveBeenCalledWith('\x1b', true)
     expect(document.activeElement).toBe(focused)
     const ctrl = wrapper.get('button[aria-label="Control"]')
     ctrl.element.dispatchEvent(pointer('pointerdown'))
+    ctrl.element.dispatchEvent(pointer('pointerup'))
     await wrapper.vm.$nextTick()
     expect(ctrl.attributes('aria-pressed')).toBe('true')
   })
@@ -77,14 +80,30 @@ describe('KeyBar', () => {
     const { wrapper, input } = mountBar()
     const up = wrapper.get('button[aria-label="Up arrow"]')
     up.element.dispatchEvent(pointer('pointerdown'))
-    expect(input).toHaveBeenCalledTimes(1)
+    expect(input).toHaveBeenCalledTimes(0)
     await vi.advanceTimersByTimeAsync(400)
-    expect(input).toHaveBeenCalledTimes(2)
+    expect(input).toHaveBeenCalledTimes(1)
     await vi.advanceTimersByTimeAsync(160)
-    expect(input).toHaveBeenCalledTimes(4)
+    expect(input).toHaveBeenCalledTimes(3)
     up.element.dispatchEvent(pointer('pointerup'))
     await vi.advanceTimersByTimeAsync(200)
-    expect(input).toHaveBeenCalledTimes(4)
+    expect(input).toHaveBeenCalledTimes(3)
+  })
+
+  it('does not type when a pointer moves to scroll the strip', () => {
+    const { wrapper, input } = mountBar()
+    const slash = wrapper.get('button[aria-label="Slash"]')
+    const down = pointer('pointerdown') as PointerEvent
+    Object.defineProperties(down, { pointerId: { value: 1 }, clientX: { value: 100 }, clientY: { value: 20 } })
+    slash.element.dispatchEvent(down)
+    const move = pointer('pointermove') as PointerEvent
+    Object.defineProperties(move, { pointerId: { value: 1 }, clientX: { value: 65 }, clientY: { value: 20 } })
+    slash.element.dispatchEvent(move)
+    const up = pointer('pointerup') as PointerEvent
+    Object.defineProperty(up, 'pointerId', { value: 1 })
+    slash.element.dispatchEvent(up)
+    expect(input).not.toHaveBeenCalled()
+    expect(wrapper.find('.touch-pan-x').exists()).toBe(true)
   })
 
   it.each(['pointercancel', 'pointerleave'])('stops arrow repeats on %s', async (eventName) => {
@@ -93,10 +112,10 @@ describe('KeyBar', () => {
     const up = wrapper.get('button[aria-label="Up arrow"]')
     up.element.dispatchEvent(pointer('pointerdown'))
     await vi.advanceTimersByTimeAsync(400)
-    expect(input).toHaveBeenCalledTimes(2)
+    expect(input).toHaveBeenCalledTimes(1)
     up.element.dispatchEvent(pointer(eventName))
     await vi.advanceTimersByTimeAsync(200)
-    expect(input).toHaveBeenCalledTimes(2)
+    expect(input).toHaveBeenCalledTimes(1)
   })
 
   it('collapses and expands to a labelled handle', async () => {
