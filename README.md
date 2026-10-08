@@ -10,6 +10,8 @@ Manage the tmux sessions on your server from a web UI: browse directories, organ
 
 Choose **Dark**, **Light**, **Solarized**, **Dimmed** or **System** from the Account menu. System follows the device appearance, and the selected theme applies to the interface and open terminals. Solarized uses a muted cream-sage surface at about 25% darkness; Dimmed is a deeper slate-teal at about 70%.
 
+The app icon is an angular orange/red H on a dark background, shared by the favicon and iOS/PWA icons. Its vector master is `web/icons/hostbud.svg`; `make icons` regenerates every PNG from it. If an existing iOS home-screen shortcut keeps the old icon after deployment, remove that shortcut and add it again (you may need to sign in again).
+
 ## How it works
 - Runs in Docker on one host, behind Caddy: plain HTTP on `127.0.0.1:9055` for SSH port forwarding, and HTTPS on your domain bound to the host's Tailscale IP (a Let's Encrypt certificate via Cloudflare DNS-01).
 - Reaches the host's tmux over SSH using a dedicated key in your ssh-agent (private keys never enter the container) and pins the host's own SSH host keys.

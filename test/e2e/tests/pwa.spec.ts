@@ -31,7 +31,7 @@ test('(T33) Installed PWA offers a header keyboard toggle', async ({ page, ui, t
   await expect(input).not.toBeFocused()
 })
 
-test('(T7) Manifest and icons load through Caddy with no external requests', async ({ page }) => {
+test('(T7, M8 T39) Manifest and icons load through Caddy with no external requests', async ({ page }) => {
   const requests: string[] = []
   page.on('request', (request) => requests.push(request.url()))
   await page.goto('/')
@@ -57,6 +57,29 @@ test('(T7) Manifest and icons load through Caddy with no external requests', asy
   expect(appleIcon).toBe('/icons/apple-touch-icon-180.png')
   expect((await page.request.get(appleIcon!)).headers()['content-type']).toContain('image/png')
   expect(await page.locator('link[rel="icon"]').getAttribute('href')).toBe('/favicon.svg')
+  const favicon = await page.request.get('/favicon.svg')
+  expect(favicon.ok()).toBe(true)
+  expect(await favicon.text()).toContain('#ffb347')
+  expect(await favicon.text()).toContain('#ed2546')
+  // Decode the actual served images, including the iOS icon, in the browser.
+  for (const src of [...manifest.icons.map((icon: { src: string }) => icon.src), appleIcon, '/favicon.svg']) {
+    const pixels = await page.evaluate(async (url: string) => {
+      const img = new Image()
+      img.src = url
+      await img.decode()
+      const canvas = document.createElement('canvas')
+      canvas.width = canvas.height = 512
+      const ctx = canvas.getContext('2d')!
+      ctx.drawImage(img, 0, 0, 512, 512)
+      return [ctx.getImageData(0, 0, 1, 1), ctx.getImageData(140, 180, 1, 1), ctx.getImageData(370, 340, 1, 1)].map((sample) => [...sample.data])
+    }, src!)
+    expect(pixels[0]).toEqual([23, 16, 20, 255])
+    expect(pixels[1]![0]).toBeGreaterThan(240) // orange left arm
+    expect(pixels[1]![1]).toBeGreaterThan(100)
+    expect(pixels[2]![0]).toBeGreaterThan(220) // red right arm
+    expect(pixels[2]![1]).toBeLessThan(100)
+    expect(pixels.every((pixel) => pixel[3] === 255)).toBe(true)
+  }
   expect(requests.every((url) => new URL(url).origin === origin)).toBe(true)
 })
 

@@ -318,3 +318,17 @@ T8 verification: native reader checked at 390px in Chromium and WebKit (358px co
   - I: T38 `TestIntegrationGitBranchInSessionInventory` verifies branch and changed-file reporting plus non-repository handling over `test/sshd`.
   - E: T38 *Adaptive title bar expands only on overflow and shows branch context* (`codex-usage.spec.ts`) verifies live branch context/count and outside dismissal; *Installed phone PWA keeps a compact title bar and expands details on demand* (`pwa.phone.spec.ts`) verifies the minimal default, second-row token usage, expansion and outside dismissal; written and type-checked, execution pending on demand.
   - Status: U and I pass; E written and type-checked, browser execution pending on demand.
+
+## Orange and red app icon (T39)
+
+- [x] The favicon, 192/512 px PWA icons, 512 px maskable icon and 180 px iOS icon share an angular orange/red H, with broad shapes recognizable at small sizes, an opaque dark background and safe mask padding. PNGs render from the SVG master, and stable-URL icon changes update the service worker cache version.
+  - U: T39 `check-dist.test.mjs` checks actual SVG rendering, committed PNG parity, opacity, dimensions, safe-circle containment and icon/manifest content cache invalidation.
+  - I: T39 `make web-build` validates the production distribution's local icon links and service worker precache.
+  - E: T39 extends *Manifest and icons load through Caddy with no external requests* (`pwa.spec.ts`) with browser pixel checks for every delivered icon. Written and type-checked; execution pending on demand.
+
+Validation: production build and 14 build/asset tests pass; frontend lint/type-check, E2E lint/type-check, docs checks and gitleaks pass. Artwork inspected at 16–180 px on light and dark surroundings.
+
+### Manual checks (owner, T39)
+
+- [ ] On an actual iPhone, confirm the new home-screen icon after reinstalling the shortcut if iOS retains the previous icon. This is an open owner item, not a blocker.
+- [ ] Run the updated PWA browser scenario on demand.

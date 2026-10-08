@@ -5,6 +5,8 @@ import { execFileSync } from 'node:child_process'
 import { afterEach, describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { checkDist } from './check-dist-lib.mjs'
+import { Resvg } from '@resvg/resvg-js'
+import { shellVersion } from './shell-version.mjs'
 
 const dirs = []
 afterEach(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }) })
@@ -77,16 +79,51 @@ describe('check-dist PWA validation', () => {
     writeFileSync(join(dir, 'assets/app.css'), 'src: url(data:font/woff2;base64,AA==)')
     assert.throws(() => checkDist(dir), /inline font asset/)
   })
-  it('generates the expected PNG sizes from a fixture SVG', () => {
+  it('renders PNG pixels from the supplied SVG at every supported size', () => {
     const dir = mkdtempSync(join(tmpdir(), 'hostbud-icons-'))
     dirs.push(dir)
     const svg = join(dir, 'fixture.svg')
-    writeFileSync(svg, '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><rect width="1" height="1"/></svg>')
+    writeFileSync(svg, '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><rect width="1" height="1" fill="#ed2546"/></svg>')
     const output = join(dir, 'output')
     execFileSync(process.execPath, [new URL('./icons.mjs', import.meta.url).pathname, output, svg])
     for (const [name, size] of [['icon-192.png', 192], ['icon-512.png', 512], ['icon-maskable-512.png', 512], ['apple-touch-icon-180.png', 180]]) {
       const png = readFileSync(join(output, 'icons', name))
       assert.deepEqual([png.readUInt32BE(16), png.readUInt32BE(20)], [size, size])
+      const rendered = new Resvg(readFileSync(svg, 'utf8'), { fitTo: { mode: 'width', value: size } }).render()
+      assert.deepEqual(png, rendered.asPng())
+      assert.deepEqual([...rendered.pixels.subarray(0, 4)], [237, 37, 70, 255])
+    }
+  })
+  it('ships matching opaque icons with the mark inside the maskable safe circle', () => {
+    const source = readFileSync(join(process.cwd(), 'icons/hostbud.svg'), 'utf8')
+    assert.equal(readFileSync(join(process.cwd(), 'public/favicon.svg'), 'utf8'), source)
+    for (const [name, size] of [['icon-192.png', 192], ['icon-512.png', 512], ['icon-maskable-512.png', 512], ['apple-touch-icon-180.png', 180]]) {
+      const rendered = new Resvg(source, { fitTo: { mode: 'width', value: size } }).render()
+      assert.deepEqual(readFileSync(join(process.cwd(), 'public/icons', name)), rendered.asPng())
+      const pixels = rendered.pixels
+      let warmPixels = 0
+      for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+        const i = (y * size + x) * 4
+        assert.equal(pixels[i + 3], 255, `${name}: opaque background`)
+        if (pixels[i] > 100) {
+          warmPixels++
+          assert.ok(Math.hypot(x + 0.5 - size / 2, y + 0.5 - size / 2) < size * 0.4, `${name}: maskable safe area`)
+        }
+      }
+      assert.ok(warmPixels > size * size * 0.15, `${name}: substantial visible mark`)
+    }
+  })
+  it('changes the service worker version when stable-URL icon bytes change', () => {
+    const dir = fixture()
+    const urls = ['/', '/favicon.svg', '/icons/icon-192.png', '/manifest.webmanifest']
+    let version = shellVersion(dir, urls)
+    assert.equal(shellVersion(dir, urls), version)
+    for (const url of urls) {
+      const file = join(dir, url === '/' ? 'index.html' : url.slice(1))
+      writeFileSync(file, Buffer.concat([readFileSync(file), Buffer.from('changed')]))
+      const next = shellVersion(dir, urls)
+      assert.notEqual(next, version, url)
+      version = next
     }
   })
   it('keeps safe-area insets on the app shell, drawer and compact sheets', () => {

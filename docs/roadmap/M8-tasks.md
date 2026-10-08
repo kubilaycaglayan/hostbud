@@ -440,6 +440,15 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 **E2E:** Added T38 scenarios to `test/e2e/tests/codex-usage.spec.ts` and `test/e2e/tests/pwa.phone.spec.ts`; type-check passes, browser execution pending on demand.
 
 
+## T39 — Orange and red app icon
+
+- Replace the blue terminal tile with a simple angular split H, using orange and red gradients on an opaque dark square. Keep the mark inside the maskable safe circle and inspect it at 16, 32, 48, 64 and 180 px.
+- Render the SVG master into the 192/512 px PWA icons, 512 px maskable icon and 180 px iOS icon; remove the independent hardcoded PNG drawing. Version the service worker cache using asset contents so icon-only updates invalidate it.
+
+**Tests:** U: T39 `check-dist.test.mjs` checks actual SVG rendering, committed PNG parity, dimensions, opacity, maskable safe area and content-based cache invalidation. I: T39 production distribution checks validate icon references and the service worker precache in `make web-build`. No SSH behavior changes.
+
+**E2E:** Extend T7 / M8 T39 *Manifest and icons load through Caddy with no external requests* in `pwa.spec.ts` to decode every icon and check the orange/red mark and opaque background. Type-check only; execution is on demand. Existing iOS home-screen icon refresh is an open owner check.
+
 ## Done
 
 - [ ] M8 acceptance criteria and their U/I/E coverage are complete.
