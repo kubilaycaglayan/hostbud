@@ -89,7 +89,9 @@ test('(T38) Adaptive title bar expands only on overflow and shows branch context
     expect(compactHeader!.height).toBeGreaterThan(44)
     await header.click()
     await expect(header).toHaveAttribute('data-expanded', 'true')
-    await page.locator('body').click({ position: { x: 10, y: 10 } })
+    // The phone-width sidebar covers the top-left body click target; Escape
+    // dismisses the expanded header reliably in every viewport profile.
+    await page.keyboard.press('Escape')
     await expect(header).not.toHaveAttribute('data-expanded', 'true')
     // An unused directory has no branch label.
     const noGit = `/home/dev/${uniqueName('header-nogit')}`
