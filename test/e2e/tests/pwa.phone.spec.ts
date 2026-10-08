@@ -64,8 +64,15 @@ test('(T33) Installed PWA keeps the in-app terminal shortcut buttons', async ({ 
   await ui.tree().waitFor()
   await ui.openTerminal(session)
   await expect(page.getByRole('button', { name: 'Show keyboard' })).toBeVisible()
-  await expect(page.getByTestId('key-bar')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Slash' })).toBeVisible()
+  const keyBar = page.getByTestId('key-bar')
+  const slash = page.getByRole('button', { name: 'Slash' })
+  await expect(keyBar).toBeVisible()
+  await expect(slash).toBeVisible()
+  await expect(slash).toHaveAttribute('aria-label', 'Slash')
+  expect(await slash.evaluate((element) => element.closest('[data-testid="key-bar-fixed-keys"]') !== null)).toBe(true)
+  const barBox = (await keyBar.boundingBox())!
+  const slashBox = (await slash.boundingBox())!
+  expect(slashBox.x + slashBox.width).toBeGreaterThan(barBox.x + barBox.width * 0.7)
 })
 
 test('(M8 T35) Installed PWA landscape shows only the tmux terminal', async ({ page, ui, target, request, baseURL }, testInfo) => {

@@ -93,6 +93,11 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
 - [ ] Long-pressing a word selects it at the visible xterm buffer row and exposes Copy.
   - U: T2 selection uses the absolute active-buffer row (Vitest). I: n/a (browser-side xterm selection and input; no server behavior specific to these cases). E: T2 *Touch long press selects terminal text for copying* (phone projects). **Manual (owner):** verify selection and copy in the iPhone 13 Pro PWA.
 
+- [ ] The `/` terminal key stays visible at the fixed right edge of the phone key bar while the other keys can scroll horizontally; tapping it sends `/` to the active terminal and every key retains its touch target.
+  - U: T41 `KeyBar.spec.ts` verifies the slash key is in the fixed trailing group outside the scrolling strip and all buttons retain touch-target classes.
+  - I: n/a because the pinning is browser layout and slash dispatch uses the existing terminal input channel.
+  - E: T41 updates *Installed PWA keeps the in-app terminal shortcut buttons* (`pwa.phone.spec.ts`) to check the slash button remains visible in the fixed trailing group at the right side; written and type-checked, browser execution pending on demand.
+
 ## Long-lived terminal theme contrast
 
 - [ ] With a terminal client left running across an OS System theme change, hostbud's xterm palette updates without detaching the session and hostbud-controlled text/background colors remain legible in both dark and light themes. Diagnose the reported Codex prompt contrast (dark prompt surface with dark text after a dark-to-light change): identify whether the colors are hostbud/xterm palette colors or explicit Codex colors. If Codex owns the colors and cannot adapt live, document that boundary and an actionable supported workaround; do not claim a hostbud palette change fixes client-owned colors.

@@ -456,6 +456,13 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 - **E2E:** T40 extends *Project sections* in `test/e2e/tests/tree.sections.spec.ts`: clear origin storage, caches, service-worker registration and auth cookie to model reinstall; sign into the same account and verify section names, colors and project membership return. Type-check only; browser execution remains on demand.
 - **Done:** A failed initial read cannot replace account state with an empty tree; an origin-storage reset and sign-in restores the account's sections. No environment changes.
 
+## T41 — Keep the slash key pinned on the phone key bar
+
+- Keep `/` visible at the right edge of the on-screen terminal key bar while the other keys remain horizontally scrollable. Preserve its touch target and terminal input behavior.
+- **Tests:** U: T41 `KeyBar.spec.ts` checks the slash key is in the fixed trailing controls, outside the horizontally scrolling strip, with all controls retaining touch targets. I: n/a because this changes only browser layout and key dispatch uses the existing terminal connection.
+- **E2E:** T41 updates T33 *Installed PWA keeps the in-app terminal shortcut buttons* in `test/e2e/tests/pwa.phone.spec.ts` to confirm `/` remains visible in the fixed right-side group. Type-check only; browser execution remains on demand.
+- **Done:** `/` stays reachable at the key bar's right edge on the installed phone PWA. No environment changes.
+
 ## Done
 
 - [ ] M8 acceptance criteria and their U/I/E coverage are complete.

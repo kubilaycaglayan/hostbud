@@ -20,7 +20,6 @@ const keys: { key: KeyBarKey; label: string; text: string }[] = [
   { key: 'ArrowRight', label: 'Right arrow', text: '→' },
   { key: '|', label: 'Pipe', text: '|' },
   { key: '~', label: 'Tilde', text: '~' },
-  { key: '/', label: 'Slash', text: '/' },
   { key: '-', label: 'Hyphen', text: '-' },
 ]
 let repeatTimer: ReturnType<typeof setTimeout> | null = null
@@ -196,9 +195,25 @@ onBeforeUnmount(stopRepeat)
         >
           Scroll
         </button>
+      </div>
+      <div class="flex shrink-0 items-center gap-1 border-l border-border pl-1" data-testid="key-bar-fixed-keys">
         <button
           type="button"
-          class="touch-target ml-auto shrink-0 rounded px-2 text-muted"
+          class="touch-target shrink-0 rounded border border-border px-2"
+          aria-label="Slash"
+          tabindex="-1"
+          @pointerdown="press($event, '/')"
+          @pointermove="move"
+          @pointerup="release"
+          @pointercancel="cancel"
+          @pointerleave="cancel"
+          @mousedown.prevent
+        >
+          /
+        </button>
+        <button
+          type="button"
+          class="touch-target shrink-0 rounded px-2 text-muted"
           aria-label="Hide key bar"
           tabindex="-1"
           @pointerdown.prevent="collapsed = true"
