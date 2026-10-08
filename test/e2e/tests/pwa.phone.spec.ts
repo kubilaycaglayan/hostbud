@@ -1,8 +1,9 @@
 import { expect, test } from '../helpers/fixtures.ts'
 import { uniqueName } from '../helpers/target.ts'
 import { openShell } from '../helpers/shell.ts'
+import { mutate, MACHINE, ORIGIN } from '../helpers/api.ts'
 
-test('(T38) Installed phone PWA keeps a compact title bar and expands details on demand', async ({ page, ui, target }) => {
+test('(T38) Installed phone PWA keeps a compact project/session title and expands details on demand', async ({ page, ui, target, request }) => {
   await page.addInitScript(() => {
     const nativeMatchMedia = window.matchMedia.bind(window)
     window.matchMedia = (query: string) => query === '(display-mode: standalone)'
@@ -12,7 +13,10 @@ test('(T38) Installed phone PWA keeps a compact title bar and expands details on
   await target.resetTmux()
   const name = uniqueName('pwa-adaptive-header')
   const path = `/home/dev/${name}`
+  const projectName = uniqueName('phone-project-title')
   await target.run(`mkdir -p ${path} && git -C ${path} init -q -b feature/adaptive-phone-title-bar`)
+  const projectResponse = await mutate(request, 'POST', '/api/projects', { machineId: MACHINE, path, name: projectName }, ORIGIN)
+  expect(projectResponse.status()).toBe(201)
   await target.tmux('new-session', '-d', '-s', name, '-c', path)
   await target.tmux('set-option', '-p', '-t', `=${name}:.0`, '@hostbud_codex_usage', '12000,345678,200000')
   try {
@@ -25,6 +29,7 @@ test('(T38) Installed phone PWA keeps a compact title bar and expands details on
     await expect(header).toHaveAttribute('data-expandable', 'true')
     await expect(header).not.toHaveAttribute('data-expanded', 'true')
     await expect(header.locator('[data-terminal-session-name]')).toBeVisible()
+    await expect(header.locator('[data-terminal-session-name]')).toHaveText(`${projectName.slice(0, 10)}/${name.slice(0, 10)}`)
     await expect(header.locator('[data-terminal-directory-icon]')).toBeVisible()
     await expect(header.locator('[data-terminal-font-controls]')).toBeVisible()
     await expect(header.getByRole('button', { name: 'Terminal actions' })).toBeVisible()
@@ -32,6 +37,7 @@ test('(T38) Installed phone PWA keeps a compact title bar and expands details on
     await expect(branch).toHaveCount(0)
     await header.getByRole('button', { name: 'Show terminal details' }).click()
     await expect(header).toHaveAttribute('data-expanded', 'true')
+    await expect(header.locator('[data-terminal-session-name]')).toHaveText(`${projectName}/${name}`)
     await expect(usage).toBeVisible()
     await expect(branch).toContainText('feature/adaptive-phone-title-bar')
     const usageBox = await usage.boundingBox()

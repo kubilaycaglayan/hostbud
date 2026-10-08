@@ -240,19 +240,19 @@ describe('TerminalView', () => {
       removeListener: vi.fn(),
     }))
     useProjectsStore().remember({ id: 'project-a', machineId: 'host', path: '/home/dev/bright-work', name: 'Bright work', sortOrder: 0, pinned: false, createdAt: '', updatedAt: '' })
-    const pwaSession = { id: '$1', name: 'acc-a', path: '/home/dev/bright-work', attached: 0, windows: 1, created: '', activity: '', gitBranch: 'feature/pwa-header', agentUsage: { agent: 'codex' as const, contextTokens: 12000, totalTokens: 345678, contextWindow: 200000 } }
+    const pwaSession = { id: '$1', name: 'acc-a', path: '/home/dev/bright-work', projectId: 'project-a', attached: 0, windows: 1, created: '', activity: '', gitBranch: 'feature/pwa-header', agentUsage: { agent: 'codex' as const, contextTokens: 12000, totalTokens: 345678, contextWindow: 200000 } }
     useSessionsStore().$patch({ byMachine: { host: [pwaSession] } })
     useSessionsStore().byMachine['server-a'] = [pwaSession]
     const tree = useTreeStore()
     useMachinesStore().machines = [{ id: 'server-a', label: 'Build server', status: 'ok', os: 'linux', home: '/home/dev', tmuxVersion: '3.4', tmuxMissing: false }]
     tree.order.projectSections = { 'project-a': 'section-a' }
     tree.order.sections = [{ id: 'section-a', name: 'Research', color: 'purple' }]
-    const w = await mountTerm({ machine: 'server-a' })
+    const w = await mountTerm({ machine: 'server-a', narrow: true })
     const header = w.get('[data-terminal-header]')
     expect(header.classes()).toContain('py-0')
     expect(header.classes()).toContain('text-section-fg')
     expect(header.attributes('style')).toContain('var(--hb-section-purple)')
-    expect(w.get('[data-terminal-session-name]').text()).toBe('acc-a')
+    expect(w.get('[data-terminal-session-name]').text()).toBe('Bright wor/acc-a')
     expect(w.find('[data-terminal-directory-icon]').exists()).toBe(true)
     expect(w.get('[data-terminal-machine-chip]').text()).toBe('Build server')
     expect(w.find('[data-agent-usage]').exists()).toBe(false)
@@ -264,6 +264,7 @@ describe('TerminalView', () => {
     expect(w.get('button[aria-label="Terminal actions"]').classes()).toContain('text-xl')
     await w.get('[aria-label="Show terminal details"]').trigger('click')
     expect(header.attributes('data-expanded')).toBe('true')
+    expect(w.get('[data-terminal-session-name]').text()).toBe('Bright work/acc-a')
     expect(w.get('[data-git-branch]').text()).toContain('feature/pwa-header')
     expect(w.get('[data-agent-usage]').text()).toContain('12K ctx')
     expect(w.get('[data-agent-usage]').classes()).toContain('max-sm:basis-full')
@@ -302,7 +303,7 @@ describe('TerminalView', () => {
 
   it('colors the focused session header by section and keeps directory details on the icon', async () => {
     useProjectsStore().remember({ id: 'project-a', machineId: 'host', path: '/home/dev/bright-work', name: 'Bright work', sortOrder: 0, pinned: false, createdAt: '', updatedAt: '' })
-    useSessionsStore().$patch({ byMachine: { host: [{ id: '$1', name: 'acc-a', path: '/home/dev/bright-work', attached: 0, windows: 1, created: '', activity: '' }] } })
+    useSessionsStore().$patch({ byMachine: { host: [{ id: '$1', name: 'acc-a', path: '/home/dev/bright-work', projectId: 'project-a', attached: 0, windows: 1, created: '', activity: '' }] } })
     const tree = useTreeStore()
     tree.order.projects = ['project-a']
     tree.order.sections = [{ id: 'section-a', name: 'Research', color: 'purple' }]
@@ -310,7 +311,7 @@ describe('TerminalView', () => {
     const w = await mountTerm({ focused: true })
     const name = w.get('[data-terminal-session-name]')
     const icon = w.get('[data-terminal-directory-icon]')
-    expect(name.text()).toBe('acc-a')
+    expect(name.text()).toBe('Bright work/acc-a')
     expect(w.get('[data-terminal-header]').classes()).toContain('text-section-fg')
     expect(w.get('[data-terminal-header]').classes()).toContain('py-1.5')
     expect(w.get('[data-terminal-header]').attributes('style')).toContain('var(--hb-section-purple)')
@@ -337,7 +338,7 @@ describe('TerminalView', () => {
     // Keeps its width on narrow screens so it never overlaps the name or path; the name truncates instead.
     expect(w.get('[data-agent-usage]').classes()).toEqual(expect.arrayContaining(['shrink-0', 'whitespace-nowrap']))
     expect(w.get('[data-agent-usage]').classes()).not.toContain('min-w-0')
-    expect(w.get('[data-terminal-session-name]').classes()).toEqual(expect.arrayContaining(['min-w-0', 'truncate']))
+    expect(w.get('[data-terminal-session-name]').classes()).toContain('min-w-0')
     expect(w.find('[data-terminal-project]').exists()).toBe(false)
     expect(w.get('[data-agent-usage]').attributes('aria-label')).toContain('12,000 of 200,000 context tokens; 345,678 total tokens consumed')
     session.agentUsage = { agent: 'claude', contextTokens: 74243, totalTokens: 417626, contextWindow: 0 }
