@@ -131,6 +131,35 @@ describe('tree order store', () => {
     expect(tree.order.sessions.__other__).toEqual(['saved-session'])
   })
 
+  it('does not replace saved sections when the initial request fails, and retries the load', async () => {
+    vi.useFakeTimers()
+    const saved = {
+      version: 4, projects: ['project-a'], sessions: {}, pinned: [], hidden: { projects: [], sessions: [] },
+      collapsed: [], collapsedSections: [], expanded: [], showHidden: false,
+      sections: [{ id: 'research', name: 'Research', color: 'purple' }], projectSections: { 'project-a': 'research' },
+    }
+    let attempts = 0
+    const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      attempts++
+      if (attempts === 1) throw new TypeError('temporary connection failure')
+      return new Response(JSON.stringify(saved), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    })
+    vi.stubGlobal('fetch', fetcher)
+    const tree = useTreeStore()
+
+    await tree.load()
+    tree.sync()
+    expect(tree.loaded).toBe(false)
+    expect(fetcher).toHaveBeenCalledTimes(1)
+    expect(fetcher.mock.calls.some(([, init]) => init?.method === 'PUT')).toBe(false)
+
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(tree.loaded).toBe(true)
+    expect(tree.order.sections).toEqual(saved.sections)
+    expect(tree.order.projectSections).toEqual(saved.projectSections)
+    expect(fetcher).toHaveBeenCalledTimes(2)
+  })
+
   it.each(['unknown', 'unreachable'] as const)('keeps saved entries when machine status is %s', async (status) => {
     stubFetch((method, path) => path === '/api/ui-state/tree' && method === 'GET'
       ? { status: 200, body: { version: 1, projects: [], sessions: { __other__: ['stale-session'] } } }

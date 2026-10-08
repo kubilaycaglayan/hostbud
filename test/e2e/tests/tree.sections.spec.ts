@@ -95,6 +95,21 @@ test('(T17, T18) Project sections and ordering', async ({ page, ui, isMobile }) 
   await expect(page.getByRole('group', { name: 'Tools section' })).toBeVisible()
   expect(await getUIState(api, 'tree')).toMatchObject({ sections: [{ name: 'Planning', color: 'orange' }, { name: 'Tools', color: 'purple' }], projectSections: { [ids[0]]: expect.any(String) } })
 
+  // Model removing/reinstalling the PWA: clear all origin storage and the
+  // auth cookie, then sign back into the same account. Sections are account
+  // state and must come back from the server without a local cache.
+  await page.context().clearCookies()
+  await page.evaluate(async () => {
+    localStorage.clear()
+    sessionStorage.clear()
+    await Promise.all((await caches.keys()).map((key) => caches.delete(key)))
+    await Promise.all((await navigator.serviceWorker.getRegistrations()).map((registration) => registration.unregister()))
+  })
+  await page.reload()
+  await ui.signIn(account.email, account.password)
+  await expect(page.getByRole('group', { name: 'Tools section' })).toBeVisible()
+  expect(await getUIState(api, 'tree')).toMatchObject({ sections: [{ name: 'Planning', color: 'orange' }, { name: 'Tools', color: 'purple' }], projectSections: { [ids[0]]: expect.any(String) } })
+
   await page.getByRole('group', { name: 'Tools section' }).getByRole('button', { name: 'Edit section Tools' }).click()
   await page.getByRole('dialog', { name: 'Edit section' }).getByRole('button', { name: 'Delete section' }).click()
   await expect(ui.treeItem(names[0])).toBeVisible()

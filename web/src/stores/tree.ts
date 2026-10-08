@@ -22,6 +22,7 @@ export const useTreeStore = defineStore('tree', () => {
   const sessionsStore = useSessionsStore()
   const machinesStore = useMachinesStore()
   let timer: ReturnType<typeof setTimeout> | undefined
+  let loadRetryTimer: ReturnType<typeof setTimeout> | undefined
   let cancelDeferred = () => {}
   let deferred = false // a save waits for the connection
   let generation = 0
@@ -35,14 +36,31 @@ export const useTreeStore = defineStore('tree', () => {
       const saved = await getUIState('tree')
       if (gen !== generation) return
       const valid = saved !== null ? validateTreeState(saved) : null
-      if (saved !== null && !valid) console.warn('hostbud: ignoring an invalid saved tree')
+      if (saved !== null && !valid) {
+        console.warn('hostbud: ignoring an invalid saved tree')
+        scheduleLoadRetry(gen)
+        return
+      }
       order.value = valid || emptyTreeState()
     } catch (error) {
       console.warn("hostbud: can't load the saved tree order", error)
       if (gen !== generation) return
-      order.value = emptyTreeState()
+      // A transient startup failure must never turn into a save of an empty
+      // tree over the account's durable sections, colors and ordering.
+      scheduleLoadRetry(gen)
+      return
     }
+    clearTimeout(loadRetryTimer)
+    loadRetryTimer = undefined
     loaded.value = true
+  }
+
+  function scheduleLoadRetry(gen: number) {
+    clearTimeout(loadRetryTimer)
+    loadRetryTimer = setTimeout(() => {
+      loadRetryTimer = undefined
+      if (gen === generation && !loaded.value) void load()
+    }, SAVE_RETRY_MS)
   }
 
   /** Adopt the order another tab or device saved, unless this one has an
@@ -130,6 +148,7 @@ export const useTreeStore = defineStore('tree', () => {
 
   /** Append observed rows; prune saved keys only after authoritative loads. */
   function sync() {
+    if (!loaded.value) return
     // Only the user's edits are saved. Rows appended or pruned here follow
     // from the live list, and every client derives them; saving them from a
     // tab that loaded earlier would overwrite the order another tab or
@@ -339,7 +358,9 @@ export const useTreeStore = defineStore('tree', () => {
   function reset() {
     generation++
     clearTimeout(timer)
+    clearTimeout(loadRetryTimer)
     timer = undefined
+    loadRetryTimer = undefined
     cancelDeferred()
     loaded.value = false
     order.value = emptyTreeState()

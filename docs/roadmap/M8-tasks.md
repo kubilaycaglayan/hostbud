@@ -449,6 +449,13 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 
 **E2E:** Extend T7 / M8 T39 *Manifest and icons load through Caddy with no external requests* in `pwa.spec.ts` to decode every icon and check the orange/red mark and opaque background. Type-check only; execution is on demand. Existing iOS home-screen icon refresh is an open owner check.
 
+## T40 — Preserve account tree state across a PWA reinstall
+
+- Do not mark tree state loaded after a failed or invalid `ui_state/tree` read. Retry the read, and prevent inventory sync from saving an empty/default tree until a valid saved value (or a successful `null` response) has loaded. This protects sections, colors and membership when a fresh PWA startup encounters a transient request failure.
+- **Tests:** U: T40 `stores/tree.spec.ts` simulates a failed first read, confirms sync issues no PUT, then advances the retry and verifies saved section definitions and membership load. I: n/a: no backend behavior changes; existing M3 authenticated UI-state persistence integration remains the contract.
+- **E2E:** T40 extends *Project sections* in `test/e2e/tests/tree.sections.spec.ts`: clear origin storage, caches, service-worker registration and auth cookie to model reinstall; sign into the same account and verify section names, colors and project membership return. Type-check only; browser execution remains on demand.
+- **Done:** A failed initial read cannot replace account state with an empty tree; an origin-storage reset and sign-in restores the account's sections. No environment changes.
+
 ## Done
 
 - [ ] M8 acceptance criteria and their U/I/E coverage are complete.
