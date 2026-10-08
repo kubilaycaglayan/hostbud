@@ -240,8 +240,9 @@ describe('TerminalView', () => {
       removeListener: vi.fn(),
     }))
     useProjectsStore().remember({ id: 'project-a', machineId: 'host', path: '/home/dev/bright-work', name: 'Bright work', sortOrder: 0, pinned: false, createdAt: '', updatedAt: '' })
-    const pwaSession = { id: '$1', name: 'acc-a', path: '/home/dev/bright-work', attached: 0, windows: 1, created: '', activity: '', gitBranch: 'feature/pwa-header', agentUsage: { agent: 'codex', contextTokens: 12000, totalTokens: 345678, contextWindow: 200000 } }
-    useSessionsStore().$patch({ byMachine: { host: [pwaSession], 'server-a': [pwaSession] } })
+    const pwaSession = { id: '$1', name: 'acc-a', path: '/home/dev/bright-work', attached: 0, windows: 1, created: '', activity: '', gitBranch: 'feature/pwa-header', agentUsage: { agent: 'codex' as const, contextTokens: 12000, totalTokens: 345678, contextWindow: 200000 } }
+    useSessionsStore().$patch({ byMachine: { host: [pwaSession] } })
+    useSessionsStore().byMachine['server-a'] = [pwaSession]
     const tree = useTreeStore()
     useMachinesStore().machines = [{ id: 'server-a', label: 'Build server', status: 'ok', os: 'linux', home: '/home/dev', tmuxVersion: '3.4', tmuxMissing: false }]
     tree.order.projectSections = { 'project-a': 'section-a' }
@@ -362,11 +363,17 @@ describe('TerminalView', () => {
     await w.vm.$nextTick()
     expect(header.attributes('data-overflow')).toBeUndefined()
     expect(header.find('[aria-label="Expand terminal title bar"]').exists()).toBe(false)
-    Object.defineProperty(header.element, 'clientWidth', { configurable: true, value: 180 })
-    Object.defineProperty(header.element, 'scrollWidth', { configurable: true, value: 360 })
+    const first = header.element.children[0] as HTMLElement
+    const second = header.element.children[1] as HTMLElement
+    vi.spyOn(first, 'getClientRects').mockReturnValue([{ } as DOMRect] as unknown as DOMRectList)
+    vi.spyOn(second, 'getClientRects').mockReturnValue([{ } as DOMRect] as unknown as DOMRectList)
+    vi.spyOn(first, 'getBoundingClientRect').mockReturnValue({ top: 0 } as DOMRect)
+    vi.spyOn(second, 'getBoundingClientRect').mockReturnValue({ top: 40 } as DOMRect)
     headerResizeCallbacks.forEach((callback) => callback())
     await w.vm.$nextTick()
     expect(header.attributes('data-overflow')).toBe('true')
+    expect(header.classes()).toContain('flex-wrap')
+    expect(header.attributes('data-expanded')).toBeUndefined()
     await header.trigger('click')
     expect(header.attributes('data-expanded')).toBe('true')
     headerResizeCallbacks.forEach((callback) => callback())

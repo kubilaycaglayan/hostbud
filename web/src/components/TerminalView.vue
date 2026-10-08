@@ -473,7 +473,11 @@ function measureHeader() {
   const header = headerEl.value
   if (!header || headerExpanded.value) return
   const clippedContent = [...header.querySelectorAll<HTMLElement>('.truncate')].some((node) => node.scrollWidth > node.clientWidth + 1)
-  headerOverflow.value = header.scrollWidth > header.clientWidth + 1 || header.scrollHeight > header.clientHeight + 1 || clippedContent
+  const childTops = [...header.children]
+    .filter((child) => (child as HTMLElement).getClientRects().length > 0)
+    .map((child) => Math.round((child as HTMLElement).getBoundingClientRect().top))
+  const wrapped = !standalonePwa && new Set(childTops).size > 1
+  headerOverflow.value = wrapped || header.scrollWidth > header.clientWidth + 1 || header.scrollHeight > header.clientHeight + 1 || clippedContent
   if (!headerOverflow.value) headerExpanded.value = false
 }
 function setHeaderExpanded(expanded: boolean) {
@@ -732,7 +736,7 @@ defineExpose({ refit, reconnect, showKeyboard })
     :data-focused="takesInput() ? 'true' : undefined"
     @focusin="emit('focus')"
   >
-    <div ref="headerEl" data-terminal-header :data-overflow="headerOverflow || undefined" :data-expandable="headerCanExpand || undefined" :data-expanded="headerExpanded || undefined" class="flex min-w-0 items-center gap-2 border-b border-border px-2" :class="[takesInput() && sessionSectionColor ? 'text-section-fg' : 'text-fg', standalonePwa ? 'py-0' : 'py-1.5', headerExpanded ? 'flex-wrap content-start max-h-24 overflow-y-auto' : 'flex-nowrap overflow-hidden', headerCanExpand ? 'cursor-pointer' : '']" :style="takesInput() && sessionSectionColor ? { backgroundColor: sessionSectionColor } : undefined" @click="onHeaderClick">
+    <div ref="headerEl" data-terminal-header :data-overflow="headerOverflow || undefined" :data-expandable="headerCanExpand || undefined" :data-expanded="headerExpanded || undefined" class="flex min-w-0 items-center gap-2 border-b border-border px-2" :class="[takesInput() && sessionSectionColor ? 'text-section-fg' : 'text-fg', standalonePwa ? 'py-0' : 'py-1.5', headerExpanded ? 'flex-wrap content-start max-h-24 overflow-y-auto' : standalonePwa ? 'flex-nowrap overflow-hidden' : 'flex-wrap max-h-24 overflow-hidden', headerCanExpand ? 'cursor-pointer' : '']" :style="takesInput() && sessionSectionColor ? { backgroundColor: sessionSectionColor } : undefined" @click="onHeaderClick">
       <Folder data-terminal-directory-icon :size="16" class="shrink-0" :title="sessionDirectory" :aria-label="sessionDirectory ? `Directory: ${sessionDirectory}` : undefined" :aria-hidden="sessionDirectory ? undefined : true" />
       <h2 data-terminal-session-name class="min-w-0 max-w-[45%] truncate text-base font-bold tracking-tight" :class="standalonePwa && !headerExpanded ? 'max-w-full flex-1' : ''">
         <button v-if="headerCanExpand" type="button" class="max-w-full truncate text-left text-inherit" :style="{ font: 'inherit', letterSpacing: 'inherit' }" :aria-label="headerExpanded ? 'Hide terminal details' : 'Show terminal details'" :aria-expanded="headerExpanded" @click.stop="setHeaderExpanded(!headerExpanded)">{{ props.session }}</button>
