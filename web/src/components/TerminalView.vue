@@ -733,12 +733,12 @@ defineExpose({ refit, reconnect, showKeyboard })
     @focusin="emit('focus')"
   >
     <div ref="headerEl" data-terminal-header :data-overflow="headerOverflow || undefined" :data-expandable="headerCanExpand || undefined" :data-expanded="headerExpanded || undefined" class="flex min-w-0 items-center gap-2 border-b border-border px-2" :class="[takesInput() && sessionSectionColor ? 'text-section-fg' : 'text-fg', standalonePwa ? 'py-0' : 'py-1.5', headerExpanded ? 'flex-wrap content-start max-h-24 overflow-y-auto' : 'flex-nowrap overflow-hidden', headerCanExpand ? 'cursor-pointer' : '']" :style="takesInput() && sessionSectionColor ? { backgroundColor: sessionSectionColor } : undefined" @click="onHeaderClick">
-      <Folder v-if="!standalonePwa || headerExpanded" data-terminal-directory-icon :size="16" class="shrink-0" :title="sessionDirectory" :aria-label="sessionDirectory ? `Directory: ${sessionDirectory}` : undefined" :aria-hidden="sessionDirectory ? undefined : true" />
+      <Folder data-terminal-directory-icon :size="16" class="shrink-0" :title="sessionDirectory" :aria-label="sessionDirectory ? `Directory: ${sessionDirectory}` : undefined" :aria-hidden="sessionDirectory ? undefined : true" />
       <h2 data-terminal-session-name class="min-w-0 max-w-[45%] truncate text-base font-bold tracking-tight" :class="standalonePwa && !headerExpanded ? 'max-w-full flex-1' : ''">
         <button v-if="headerCanExpand" type="button" class="max-w-full truncate text-left text-inherit" :style="{ font: 'inherit', letterSpacing: 'inherit' }" :aria-label="headerExpanded ? 'Hide terminal details' : 'Show terminal details'" :aria-expanded="headerExpanded" @click.stop="setHeaderExpanded(!headerExpanded)">{{ props.session }}</button>
         <template v-else>{{ props.session }}</template>
       </h2>
-      <span v-if="(!standalonePwa || headerExpanded) && machineChip" data-terminal-machine-chip class="shrink-0 truncate rounded-full border-2 border-danger bg-danger px-2.5 font-sans text-xs font-black leading-4 text-bg" :title="'On ' + machineChip">{{ machineChip }}</span>
+      <span v-if="machineChip" data-terminal-machine-chip class="shrink-0 truncate rounded-full border-2 border-danger bg-danger px-2.5 font-sans text-xs font-black leading-4 text-bg" :title="'On ' + machineChip">{{ machineChip }}</span>
       <span v-if="(!standalonePwa || headerExpanded) && agentUsage" data-agent-usage :title="tokenDetail" :aria-label="tokenDetail" class="shrink-0 whitespace-nowrap text-center text-xs tabular-nums" :class="standalonePwa ? 'max-sm:order-last max-sm:basis-full max-sm:text-left' : ''">
         {{ tokenNumber.format(agentUsage.contextTokens) }} ctx · {{ tokenNumber.format(agentUsage.totalTokens) }} used
       </span>

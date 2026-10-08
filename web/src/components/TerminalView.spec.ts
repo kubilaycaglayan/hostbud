@@ -8,6 +8,7 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useTreeStore } from '@/stores/tree'
 import { useToastsStore } from '@/stores/toasts'
 import { useThemeStore } from '@/stores/theme'
+import { useMachinesStore } from '@/stores/machines'
 
 // Fake xterm (hoisted: vi.mock factories run before the module body).
 const h = vi.hoisted(() => {
@@ -185,7 +186,7 @@ beforeEach(() => {
 })
 afterEach(() => vi.unstubAllGlobals())
 
-async function mountTerm(props: { active?: boolean; focused?: boolean; focusInitialTerminal?: boolean } = {}) {
+async function mountTerm(props: { active?: boolean; focused?: boolean; focusInitialTerminal?: boolean; machine?: string } = {}) {
   const w = mount(TerminalView, { props: { machine: 'host', session: 'acc-a', ...props }, attachTo: document.body })
   await flushPromises()
   return w
@@ -239,17 +240,20 @@ describe('TerminalView', () => {
       removeListener: vi.fn(),
     }))
     useProjectsStore().remember({ id: 'project-a', machineId: 'host', path: '/home/dev/bright-work', name: 'Bright work', sortOrder: 0, pinned: false, createdAt: '', updatedAt: '' })
-    useSessionsStore().$patch({ byMachine: { host: [{ id: '$1', name: 'acc-a', path: '/home/dev/bright-work', attached: 0, windows: 1, created: '', activity: '', gitBranch: 'feature/pwa-header', agentUsage: { agent: 'codex', contextTokens: 12000, totalTokens: 345678, contextWindow: 200000 } }] } })
+    const pwaSession = { id: '$1', name: 'acc-a', path: '/home/dev/bright-work', attached: 0, windows: 1, created: '', activity: '', gitBranch: 'feature/pwa-header', agentUsage: { agent: 'codex', contextTokens: 12000, totalTokens: 345678, contextWindow: 200000 } }
+    useSessionsStore().$patch({ byMachine: { host: [pwaSession], 'server-a': [pwaSession] } })
     const tree = useTreeStore()
+    useMachinesStore().machines = [{ id: 'server-a', label: 'Build server', status: 'ok', os: 'linux', home: '/home/dev', tmuxVersion: '3.4', tmuxMissing: false }]
     tree.order.projectSections = { 'project-a': 'section-a' }
     tree.order.sections = [{ id: 'section-a', name: 'Research', color: 'purple' }]
-    const w = await mountTerm()
+    const w = await mountTerm({ machine: 'server-a' })
     const header = w.get('[data-terminal-header]')
     expect(header.classes()).toContain('py-0')
     expect(header.classes()).toContain('text-section-fg')
     expect(header.attributes('style')).toContain('var(--hb-section-purple)')
     expect(w.get('[data-terminal-session-name]').text()).toBe('acc-a')
-    expect(w.find('[data-terminal-directory-icon]').exists()).toBe(false)
+    expect(w.find('[data-terminal-directory-icon]').exists()).toBe(true)
+    expect(w.get('[data-terminal-machine-chip]').text()).toBe('Build server')
     expect(w.find('[data-agent-usage]').exists()).toBe(false)
     expect(w.find('[data-git-branch]').exists()).toBe(false)
     expect(header.attributes('data-expandable')).toBe('true')

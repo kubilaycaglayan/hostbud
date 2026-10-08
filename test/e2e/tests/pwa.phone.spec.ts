@@ -25,6 +25,7 @@ test('(T38) Installed phone PWA keeps a compact title bar and expands details on
     await expect(header).toHaveAttribute('data-expandable', 'true')
     await expect(header).not.toHaveAttribute('data-expanded', 'true')
     await expect(header.locator('[data-terminal-session-name]')).toBeVisible()
+    await expect(header.locator('[data-terminal-directory-icon]')).toBeVisible()
     await expect(header.locator('[data-terminal-font-controls]')).toBeVisible()
     await expect(header.getByRole('button', { name: 'Terminal actions' })).toBeVisible()
     await expect(usage).toHaveCount(0)
