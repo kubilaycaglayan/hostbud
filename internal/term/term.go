@@ -368,6 +368,8 @@ loop:
 					detach.reason = "client_disconnected"
 					if code == int(websocket.StatusNormalClosure) {
 						detach.reason = "client_closed"
+					} else if code < 0 || code == int(websocket.StatusNoStatusRcvd) || code == int(websocket.StatusAbnormalClosure) {
+						detach.reason = "abrupt_websocket_disconnect"
 					}
 					detach.closeCode = code
 				default:

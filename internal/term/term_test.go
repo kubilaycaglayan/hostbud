@@ -343,12 +343,17 @@ func TestConcurrentTerminalReservationsNeverOvershoot(t *testing.T) {
 
 func TestSocketCloseKillsProcess(t *testing.T) {
 	proc := newFake()
-	h, url, _ := serve(t, proc)
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, nil))
+	h, url, _ := serve(t, proc, logger)
 	c := dial(t, url+"?machine=host&session=s1")
 	eventually(t, "attached", func() bool { return h.Active() == 1 })
-	_ = c.Close(websocket.StatusNormalClosure, "tab closed")
+	_ = c.CloseNow()
 	eventually(t, "process killed", func() bool { _, _, killed := proc.snapshot(); return killed })
 	eventually(t, "handler done", func() bool { return h.Active() == 0 })
+	if !strings.Contains(logs.String(), `"reason":"abrupt_websocket_disconnect"`) {
+		t.Fatalf("abrupt disconnect cause missing from log: %s", logs.String())
+	}
 }
 
 func TestStalledClientIsDropped(t *testing.T) {
