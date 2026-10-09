@@ -160,13 +160,21 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	released = false
 	defer h.release(account)
+	attachedAt := time.Now()
 	log.Info("terminal attached")
 	attachTimeout := h.AttachTimeout
 	if attachTimeout <= 0 {
 		attachTimeout = 10 * time.Second
 	}
-	h.bridge(ctx, cancel, c, proc, log, attachTimeout, q.Get("machine"))
-	log.Info("terminal detached")
+	detach := h.bridge(ctx, cancel, c, proc, log, attachTimeout, q.Get("machine"))
+	attrs := []any{"reason", detach.reason, "duration_ms", time.Since(attachedAt).Milliseconds()}
+	if detach.closeCode > 0 {
+		attrs = append(attrs, "close_code", detach.closeCode)
+	}
+	if detach.hasExitCode {
+		attrs = append(attrs, "exit_code", detach.exitCode)
+	}
+	log.Info("terminal detached", attrs...)
 }
 
 func (h *Handler) reserve(account string) bool {
@@ -227,9 +235,17 @@ func (h *Handler) AtCapacity(account string) bool {
 	return h.full(account)
 }
 
+type detachInfo struct {
+	reason      string
+	closeCode   int
+	exitCode    int
+	hasExitCode bool
+}
+
 // bridge pumps bytes both ways until the process exits or the socket
 // closes, then makes sure the process is gone.
-func (h *Handler) bridge(ctx context.Context, cancel context.CancelFunc, c *websocket.Conn, proc Process, log *slog.Logger, attachTimeout time.Duration, machine string) {
+func (h *Handler) bridge(ctx context.Context, cancel context.CancelFunc, c *websocket.Conn, proc Process, log *slog.Logger, attachTimeout time.Duration, machine string) detachInfo {
+	detach := detachInfo{reason: "context_cancelled"}
 	out := make(chan []byte, outQueue)
 	var queued atomic.Int64
 	var wg sync.WaitGroup
@@ -239,6 +255,7 @@ func (h *Handler) bridge(ctx context.Context, cancel context.CancelFunc, c *webs
 
 	// PTY → queue. A full queue means a stalled client: drop it.
 	stalled := make(chan struct{})
+	clientClose := make(chan int, 1)
 	var remoteProbeRunning atomic.Bool
 	wg.Go(func() {
 		defer close(out)
@@ -275,6 +292,7 @@ func (h *Handler) bridge(ctx context.Context, cancel context.CancelFunc, c *webs
 		for {
 			typ, data, err := c.Read(ctx)
 			if err != nil {
+				clientClose <- int(websocket.CloseStatus(err))
 				return
 			}
 			if typ == websocket.MessageBinary {
@@ -341,19 +359,41 @@ loop:
 	for {
 		select {
 		case <-ctx.Done():
+			select {
+			case <-stalled:
+				detach.reason = "output_queue_full"
+			default:
+				select {
+				case code := <-clientClose:
+					detach.reason = "client_disconnected"
+					if code == int(websocket.StatusNormalClosure) {
+						detach.reason = "client_closed"
+					}
+					detach.closeCode = code
+				default:
+					detach.reason = "context_cancelled"
+				}
+			}
 			break loop
 		case <-stalled:
+			detach.reason = "output_queue_full"
+			detach.closeCode = int(websocket.StatusTryAgainLater)
 			_ = c.Close(websocket.StatusTryAgainLater, "client too slow; reconnect")
 			break loop
 		case <-watchdog.C:
+			detach.reason = "first_output_timeout"
+			detach.closeCode = 4408
 			_ = c.Close(websocket.StatusCode(4408), "host didn't answer")
 			break loop
 		case <-h.Shutdown:
+			detach.reason = "hostbud_shutdown"
+			detach.closeCode = int(websocket.StatusGoingAway)
 			_ = c.Close(websocket.StatusGoingAway, "hostbud is restarting; reconnect")
 			break loop
 		case b, ok := <-out:
 			if !ok {
 				exited = true
+				detach.reason = "process_exited"
 				break loop
 			}
 			if watchingFirstOutput {
@@ -364,6 +404,8 @@ loop:
 			queued.Add(-int64(len(b)))
 			if err != nil {
 				if ctx.Err() == nil {
+					detach.reason = "output_write_failed"
+					detach.closeCode = int(websocket.StatusTryAgainLater)
 					_ = c.Close(websocket.StatusTryAgainLater, "client too slow; reconnect")
 				}
 				break loop
@@ -373,6 +415,7 @@ loop:
 			err := c.Ping(pctx)
 			pcancel()
 			if err != nil {
+				detach.reason = "websocket_ping_failed"
 				break loop
 			}
 		}
@@ -383,7 +426,7 @@ loop:
 		_, _ = proc.Wait()
 		cancel()
 		wg.Wait()
-		return
+		return detach
 	}
 	// The process ended (detach, or the session exited): tell the client
 	// before cancelling ctx, which would close the socket.
@@ -391,10 +434,14 @@ loop:
 	if err != nil {
 		code = -1
 	}
+	detach.reason = "process_exited"
+	detach.exitCode = code
+	detach.hasExitCode = true
 	_ = write(ctx, c, websocket.MessageText, ExitFrame(code))
 	_ = c.Close(websocket.StatusNormalClosure, "exited")
 	cancel()
 	wg.Wait()
+	return detach
 }
 
 func reserveOutput(queued *atomic.Int64, size int64) bool {

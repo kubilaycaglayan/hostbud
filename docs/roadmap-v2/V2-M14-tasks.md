@@ -5,9 +5,10 @@
 - When open, measure application ping and remote SSH `true` round trips, input-to-ack round trip, hostbud PTY write duration, browser WebSocket buffered bytes, received terminal byte count, and xterm output processing through the next browser animation frame.
 - Add a copyable diagnostic report with a capture time and connection state; keep it free of typed text and terminal output.
 - Preserve the last WebSocket close code and reason across automatic reconnects so slow-client and host-silence closes are visible in the panel and report.
+- Log safe terminal detach reason labels, close codes and attach duration without machine/session names or raw error text.
 - Input probes contain only a numeric correlation id; acknowledgments contain the id and PTY write duration. Never record keystrokes, output, session names or host names.
 - Explain what each measurement can and cannot localize, including that time spent by the remote shell/application after PTY write is not measured.
-- **Tests:** U: protocol parsing, browser input/ping/SSH-probe acknowledgment, and reconnect persistence for close details; I: websocket input probe is acknowledged after the PTY write and remote SSH probe returns success; E: diagnostics panel reports input and remote SSH measurements and copies a report without typed text.
+- **Tests:** U: protocol parsing, browser input/ping/SSH-probe acknowledgment, and reconnect persistence for close details; I: websocket input probe is acknowledged after the PTY write, remote SSH probe returns success, and first-output timeout logs its safe reason; E: diagnostics panel reports input and remote SSH measurements and copies a report without typed text.
 - **E2E:** add the diagnostics panel scenario in `test/e2e/tests/terminal.spec.ts` in this task; type-check it, but do not run the suite unless requested.
 
 ## T2 — Documentation and acceptance

@@ -1,9 +1,11 @@
 package term
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -158,13 +160,16 @@ type started struct {
 	cols, rows int
 }
 
-func serve(t *testing.T, proc *fakeProc) (*Handler, string, chan started) {
+func serve(t *testing.T, proc *fakeProc, logger ...*slog.Logger) (*Handler, string, chan started) {
 	t.Helper()
 	ch := make(chan started, 1)
 	h := &Handler{SSH: fakeSSH{}, Start: func(_ context.Context, argv []string, cols, rows int) (Process, error) {
 		ch <- started{argv, cols, rows}
 		return proc, nil
 	}}
+	if len(logger) > 0 {
+		h.Log = logger[0]
+	}
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
 	return h, "ws" + strings.TrimPrefix(srv.URL, "http"), ch
@@ -358,7 +363,9 @@ func TestStalledClientIsDropped(t *testing.T) {
 
 func TestAttachWatchdogClosesSilentHostWith4408(t *testing.T) {
 	proc := newFake()
-	h, url, _ := serve(t, proc)
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, nil))
+	h, url, _ := serve(t, proc, logger)
 	h.AttachTimeout = 80 * time.Millisecond
 	c := dial(t, url+"?machine=host&session=s1")
 	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
@@ -368,6 +375,13 @@ func TestAttachWatchdogClosesSilentHostWith4408(t *testing.T) {
 		t.Fatalf("watchdog close = %v, status %d", err, websocket.CloseStatus(err))
 	}
 	eventually(t, "silent attach killed", func() bool { _, _, killed := proc.snapshot(); return killed })
+	eventually(t, "silent attach released", func() bool { return h.Active() == 0 })
+	if !strings.Contains(logs.String(), `"reason":"first_output_timeout"`) {
+		t.Fatalf("terminal detach cause missing from log: %s", logs.String())
+	}
+	if strings.Contains(logs.String(), `"session"`) || strings.Contains(logs.String(), `"machine"`) {
+		t.Fatalf("terminal detach log included machine/session metadata: %s", logs.String())
+	}
 }
 
 func TestAttachWatchdogStopsAfterFirstOutput(t *testing.T) {
