@@ -168,6 +168,7 @@ let touchSelectStart: { x: number; y: number } | null = null
 let suppressNextTouchLinkOpen = false
 let pointerStart: { id: number; type: string; x: number; y: number } | null = null
 let pointerMoved = false
+let capturedLinkClick: { x: number; y: number; expiresAt: number } | null = null
 
 function enterScrollMode() {
   void copyMode.action('enter')
@@ -216,6 +217,22 @@ function finishTouchSelection() {
   pointerMoved = false
 }
 
+function captureFollowupLinkClick(event: PointerEvent) {
+  capturedLinkClick = { x: event.clientX, y: event.clientY, expiresAt: Date.now() + 500 }
+}
+
+// WebLinksAddon activates its visible row fragment on the browser's `click`,
+// which follows pointerup. When pointerup already opened the reconstructed
+// full URL, stop that follow-up event so it cannot also open a truncated URL.
+function suppressFollowupLinkClick(event: MouseEvent) {
+  const captured = capturedLinkClick
+  if (!captured) return
+  capturedLinkClick = null
+  if (Date.now() > captured.expiresAt || Math.hypot(event.clientX - captured.x, event.clientY - captured.y) >= 8) return
+  event.preventDefault()
+  event.stopImmediatePropagation()
+}
+
 function cellHeight() {
   const screen = term.value?.element?.querySelector('.xterm-screen')?.getBoundingClientRect()
   return screen && term.value ? screen.height / term.value.rows : 16
@@ -257,6 +274,7 @@ function openCapturedLink(event: PointerEvent) {
   const t = term.value
   if (suppressNextTouchLinkOpen) {
     suppressNextTouchLinkOpen = false
+    captureFollowupLinkClick(event)
     finishTouchSelection()
     return
   }
@@ -268,6 +286,7 @@ function openCapturedLink(event: PointerEvent) {
   const point = cellAt(event, screen, t.cols, t.rows)
   const url = wrappedURLAt(point.x, point.y)
   if (!url || !openLink(url)) return
+  captureFollowupLinkClick(event)
   finishTouchSelection()
   event.preventDefault()
   event.stopImmediatePropagation()
@@ -683,6 +702,7 @@ onMounted(async () => {
   t.loadAddon(search.value)
   t.open(el.value!)
   t.element?.addEventListener('pointerup', openCapturedLink, true)
+  t.element?.addEventListener('click', suppressFollowupLinkClick, true)
   // Image paste is a file transfer to the active repo. Plain text paste is
   // left to xterm so bracketed-paste behavior remains unchanged.
   const pasteImage = (event: ClipboardEvent) => {
@@ -852,6 +872,7 @@ onBeforeUnmount(() => {
   selectionChange?.dispose()
   window.removeEventListener('mouseup', finishAltClick, true)
   term.value?.element?.removeEventListener('pointerup', openCapturedLink, true)
+  term.value?.element?.removeEventListener('click', suppressFollowupLinkClick, true)
   caretMove++
   copyMode.reset()
   observer?.disconnect()
