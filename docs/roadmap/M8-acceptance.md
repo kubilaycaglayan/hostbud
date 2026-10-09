@@ -135,8 +135,8 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
 
 ## Terminal links under mouse reporting
 
-- [ ] A long printed HTTP(S) URL split across terminal rows opens intact when tapped on a phone, even while the terminal program captures mouse input. Long-pressing that URL selects the full URL, and copying it omits line breaks inserted by the terminal.
-  - U: T42 `TerminalView.spec.ts` covers hard-wrapped touch opening under mouse reporting and full URL long-press selection; T42 `clipboard.spec.ts` covers copying the URL without inserted line breaks and preserving ordinary multiline selections.
+- [ ] A long printed HTTP(S) URL split across terminal rows opens intact on mouse or touch, with or without terminal mouse reporting. Drag selection remains available. Long-pressing the URL selects the full URL, and copying it omits line breaks inserted by the terminal.
+  - U: T42 `TerminalView.spec.ts` covers hard-wrapped touch and mouse opening with and without mouse reporting, preserves drag selection, and covers full URL long-press selection; T42 `clipboard.spec.ts` covers copying without inserted line breaks and preserving ordinary multiline selections.
   - I: n/a because this is browser link handling and local text selection.
   - E: T42 *Click a printed URL* in `test/e2e/tests/links.spec.ts` exercises a long OAuth-style URL with hard line breaks and tmux mouse reporting on phone. Type-checked; browser execution pending on demand.
 

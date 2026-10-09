@@ -166,6 +166,8 @@ const copyMode = createCopyModeController(
 const { inMode, scrollPosition, historySize, busy } = copyMode
 let touchSelectStart: { x: number; y: number } | null = null
 let suppressNextTouchLinkOpen = false
+let pointerStart: { id: number; type: string; x: number; y: number } | null = null
+let pointerMoved = false
 
 function enterScrollMode() {
   void copyMode.action('enter')
@@ -176,6 +178,8 @@ function scrollAction(action: Parameters<typeof copyMode.action>[0], lines?: num
 }
 
 function startTouchSelection(event: PointerEvent) {
+  pointerStart = { id: event.pointerId, type: event.pointerType, x: event.clientX, y: event.clientY }
+  pointerMoved = false
   clearTouchSelectTimer()
   touchSelectStart = null
   if (event.pointerType !== 'touch') return
@@ -195,6 +199,8 @@ function startTouchSelection(event: PointerEvent) {
 }
 
 function cancelTouchSelectionOnMove(event: PointerEvent) {
+  if (pointerStart?.id === event.pointerId && Math.hypot(event.clientX - pointerStart.x, event.clientY - pointerStart.y) >= 8)
+    pointerMoved = true
   const start = touchSelectStart
   if (!start || event.pointerType !== 'touch') return
   if (Math.hypot(event.clientX - start.x, event.clientY - start.y) >= 8) {
@@ -206,6 +212,8 @@ function cancelTouchSelectionOnMove(event: PointerEvent) {
 function finishTouchSelection() {
   clearTouchSelectTimer()
   touchSelectStart = null
+  pointerStart = null
+  pointerMoved = false
 }
 
 function cellHeight() {
@@ -245,13 +253,16 @@ function wrappedURLAt(column: number, viewportRow: number): string {
   return ''
 }
 
-function openCapturedTouchLink(event: PointerEvent) {
+function openCapturedLink(event: PointerEvent) {
   const t = term.value
   if (suppressNextTouchLinkOpen) {
     suppressNextTouchLinkOpen = false
+    finishTouchSelection()
     return
   }
-  if (!t || (event.pointerType !== 'touch' && t.modes.mouseTrackingMode === 'none')) return
+  const start = pointerStart
+  const click = start?.id === event.pointerId && start.type === event.pointerType && !pointerMoved && Math.hypot(event.clientX - start.x, event.clientY - start.y) < 8
+  if (!t || !click) return
   const screen = t.element?.querySelector('.xterm-screen')?.getBoundingClientRect()
   if (!screen || !screen.width || !screen.height) return
   const point = cellAt(event, screen, t.cols, t.rows)
@@ -671,7 +682,7 @@ onMounted(async () => {
   search.value = new SearchAddon()
   t.loadAddon(search.value)
   t.open(el.value!)
-  t.element?.addEventListener('pointerup', openCapturedTouchLink, true)
+  t.element?.addEventListener('pointerup', openCapturedLink, true)
   // Image paste is a file transfer to the active repo. Plain text paste is
   // left to xterm so bracketed-paste behavior remains unchanged.
   const pasteImage = (event: ClipboardEvent) => {
@@ -832,7 +843,7 @@ onBeforeUnmount(() => {
   stopBackspaceRepeat()
   window.removeEventListener('hostbud:toggle-keyboard', toggleStandaloneKeyboard)
   disposed = true
-  clearTouchSelectTimer()
+  finishTouchSelection()
   disposeBackgroundBlur()
   disposeVisibilityListener()
   disposeTouchScroll()
@@ -840,7 +851,7 @@ onBeforeUnmount(() => {
   snapshotRequest++
   selectionChange?.dispose()
   window.removeEventListener('mouseup', finishAltClick, true)
-  term.value?.element?.removeEventListener('pointerup', openCapturedTouchLink, true)
+  term.value?.element?.removeEventListener('pointerup', openCapturedLink, true)
   caretMove++
   copyMode.reset()
   observer?.disconnect()

@@ -38,14 +38,14 @@ test('click a printed URL: it opens in a new page, the terminal stays', async ({
   const name = await openShell(ui, target, 'e2e-url', (session) => isMobile ? target.tmux('set', '-t', session, 'mouse', 'on') : Promise.resolve())
   const url = `https://example.com/oauth/authorize?client_id=${'a'.repeat(360)}&redirect_uri=${encodeURIComponent(`https://example.com/callback/${uniqueName('u')}`)}&scope=${encodeURIComponent('https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/userinfo.email')}&state=${'b'.repeat(360)}`
   const cols = await page.evaluate(() => window.__hostbud!.termSize().cols)
-  const wrapped = isMobile ? Array.from({ length: Math.ceil(url.length / cols) }, (_, i) => url.slice(i * cols, (i + 1) * cols)) : [url]
+  const wrapped = Array.from({ length: Math.ceil(url.length / cols) }, (_, i) => url.slice(i * cols, (i + 1) * cols))
   const printCommand = `printf '%s\\n' ${wrapped.map((part) => `'${part}'`).join(' ')}`
   await ui.type(printCommand, true)
   await expect.poll(async () => (await target.capture(name)).replace(/\n/g, '')).toContain(url)
   const before = page.url()
 
   const pages = opened(context)
-  // The URL spans several terminal rows, so tap its first visible segment.
+  // The URL spans several terminal rows, so click its first visible segment.
   await activate(page, url.slice(0, 50), isMobile)
   await expect.poll(() => pages.length).toBe(1)
   await expect.poll(() => pages[0].url()).toBe(url)

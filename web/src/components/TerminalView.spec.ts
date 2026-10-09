@@ -643,13 +643,16 @@ describe('TerminalView', () => {
     vi.useRealTimers()
   })
 
-  it('opens a hard-wrapped URL on touch when the terminal program captures mouse input', async () => {
+  it.each([
+    ['touch', 'vt200'],
+    ['mouse', 'none'],
+  ] as const)('opens a hard-wrapped URL on %s with mouse tracking %s', async (pointerType, mouseTrackingMode) => {
     const open = vi.fn()
     vi.stubGlobal('open', open)
     const w = await mountTerm()
     const t = h.terms[0]
     t.cols = 40
-    t.modes.mouseTrackingMode = 'vt200'
+    t.modes.mouseTrackingMode = mouseTrackingMode
     const screen = document.createElement('div')
     screen.className = 'xterm-screen'
     screen.getBoundingClientRect = () => ({ left: 0, top: 0, right: 1000, bottom: 300, width: 1000, height: 300, x: 0, y: 0, toJSON: () => ({}) })
@@ -664,10 +667,45 @@ describe('TerminalView', () => {
     const active = t.buffer.active as { viewportY: number; getLine: (row: number) => typeof lines[number] | undefined }
     active.viewportY = 18
     active.getLine = (row) => lines[row - 18]
+    const down = new Event('pointerdown', { bubbles: true, cancelable: true })
+    Object.defineProperties(down, { pointerType: { value: pointerType }, pointerId: { value: 1 }, clientX: { value: 300 }, clientY: { value: 19 } })
+    w.get('[data-testid="terminal"]').element.dispatchEvent(down)
     const up = new Event('pointerup', { bubbles: true, cancelable: true })
-    Object.defineProperties(up, { pointerType: { value: 'touch' }, clientX: { value: 300 }, clientY: { value: 19 } })
+    Object.defineProperties(up, { pointerType: { value: pointerType }, pointerId: { value: 1 }, clientX: { value: 300 }, clientY: { value: 19 } })
     w.get('[data-testid="terminal"]').element.dispatchEvent(up)
     expect(open).toHaveBeenCalledWith(url, '_blank', 'noopener,noreferrer')
+    w.unmount()
+  })
+
+  it('leaves a drag across a hard-wrapped URL available for selection', async () => {
+    const open = vi.fn()
+    vi.stubGlobal('open', open)
+    const w = await mountTerm()
+    const t = h.terms[0]
+    t.cols = 40
+    const screen = document.createElement('div')
+    screen.className = 'xterm-screen'
+    screen.getBoundingClientRect = () => ({ left: 0, top: 0, right: 1000, bottom: 300, width: 1000, height: 300, x: 0, y: 0, toJSON: () => ({}) })
+    w.get('[data-testid="terminal"]').element.appendChild(screen)
+    const url = 'https://example.com/oauth?client_id=abcdefghijklmnopqrstuvwxyz0123456789'
+    const lines = [url.slice(0, 40), url.slice(40)].map((text) => ({ text, isWrapped: false }))
+    const active = t.buffer.active as { viewportY: number; getLine: (row: number) => { translateToString: () => string; isWrapped: boolean } | undefined }
+    active.viewportY = 18
+    active.getLine = (row) => {
+      const line = lines[row - 18]
+      return line && { ...line, translateToString: () => line.text }
+    }
+    const dispatch = (type: string, x: number) => {
+      const event = new Event(type, { bubbles: true, cancelable: true })
+      Object.defineProperties(event, { pointerType: { value: 'mouse' }, pointerId: { value: 7 }, clientX: { value: x }, clientY: { value: 19 } })
+      w.get('[data-testid="terminal"]').element.dispatchEvent(event)
+      return event
+    }
+    dispatch('pointerdown', 300)
+    dispatch('pointermove', 360)
+    const up = dispatch('pointerup', 360)
+    expect(open).not.toHaveBeenCalled()
+    expect(up.defaultPrevented).toBe(false)
     w.unmount()
   })
 
