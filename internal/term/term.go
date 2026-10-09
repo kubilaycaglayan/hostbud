@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"os/exec"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -164,7 +165,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if attachTimeout <= 0 {
 		attachTimeout = 10 * time.Second
 	}
-	h.bridge(ctx, cancel, c, proc, log, attachTimeout)
+	h.bridge(ctx, cancel, c, proc, log, attachTimeout, q.Get("machine"))
 	log.Info("terminal detached")
 }
 
@@ -228,7 +229,7 @@ func (h *Handler) AtCapacity(account string) bool {
 
 // bridge pumps bytes both ways until the process exits or the socket
 // closes, then makes sure the process is gone.
-func (h *Handler) bridge(ctx context.Context, cancel context.CancelFunc, c *websocket.Conn, proc Process, log *slog.Logger, attachTimeout time.Duration) {
+func (h *Handler) bridge(ctx context.Context, cancel context.CancelFunc, c *websocket.Conn, proc Process, log *slog.Logger, attachTimeout time.Duration, machine string) {
 	out := make(chan []byte, outQueue)
 	var queued atomic.Int64
 	var wg sync.WaitGroup
@@ -238,6 +239,7 @@ func (h *Handler) bridge(ctx context.Context, cancel context.CancelFunc, c *webs
 
 	// PTY → queue. A full queue means a stalled client: drop it.
 	stalled := make(chan struct{})
+	var remoteProbeRunning atomic.Bool
 	wg.Go(func() {
 		defer close(out)
 		for {
@@ -297,6 +299,26 @@ func (h *Handler) bridge(ctx context.Context, cancel context.CancelFunc, c *webs
 				_ = proc.Resize(ctl.Cols, ctl.Rows)
 			case "inputProbe":
 				probeID = ctl.ID
+			case "remoteProbe":
+				if probeSSH, ok := h.SSH.(longLivedSSH); ok && remoteProbeRunning.CompareAndSwap(false, true) {
+					go func(id int64) {
+						defer remoteProbeRunning.Store(false)
+						probeCtx, probeCancel := context.WithTimeout(ctx, 5*time.Second)
+						defer probeCancel()
+						started := time.Now()
+						sshOpts, release := probeSSH.LongLived(machine)
+						defer release()
+						argv, err := h.SSH.Args(machine, sshOpts, "true")
+						if err == nil {
+							cmd := exec.CommandContext(probeCtx, h.SSH.Binary(), argv...) //nolint:gosec // generated sshx argv; the remote command is fixed
+							cmd.WaitDelay = time.Second
+							err = cmd.Run()
+						}
+						ok := err == nil
+						ack, _ := json.Marshal(Control{Type: "remoteProbeAck", ID: id, DurationMs: float64(time.Since(started)) / float64(time.Millisecond), OK: &ok})
+						_ = write(ctx, c, websocket.MessageText, ack)
+					}(ctl.ID)
+				}
 			case "ping":
 				pong := Control{Type: "pong", ID: ctl.ID}
 				b, _ := json.Marshal(pong)

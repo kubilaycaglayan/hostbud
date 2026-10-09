@@ -29,6 +29,11 @@ export interface TerminalDiagnostics {
   inputAckP95Ms: number | null
   ptyWriteMs: number | null
   ptyWriteP95Ms: number | null
+  remoteSSHMs: number | null
+  remoteSSHP95Ms: number | null
+  remoteSSHCommandMs: number | null
+  remoteSSHCommandP95Ms: number | null
+  remoteSSHOK: boolean | null
   bufferedBytes: number
   inputCount: number
   pendingInputs: number
@@ -53,6 +58,7 @@ const realTimers: Timers = {
 /** The client pings this often; the server answers with a pong frame. */
 export const PING_EVERY_MS = 10_000
 export const DIAGNOSTICS_PING_EVERY_MS = 2_000
+export const DIAGNOSTICS_SSH_PROBE_EVERY_MS = 10_000
 /** No frame of any kind for this long ⇒ the connection is dead (a network
  * cut hangs TCP without a close). */
 export const SILENCE_LIMIT_MS = 25_000
@@ -67,15 +73,19 @@ export class TermConnection {
   private socket: TermSocket
   private encoder = new TextEncoder()
   private pinger: unknown = null
+  private remotePinger: unknown = null
   private silence: unknown = null
   private diagnosticsEnabled = false
   private nextProbeID = 0
   private pendingPings = new Map<number, number>()
   private pendingInputs = new Map<number, number>()
+  private pendingRemote = new Map<number, number>()
   private pingSamples: number[] = []
   private inputSamples: number[] = []
   private writeSamples: number[] = []
-  private diagnostics: TerminalDiagnostics = { pingMs: null, pingP95Ms: null, inputAckMs: null, inputAckP95Ms: null, ptyWriteMs: null, ptyWriteP95Ms: null, bufferedBytes: 0, inputCount: 0, pendingInputs: 0, outputBytes: 0 }
+  private remoteSamples: number[] = []
+  private remoteCommandSamples: number[] = []
+  private diagnostics: TerminalDiagnostics = { pingMs: null, pingP95Ms: null, inputAckMs: null, inputAckP95Ms: null, ptyWriteMs: null, ptyWriteP95Ms: null, remoteSSHMs: null, remoteSSHP95Ms: null, remoteSSHCommandMs: null, remoteSSHCommandP95Ms: null, remoteSSHOK: null, bufferedBytes: 0, inputCount: 0, pendingInputs: 0, outputBytes: 0 }
   state: TermState = 'connecting'
   /** Whether the socket ever opened (a failure before it did may mean the
    * sign-in session ended: the upgrade was refused). */
@@ -95,6 +105,7 @@ export class TermConnection {
       this.opened = true
       this.alive()
       this.pinger = timers.setInterval(() => this.sendPing(), this.diagnosticsEnabled ? DIAGNOSTICS_PING_EVERY_MS : PING_EVERY_MS)
+      if (this.diagnosticsEnabled) this.startRemoteProbes()
       this.set('open')
     }
     s.onmessage = (m) => {
@@ -105,7 +116,7 @@ export class TermConnection {
         h.onData(bytes)
         return
       }
-      let ctl: { type?: string; code?: number; id?: number; writeMs?: number }
+      let ctl: { type?: string; code?: number; id?: number; writeMs?: number; durationMs?: number; ok?: boolean }
       try {
         ctl = JSON.parse(m.data)
       } catch {
@@ -131,6 +142,20 @@ export class TermConnection {
           this.publishDiagnostics()
         }
       }
+      if (ctl.type === 'remoteProbeAck' && ctl.id !== undefined) {
+        const sentAt = this.pendingRemote.get(ctl.id)
+        if (sentAt !== undefined) {
+          this.diagnostics.remoteSSHMs = performance.now() - sentAt
+          this.diagnostics.remoteSSHOK = ctl.ok === true
+          this.diagnostics.remoteSSHP95Ms = this.addSample(this.remoteSamples, this.diagnostics.remoteSSHMs)
+          if (ctl.durationMs !== undefined) {
+            this.diagnostics.remoteSSHCommandMs = ctl.durationMs
+            this.diagnostics.remoteSSHCommandP95Ms = this.addSample(this.remoteCommandSamples, ctl.durationMs)
+          }
+          this.pendingRemote.delete(ctl.id)
+          this.publishDiagnostics()
+        }
+      }
       if (ctl.type === 'exit') this.set('exited', ctl.code ?? 0)
     }
     s.onclose = () => {
@@ -152,8 +177,9 @@ export class TermConnection {
 
   private stopTimers() {
     if (this.pinger !== null) this.timers.clearInterval(this.pinger)
+    if (this.remotePinger !== null) this.timers.clearInterval(this.remotePinger)
     if (this.silence !== null) this.timers.clearTimeout(this.silence)
-    this.pinger = this.silence = null
+    this.pinger = this.remotePinger = this.silence = null
   }
 
   private set(s: TermState, code?: number) {
@@ -170,6 +196,20 @@ export class TermConnection {
     const id = ++this.nextProbeID
     this.pendingPings.set(id, performance.now())
     this.control({ type: 'ping', id })
+  }
+
+  private sendRemoteProbe() {
+    if (this.state !== 'open') return
+    const id = ++this.nextProbeID
+    this.pendingRemote.set(id, performance.now())
+    while (this.pendingRemote.size > 2) this.pendingRemote.delete(this.pendingRemote.keys().next().value!)
+    this.control({ type: 'remoteProbe', id })
+  }
+
+  private startRemoteProbes() {
+    if (this.remotePinger !== null) this.timers.clearInterval(this.remotePinger)
+    this.sendRemoteProbe()
+    this.remotePinger = this.timers.setInterval(() => this.sendRemoteProbe(), DIAGNOSTICS_SSH_PROBE_EVERY_MS)
   }
 
   private publishDiagnostics() {
@@ -193,11 +233,15 @@ export class TermConnection {
     if (!enabled) {
       this.pendingInputs.clear()
       this.pendingPings.clear()
+      this.pendingRemote.clear()
+      if (this.remotePinger !== null) this.timers.clearInterval(this.remotePinger)
+      this.remotePinger = null
     }
     if (this.pinger !== null) this.timers.clearInterval(this.pinger)
     this.pinger = this.state === 'open'
       ? this.timers.setInterval(() => this.sendPing(), enabled ? DIAGNOSTICS_PING_EVERY_MS : PING_EVERY_MS)
       : null
+    if (enabled && this.state === 'open') this.startRemoteProbes()
     if (enabled) this.publishDiagnostics()
   }
 

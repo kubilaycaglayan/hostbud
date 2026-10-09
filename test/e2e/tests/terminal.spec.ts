@@ -41,6 +41,7 @@ test('connection diagnostics: input probes report PTY acknowledgment without exp
   await ui.type('x')
   await expect.poll(async () => (await dialog.locator('dd').nth(1).textContent()) ?? '').toMatch(/\d+\.\d ms/)
   await expect(dialog.getByText('Server PTY write')).toBeVisible()
+  await expect.poll(async () => dialog.locator('dd').nth(3).textContent()).toMatch(/\d+\.\d \/ \d+\.\d ms/)
   await expect(dialog.getByText(/Typed text and terminal output are never recorded/)).toBeVisible()
   await dialog.getByRole('button', { name: 'Close diagnostics' }).click()
 })

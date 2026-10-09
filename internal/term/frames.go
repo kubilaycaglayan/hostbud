@@ -13,12 +13,14 @@ import (
 
 // Control is a JSON control frame.
 type Control struct {
-	Type    string  `json:"type"`
-	Cols    int     `json:"cols,omitempty"`
-	Rows    int     `json:"rows,omitempty"`
-	Code    *int    `json:"code,omitempty"`
-	ID      int64   `json:"id,omitempty"`
-	WriteMs float64 `json:"writeMs,omitempty"`
+	Type       string  `json:"type"`
+	Cols       int     `json:"cols,omitempty"`
+	Rows       int     `json:"rows,omitempty"`
+	Code       *int    `json:"code,omitempty"`
+	ID         int64   `json:"id,omitempty"`
+	WriteMs    float64 `json:"writeMs,omitempty"`
+	DurationMs float64 `json:"durationMs,omitempty"`
+	OK         *bool   `json:"ok,omitempty"`
 }
 
 const (
@@ -33,7 +35,7 @@ func ParseControl(b []byte) (Control, error) {
 		return c, fmt.Errorf("control frame: %w", err)
 	}
 	switch c.Type {
-	case "ping", "inputProbe":
+	case "ping", "inputProbe", "remoteProbe":
 		return c, nil
 	case "resize":
 		if err := validSize(c.Cols, c.Rows); err != nil {

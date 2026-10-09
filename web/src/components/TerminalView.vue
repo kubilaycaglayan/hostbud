@@ -92,7 +92,7 @@ const terminalSnapshot = ref('')
 const snapshotLoading = ref(false)
 const snapshotError = ref('')
 const diagnosticsOpen = ref(false)
-const diagnostics = reactive<TerminalDiagnostics & { renderMs: number | null }>({ pingMs: null, pingP95Ms: null, inputAckMs: null, inputAckP95Ms: null, ptyWriteMs: null, ptyWriteP95Ms: null, bufferedBytes: 0, inputCount: 0, pendingInputs: 0, outputBytes: 0, renderMs: null })
+const diagnostics = reactive<TerminalDiagnostics & { renderMs: number | null }>({ pingMs: null, pingP95Ms: null, inputAckMs: null, inputAckP95Ms: null, ptyWriteMs: null, ptyWriteP95Ms: null, remoteSSHMs: null, remoteSSHP95Ms: null, remoteSSHCommandMs: null, remoteSSHCommandP95Ms: null, remoteSSHOK: null, bufferedBytes: 0, inputCount: 0, pendingInputs: 0, outputBytes: 0, renderMs: null })
 const photoUploadOpen = ref(false)
 let snapshotRequest = 0
 const searchInitial = ref('')
@@ -858,12 +858,14 @@ defineExpose({ refit, reconnect, showKeyboard })
           <dt>WebSocket round trip (last / p95)</dt><dd>{{ diagnostics.pingMs === null ? 'Waiting…' : `${diagnostics.pingMs.toFixed(1)} / ${diagnostics.pingP95Ms?.toFixed(1)} ms` }}</dd>
           <dt>Input acknowledgment (last / p95)</dt><dd>{{ diagnostics.inputAckMs === null ? 'Type to measure' : `${diagnostics.inputAckMs.toFixed(1)} / ${diagnostics.inputAckP95Ms?.toFixed(1)} ms` }}</dd>
           <dt>Server PTY write (last / p95)</dt><dd>{{ diagnostics.ptyWriteMs === null ? 'Type to measure' : `${diagnostics.ptyWriteMs.toFixed(2)} / ${diagnostics.ptyWriteP95Ms?.toFixed(2)} ms` }}</dd>
+          <dt>Added-server SSH command (last / p95)</dt><dd>{{ diagnostics.remoteSSHCommandMs === null ? 'Waiting…' : `${diagnostics.remoteSSHOK ? '' : 'Failed · '}${diagnostics.remoteSSHCommandMs.toFixed(1)} / ${diagnostics.remoteSSHCommandP95Ms?.toFixed(1)} ms` }}</dd>
+          <dt>SSH probe WebSocket round trip</dt><dd>{{ diagnostics.remoteSSHMs === null ? 'Waiting…' : `${diagnostics.remoteSSHMs.toFixed(1)} / ${diagnostics.remoteSSHP95Ms?.toFixed(1)} ms` }}</dd>
           <dt>Terminal render time</dt><dd>{{ diagnostics.renderMs === null ? 'Waiting…' : `${diagnostics.renderMs.toFixed(1)} ms` }}</dd>
           <dt>Browser WebSocket buffer</dt><dd>{{ diagnostics.bufferedBytes.toLocaleString() }} bytes</dd>
           <dt>Pending probes</dt><dd>{{ diagnostics.pendingInputs }}</dd>
           <dt>Input probes / output bytes</dt><dd>{{ diagnostics.inputCount }} / {{ diagnostics.outputBytes.toLocaleString() }}</dd>
         </dl>
-        <p class="mt-3 text-xs text-muted">Recent p95 uses up to the last 50 samples. High round trip with a short PTY write points to network or server scheduling. High PTY write time points to hostbud or the local PTY. High render time points to this browser/device or heavy terminal output.</p>
+        <p class="mt-3 text-xs text-muted">Recent p95 uses up to the last 50 samples. While open, the added-server SSH probe runs a harmless `true` command every 10 seconds. The command time is measured inside hostbud; the WebSocket round trip includes the browser path. High command time points to hostbud-to-server SSH latency or server scheduling. High WebSocket time with a low command time points to browser-to-hostbud latency. PTY write is local to hostbud's SSH process; it does not confirm remote receipt. High render time points to this browser/device or heavy terminal output.</p>
       </section>
     </div>
     <TerminalTextDialog v-model:open="dictationOpen" mode="dictation" @send="sendDictation" />

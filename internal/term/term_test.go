@@ -29,6 +29,9 @@ func TestParseControl(t *testing.T) {
 	if c, err := ParseControl([]byte(`{"type":"inputProbe","id":17}`)); err != nil || c.Type != "inputProbe" || c.ID != 17 {
 		t.Fatalf("input probe: %+v %v", c, err)
 	}
+	if c, err := ParseControl([]byte(`{"type":"remoteProbe","id":18}`)); err != nil || c.Type != "remoteProbe" || c.ID != 18 {
+		t.Fatalf("remote probe: %+v %v", c, err)
+	}
 	for _, bad := range []string{`{"type":"resize","cols":0,"rows":10}`, `{"type":"resize","cols":10,"rows":9999}`,
 		`{"type":"exec"}`, `not json`} {
 		if _, err := ParseControl([]byte(bad)); err == nil {

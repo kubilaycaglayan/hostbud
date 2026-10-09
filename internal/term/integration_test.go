@@ -199,6 +199,29 @@ func TestIntegrationInputProbeAcknowledgesPTYWrite(t *testing.T) {
 	}
 }
 
+func TestIntegrationRemoteSSHProbe(t *testing.T) {
+	e := setup(t)
+	e.newSession("term-ssh-probe")
+	conn, out := e.attach("term-ssh-probe", 80, 24)
+	if err := conn.Write(context.Background(), websocket.MessageText, []byte(`{"type":"remoteProbe","id":43}`)); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.After(10 * time.Second)
+	for {
+		select {
+		case c := <-out.control:
+			if c.Type == "remoteProbeAck" {
+				if c.ID != 43 || c.OK == nil || !*c.OK || c.DurationMs <= 0 {
+					t.Fatalf("remote SSH probe ack = %+v", c)
+				}
+				return
+			}
+		case <-deadline:
+			t.Fatal("no remote SSH probe acknowledgment")
+		}
+	}
+}
+
 // M8 T6: with the host's tmux version known, the browser's client declares
 // the "sync" terminal feature, so tmux wraps redraws in DEC 2026 marks.
 func TestIntegrationAttachDeclaresSynchronizedOutput(t *testing.T) {
