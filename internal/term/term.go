@@ -333,7 +333,9 @@ func (h *Handler) bridge(ctx context.Context, cancel context.CancelFunc, c *webs
 							err = cmd.Run()
 						}
 						ok := err == nil
-						ack, _ := json.Marshal(Control{Type: "remoteProbeAck", ID: id, DurationMs: float64(time.Since(started)) / float64(time.Millisecond), OK: &ok})
+						durationMs := float64(time.Since(started)) / float64(time.Millisecond)
+						log.Info("terminal SSH probe completed", "duration_ms", durationMs, "ok", ok)
+						ack, _ := json.Marshal(Control{Type: "remoteProbeAck", ID: id, DurationMs: durationMs, OK: &ok})
 						_ = write(ctx, c, websocket.MessageText, ack)
 					}(ctl.ID)
 				}

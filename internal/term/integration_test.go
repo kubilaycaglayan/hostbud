@@ -3,16 +3,19 @@
 package term_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -29,6 +32,23 @@ type env struct {
 	c   *sshx.Client
 	h   *term.Handler
 	url string
+}
+
+type lockedBuffer struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.b.Write(p)
+}
+
+func (b *lockedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.b.String()
 }
 
 func setup(t *testing.T, opts ...func(*term.Handler)) *env {
@@ -200,7 +220,9 @@ func TestIntegrationInputProbeAcknowledgesPTYWrite(t *testing.T) {
 }
 
 func TestIntegrationRemoteSSHProbe(t *testing.T) {
-	e := setup(t)
+	var logs lockedBuffer
+	logger := slog.New(slog.NewJSONHandler(&logs, nil))
+	e := setup(t, func(h *term.Handler) { h.Log = logger })
 	e.newSession("term-ssh-probe")
 	conn, out := e.attach("term-ssh-probe", 80, 24)
 	if err := conn.Write(context.Background(), websocket.MessageText, []byte(`{"type":"remoteProbe","id":43}`)); err != nil {
@@ -213,6 +235,9 @@ func TestIntegrationRemoteSSHProbe(t *testing.T) {
 			if c.Type == "remoteProbeAck" {
 				if c.ID != 43 || c.OK == nil || !*c.OK || c.DurationMs <= 0 {
 					t.Fatalf("remote SSH probe ack = %+v", c)
+				}
+				if !strings.Contains(logs.String(), `"msg":"terminal SSH probe completed"`) || strings.Contains(logs.String(), `"machine"`) || strings.Contains(logs.String(), `"session"`) {
+					t.Fatalf("SSH probe log missing or contains identifiers: %s", logs.String())
 				}
 				return
 			}
