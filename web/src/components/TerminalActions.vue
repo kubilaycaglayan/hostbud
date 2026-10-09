@@ -3,7 +3,7 @@ import { DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuP
 import { ref, watch } from 'vue'
 const props = defineProps<{ hasSelection: boolean; canSplit: boolean; sessions: string[] }>()
 const emit = defineEmits<{
-  action: [name: 'search' | 'copy' | 'keyboard' | 'dictation' | 'snapshot' | 'photos' | 'close']
+  action: [name: 'search' | 'copy' | 'keyboard' | 'dictation' | 'snapshot' | 'photos' | 'diagnostics' | 'close']
   split: [direction: 'row' | 'column', session: string | null]
 }>()
 const item = 'touch-target flex min-h-11 cursor-pointer items-center rounded px-3 py-1 outline-none data-disabled:text-muted data-highlighted:bg-bg'
@@ -27,7 +27,7 @@ function chooseSession(session: string | null) {
   emit('split', splitDirection.value, session)
 }
 
-function chooseAction(name: 'search' | 'copy' | 'keyboard' | 'dictation' | 'snapshot' | 'photos' | 'close') {
+function chooseAction(name: 'search' | 'copy' | 'keyboard' | 'dictation' | 'snapshot' | 'photos' | 'diagnostics' | 'close') {
   // Wait for close-autofocus so xterm gets focus after menu selection while
   // preserving the tap's user activation for the phone keyboard.
   if (name === 'keyboard') {
@@ -56,6 +56,7 @@ function onCloseAutoFocus(event: Event) {
         <DropdownMenuItem :class="item" @select="chooseAction('dictation')">Dictation</DropdownMenuItem>
         <DropdownMenuItem :class="item" @select="chooseAction('snapshot')">View terminal text</DropdownMenuItem>
         <DropdownMenuItem :class="item" @select="chooseAction('photos')">Send photos to this repo</DropdownMenuItem>
+        <DropdownMenuItem :class="item" @select="chooseAction('diagnostics')">Connection diagnostics</DropdownMenuItem>
         <template v-if="props.canSplit">
           <DropdownMenuItem v-if="splitStep === 'start'" :class="item" @select.prevent="splitStep = 'position'">Split pane…</DropdownMenuItem>
           <template v-else-if="splitStep === 'position'">

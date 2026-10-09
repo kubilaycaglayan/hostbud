@@ -1,0 +1,20 @@
+# V2-M14 — Terminal connection diagnostics
+
+## T1 — Measure the interactive terminal path
+- Add an on-demand diagnostics panel to Terminal actions.
+- When open, measure application ping round trip, input-to-ack round trip, server PTY write duration, browser WebSocket buffered bytes, received terminal byte count, and xterm write/render duration.
+- Input probes contain only a numeric correlation id; acknowledgments contain the id and PTY write duration. Never record keystrokes, output, session names or host names.
+- Explain what each measurement can and cannot localize, including that time spent by the remote shell/application after PTY write is not measured.
+- **Tests:** U: protocol parsing and browser input/ping acknowledgment; I: websocket input probe is acknowledged after the PTY write; E: diagnostics panel reports a measured input acknowledgment after typing.
+- **E2E:** add the diagnostics panel scenario in `test/e2e/tests/terminal.spec.ts` in this task; type-check it, but do not run the suite unless requested.
+
+## T2 — Documentation and acceptance
+- Update v1 architecture and README terminal usage.
+- Run `make lint test`, E2E TypeScript check and `make gitleaks`; deploy and check `/api/health`.
+- **Tests:** U/I: T1; E: T1. Record open owner verification against a real added server and the on-demand browser run.
+- **E2E:** none added; T1 owns the scenario and this task changes documentation/operations only.
+
+## T3 — Safe Docker cleanup
+- After deploy, follow the V2 Roadmap safe-cleanup rule and V1 M7 T15. Skip if a toolbox, test target or other relevant container is active. Never prune globally or touch production containers, volumes, backups, other projects or tmux sessions.
+- **Tests:** n/a (cleanup operation; verify production health and volume presence afterward if cleanup runs).
+- **E2E:** none (no product behavior).

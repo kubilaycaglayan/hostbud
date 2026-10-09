@@ -175,6 +175,30 @@ func TestIntegrationAttachTypeResizeClose(t *testing.T) {
 	}
 }
 
+func TestIntegrationInputProbeAcknowledgesPTYWrite(t *testing.T) {
+	e := setup(t)
+	e.newSession("term-probe")
+	conn, out := e.attach("term-probe", 80, 24)
+	if err := conn.Write(context.Background(), websocket.MessageText, []byte(`{"type":"inputProbe","id":42}`)); err != nil {
+		t.Fatal(err)
+	}
+	send(t, conn, "echo probe-marker\r")
+	eventually := time.After(10 * time.Second)
+	for {
+		select {
+		case c := <-out.control:
+			if c.Type == "inputAck" {
+				if c.ID != 42 || c.WriteMs < 0 {
+					t.Fatalf("input ack = %+v", c)
+				}
+				return
+			}
+		case <-eventually:
+			t.Fatal("no PTY input acknowledgment")
+		}
+	}
+}
+
 // M8 T6: with the host's tmux version known, the browser's client declares
 // the "sync" terminal feature, so tmux wraps redraws in DEC 2026 marks.
 func TestIntegrationAttachDeclaresSynchronizedOutput(t *testing.T) {

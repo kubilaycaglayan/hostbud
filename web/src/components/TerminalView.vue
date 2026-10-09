@@ -8,7 +8,7 @@ import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
 import { Folder, GitBranch } from 'lucide-vue-next'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
-import { TermSession, termURL, type SessionState } from '@/api/term'
+import { TermSession, termURL, type SessionState, type TerminalDiagnostics } from '@/api/term'
 import { ApiError, copyModeApi, filesystemApi, terminalOutputApi } from '@/api/client'
 import { blurActiveFieldOnHide } from '@/lib/pageFocus'
 import TerminalMenu from '@/components/TerminalMenu.vue'
@@ -91,6 +91,8 @@ const snapshotOpen = ref(false)
 const terminalSnapshot = ref('')
 const snapshotLoading = ref(false)
 const snapshotError = ref('')
+const diagnosticsOpen = ref(false)
+const diagnostics = reactive<TerminalDiagnostics & { renderMs: number | null }>({ pingMs: null, pingP95Ms: null, inputAckMs: null, inputAckP95Ms: null, ptyWriteMs: null, ptyWriteP95Ms: null, bufferedBytes: 0, inputCount: 0, pendingInputs: 0, outputBytes: 0, renderMs: null })
 const photoUploadOpen = ref(false)
 let snapshotRequest = 0
 const searchInitial = ref('')
@@ -293,7 +295,14 @@ function connect() {
       last = { cols: t.cols, rows: t.rows }
       return termURL(props.machine, props.session, t.cols, t.rows)
     },
-    onData: (bytes) => t.write(bytes),
+    onData: (bytes) => {
+      const measuring = diagnosticsOpen.value
+      const started = measuring ? performance.now() : 0
+      t.write(bytes, () => {
+        if (measuring && diagnosticsOpen.value) diagnostics.renderMs = performance.now() - started
+      })
+    },
+    onDiagnostics: (value) => Object.assign(diagnostics, value),
     onState: (s, info) => {
       state.value = s
       attempt.value = info.attempt
@@ -418,14 +427,23 @@ watch(snapshotOpen, (open) => {
   if (!open) { snapshotRequest++; terminalSnapshot.value = '' }
 })
 
-function onToolbarAction(action: 'search' | 'copy' | 'keyboard' | 'dictation' | 'snapshot' | 'photos' | 'close') {
+function onToolbarAction(action: 'search' | 'copy' | 'keyboard' | 'dictation' | 'snapshot' | 'photos' | 'diagnostics' | 'close') {
   if (action === 'search') openSearch()
   else if (action === 'copy') copySelectedText()
   else if (action === 'keyboard') showKeyboard()
   else if (action === 'dictation') dictationOpen.value = true
   else if (action === 'snapshot') openSnapshot()
   else if (action === 'photos') photoUploadOpen.value = true
+  else if (action === 'diagnostics') {
+    diagnosticsOpen.value = true
+    conn?.setDiagnostics(true)
+  }
   else emit('close')
+}
+
+function closeDiagnostics() {
+  diagnosticsOpen.value = false
+  conn?.setDiagnostics(false)
 }
 
 function sendDictation(text: string) {
@@ -829,6 +847,25 @@ defineExpose({ refit, reconnect, showKeyboard })
         </div>
       </div>
     </TerminalMenu>
+    <div v-if="diagnosticsOpen" role="dialog" aria-modal="true" aria-labelledby="terminal-diagnostics-title" class="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4" @click.self="closeDiagnostics">
+      <section class="w-full max-w-lg rounded-lg border border-border bg-surface p-4 text-fg shadow-xl">
+        <div class="mb-3 flex items-center justify-between gap-4">
+          <h2 id="terminal-diagnostics-title" class="text-base font-bold">Connection diagnostics</h2>
+          <button type="button" aria-label="Close diagnostics" class="touch-target rounded px-3" @click="closeDiagnostics">Close</button>
+        </div>
+        <p class="mb-3 text-sm text-muted">Measurements run only while this panel is open. Typed text and terminal output are never recorded.</p>
+        <dl class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm tabular-nums">
+          <dt>WebSocket round trip (last / p95)</dt><dd>{{ diagnostics.pingMs === null ? 'Waiting…' : `${diagnostics.pingMs.toFixed(1)} / ${diagnostics.pingP95Ms?.toFixed(1)} ms` }}</dd>
+          <dt>Input acknowledgment (last / p95)</dt><dd>{{ diagnostics.inputAckMs === null ? 'Type to measure' : `${diagnostics.inputAckMs.toFixed(1)} / ${diagnostics.inputAckP95Ms?.toFixed(1)} ms` }}</dd>
+          <dt>Server PTY write (last / p95)</dt><dd>{{ diagnostics.ptyWriteMs === null ? 'Type to measure' : `${diagnostics.ptyWriteMs.toFixed(2)} / ${diagnostics.ptyWriteP95Ms?.toFixed(2)} ms` }}</dd>
+          <dt>Terminal render time</dt><dd>{{ diagnostics.renderMs === null ? 'Waiting…' : `${diagnostics.renderMs.toFixed(1)} ms` }}</dd>
+          <dt>Browser WebSocket buffer</dt><dd>{{ diagnostics.bufferedBytes.toLocaleString() }} bytes</dd>
+          <dt>Pending probes</dt><dd>{{ diagnostics.pendingInputs }}</dd>
+          <dt>Input probes / output bytes</dt><dd>{{ diagnostics.inputCount }} / {{ diagnostics.outputBytes.toLocaleString() }}</dd>
+        </dl>
+        <p class="mt-3 text-xs text-muted">Recent p95 uses up to the last 50 samples. High round trip with a short PTY write points to network or server scheduling. High PTY write time points to hostbud or the local PTY. High render time points to this browser/device or heavy terminal output.</p>
+      </section>
+    </div>
     <TerminalTextDialog v-model:open="dictationOpen" mode="dictation" @send="sendDictation" />
     <TerminalTextDialog v-model:open="snapshotOpen" mode="snapshot" :snapshot="terminalSnapshot" :loading="snapshotLoading" :error="snapshotError" @retry="openSnapshot" />
     <PhotoUploadDialog v-model:open="photoUploadOpen" :machine="props.machine" :directory="uploadDirectory" @uploaded="pasteUploadedPhotoPath" />

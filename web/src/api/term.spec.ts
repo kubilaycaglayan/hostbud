@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   backoff,
+  DIAGNOSTICS_PING_EVERY_MS,
   PING_EVERY_MS,
   SILENCE_LIMIT_MS,
   SSH_FAILED,
@@ -70,6 +71,27 @@ describe('TermConnection', () => {
     expect(new TextDecoder().decode(socket().sent[0] as Uint8Array)).toBe('ls\r')
   })
 
+  it('measures input acknowledgments and WebSocket ping while diagnostics are enabled', () => {
+    const diagnostics: import('./term').TerminalDiagnostics[] = []
+    const socket = new FakeSocket('ws://x')
+    const conn = new TermConnection('ws://x', {
+      onData: () => {}, onState: () => {}, onDiagnostics: (value) => diagnostics.push(value),
+    }, () => socket)
+    socket.open()
+    conn.setDiagnostics(true)
+    conn.send('a')
+    expect(socket.sent).toHaveLength(2)
+    expect(socket.sent[0]).toBe('{"type":"inputProbe","id":1}')
+    socket.recv('{"type":"inputAck","id":1,"writeMs":0.02}')
+    expect(diagnostics.at(-1)?.inputAckMs).not.toBeNull()
+    expect(diagnostics.at(-1)?.ptyWriteMs).toBe(0.02)
+    vi.advanceTimersByTime(DIAGNOSTICS_PING_EVERY_MS)
+    const ping = JSON.parse(socket.sent.at(-1) as string) as { id: number }
+    socket.recv(JSON.stringify({ type: 'pong', id: ping.id }))
+    expect(diagnostics.at(-1)?.pingMs).not.toBeNull()
+    conn.close()
+  })
+
   it('sends resize as a JSON control frame', () => {
     const { conn, socket } = setup()
     conn.resize(100, 30) // not open yet: dropped
@@ -99,10 +121,10 @@ describe('TermConnection', () => {
     vi.advanceTimersByTime(PING_EVERY_MS - 1)
     expect(socket().sent).toEqual([])
     vi.advanceTimersByTime(1)
-    expect(socket().sent).toEqual(['{"type":"ping"}'])
-    socket().recv('{"type":"pong"}')
+    expect(socket().sent).toEqual(['{"type":"ping","id":1}'])
+    socket().recv('{"type":"pong","id":1}')
     vi.advanceTimersByTime(PING_EVERY_MS)
-    expect(socket().sent).toEqual(['{"type":"ping"}', '{"type":"ping"}'])
+    expect(socket().sent).toEqual(['{"type":"ping","id":1}', '{"type":"ping","id":2}'])
   })
 
   it('25 s without any frame ⇒ closed and disconnected (a hung connection)', () => {

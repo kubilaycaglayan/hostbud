@@ -30,6 +30,21 @@ test('attach and type: the marker is on the target and in the browser terminal',
   await expect.poll(() => ui.termText()).toContain(marker)
 })
 
+test('connection diagnostics: input probes report PTY acknowledgment without exposing text', async ({ ui, target }) => {
+  const name = await newSession(target, 'e2e-diagnostics')
+  await ui.open()
+  await ui.openTerminal(name)
+  await ui.terminalAction(name, 'Connection diagnostics')
+  const dialog = ui.page.getByRole('dialog', { name: 'Connection diagnostics' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByText('WebSocket round trip')).toBeVisible()
+  await ui.type('x')
+  await expect.poll(async () => (await dialog.locator('dd').nth(1).textContent()) ?? '').toMatch(/\d+\.\d ms/)
+  await expect(dialog.getByText('Server PTY write')).toBeVisible()
+  await expect(dialog.getByText(/Typed text and terminal output are never recorded/)).toBeVisible()
+  await dialog.getByRole('button', { name: 'Close diagnostics' }).click()
+})
+
 // Full-screen apps (T17)
 test('full-screen apps: vim writes a file, htop renders and quits', async ({ ui, target }) => {
   const name = await newSession(target, 'e2e-tui')

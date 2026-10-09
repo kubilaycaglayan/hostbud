@@ -8,11 +8,17 @@ This roadmap replaces the *v2 — Orchestration* section of the v1 ROADMAP (V2.1
 
 V2-M13 (servers: other SSH targets) is implemented; see [V2-M13-tasks.md](V2-M13-tasks.md) · [V2-M13-acceptance.md](V2-M13-acceptance.md). Its browser scenarios are written and type-checked, with the on-demand run and the owner's check against a real server open. Docker cleanup was skipped because hostbud toolbox containers and warm test targets were active.
 
+V2-M14 (terminal connection diagnostics) is implemented and deployed; see [V2-M14-tasks.md](V2-M14-tasks.md) · [V2-M14-acceptance.md](V2-M14-acceptance.md). Its acceptance gate remains open because the current full frontend lint/test targets report unrelated existing failures. Live-server owner verification and the on-demand browser run also remain open.
+
 ---
 
 ## V2-M13 — Servers (other SSH targets)
 
 **Goal.** Add other SSH servers from the UI (nickname, host, user, port, confirmed host-key fingerprints), pick the server when creating a session or adding a project from Browse files, and show a nickname chip on other servers' project rows. Servers and their pinned keys persist on disk. The queue stays host-only. Breakdown: [V2-M13-tasks.md](V2-M13-tasks.md).
+
+## V2-M14 — Terminal connection diagnostics
+
+**Goal.** Let a user identify whether typing lag is in the browser-to-server path, hostbud's PTY write, or browser terminal rendering. Measurements are user-initiated and never record terminal contents. Breakdown: [V2-M14-tasks.md](V2-M14-tasks.md).
 
 ---
 

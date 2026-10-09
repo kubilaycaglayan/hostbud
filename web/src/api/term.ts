@@ -3,6 +3,7 @@
 
 export interface TermSocket {
   binaryType: BinaryType
+  bufferedAmount?: number
   onopen: ((ev: Event) => void) | null
   onmessage: ((ev: MessageEvent) => void) | null
   onclose: ((ev: CloseEvent) => void) | null
@@ -18,6 +19,20 @@ export type TermState = 'connecting' | 'open' | 'exited' | 'disconnected'
 export interface TermHandlers {
   onData: (bytes: Uint8Array) => void
   onState: (s: TermState, exitCode?: number) => void
+  onDiagnostics?: (value: TerminalDiagnostics) => void
+}
+
+export interface TerminalDiagnostics {
+  pingMs: number | null
+  pingP95Ms: number | null
+  inputAckMs: number | null
+  inputAckP95Ms: number | null
+  ptyWriteMs: number | null
+  ptyWriteP95Ms: number | null
+  bufferedBytes: number
+  inputCount: number
+  pendingInputs: number
+  outputBytes: number
 }
 
 /** Timer functions, injectable for tests. */
@@ -37,6 +52,7 @@ const realTimers: Timers = {
 
 /** The client pings this often; the server answers with a pong frame. */
 export const PING_EVERY_MS = 10_000
+export const DIAGNOSTICS_PING_EVERY_MS = 2_000
 /** No frame of any kind for this long ⇒ the connection is dead (a network
  * cut hangs TCP without a close). */
 export const SILENCE_LIMIT_MS = 25_000
@@ -52,6 +68,14 @@ export class TermConnection {
   private encoder = new TextEncoder()
   private pinger: unknown = null
   private silence: unknown = null
+  private diagnosticsEnabled = false
+  private nextProbeID = 0
+  private pendingPings = new Map<number, number>()
+  private pendingInputs = new Map<number, number>()
+  private pingSamples: number[] = []
+  private inputSamples: number[] = []
+  private writeSamples: number[] = []
+  private diagnostics: TerminalDiagnostics = { pingMs: null, pingP95Ms: null, inputAckMs: null, inputAckP95Ms: null, ptyWriteMs: null, ptyWriteP95Ms: null, bufferedBytes: 0, inputCount: 0, pendingInputs: 0, outputBytes: 0 }
   state: TermState = 'connecting'
   /** Whether the socket ever opened (a failure before it did may mean the
    * sign-in session ended: the upgrade was refused). */
@@ -70,20 +94,42 @@ export class TermConnection {
     s.onopen = () => {
       this.opened = true
       this.alive()
-      this.pinger = timers.setInterval(() => this.control({ type: 'ping' }), PING_EVERY_MS)
+      this.pinger = timers.setInterval(() => this.sendPing(), this.diagnosticsEnabled ? DIAGNOSTICS_PING_EVERY_MS : PING_EVERY_MS)
       this.set('open')
     }
     s.onmessage = (m) => {
       this.alive()
       if (typeof m.data !== 'string') {
-        h.onData(new Uint8Array(m.data as ArrayBuffer))
+        const bytes = new Uint8Array(m.data as ArrayBuffer)
+        this.diagnostics.outputBytes += bytes.length
+        h.onData(bytes)
         return
       }
-      let ctl: { type?: string; code?: number }
+      let ctl: { type?: string; code?: number; id?: number; writeMs?: number }
       try {
         ctl = JSON.parse(m.data)
       } catch {
         return
+      }
+      if (ctl.type === 'pong' && ctl.id !== undefined) {
+        const sentAt = this.pendingPings.get(ctl.id)
+        if (sentAt !== undefined) {
+          this.diagnostics.pingMs = performance.now() - sentAt
+          this.pingP95Ms(this.diagnostics.pingMs)
+          this.pendingPings.delete(ctl.id)
+          this.publishDiagnostics()
+        }
+      }
+      if (ctl.type === 'inputAck' && ctl.id !== undefined) {
+        const sentAt = this.pendingInputs.get(ctl.id)
+        if (sentAt !== undefined) {
+          this.diagnostics.inputAckMs = performance.now() - sentAt
+          this.diagnostics.ptyWriteMs = ctl.writeMs ?? null
+          this.inputP95Ms(this.diagnostics.inputAckMs)
+          if (ctl.writeMs !== undefined) this.writeP95Ms(ctl.writeMs)
+          this.pendingInputs.delete(ctl.id)
+          this.publishDiagnostics()
+        }
       }
       if (ctl.type === 'exit') this.set('exited', ctl.code ?? 0)
     }
@@ -119,9 +165,56 @@ export class TermConnection {
     if (this.state === 'open') this.socket.send(JSON.stringify(msg))
   }
 
+  private sendPing() {
+    if (this.state !== 'open') return
+    const id = ++this.nextProbeID
+    this.pendingPings.set(id, performance.now())
+    this.control({ type: 'ping', id })
+  }
+
+  private publishDiagnostics() {
+    this.diagnostics.bufferedBytes = this.socket.bufferedAmount ?? 0
+    this.diagnostics.pendingInputs = this.pendingInputs.size
+    this.h.onDiagnostics?.({ ...this.diagnostics })
+  }
+
+  private addSample(samples: number[], value: number): number {
+    samples.push(value)
+    if (samples.length > 50) samples.shift()
+    return [...samples].sort((a, b) => a - b)[Math.ceil(samples.length * 0.95) - 1]
+  }
+
+  private pingP95Ms(value: number) { this.diagnostics.pingP95Ms = this.addSample(this.pingSamples, value) }
+  private inputP95Ms(value: number) { this.diagnostics.inputAckP95Ms = this.addSample(this.inputSamples, value) }
+  private writeP95Ms(value: number) { this.diagnostics.ptyWriteP95Ms = this.addSample(this.writeSamples, value) }
+
+  setDiagnostics(enabled: boolean) {
+    this.diagnosticsEnabled = enabled
+    if (!enabled) {
+      this.pendingInputs.clear()
+      this.pendingPings.clear()
+    }
+    if (this.pinger !== null) this.timers.clearInterval(this.pinger)
+    this.pinger = this.state === 'open'
+      ? this.timers.setInterval(() => this.sendPing(), enabled ? DIAGNOSTICS_PING_EVERY_MS : PING_EVERY_MS)
+      : null
+    if (enabled) this.publishDiagnostics()
+  }
+
   /** Keyboard input (xterm's onData); dropped unless open. */
   send(text: string) {
-    if (this.state === 'open') this.socket.send(this.encoder.encode(text))
+    if (this.state !== 'open') return
+    if (this.diagnosticsEnabled) {
+      const id = ++this.nextProbeID
+      this.pendingInputs.set(id, performance.now())
+      while (this.pendingInputs.size > 32) this.pendingInputs.delete(this.pendingInputs.keys().next().value!)
+      this.control({ type: 'inputProbe', id })
+    }
+    this.socket.send(this.encoder.encode(text))
+    if (this.diagnosticsEnabled) {
+      this.diagnostics.inputCount++
+      this.publishDiagnostics()
+    }
   }
 
   resize(cols: number, rows: number) {
@@ -149,6 +242,7 @@ export interface TermSessionOptions {
   /** The attach URL, built at each attempt (so it has the current size). */
   url: () => string
   onData: (bytes: Uint8Array) => void
+  onDiagnostics?: (value: TerminalDiagnostics) => void
   onState: (s: SessionState, info: { attempt: number; exitCode?: number }) => void
   /** Whether the session is still in the live list (no retry once it isn't). */
   isListed: () => boolean
@@ -196,6 +290,7 @@ export class TermSession {
   private stable: unknown = null
   private attempt = 0
   private closed = false
+  private diagnosticsEnabled = false
   private readonly timers: Timers
   state: SessionState = 'connecting'
 
@@ -230,6 +325,7 @@ export class TermSession {
       this.o.url(),
       {
         onData: this.o.onData,
+        onDiagnostics: this.o.onDiagnostics,
         onState: (s, code) => {
           if (this.conn !== conn || this.closed) return
           if (s === 'open') {
@@ -252,6 +348,12 @@ export class TermSession {
       this.timers,
     )
     this.conn = conn
+    conn.setDiagnostics(this.diagnosticsEnabled)
+  }
+
+  setDiagnostics(enabled: boolean) {
+    this.diagnosticsEnabled = enabled
+    this.conn?.setDiagnostics(enabled)
   }
 
   private clearStable() {

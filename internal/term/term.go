@@ -269,14 +269,21 @@ func (h *Handler) bridge(ctx context.Context, cancel context.CancelFunc, c *webs
 	// Socket → PTY.
 	go func() {
 		defer cancel()
+		var probeID int64
 		for {
 			typ, data, err := c.Read(ctx)
 			if err != nil {
 				return
 			}
 			if typ == websocket.MessageBinary {
+				started := time.Now()
 				if _, err := proc.Write(data); err != nil {
 					return
+				}
+				if probeID > 0 {
+					ack, _ := json.Marshal(Control{Type: "inputAck", ID: probeID, WriteMs: float64(time.Since(started)) / float64(time.Millisecond)})
+					_ = write(ctx, c, websocket.MessageText, ack)
+					probeID = 0
 				}
 				continue
 			}
@@ -288,8 +295,12 @@ func (h *Handler) bridge(ctx context.Context, cancel context.CancelFunc, c *webs
 			switch ctl.Type {
 			case "resize":
 				_ = proc.Resize(ctl.Cols, ctl.Rows)
+			case "inputProbe":
+				probeID = ctl.ID
 			case "ping":
-				_ = write(ctx, c, websocket.MessageText, PongFrame())
+				pong := Control{Type: "pong", ID: ctl.ID}
+				b, _ := json.Marshal(pong)
+				_ = write(ctx, c, websocket.MessageText, b)
 			}
 		}
 	}()
