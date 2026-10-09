@@ -300,7 +300,11 @@ function connect() {
       const measuring = diagnosticsOpen.value
       const started = measuring ? performance.now() : 0
       t.write(bytes, () => {
-        if (measuring && diagnosticsOpen.value) diagnostics.renderMs = performance.now() - started
+        if (measuring && diagnosticsOpen.value) {
+          requestAnimationFrame(() => {
+            if (diagnosticsOpen.value) diagnostics.renderMs = performance.now() - started
+          })
+        }
       })
     },
     onDiagnostics: (value) => Object.assign(diagnostics, value),
@@ -466,7 +470,7 @@ async function copyDiagnostics() {
     `Hostbud PTY write: ${diagnosticsValue(diagnostics.ptyWriteMs, diagnostics.ptyWriteP95Ms, 2)}`,
     `Added-server SSH command: ${diagnostics.remoteSSHOK === false ? 'failed; ' : ''}${diagnosticsValue(diagnostics.remoteSSHCommandMs, diagnostics.remoteSSHCommandP95Ms)}`,
     `SSH probe WebSocket round trip: ${diagnosticsValue(diagnostics.remoteSSHMs, diagnostics.remoteSSHP95Ms)}`,
-    `Terminal render: ${diagnostics.renderMs === null ? 'waiting' : `${diagnostics.renderMs.toFixed(1)} ms`}`,
+    `Terminal output processing to next frame: ${diagnostics.renderMs === null ? 'waiting' : `${diagnostics.renderMs.toFixed(1)} ms`}`,
     `Browser WebSocket buffer: ${diagnostics.bufferedBytes} bytes`,
     `Pending input probes: ${diagnostics.pendingInputs}`,
     `Input probe count: ${diagnostics.inputCount}`,
@@ -894,14 +898,14 @@ defineExpose({ refit, reconnect, showKeyboard })
           <dt>Server PTY write (last / p95)</dt><dd>{{ diagnostics.ptyWriteMs === null ? 'Type to measure' : `${diagnostics.ptyWriteMs.toFixed(2)} / ${diagnostics.ptyWriteP95Ms?.toFixed(2)} ms` }}</dd>
           <dt>Added-server SSH command (last / p95)</dt><dd>{{ diagnostics.remoteSSHCommandMs === null ? 'Waiting…' : `${diagnostics.remoteSSHOK ? '' : 'Failed · '}${diagnostics.remoteSSHCommandMs.toFixed(1)} / ${diagnostics.remoteSSHCommandP95Ms?.toFixed(1)} ms` }}</dd>
           <dt>SSH probe WebSocket round trip</dt><dd>{{ diagnostics.remoteSSHMs === null ? 'Waiting…' : `${diagnostics.remoteSSHMs.toFixed(1)} / ${diagnostics.remoteSSHP95Ms?.toFixed(1)} ms` }}</dd>
-          <dt>Terminal render time</dt><dd>{{ diagnostics.renderMs === null ? 'Waiting…' : `${diagnostics.renderMs.toFixed(1)} ms` }}</dd>
+          <dt>Terminal output processing to next frame</dt><dd>{{ diagnostics.renderMs === null ? 'Waiting…' : `${diagnostics.renderMs.toFixed(1)} ms` }}</dd>
           <dt>Browser WebSocket buffer</dt><dd>{{ diagnostics.bufferedBytes.toLocaleString() }} bytes</dd>
           <dt>Pending probes</dt><dd>{{ diagnostics.pendingInputs }}</dd>
           <dt>Previous disconnect</dt><dd>{{ lastDisconnect ? `WebSocket ${lastDisconnect.code ?? 'unknown'} · ${lastDisconnect.reason}` : 'None recorded' }}</dd>
           <dt>Input probes / output bytes</dt><dd>{{ diagnostics.inputCount }} / {{ diagnostics.outputBytes.toLocaleString() }}</dd>
         </dl>
         <button type="button" class="touch-target mt-4 w-full rounded border border-border px-3 py-2 text-sm font-semibold" @click="copyDiagnostics">Copy diagnostics report</button>
-        <p class="mt-3 text-xs text-muted">Recent p95 uses up to the last 50 samples. While open, the added-server SSH probe runs a harmless `true` command every 10 seconds. The command time is measured inside hostbud; the WebSocket round trip includes the browser path. High command time points to hostbud-to-server SSH latency or server scheduling. High WebSocket time with a low command time points to browser-to-hostbud latency. PTY write is local to hostbud's SSH process; it does not confirm remote receipt. High render time points to this browser/device or heavy terminal output.</p>
+        <p class="mt-3 text-xs text-muted">Recent p95 uses up to the last 50 samples. While open, the added-server SSH probe runs a harmless `true` command every 10 seconds. The command time is measured inside hostbud; the WebSocket round trip includes the browser path. High command time points to hostbud-to-server SSH latency or server scheduling. High WebSocket time with a low command time points to browser-to-hostbud latency. PTY write is local to hostbud's SSH process; it does not confirm remote receipt. Output processing to next frame includes xterm write processing and browser frame scheduling, not confirmed display presentation. A high value points to browser main-thread/render pressure or heavy terminal output.</p>
       </section>
     </div>
     <TerminalTextDialog v-model:open="dictationOpen" mode="dictation" @send="sendDictation" />

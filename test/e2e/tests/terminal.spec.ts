@@ -48,6 +48,7 @@ test('connection diagnostics: input and SSH measurements can be copied without t
   const report = await ui.page.evaluate(() => navigator.clipboard.readText())
   expect(report).toContain('Hostbud terminal diagnostics')
   expect(report).toContain('Added-server SSH command')
+  expect(report).toContain('Terminal output processing to next frame')
   expect(report).toContain('Previous disconnect:')
   expect(report).not.toContain(privateMarker)
   await expect(dialog.getByText(/Typed text and terminal output are never recorded/)).toBeVisible()

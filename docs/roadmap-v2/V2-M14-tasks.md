@@ -2,7 +2,7 @@
 
 ## T1 — Measure the interactive terminal path
 - Add an on-demand diagnostics panel to Terminal actions.
-- When open, measure application ping and remote SSH `true` round trips, input-to-ack round trip, hostbud PTY write duration, browser WebSocket buffered bytes, received terminal byte count, and xterm write/render duration.
+- When open, measure application ping and remote SSH `true` round trips, input-to-ack round trip, hostbud PTY write duration, browser WebSocket buffered bytes, received terminal byte count, and xterm output processing through the next browser animation frame.
 - Add a copyable diagnostic report with a capture time and connection state; keep it free of typed text and terminal output.
 - Preserve the last WebSocket close code and reason across automatic reconnects so slow-client and host-silence closes are visible in the panel and report.
 - Input probes contain only a numeric correlation id; acknowledgments contain the id and PTY write duration. Never record keystrokes, output, session names or host names.
