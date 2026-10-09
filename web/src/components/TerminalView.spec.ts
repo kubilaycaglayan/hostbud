@@ -673,16 +673,22 @@ describe('TerminalView', () => {
     const up = new Event('pointerup', { bubbles: true, cancelable: true })
     Object.defineProperties(up, { pointerType: { value: pointerType }, pointerId: { value: 1 }, clientX: { value: 300 }, clientY: { value: 19 } })
     w.get('[data-testid="terminal"]').element.dispatchEvent(up)
-    expect(open).toHaveBeenCalledWith(url, '_blank', 'noopener,noreferrer')
-
-    // The browser emits click after pointerup. The WebLinks addon would open
-    // only the clicked physical row unless the reconstructed click consumes it.
-    const addonActivate = vi.fn()
-    t.element!.addEventListener('click', addonActivate)
     const click = new MouseEvent('click', { bubbles: true, cancelable: true, clientX: 300, clientY: 19 })
-    t.element!.dispatchEvent(click)
-    expect(click.defaultPrevented).toBe(true)
-    expect(addonActivate).not.toHaveBeenCalled()
+    if (pointerType === 'mouse') {
+      // With no mouse reporting, xterm's WebLinksAddon owns the click. Its
+      // callback must upgrade the clicked row fragment to the complete URL.
+      expect(open).not.toHaveBeenCalled()
+      h.linkClick(click, lines[0].translateToString())
+    } else {
+      expect(open).toHaveBeenCalledWith(url, '_blank', 'noopener,noreferrer')
+      // On touch, pointerup opens the full URL and the browser's follow-up
+      // click must not let xterm open the visible row fragment as well.
+      const addonActivate = vi.fn()
+      t.element!.addEventListener('click', addonActivate)
+      t.element!.dispatchEvent(click)
+      expect(click.defaultPrevented).toBe(true)
+      expect(addonActivate).not.toHaveBeenCalled()
+    }
     expect(open).toHaveBeenCalledTimes(1)
     w.unmount()
   })
@@ -716,6 +722,12 @@ describe('TerminalView', () => {
     const up = dispatch('pointerup', 360)
     expect(open).not.toHaveBeenCalled()
     expect(up.defaultPrevented).toBe(false)
+    const addonActivate = vi.fn()
+    t.element!.addEventListener('click', addonActivate)
+    const click = new MouseEvent('click', { bubbles: true, cancelable: true, clientX: 360, clientY: 19 })
+    t.element!.dispatchEvent(click)
+    expect(click.defaultPrevented).toBe(true)
+    expect(addonActivate).not.toHaveBeenCalled()
     w.unmount()
   })
 

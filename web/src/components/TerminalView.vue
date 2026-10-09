@@ -221,16 +221,32 @@ function captureFollowupLinkClick(event: PointerEvent) {
   capturedLinkClick = { x: event.clientX, y: event.clientY, expiresAt: Date.now() + 500 }
 }
 
+function isCapturedLinkClick(event: MouseEvent): boolean {
+  const captured = capturedLinkClick
+  if (!captured) return false
+  capturedLinkClick = null
+  return Date.now() <= captured.expiresAt && Math.hypot(event.clientX - captured.x, event.clientY - captured.y) < 8
+}
+
 // WebLinksAddon activates its visible row fragment on the browser's `click`,
 // which follows pointerup. When pointerup already opened the reconstructed
 // full URL, stop that follow-up event so it cannot also open a truncated URL.
 function suppressFollowupLinkClick(event: MouseEvent) {
-  const captured = capturedLinkClick
-  if (!captured) return
-  capturedLinkClick = null
-  if (Date.now() > captured.expiresAt || Math.hypot(event.clientX - captured.x, event.clientY - captured.y) >= 8) return
+  if (!isCapturedLinkClick(event)) return
   event.preventDefault()
   event.stopImmediatePropagation()
+}
+
+function activatePrintedLink(event: MouseEvent, uri: string) {
+  if (isCapturedLinkClick(event)) return
+  const t = term.value
+  const screen = t?.element?.querySelector('.xterm-screen')?.getBoundingClientRect()
+  let url = uri
+  if (t && screen?.width && screen.height) {
+    const point = cellAt(event, screen, t.cols, t.rows)
+    url = wrappedURLAt(point.x, point.y) || uri
+  }
+  openLink(url)
 }
 
 function cellHeight() {
@@ -279,8 +295,23 @@ function openCapturedLink(event: PointerEvent) {
     return
   }
   const start = pointerStart
+  const samePointer = start?.id === event.pointerId && start.type === event.pointerType
+  const moved = samePointer && (pointerMoved || Math.hypot(event.clientX - start.x, event.clientY - start.y) >= 8)
+  if (t && samePointer && moved) {
+    const screen = t.element?.querySelector('.xterm-screen')?.getBoundingClientRect()
+    if (screen?.width && screen.height) {
+      const point = cellAt(event, screen, t.cols, t.rows)
+      if (wrappedURLAt(point.x, point.y)) captureFollowupLinkClick(event)
+    }
+    finishTouchSelection()
+    return
+  }
   const click = start?.id === event.pointerId && start.type === event.pointerType && !pointerMoved && Math.hypot(event.clientX - start.x, event.clientY - start.y) < 8
   if (!t || !click) return
+  // With ordinary mouse input, WebLinksAddon owns activation. Its handler
+  // below upgrades the clicked physical row to the full logical URL. When a
+  // terminal captures mouse input, this pointerup path provides the fallback.
+  if (event.pointerType === 'mouse' && t.modes.mouseTrackingMode === 'none') return
   const screen = t.element?.querySelector('.xterm-screen')?.getBoundingClientRect()
   if (!screen || !screen.width || !screen.height) return
   const point = cellAt(event, screen, t.cols, t.rows)
@@ -692,7 +723,7 @@ onMounted(async () => {
   })
   fit = new FitAddon()
   t.loadAddon(fit)
-  t.loadAddon(new WebLinksAddon((_ev, uri) => openLink(uri)))
+  t.loadAddon(new WebLinksAddon(activatePrintedLink))
   const unicode = new Unicode11Addon()
   t.loadAddon(unicode)
   t.unicode.activeVersion = '11'
@@ -702,7 +733,9 @@ onMounted(async () => {
   t.loadAddon(search.value)
   t.open(el.value!)
   t.element?.addEventListener('pointerup', openCapturedLink, true)
-  t.element?.addEventListener('click', suppressFollowupLinkClick, true)
+  // xterm's web-links overlay can place its click target outside t.element;
+  // document capture sees it before xterm can activate the physical row link.
+  document.addEventListener('click', suppressFollowupLinkClick, true)
   // Image paste is a file transfer to the active repo. Plain text paste is
   // left to xterm so bracketed-paste behavior remains unchanged.
   const pasteImage = (event: ClipboardEvent) => {
@@ -872,7 +905,7 @@ onBeforeUnmount(() => {
   selectionChange?.dispose()
   window.removeEventListener('mouseup', finishAltClick, true)
   term.value?.element?.removeEventListener('pointerup', openCapturedLink, true)
-  term.value?.element?.removeEventListener('click', suppressFollowupLinkClick, true)
+  document.removeEventListener('click', suppressFollowupLinkClick, true)
   caretMove++
   copyMode.reset()
   observer?.disconnect()

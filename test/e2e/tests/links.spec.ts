@@ -1,6 +1,6 @@
 import type { BrowserContext, Page } from '@playwright/test'
 import { expect, test } from '../helpers/fixtures.ts'
-import { openShell, textRect } from '../helpers/shell.ts'
+import { openShell, termSelection, textRect } from '../helpers/shell.ts'
 import { uniqueName, type Target } from '../helpers/target.ts'
 
 // Links (M3 T4). The browser has no internet: pages on example.com are
@@ -39,18 +39,31 @@ test('click a printed URL: it opens in a new page, the terminal stays', async ({
   const url = `https://example.com/oauth/authorize?client_id=${'a'.repeat(360)}&redirect_uri=${encodeURIComponent(`https://example.com/callback/${uniqueName('u')}`)}&scope=${encodeURIComponent('https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/userinfo.email')}&state=${'b'.repeat(360)}`
   const cols = await page.evaluate(() => window.__hostbud!.termSize().cols)
   const wrapped = Array.from({ length: Math.ceil(url.length / cols) }, (_, i) => url.slice(i * cols, (i + 1) * cols))
-  const printCommand = `printf '%s\\n' ${wrapped.map((part) => `'${part}'`).join(' ')}`
+  const printCommand = `printf '%s\\n' ${wrapped.map((part) => `'${part}'`).join(' ')}; stty echo`
+  // Keep the long command itself out of the narrow phone viewport so the URL
+  // output remains visible and the test clicks the rendered link, not input.
+  await ui.type('stty -echo', true)
   await ui.type(printCommand, true)
   await expect.poll(async () => (await target.capture(name)).replace(/\n/g, '')).toContain(url)
   const before = page.url()
 
   const pages = opened(context)
   // The URL spans several terminal rows, so click its first visible segment.
-  await activate(page, url.slice(0, 50), isMobile)
-  await expect.poll(() => pages.length).toBe(1)
-  await expect.poll(() => pages[0].url()).toBe(url)
+  await activate(page, url.slice(0, 24), isMobile)
+  await expect.poll(() => pages.map((openedPage) => openedPage.url())).toEqual([url])
   expect(page.url()).toBe(before)
   await expect(page.getByRole('region', { name: `Terminal: ${name}` })).toBeVisible()
+
+  if (!isMobile) {
+    const rect = await textRect(page, url.slice(0, 24))
+    const y = rect.y + rect.height / 2
+    await page.mouse.move(rect.x + 1, y)
+    await page.mouse.down()
+    await page.mouse.move(rect.x + rect.width - 1, y, { steps: 4 })
+    await page.mouse.up()
+    await expect.poll(() => termSelection(page)).toContain(url.slice(0, 20))
+    expect(pages).toHaveLength(1)
+  }
 })
 
 // OSC 8 link (T4)
