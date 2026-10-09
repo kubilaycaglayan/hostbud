@@ -643,11 +643,12 @@ describe('TerminalView', () => {
     vi.useRealTimers()
   })
 
-  it('opens a wrapped URL on touch when the terminal program captures mouse input', async () => {
+  it('opens a hard-wrapped URL on touch when the terminal program captures mouse input', async () => {
     const open = vi.fn()
     vi.stubGlobal('open', open)
     const w = await mountTerm()
     const t = h.terms[0]
+    t.cols = 40
     t.modes.mouseTrackingMode = 'vt200'
     const screen = document.createElement('div')
     screen.className = 'xterm-screen'
@@ -658,7 +659,7 @@ describe('TerminalView', () => {
     const second = url.slice(40)
     const lines = [
       { translateToString: () => first, isWrapped: false },
-      { translateToString: () => second, isWrapped: true },
+      { translateToString: () => second, isWrapped: false },
     ]
     const active = t.buffer.active as { viewportY: number; getLine: (row: number) => typeof lines[number] | undefined }
     active.viewportY = 18
@@ -670,10 +671,11 @@ describe('TerminalView', () => {
     w.unmount()
   })
 
-  it('selects an entire wrapped URL on long touch press for native copying', async () => {
+  it('selects an entire hard-wrapped URL on long touch press for native copying', async () => {
     vi.useFakeTimers()
     const w = await mountTerm()
     const t = h.terms[0]
+    t.cols = 40
     const screen = document.createElement('div')
     screen.className = 'xterm-screen'
     screen.getBoundingClientRect = () => ({ left: 0, top: 0, right: 1000, bottom: 300, width: 1000, height: 300, x: 0, y: 0, toJSON: () => ({}) })
@@ -681,7 +683,7 @@ describe('TerminalView', () => {
     const url = 'https://example.com/oauth?client_id=abcdefghijklmnopqrstuvwxyz0123456789'
     const lines = [
       { text: url.slice(0, 40), isWrapped: false },
-      { text: url.slice(40), isWrapped: true },
+      { text: url.slice(40), isWrapped: false },
     ]
     const active = t.buffer.active as { viewportY: number; getLine: (row: number) => { translateToString: () => string; isWrapped: boolean; getCell: (column: number) => { getChars: () => string; getWidth: () => number } } | undefined }
     active.viewportY = 18

@@ -213,25 +213,32 @@ function cellHeight() {
   return screen && term.value ? screen.height / term.value.rows : 16
 }
 
-// Mouse reporting in full-screen terminal apps (OAuth prompts included) sends
-// pointer events to the program and suppresses xterm's link provider. Recover
-// the URL from the visible wrapped rows on touch, where there is no Shift key
-// to force a local selection.
-function wrappedURLAt(column: number, viewportRow: number): string {
+// Some terminal apps print long URLs with literal line breaks rather than
+// terminal soft wraps. Recover them from adjacent full-width rows as well as
+// xterm's wrapped rows.
+function logicalRowsAt(viewportRow: number): { firstRow: number; text: string } {
   const buffer = term.value?.buffer.active
-  if (!buffer) return ''
+  const t = term.value
+  if (!buffer || !t) return { firstRow: viewportRow, text: '' }
+  const lineText = (row: number) => buffer.getLine(buffer.viewportY + row)?.translateToString(true) ?? ''
+  const lineWrapped = (row: number) => buffer.getLine(buffer.viewportY + row)?.isWrapped ?? false
+  const continues = (row: number) => lineWrapped(row) || (lineText(row - 1).length >= t.cols && Boolean(lineText(row)) && !/^\s/.test(lineText(row)))
   let first = viewportRow
-  while (first > 0 && buffer.getLine(buffer.viewportY + first)?.isWrapped) first--
+  while (first > 0 && continues(first)) first--
   let joined = ''
-  let clicked = -1
   for (let row = first; row < (term.value?.rows ?? 0); row++) {
-    const line = buffer.getLine(buffer.viewportY + row)
-    if (!line || (row > first && !line.isWrapped)) break
-    if (row === viewportRow) clicked = joined.length + column
-    joined += line.translateToString(true)
+    if (!buffer.getLine(buffer.viewportY + row) || (row > first && !continues(row))) break
+    joined += lineText(row)
   }
+  return { firstRow: first, text: joined }
+}
+
+function wrappedURLAt(column: number, viewportRow: number): string {
+  const { text, firstRow } = logicalRowsAt(viewportRow)
+  let clicked = column
+  for (let row = firstRow; row < viewportRow; row++) clicked += term.value?.buffer.active.getLine(term.value.buffer.active.viewportY + row)?.translateToString(true).length ?? 0
   const urlPattern = /https?:\/\/[^\s"'!*(){}|\\^<>`]+[^\s"':,.!?{}|\\^~\[\]`()<>]/gi
-  for (const match of joined.matchAll(urlPattern)) {
+  for (const match of text.matchAll(urlPattern)) {
     const start = match.index ?? 0
     if (clicked >= start && clicked < start + match[0].length) return match[0]
   }
@@ -244,12 +251,13 @@ function openCapturedTouchLink(event: PointerEvent) {
     suppressNextTouchLinkOpen = false
     return
   }
-  if (!t || event.pointerType !== 'touch' || t.modes.mouseTrackingMode === 'none') return
+  if (!t || (event.pointerType !== 'touch' && t.modes.mouseTrackingMode === 'none')) return
   const screen = t.element?.querySelector('.xterm-screen')?.getBoundingClientRect()
   if (!screen || !screen.width || !screen.height) return
   const point = cellAt(event, screen, t.cols, t.rows)
   const url = wrappedURLAt(point.x, point.y)
   if (!url || !openLink(url)) return
+  finishTouchSelection()
   event.preventDefault()
   event.stopImmediatePropagation()
 }
@@ -273,16 +281,10 @@ function selectTouchWord(x: number, y: number): boolean {
   if (url) {
     // Selecting all of a wrapped URL makes iOS's native Copy action useful;
     // the normal word selection remains the fallback for other terminal text.
-    let firstRow = row
-    while (firstRow > 0 && buffer.getLine(buffer.viewportY + firstRow)?.isWrapped) firstRow--
-    let logical = ''
-    let urlStart = -1
-    for (let lineRow = firstRow; lineRow < t.rows; lineRow++) {
-      const current = buffer.getLine(buffer.viewportY + lineRow)
-      if (!current || (lineRow > firstRow && !current.isWrapped)) break
-      if (lineRow === row) urlStart = logical.length + column
-      logical += current.translateToString(true)
-    }
+    const { firstRow, text: logical } = logicalRowsAt(row)
+    let urlStart = column
+    for (let lineRow = firstRow; lineRow < row; lineRow++)
+      urlStart += buffer.getLine(buffer.viewportY + lineRow)?.translateToString(true).length ?? 0
     const index = logical.indexOf(url)
     if (index >= 0 && urlStart >= index && urlStart < index + url.length) {
       const line = buffer.getLine(buffer.viewportY + firstRow)

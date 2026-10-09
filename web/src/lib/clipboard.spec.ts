@@ -82,6 +82,16 @@ describe('copySelection / pasteClipboard', () => {
     expect(writeText).toHaveBeenCalledTimes(1)
   })
 
+  it('copies a URL across terminal hard wraps as one complete link', async () => {
+    const writeText = vi.fn(async () => {})
+    stubClipboard({ writeText })
+    const url = 'https://accounts.example.com/oauth?client_id=abc&scope=read%3Awrite&state=xyz'
+    await copySelection(fakeTerm(`${url.slice(0, 32)}\n${url.slice(32)}`))
+    expect(writeText).toHaveBeenCalledWith(url)
+    await copySelection(fakeTerm('first line\nsecond line'))
+    expect(writeText).toHaveBeenLastCalledWith('first line\nsecond line')
+  })
+
   it('a refused copy shows a toast', async () => {
     stubClipboard({ writeText: () => Promise.reject(new Error('denied')) })
     await copySelection(fakeTerm('x'))

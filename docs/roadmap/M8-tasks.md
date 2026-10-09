@@ -463,12 +463,12 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 - **E2E:** T41 updates T33 *Installed PWA keeps the in-app terminal shortcut buttons* in `test/e2e/tests/pwa.phone.spec.ts` to confirm `/` remains visible in the fixed right-side group. Type-check only; browser execution remains on demand.
 - **Done:** `/` stays reachable at the key bar's right edge on the installed phone PWA. No environment changes.
 
-## T42 — Open and select wrapped terminal links on touch
+## T42 — Open and copy hard-wrapped terminal links on touch
 
-- When a terminal program captures mouse input, recognize a tapped HTTP(S) URL across soft-wrapped visible rows and open the complete URL. Long-pressing a URL selects the full wrapped URL so the platform's native Copy action can copy it.
-- **Tests:** U: T42 `TerminalView.spec.ts` covers touch opening across wrapped rows while mouse reporting is active and long-press selection of the complete URL. I: n/a because link opening and local text selection are browser behavior. E: T42 extends *Click a printed URL* in `test/e2e/tests/links.spec.ts` with a long OAuth-style URL; the phone profile enables tmux mouse reporting to cover the captured-pointer fallback.
-- **E2E:** Updated T4 *Click a printed URL* for a long wrapped link and tmux mouse reporting on phone. Type-check only; browser execution is on demand.
-- **Done:** A long wrapped URL opens intact on touch even when the terminal program captures pointer events, and long-press selects the complete URL for copying. No environment or host configuration changes.
+- When a terminal program captures mouse input, recognize a tapped HTTP(S) URL across soft-wrapped and hard-wrapped visible rows and open the complete URL. Long-pressing a URL selects it for copying; line breaks inserted by the terminal are removed when copying a complete URL.
+- **Tests:** U: T42 `TerminalView.spec.ts` covers touch opening across hard-wrapped rows while mouse reporting is active and long-press selection of the complete URL; T42 `clipboard.spec.ts` verifies URL copying removes terminal line breaks while ordinary multiline selections stay intact. I: n/a because link opening and local text selection are browser behavior. E: T42 extends *Click a printed URL* in `test/e2e/tests/links.spec.ts` with a long OAuth-style URL printed with hard line breaks; the phone profile enables tmux mouse reporting to cover the captured-pointer fallback.
+- **E2E:** Updated T4 *Click a printed URL* for a long hard-wrapped link and tmux mouse reporting on phone. Type-check only; browser execution is on demand.
+- **Done:** A long URL with hard line breaks opens intact on touch even when the terminal program captures pointer events, and long-press selection copies the URL without line breaks. No environment or host configuration changes.
 
 ## Done
 

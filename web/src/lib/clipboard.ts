@@ -14,8 +14,18 @@ const BLOCKED = 'The browser blocked clipboard access.'
 export async function copySelection(term: Terminal): Promise<void> {
   const text = term.getSelection()
   if (!text) return
+  const joined = text.replace(/[\r\n]/g, '')
+  let copyText = text
+  if (/[\r\n]/.test(text) && !/[ \t]/.test(text)) {
+    try {
+      const url = new URL(joined)
+      if (url.protocol === 'http:' || url.protocol === 'https:') copyText = joined
+    } catch {
+      // Preserve ordinary multiline terminal selections.
+    }
+  }
   try {
-    await navigator.clipboard.writeText(text)
+    await navigator.clipboard.writeText(copyText)
   } catch {
     useToastsStore().push({ title: "Couldn't copy", message: BLOCKED })
   }
