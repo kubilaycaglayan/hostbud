@@ -18,7 +18,7 @@ export type TermState = 'connecting' | 'open' | 'exited' | 'disconnected'
 
 export interface TermHandlers {
   onData: (bytes: Uint8Array) => void
-  onState: (s: TermState, exitCode?: number) => void
+  onState: (s: TermState, exitCode?: number, disconnect?: { code: number | null; reason: string }) => void
   onDiagnostics?: (value: TerminalDiagnostics) => void
 }
 
@@ -158,9 +158,14 @@ export class TermConnection {
       }
       if (ctl.type === 'exit') this.set('exited', ctl.code ?? 0)
     }
-    s.onclose = () => {
+    s.onclose = (event) => {
       this.stopTimers()
-      if (this.state !== 'exited') this.set('disconnected')
+      if (this.state !== 'exited' && this.state !== 'disconnected') {
+        this.set('disconnected', undefined, {
+          code: event.code || null,
+          reason: typeof event.reason === 'string' && event.reason.length > 0 ? event.reason.slice(0, 120) : 'No reason provided by peer',
+        })
+      }
     }
   }
 
@@ -171,7 +176,7 @@ export class TermConnection {
       this.silence = null
       // Hung: close without waiting for the (never coming) close event.
       this.close()
-      this.set('disconnected')
+      this.set('disconnected', undefined, { code: null, reason: `No WebSocket frames received for ${SILENCE_LIMIT_MS / 1000} seconds` })
     }, SILENCE_LIMIT_MS)
   }
 
@@ -182,9 +187,9 @@ export class TermConnection {
     this.pinger = this.remotePinger = this.silence = null
   }
 
-  private set(s: TermState, code?: number) {
+  private set(s: TermState, code?: number, disconnect?: { code: number | null; reason: string }) {
     this.state = s
-    this.h.onState(s, code)
+    this.h.onState(s, code, disconnect)
   }
 
   private control(msg: object) {
@@ -299,7 +304,7 @@ export interface TermSessionOptions {
   url: () => string
   onData: (bytes: Uint8Array) => void
   onDiagnostics?: (value: TerminalDiagnostics) => void
-  onState: (s: SessionState, info: { attempt: number; exitCode?: number }) => void
+  onState: (s: SessionState, info: { attempt: number; exitCode?: number; lastDisconnect: { code: number | null; reason: string } | null }) => void
   /** Whether the session is still in the live list (no retry once it isn't). */
   isListed: () => boolean
   /** Called when an attempt fails before its socket opens; false (the
@@ -347,6 +352,7 @@ export class TermSession {
   private attempt = 0
   private closed = false
   private diagnosticsEnabled = false
+  private lastDisconnect: { code: number | null; reason: string } | null = null
   private readonly timers: Timers
   state: SessionState = 'connecting'
 
@@ -371,7 +377,7 @@ export class TermSession {
 
   private set(s: SessionState, exitCode?: number) {
     this.state = s
-    this.o.onState(s, { attempt: this.attempt, exitCode })
+    this.o.onState(s, { attempt: this.attempt, exitCode, lastDisconnect: this.lastDisconnect })
   }
 
   private connect() {
@@ -382,7 +388,7 @@ export class TermSession {
       {
         onData: this.o.onData,
         onDiagnostics: this.o.onDiagnostics,
-        onState: (s, code) => {
+        onState: (s, code, disconnect) => {
           if (this.conn !== conn || this.closed) return
           if (s === 'open') {
             // The URL carried the size when it was built; a resize since
@@ -397,7 +403,7 @@ export class TermSession {
           } else if (s === 'exited' && code !== SSH_FAILED) {
             this.clearStable()
             this.set('exited', code)
-          } else if (s !== 'connecting') void this.dropped(conn.opened)
+          } else if (s !== 'connecting') void this.dropped(conn.opened, disconnect)
         },
       },
       this.o.createSocket,
@@ -417,7 +423,8 @@ export class TermSession {
     this.stable = null
   }
 
-  private async dropped(opened: boolean) {
+  private async dropped(opened: boolean, disconnect?: { code: number | null; reason: string }) {
+    if (disconnect) this.lastDisconnect = disconnect
     this.clearStable()
     if (!this.o.isListed()) {
       this.set('disconnected')

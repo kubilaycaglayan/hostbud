@@ -44,12 +44,13 @@ function setup() {
   let socket!: FakeSocket
   const data: string[] = []
   const states: [TermState, number | undefined][] = []
+  const disconnects: ({ code: number | null; reason: string } | undefined)[] = []
   const conn = new TermConnection(
     'ws://x/ws/term',
-    { onData: (b) => data.push(new TextDecoder().decode(b)), onState: (s, c) => states.push([s, c]) },
+    { onData: (b) => data.push(new TextDecoder().decode(b)), onState: (s, c, d) => { states.push([s, c]); disconnects.push(d) } },
     (u) => (socket = new FakeSocket(u)),
   )
-  return { conn, socket: () => socket, data, states }
+  return { conn, socket: () => socket, data, states, disconnects }
 }
 
 describe('termURL', () => {
@@ -116,10 +117,11 @@ describe('TermConnection', () => {
   })
 
   it('a dropped socket ⇒ disconnected', () => {
-    const { socket, states } = setup()
+    const { socket, states, disconnects } = setup()
     socket().open()
-    socket().onclose?.({} as CloseEvent)
+    socket().onclose?.({ code: 1013, reason: 'client too slow; reconnect' } as CloseEvent)
     expect(states.at(-1)).toEqual(['disconnected', undefined])
+    expect(disconnects.at(-1)).toEqual({ code: 1013, reason: 'client too slow; reconnect' })
   })
 
   it('pings every 10 s while open', () => {
@@ -182,11 +184,12 @@ describe('TermSession', () => {
     const doc = Object.assign(new EventTarget(), { visibilityState: 'visible' as DocumentVisibilityState })
     const signedOut = vi.fn()
     const authorized = vi.fn(o.authorized ?? (async () => true))
+    let lastDisconnect: { code: number | null; reason: string } | null = null
     let size = 80
     const s = new TermSession({
       url: () => `ws://x/ws/term?cols=${size}`,
       onData: (b) => data.push(new TextDecoder().decode(b)),
-      onState: (st, info) => states.push([st, info.attempt]),
+      onState: (st, info) => { states.push([st, info.attempt]); lastDisconnect = info.lastDisconnect },
       isListed: o.listed ?? (() => true),
       stillAuthorized: authorized,
       onSignedOut: signedOut,
@@ -199,7 +202,7 @@ describe('TermSession', () => {
       win,
       doc,
     })
-    return { s, sockets, states, data, win, doc, signedOut, authorized, resize: (n: number) => (size = n) }
+    return { s, sockets, states, data, win, doc, signedOut, authorized, resize: (n: number) => (size = n), lastDisconnect: () => lastDisconnect }
   }
   const last = <T>(a: T[]) => a[a.length - 1]
 
@@ -267,13 +270,16 @@ describe('TermSession', () => {
   })
 
   it('the 1013 slow-client close is retryable', async () => {
-    const { sockets, states } = session()
+    const { sockets, states, lastDisconnect } = session()
     sockets[0].open()
     sockets[0].onclose?.({ code: 1013, reason: 'client too slow; reconnect' } as CloseEvent)
     await vi.advanceTimersByTimeAsync(0)
     expect(last(states)).toEqual(['reconnecting', 1])
+    expect(lastDisconnect()).toEqual({ code: 1013, reason: 'client too slow; reconnect' })
     await vi.advanceTimersByTimeAsync(500)
     expect(sockets).toHaveLength(2)
+    sockets[1].open()
+    expect(lastDisconnect()).toEqual({ code: 1013, reason: 'client too slow; reconnect' })
   })
 
   it('does not auto-retry when the server reports the terminal cap', async () => {

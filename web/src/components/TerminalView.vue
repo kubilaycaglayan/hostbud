@@ -81,6 +81,7 @@ const headerOverflow = ref(false)
 const headerExpanded = ref(false)
 const state = ref<SessionState>('connecting')
 const attempt = ref(0)
+const lastDisconnect = ref<{ code: number | null; reason: string } | null>(null)
 const linkHover = ref<LinkHover | null>(null)
 const hasSelection = ref(false)
 const term = shallowRef<Terminal>()
@@ -306,6 +307,7 @@ function connect() {
     onState: (s, info) => {
       state.value = s
       attempt.value = info.attempt
+      lastDisconnect.value = info.lastDisconnect
       if (s === 'limited') {
         useToastsStore().push({
           title: 'Too many open terminals',
@@ -458,6 +460,7 @@ async function copyDiagnostics() {
     'Hostbud terminal diagnostics',
     `Captured: ${capturedAt}`,
     `Connection state: ${state.value}; reconnect attempt: ${attempt.value}`,
+    `Previous disconnect: ${lastDisconnect.value ? `WebSocket ${lastDisconnect.value.code ?? 'unknown'} — ${lastDisconnect.value.reason}` : 'none recorded'}`,
     `WebSocket round trip: ${diagnosticsValue(diagnostics.pingMs, diagnostics.pingP95Ms)}`,
     `Input acknowledgment: ${diagnosticsValue(diagnostics.inputAckMs, diagnostics.inputAckP95Ms)}`,
     `Hostbud PTY write: ${diagnosticsValue(diagnostics.ptyWriteMs, diagnostics.ptyWriteP95Ms, 2)}`,
@@ -894,6 +897,7 @@ defineExpose({ refit, reconnect, showKeyboard })
           <dt>Terminal render time</dt><dd>{{ diagnostics.renderMs === null ? 'Waiting…' : `${diagnostics.renderMs.toFixed(1)} ms` }}</dd>
           <dt>Browser WebSocket buffer</dt><dd>{{ diagnostics.bufferedBytes.toLocaleString() }} bytes</dd>
           <dt>Pending probes</dt><dd>{{ diagnostics.pendingInputs }}</dd>
+          <dt>Previous disconnect</dt><dd>{{ lastDisconnect ? `WebSocket ${lastDisconnect.code ?? 'unknown'} · ${lastDisconnect.reason}` : 'None recorded' }}</dd>
           <dt>Input probes / output bytes</dt><dd>{{ diagnostics.inputCount }} / {{ diagnostics.outputBytes.toLocaleString() }}</dd>
         </dl>
         <button type="button" class="touch-target mt-4 w-full rounded border border-border px-3 py-2 text-sm font-semibold" @click="copyDiagnostics">Copy diagnostics report</button>
