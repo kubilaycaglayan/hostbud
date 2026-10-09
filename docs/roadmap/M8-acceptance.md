@@ -133,6 +133,13 @@ Every criterion has U (unit), I (integration) and E (end-to-end) coverage. Integ
   - Status (2026-09-27): U coverage is written and passing (`terminalOutput.spec.ts`, `TerminalTextDialog.spec.ts`, `TerminalView.spec.ts`, Go capture/API tests); E `test/e2e/tests/dictation.spec.ts` is written and type-checked, run pending (on demand).
   - **Manual (owner, open):** verify two consecutive dictations with native iOS dictation in the iPhone 13 Pro PWA; Playwright cannot invoke iOS system dictation.
 
+## Terminal links under mouse reporting
+
+- [ ] A long printed HTTP(S) URL that wraps across terminal rows opens intact when tapped on a phone, even while the terminal program captures mouse input. Long-pressing that URL selects the full URL for native copying.
+  - U: T42 `TerminalView.spec.ts` covers wrapped touch opening under mouse reporting and full URL long-press selection.
+  - I: n/a because this is browser link handling and local text selection.
+  - E: T42 *Click a printed URL* in `test/e2e/tests/links.spec.ts` exercises a long OAuth-style URL with tmux mouse reporting on phone. Type-checked; browser execution pending on demand.
+
 ## Sending photos to a session repository
 
 - [ ] From the terminal's three-dot menu, the user can select one or more iPhone photos and send them to the active session's repository directory; Cmd-V/Ctrl-Shift-V with an image clipboard also uploads it. The selected file bytes arrive unchanged, including HEIC/HEIF and DNG when provided by iOS. Filename conflicts use the next available `-1`, `-2`, etc. suffix without overwriting. After each successful upload, the relative path is pasted at the active terminal cursor. Size and transfer failures are actionable.

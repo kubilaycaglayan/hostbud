@@ -35,14 +35,17 @@ function opened(context: BrowserContext): Page[] {
 
 // Click a URL (T4)
 test('click a printed URL: it opens in a new page, the terminal stays', async ({ ui, target, page, context, isMobile }) => {
-  const name = await openShell(ui, target, 'e2e-url')
-  const url = `https://example.com/hostbud-${uniqueName('u')}`
+  const name = await openShell(ui, target, 'e2e-url', (session) => isMobile ? target.tmux('set', '-t', session, 'mouse', 'on') : Promise.resolve())
+  // Long OAuth-style links commonly wrap across several terminal rows. Keep
+  // the complete URL below the web-links addon's wrapped-line scan limit.
+  const url = `https://example.com/oauth/authorize?client_id=${'a'.repeat(360)}&redirect_uri=${encodeURIComponent(`https://example.com/callback/${uniqueName('u')}`)}&scope=${encodeURIComponent('https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/userinfo.email')}&state=${'b'.repeat(360)}`
   await ui.type(`echo ${url}`, true)
-  await outputLine(target, name, url)
+  await expect.poll(async () => (await target.capture(name)).replace(/\n/g, '')).toContain(url)
   const before = page.url()
 
   const pages = opened(context)
-  await activate(page, url, isMobile)
+  // The URL spans several terminal rows, so tap its first visible segment.
+  await activate(page, url.slice(0, 50), isMobile)
   await expect.poll(() => pages.length).toBe(1)
   await expect.poll(() => pages[0].url()).toBe(url)
   expect(page.url()).toBe(before)

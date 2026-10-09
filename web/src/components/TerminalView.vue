@@ -165,6 +165,7 @@ const copyMode = createCopyModeController(
 )
 const { inMode, scrollPosition, historySize, busy } = copyMode
 let touchSelectStart: { x: number; y: number } | null = null
+let suppressNextTouchLinkOpen = false
 
 function enterScrollMode() {
   void copyMode.action('enter')
@@ -183,7 +184,13 @@ function startTouchSelection(event: PointerEvent) {
   touchSelectTimer = window.setTimeout(() => {
     touchSelectTimer = null
     if (touchSelectStart !== gesture) return
-    if (selectTouchWord(gesture.x, gesture.y)) touchSelectStart = null
+    const screen = term.value?.element?.querySelector('.xterm-screen')?.getBoundingClientRect()
+    const point = screen && term.value ? cellAt({ clientX: gesture.x, clientY: gesture.y }, screen, term.value.cols, term.value.rows) : null
+    const selectedURL = point ? Boolean(wrappedURLAt(point.x, point.y)) : false
+    if (selectTouchWord(gesture.x, gesture.y)) {
+      touchSelectStart = null
+      suppressNextTouchLinkOpen = selectedURL
+    }
   }, 450)
 }
 
@@ -206,6 +213,47 @@ function cellHeight() {
   return screen && term.value ? screen.height / term.value.rows : 16
 }
 
+// Mouse reporting in full-screen terminal apps (OAuth prompts included) sends
+// pointer events to the program and suppresses xterm's link provider. Recover
+// the URL from the visible wrapped rows on touch, where there is no Shift key
+// to force a local selection.
+function wrappedURLAt(column: number, viewportRow: number): string {
+  const buffer = term.value?.buffer.active
+  if (!buffer) return ''
+  let first = viewportRow
+  while (first > 0 && buffer.getLine(buffer.viewportY + first)?.isWrapped) first--
+  let joined = ''
+  let clicked = -1
+  for (let row = first; row < (term.value?.rows ?? 0); row++) {
+    const line = buffer.getLine(buffer.viewportY + row)
+    if (!line || (row > first && !line.isWrapped)) break
+    if (row === viewportRow) clicked = joined.length + column
+    joined += line.translateToString(true)
+  }
+  const urlPattern = /https?:\/\/[^\s"'!*(){}|\\^<>`]+[^\s"':,.!?{}|\\^~\[\]`()<>]/gi
+  for (const match of joined.matchAll(urlPattern)) {
+    const start = match.index ?? 0
+    if (clicked >= start && clicked < start + match[0].length) return match[0]
+  }
+  return ''
+}
+
+function openCapturedTouchLink(event: PointerEvent) {
+  const t = term.value
+  if (suppressNextTouchLinkOpen) {
+    suppressNextTouchLinkOpen = false
+    return
+  }
+  if (!t || event.pointerType !== 'touch' || t.modes.mouseTrackingMode === 'none') return
+  const screen = t.element?.querySelector('.xterm-screen')?.getBoundingClientRect()
+  if (!screen || !screen.width || !screen.height) return
+  const point = cellAt(event, screen, t.cols, t.rows)
+  const url = wrappedURLAt(point.x, point.y)
+  if (!url || !openLink(url)) return
+  event.preventDefault()
+  event.stopImmediatePropagation()
+}
+
 function clearTouchSelectTimer() {
   if (touchSelectTimer !== null) window.clearTimeout(touchSelectTimer)
   touchSelectTimer = null
@@ -221,6 +269,28 @@ function selectTouchWord(x: number, y: number): boolean {
   const row = Math.max(0, Math.min(t.rows - 1, Math.floor((y - screen.top) / (screen.height / t.rows))))
   const buffer = t.buffer.active
   const bufferRow = buffer.viewportY + row
+  const url = wrappedURLAt(column, row)
+  if (url) {
+    // Selecting all of a wrapped URL makes iOS's native Copy action useful;
+    // the normal word selection remains the fallback for other terminal text.
+    let firstRow = row
+    while (firstRow > 0 && buffer.getLine(buffer.viewportY + firstRow)?.isWrapped) firstRow--
+    let logical = ''
+    let urlStart = -1
+    for (let lineRow = firstRow; lineRow < t.rows; lineRow++) {
+      const current = buffer.getLine(buffer.viewportY + lineRow)
+      if (!current || (lineRow > firstRow && !current.isWrapped)) break
+      if (lineRow === row) urlStart = logical.length + column
+      logical += current.translateToString(true)
+    }
+    const index = logical.indexOf(url)
+    if (index >= 0 && urlStart >= index && urlStart < index + url.length) {
+      const line = buffer.getLine(buffer.viewportY + firstRow)
+      const startCol = index
+      if (line) t.select(startCol, buffer.viewportY + firstRow, url.length)
+      return true
+    }
+  }
   const line = buffer.getLine(bufferRow)
   if (!line) return false
   const cell = (col: number) => col >= 0 && col < t.cols ? line.getCell(col) : undefined
@@ -599,6 +669,7 @@ onMounted(async () => {
   search.value = new SearchAddon()
   t.loadAddon(search.value)
   t.open(el.value!)
+  t.element?.addEventListener('pointerup', openCapturedTouchLink, true)
   // Image paste is a file transfer to the active repo. Plain text paste is
   // left to xterm so bracketed-paste behavior remains unchanged.
   const pasteImage = (event: ClipboardEvent) => {
@@ -767,6 +838,7 @@ onBeforeUnmount(() => {
   snapshotRequest++
   selectionChange?.dispose()
   window.removeEventListener('mouseup', finishAltClick, true)
+  term.value?.element?.removeEventListener('pointerup', openCapturedTouchLink, true)
   caretMove++
   copyMode.reset()
   observer?.disconnect()

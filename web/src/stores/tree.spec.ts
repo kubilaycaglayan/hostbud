@@ -139,7 +139,9 @@ describe('tree order store', () => {
       sections: [{ id: 'research', name: 'Research', color: 'purple' }], projectSections: { 'project-a': 'research' },
     }
     let attempts = 0
-    const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      void input
+      void init
       attempts++
       if (attempts === 1) throw new TypeError('temporary connection failure')
       return new Response(JSON.stringify(saved), { status: 200, headers: { 'Content-Type': 'application/json' } })

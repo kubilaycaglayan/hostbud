@@ -186,7 +186,7 @@ beforeEach(() => {
 })
 afterEach(() => vi.unstubAllGlobals())
 
-async function mountTerm(props: { active?: boolean; focused?: boolean; focusInitialTerminal?: boolean; machine?: string } = {}) {
+async function mountTerm(props: { active?: boolean; focused?: boolean; focusInitialTerminal?: boolean; machine?: string; narrow?: boolean } = {}) {
   const w = mount(TerminalView, { props: { machine: 'host', session: 'acc-a', ...props }, attachTo: document.body })
   await flushPromises()
   return w
@@ -621,10 +621,10 @@ describe('TerminalView', () => {
     screen.className = 'xterm-screen'
     screen.getBoundingClientRect = () => ({ left: 0, top: 0, right: 1000, bottom: 300, width: 1000, height: 300, x: 0, y: 0, toJSON: () => ({}) })
     w.get('[data-testid="terminal"]').element.appendChild(screen)
-    const active = t.buffer.active as { viewportY: number; getLine: (row: number) => { translateToString: () => string; getCell: (column: number) => { getChars: () => string; getWidth: () => number } } }
+    const active = t.buffer.active as { viewportY: number; getLine: (row: number) => { translateToString: () => string; getCell: (column: number) => { getChars: () => string; getWidth: () => number } } | undefined }
     active.viewportY = 17
     active.getLine = (row) => {
-      expect(row).toBe(18)
+      if (row !== 18) return undefined
       const text = 'echo copy-marker'
       return {
         translateToString: () => text,
@@ -639,6 +639,61 @@ describe('TerminalView', () => {
     await vi.advanceTimersByTimeAsync(500)
     expect(t.select).toHaveBeenCalledWith(5, 18, 11)
     expect(w.find('button[aria-label="Terminal actions"]').exists()).toBe(true)
+    w.unmount()
+    vi.useRealTimers()
+  })
+
+  it('opens a wrapped URL on touch when the terminal program captures mouse input', async () => {
+    const open = vi.fn()
+    vi.stubGlobal('open', open)
+    const w = await mountTerm()
+    const t = h.terms[0]
+    t.modes.mouseTrackingMode = 'vt200'
+    const screen = document.createElement('div')
+    screen.className = 'xterm-screen'
+    screen.getBoundingClientRect = () => ({ left: 0, top: 0, right: 1000, bottom: 300, width: 1000, height: 300, x: 0, y: 0, toJSON: () => ({}) })
+    w.get('[data-testid="terminal"]').element.appendChild(screen)
+    const url = 'https://example.com/oauth?client_id=abcdefghijklmnopqrstuvwxyz0123456789'
+    const first = url.slice(0, 40)
+    const second = url.slice(40)
+    const lines = [
+      { translateToString: () => first, isWrapped: false },
+      { translateToString: () => second, isWrapped: true },
+    ]
+    const active = t.buffer.active as { viewportY: number; getLine: (row: number) => typeof lines[number] | undefined }
+    active.viewportY = 18
+    active.getLine = (row) => lines[row - 18]
+    const up = new Event('pointerup', { bubbles: true, cancelable: true })
+    Object.defineProperties(up, { pointerType: { value: 'touch' }, clientX: { value: 300 }, clientY: { value: 19 } })
+    w.get('[data-testid="terminal"]').element.dispatchEvent(up)
+    expect(open).toHaveBeenCalledWith(url, '_blank', 'noopener,noreferrer')
+    w.unmount()
+  })
+
+  it('selects an entire wrapped URL on long touch press for native copying', async () => {
+    vi.useFakeTimers()
+    const w = await mountTerm()
+    const t = h.terms[0]
+    const screen = document.createElement('div')
+    screen.className = 'xterm-screen'
+    screen.getBoundingClientRect = () => ({ left: 0, top: 0, right: 1000, bottom: 300, width: 1000, height: 300, x: 0, y: 0, toJSON: () => ({}) })
+    w.get('[data-testid="terminal"]').element.appendChild(screen)
+    const url = 'https://example.com/oauth?client_id=abcdefghijklmnopqrstuvwxyz0123456789'
+    const lines = [
+      { text: url.slice(0, 40), isWrapped: false },
+      { text: url.slice(40), isWrapped: true },
+    ]
+    const active = t.buffer.active as { viewportY: number; getLine: (row: number) => { translateToString: () => string; isWrapped: boolean; getCell: (column: number) => { getChars: () => string; getWidth: () => number } } | undefined }
+    active.viewportY = 18
+    active.getLine = (row) => {
+      const line = lines[row - 18]
+      return line && { ...line, translateToString: () => line.text, getCell: (column) => ({ getChars: () => line.text[column] ?? '', getWidth: () => 1 }) }
+    }
+    const down = new Event('pointerdown', { bubbles: true, cancelable: true })
+    Object.defineProperties(down, { pointerType: { value: 'touch' }, clientX: { value: 200 }, clientY: { value: 19 } })
+    w.get('[data-testid="terminal"]').element.dispatchEvent(down)
+    await vi.advanceTimersByTimeAsync(500)
+    expect(t.select).toHaveBeenCalledWith(0, 18, url.length)
     w.unmount()
     vi.useRealTimers()
   })

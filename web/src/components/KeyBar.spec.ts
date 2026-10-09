@@ -36,7 +36,7 @@ describe('KeyBar', () => {
       'Escape', 'Tab', 'Control', 'Alt', 'Left arrow', 'Up arrow', 'Down arrow', 'Right arrow', 'Pipe', 'Tilde', 'Hyphen', 'Scroll history', 'Slash', 'Hide key bar',
     ])
     expect(wrapper.findAll('button').every((button) => button.classes().includes('touch-target'))).toBe(true)
-    expect(wrapper.get('[data-testid="key-bar-fixed-keys"] button[aria-label="Slash"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="key-bar-fixed-keys"] button[aria-label="Slash"]').exists()).toBe(true)
     expect(wrapper.get('[data-testid="key-bar-fixed-keys"]').element.parentElement?.querySelector('.touch-pan-x button[aria-label="Slash"]')).toBeNull()
   })
 
