@@ -39,6 +39,7 @@ test('connection diagnostics: input and SSH measurements can be copied without t
   await ui.terminalAction(name, 'Connection diagnostics')
   const dialog = ui.page.getByRole('dialog', { name: 'Connection diagnostics' })
   await expect(dialog).toBeVisible()
+  await expect(dialog).toHaveAttribute('aria-modal', 'false')
   await expect(dialog.getByText('WebSocket round trip')).toBeVisible()
   await ui.type(privateMarker)
   await expect.poll(async () => (await dialog.locator('dd').nth(1).textContent()) ?? '').toMatch(/\d+\.\d ms/)

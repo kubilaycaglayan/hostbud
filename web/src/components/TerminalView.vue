@@ -885,14 +885,14 @@ defineExpose({ refit, reconnect, showKeyboard })
         </div>
       </div>
     </TerminalMenu>
-    <div v-if="diagnosticsOpen" role="dialog" aria-modal="true" aria-labelledby="terminal-diagnostics-title" class="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4" @click.self="closeDiagnostics">
-      <section class="w-full max-w-lg rounded-lg border border-border bg-surface p-4 text-fg shadow-xl">
+    <div v-if="diagnosticsOpen" role="dialog" aria-modal="false" aria-labelledby="terminal-diagnostics-title" class="pointer-events-none fixed inset-0 z-[70]">
+      <section class="pointer-events-auto absolute right-3 top-16 max-h-[55dvh] w-[min(30rem,calc(100vw-1.5rem))] overflow-y-auto rounded-lg border border-border bg-surface p-4 text-fg shadow-xl md:right-4 md:top-20 md:max-h-[80dvh]">
         <div class="mb-3 flex items-center justify-between gap-4">
           <h2 id="terminal-diagnostics-title" class="text-base font-bold">Connection diagnostics</h2>
           <button type="button" aria-label="Close diagnostics" class="touch-target rounded px-3" @click="closeDiagnostics">Close</button>
         </div>
         <p class="mb-3 text-sm text-muted">Measurements run only while this panel is open. Typed text and terminal output are never recorded.</p>
-        <dl class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm tabular-nums">
+        <dl class="grid grid-cols-1 gap-x-4 gap-y-2 text-sm tabular-nums sm:grid-cols-2">
           <dt>WebSocket round trip (last / p95)</dt><dd>{{ diagnostics.pingMs === null ? 'Waiting…' : `${diagnostics.pingMs.toFixed(1)} / ${diagnostics.pingP95Ms?.toFixed(1)} ms` }}</dd>
           <dt>Input acknowledgment (last / p95)</dt><dd>{{ diagnostics.inputAckMs === null ? 'Type to measure' : `${diagnostics.inputAckMs.toFixed(1)} / ${diagnostics.inputAckP95Ms?.toFixed(1)} ms` }}</dd>
           <dt>Server PTY write (last / p95)</dt><dd>{{ diagnostics.ptyWriteMs === null ? 'Type to measure' : `${diagnostics.ptyWriteMs.toFixed(2)} / ${diagnostics.ptyWriteP95Ms?.toFixed(2)} ms` }}</dd>
