@@ -30,6 +30,10 @@ const (
 	// maxQueuedOutput bounds buffered terminal bytes per client.
 	maxQueuedOutput = 2 << 20
 	outQueue        = 64
+
+	slowInputWriteThreshold = 50 * time.Millisecond
+	slowSocketPingThreshold = 100 * time.Millisecond
+	slowDiagnosticLogEvery  = 10 * time.Second
 )
 
 // SSH builds the ssh argv (sshx.Client).
@@ -257,6 +261,7 @@ func (h *Handler) bridge(ctx context.Context, cancel context.CancelFunc, c *webs
 	stalled := make(chan struct{})
 	clientClose := make(chan int, 1)
 	var remoteProbeRunning atomic.Bool
+	var lastSlowPingLog time.Time
 	wg.Go(func() {
 		defer close(out)
 		for {
@@ -289,6 +294,7 @@ func (h *Handler) bridge(ctx context.Context, cancel context.CancelFunc, c *webs
 	go func() {
 		defer cancel()
 		var probeID int64
+		var lastSlowInputLog time.Time
 		for {
 			typ, data, err := c.Read(ctx)
 			if err != nil {
@@ -300,8 +306,13 @@ func (h *Handler) bridge(ctx context.Context, cancel context.CancelFunc, c *webs
 				if _, err := proc.Write(data); err != nil {
 					return
 				}
+				writeDuration := time.Since(started)
+				if len(data) <= 64 && writeDuration >= slowInputWriteThreshold && (lastSlowInputLog.IsZero() || time.Since(lastSlowInputLog) >= slowDiagnosticLogEvery) {
+					log.Warn("terminal PTY input write slow", "duration_ms", float64(writeDuration)/float64(time.Millisecond))
+					lastSlowInputLog = time.Now()
+				}
 				if probeID > 0 {
-					ack, _ := json.Marshal(Control{Type: "inputAck", ID: probeID, WriteMs: float64(time.Since(started)) / float64(time.Millisecond)})
+					ack, _ := json.Marshal(Control{Type: "inputAck", ID: probeID, WriteMs: float64(writeDuration) / float64(time.Millisecond)})
 					_ = write(ctx, c, websocket.MessageText, ack)
 					probeID = 0
 				}
@@ -416,11 +427,17 @@ loop:
 			}
 		case <-ping.C:
 			pctx, pcancel := context.WithTimeout(ctx, timeout)
+			pingStarted := time.Now()
 			err := c.Ping(pctx)
+			pingDuration := time.Since(pingStarted)
 			pcancel()
 			if err != nil {
 				detach.reason = "websocket_ping_failed"
 				break loop
+			}
+			if pingDuration >= slowSocketPingThreshold && (lastSlowPingLog.IsZero() || time.Since(lastSlowPingLog) >= slowDiagnosticLogEvery) {
+				log.Warn("terminal WebSocket ping slow", "duration_ms", float64(pingDuration)/float64(time.Millisecond))
+				lastSlowPingLog = time.Now()
 			}
 		}
 	}

@@ -54,6 +54,23 @@ func TestServerFrames(t *testing.T) {
 	}
 }
 
+type lockedLogBuffer struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+func (b *lockedLogBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.b.Write(p)
+}
+
+func (b *lockedLogBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.b.String()
+}
+
 type fakeSSH struct{}
 
 func (fakeSSH) Binary() string { return "ssh" }
@@ -83,14 +100,15 @@ func TestAttachArgv(t *testing.T) {
 
 // fakeProc is a scripted Process.
 type fakeProc struct {
-	mu      sync.Mutex
-	input   []byte
-	resizes [][2]int
-	killed  bool
-	output  chan []byte // nil entry = EOF
-	done    chan struct{}
-	code    int
-	endless bool
+	mu         sync.Mutex
+	input      []byte
+	resizes    [][2]int
+	killed     bool
+	output     chan []byte // nil entry = EOF
+	done       chan struct{}
+	code       int
+	endless    bool
+	writeDelay time.Duration
 }
 
 func newFake() *fakeProc {
@@ -118,6 +136,9 @@ func (p *fakeProc) Read(b []byte) (int, error) {
 }
 
 func (p *fakeProc) Write(b []byte) (int, error) {
+	if p.writeDelay > 0 {
+		time.Sleep(p.writeDelay)
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.input = append(p.input, b...)
@@ -261,6 +282,39 @@ func TestBridgeIOResizePingAndExit(t *testing.T) {
 	}
 }
 
+func TestSlowPTYInputWriteIsLoggedWithoutInput(t *testing.T) {
+	proc := newFake()
+	proc.writeDelay = 60 * time.Millisecond
+	var logs lockedLogBuffer
+	logger := slog.New(slog.NewJSONHandler(&logs, nil))
+	_, url, _ := serve(t, proc, logger)
+	c := dial(t, url+"?machine=host&session=s1")
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	const privateInput = "sensitive-input-marker"
+	if err := c.Write(ctx, websocket.MessageText, []byte(`{"type":"inputProbe","id":42}`)); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Write(ctx, websocket.MessageBinary, []byte(privateInput)); err != nil {
+		t.Fatal(err)
+	}
+	_, ack, err := c.Read(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(logs.String(), `"msg":"terminal PTY input write slow"`) {
+		t.Fatalf("slow PTY write was not logged: %s", logs.String())
+	}
+	if strings.Contains(logs.String(), privateInput) {
+		t.Fatalf("PTY write log included input content: %s", logs.String())
+	}
+	var control Control
+	if json.Unmarshal(ack, &control) != nil || control.Type != "inputAck" || control.WriteMs < 50 {
+		t.Fatalf("input ack = %s", ack)
+	}
+	_ = c.CloseNow()
+}
+
 func TestAttachCapRejectsBeforeStartAndReleasesOnExit(t *testing.T) {
 	var starts atomic.Int32
 	h := &Handler{SSH: fakeSSH{}, MaxPerUser: 1, MaxTotal: 2, AccountID: func(*http.Request) string { return "u1" }, Start: func(_ context.Context, _ []string, _, _ int) (Process, error) {
@@ -343,7 +397,7 @@ func TestConcurrentTerminalReservationsNeverOvershoot(t *testing.T) {
 
 func TestSocketCloseKillsProcess(t *testing.T) {
 	proc := newFake()
-	var logs bytes.Buffer
+	var logs lockedLogBuffer
 	logger := slog.New(slog.NewJSONHandler(&logs, nil))
 	h, url, _ := serve(t, proc, logger)
 	c := dial(t, url+"?machine=host&session=s1")
@@ -368,7 +422,7 @@ func TestStalledClientIsDropped(t *testing.T) {
 
 func TestAttachWatchdogClosesSilentHostWith4408(t *testing.T) {
 	proc := newFake()
-	var logs bytes.Buffer
+	var logs lockedLogBuffer
 	logger := slog.New(slog.NewJSONHandler(&logs, nil))
 	h, url, _ := serve(t, proc, logger)
 	h.AttachTimeout = 80 * time.Millisecond
