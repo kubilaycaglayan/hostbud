@@ -436,6 +436,7 @@ function onToolbarAction(action: 'search' | 'copy' | 'keyboard' | 'dictation' | 
   else if (action === 'photos') photoUploadOpen.value = true
   else if (action === 'diagnostics') {
     diagnosticsOpen.value = true
+    diagnostics.renderMs = null
     conn?.setDiagnostics(true)
   }
   else emit('close')
@@ -444,6 +445,36 @@ function onToolbarAction(action: 'search' | 'copy' | 'keyboard' | 'dictation' | 
 function closeDiagnostics() {
   diagnosticsOpen.value = false
   conn?.setDiagnostics(false)
+}
+
+function diagnosticsValue(last: number | null, p95: number | null, digits = 1) {
+  if (last === null) return 'waiting'
+  return `${last.toFixed(digits)} ms (p95 ${p95?.toFixed(digits) ?? 'waiting'} ms)`
+}
+
+async function copyDiagnostics() {
+  const capturedAt = new Intl.DateTimeFormat('en-GB', { dateStyle: 'short', timeStyle: 'medium' }).format(new Date())
+  const report = [
+    'Hostbud terminal diagnostics',
+    `Captured: ${capturedAt}`,
+    `Connection state: ${state.value}; reconnect attempt: ${attempt.value}`,
+    `WebSocket round trip: ${diagnosticsValue(diagnostics.pingMs, diagnostics.pingP95Ms)}`,
+    `Input acknowledgment: ${diagnosticsValue(diagnostics.inputAckMs, diagnostics.inputAckP95Ms)}`,
+    `Hostbud PTY write: ${diagnosticsValue(diagnostics.ptyWriteMs, diagnostics.ptyWriteP95Ms, 2)}`,
+    `Added-server SSH command: ${diagnostics.remoteSSHOK === false ? 'failed; ' : ''}${diagnosticsValue(diagnostics.remoteSSHCommandMs, diagnostics.remoteSSHCommandP95Ms)}`,
+    `SSH probe WebSocket round trip: ${diagnosticsValue(diagnostics.remoteSSHMs, diagnostics.remoteSSHP95Ms)}`,
+    `Terminal render: ${diagnostics.renderMs === null ? 'waiting' : `${diagnostics.renderMs.toFixed(1)} ms`}`,
+    `Browser WebSocket buffer: ${diagnostics.bufferedBytes} bytes`,
+    `Pending input probes: ${diagnostics.pendingInputs}`,
+    `Input probe count: ${diagnostics.inputCount}`,
+    `Terminal output bytes: ${diagnostics.outputBytes}`,
+  ].join('\n')
+  try {
+    await navigator.clipboard.writeText(report)
+    useToastsStore().push({ title: 'Diagnostics copied', message: 'The report contains timings only, not typed text or terminal output.', tone: 'success' })
+  } catch {
+    useToastsStore().push({ title: "Couldn't copy diagnostics", message: 'The browser blocked clipboard access. Try again from the HTTPS app or copy the values manually.', tone: 'error' })
+  }
 }
 
 function sendDictation(text: string) {
@@ -865,6 +896,7 @@ defineExpose({ refit, reconnect, showKeyboard })
           <dt>Pending probes</dt><dd>{{ diagnostics.pendingInputs }}</dd>
           <dt>Input probes / output bytes</dt><dd>{{ diagnostics.inputCount }} / {{ diagnostics.outputBytes.toLocaleString() }}</dd>
         </dl>
+        <button type="button" class="touch-target mt-4 w-full rounded border border-border px-3 py-2 text-sm font-semibold" @click="copyDiagnostics">Copy diagnostics report</button>
         <p class="mt-3 text-xs text-muted">Recent p95 uses up to the last 50 samples. While open, the added-server SSH probe runs a harmless `true` command every 10 seconds. The command time is measured inside hostbud; the WebSocket round trip includes the browser path. High command time points to hostbud-to-server SSH latency or server scheduling. High WebSocket time with a low command time points to browser-to-hostbud latency. PTY write is local to hostbud's SSH process; it does not confirm remote receipt. High render time points to this browser/device or heavy terminal output.</p>
       </section>
     </div>

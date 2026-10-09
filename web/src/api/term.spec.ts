@@ -83,6 +83,7 @@ describe('TermConnection', () => {
     expect(socket.sent).toHaveLength(3)
     expect(socket.sent[0]).toBe('{"type":"remoteProbe","id":1}')
     expect(socket.sent[1]).toBe('{"type":"inputProbe","id":2}')
+    socket.recv(new TextEncoder().encode('screen').buffer)
     socket.recv('{"type":"inputAck","id":2,"writeMs":0.02}')
     expect(diagnostics.at(-1)?.inputAckMs).not.toBeNull()
     expect(diagnostics.at(-1)?.ptyWriteMs).toBe(0.02)
@@ -90,6 +91,7 @@ describe('TermConnection', () => {
     expect(diagnostics.at(-1)?.remoteSSHOK).toBe(true)
     expect(diagnostics.at(-1)?.remoteSSHMs).not.toBeNull()
     expect(diagnostics.at(-1)?.remoteSSHCommandMs).toBe(12.5)
+    expect(diagnostics.at(-1)?.outputBytes).toBe(6)
     vi.advanceTimersByTime(DIAGNOSTICS_PING_EVERY_MS)
     const ping = JSON.parse(socket.sent.at(-1) as string) as { id: number }
     socket.recv(JSON.stringify({ type: 'pong', id: ping.id }))

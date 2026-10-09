@@ -105,14 +105,14 @@ export class TermConnection {
       this.opened = true
       this.alive()
       this.pinger = timers.setInterval(() => this.sendPing(), this.diagnosticsEnabled ? DIAGNOSTICS_PING_EVERY_MS : PING_EVERY_MS)
-      if (this.diagnosticsEnabled) this.startRemoteProbes()
       this.set('open')
+      if (this.diagnosticsEnabled) this.startRemoteProbes()
     }
     s.onmessage = (m) => {
       this.alive()
       if (typeof m.data !== 'string') {
         const bytes = new Uint8Array(m.data as ArrayBuffer)
-        this.diagnostics.outputBytes += bytes.length
+        if (this.diagnosticsEnabled) this.diagnostics.outputBytes += bytes.length
         h.onData(bytes)
         return
       }
@@ -229,7 +229,19 @@ export class TermConnection {
   private writeP95Ms(value: number) { this.diagnostics.ptyWriteP95Ms = this.addSample(this.writeSamples, value) }
 
   setDiagnostics(enabled: boolean) {
+    const startingDiagnostics = enabled && !this.diagnosticsEnabled
     this.diagnosticsEnabled = enabled
+    if (startingDiagnostics) {
+      this.pendingInputs.clear()
+      this.pendingPings.clear()
+      this.pendingRemote.clear()
+      this.pingSamples = []
+      this.inputSamples = []
+      this.writeSamples = []
+      this.remoteSamples = []
+      this.remoteCommandSamples = []
+      this.diagnostics = { pingMs: null, pingP95Ms: null, inputAckMs: null, inputAckP95Ms: null, ptyWriteMs: null, ptyWriteP95Ms: null, remoteSSHMs: null, remoteSSHP95Ms: null, remoteSSHCommandMs: null, remoteSSHCommandP95Ms: null, remoteSSHOK: null, bufferedBytes: 0, inputCount: 0, pendingInputs: 0, outputBytes: 0 }
+    }
     if (!enabled) {
       this.pendingInputs.clear()
       this.pendingPings.clear()
