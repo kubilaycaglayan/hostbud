@@ -232,6 +232,50 @@ func TestHandlerAttachesWithTheMachinesTmuxVersion(t *testing.T) {
 	}
 }
 
+func TestBridgeOutputContinuesWhilePongPending(t *testing.T) {
+	proc := newFake()
+	h, url, _ := serve(t, proc)
+	h.PingInterval = 20 * time.Millisecond
+	h.PingTimeout = 2 * time.Second
+	pingSeen := make(chan struct{}, 1)
+	c, _, err := websocket.Dial(t.Context(), url+"?machine=host&session=s1&cols=80&rows=24", &websocket.DialOptions{
+		OnPingReceived: func(context.Context, []byte) bool {
+			select {
+			case pingSeen <- struct{}{}:
+			default:
+			}
+			return false // Keep reading output, but deliberately withhold pong.
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.CloseNow()
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	output := make(chan string, 1)
+	go func() {
+		_, data, readErr := c.Read(ctx)
+		if readErr == nil {
+			output <- string(data)
+		}
+	}()
+	select {
+	case <-pingSeen:
+	case <-ctx.Done():
+		t.Fatal("no keepalive ping received")
+	}
+	proc.output <- []byte("output during pending pong")
+	select {
+	case got := <-output:
+		if got != "output during pending pong" {
+			t.Fatalf("unexpected output %q", got)
+		}
+	case <-ctx.Done():
+		t.Fatal("terminal output blocked waiting for keepalive pong")
+	}
+}
+
 func TestBridgeIOResizePingAndExit(t *testing.T) {
 	proc := newFake()
 	_, url, startedCh := serve(t, proc)
