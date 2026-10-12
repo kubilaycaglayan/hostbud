@@ -23,3 +23,11 @@
 - After deploy, follow the V2 Roadmap safe-cleanup rule and V1 M7 T15. Skip if a toolbox, test target or other relevant container is active. Never prune globally or touch production containers, volumes, backups, other projects or tmux sessions.
 - **Tests:** n/a (cleanup operation; verify production health and volume presence afterward if cleanup runs).
 - **E2E:** none (no product behavior).
+
+## T4 — Keep terminal output flowing during keepalive waits
+- Investigate intermittent input lag on the host and an added server with content-free logs and independent SSH echo probes.
+- Move WebSocket keepalive ping/pong waits to one bounded worker per bridge, preserving timeout disconnection and slow-ping logging while output continues.
+- **Tests:** U: T4 `TestBridgeOutputContinuesWhilePongPending` reproduces the output stall with a withheld pong; I: T4 `TestIntegrationOutputContinuesWhilePongPending` verifies real SSH/tmux output against `test/sshd`; both use a shorter output deadline than the ping timeout.
+- **E2E:** T4 *keepalive pong delay does not pause terminal output through Caddy* uses the throwaway target and an authenticated raw WebSocket that withholds pong. Type-check only; execution stays on demand.
+- **Validation:** implemented and deployed on 12/10/2026; Go U/I and lint pass, E2E type-check passes. Six existing frontend tests fail; see acceptance checklist and [investigation](V2-M14-latency-investigation.md). Cleanup skipped because toolbox/integration containers are active. No new environment variables.
+- **Owner check (open):** compare ordinary shell and agent typing on the affected browser/device after deployment; capture diagnostics during any remaining stall.

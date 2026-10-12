@@ -1,5 +1,6 @@
 import { expect, test } from '../helpers/fixtures.ts'
-import { forbidInLogs } from '../helpers/api.ts'
+import { forbidInLogs, MACHINE, ORIGIN, upgradeSocket } from '../helpers/api.ts'
+import { sessionCookieHeader } from '../helpers/auth.ts'
 import { uniqueName, type Target } from '../helpers/target.ts'
 import { UI } from '../helpers/ui.ts'
 
@@ -15,6 +16,48 @@ async function newSession(target: Target, prefix: string) {
 
 const attached = (target: Target, name: string) => target.display(name, '#{session_attached}')
 const command = (target: Target, name: string) => target.display(name, '#{pane_current_command}')
+
+test('keepalive pong delay does not pause terminal output through Caddy', { tag: '@desktop' }, async ({ target }) => {
+  test.setTimeout(60_000)
+  const name = await newSession(target, 'e2e-pong')
+  const marker = uniqueName('output-without-pong')
+  const opened = await upgradeSocket(`/ws/term?machine=${MACHINE}&session=${name}&cols=80&rows=24`, ORIGIN, sessionCookieHeader())
+  expect(opened.status).toBe(101)
+  const socket = opened.socket!
+  let pending = Buffer.alloc(0)
+  let pingSeen = false
+  let output = ''
+  socket.on('data', (chunk: Buffer) => {
+    pending = Buffer.concat([pending, chunk])
+    while (pending.length >= 2) {
+      const opcode = pending[0]! & 15
+      let length = pending[1]! & 127
+      let offset = 2
+      if (length === 126) {
+        if (pending.length < 4) return
+        length = pending.readUInt16BE(2)
+        offset = 4
+      } else if (length === 127) {
+        if (pending.length < 10) return
+        length = Number(pending.readBigUInt64BE(2))
+        offset = 10
+      }
+      if (pending.length < offset + length) return
+      const payload = pending.subarray(offset, offset + length)
+      if (opcode === 9) pingSeen = true // Deliberately withhold pong.
+      if (opcode === 2 || opcode === 0) output += payload.toString()
+      pending = pending.subarray(offset + length)
+    }
+  })
+  socket.resume()
+  try {
+    await expect.poll(() => pingSeen, { timeout: 35_000 }).toBe(true)
+    await target.tmux('send-keys', '-t', `=${name}`, `echo ${marker}`, 'Enter')
+    await expect.poll(() => output, { timeout: 3_000 }).toContain(marker)
+  } finally {
+    socket.destroy()
+  }
+})
 
 // Attach and type (T17)
 test('attach and type: the marker is on the target and in the browser terminal', async ({ ui, target }) => {

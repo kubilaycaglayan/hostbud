@@ -238,7 +238,7 @@ func TestBridgeOutputContinuesWhilePongPending(t *testing.T) {
 	h.PingInterval = 20 * time.Millisecond
 	h.PingTimeout = 2 * time.Second
 	pingSeen := make(chan struct{}, 1)
-	c, _, err := websocket.Dial(t.Context(), url+"?machine=host&session=s1&cols=80&rows=24", &websocket.DialOptions{
+	c, resp, err := websocket.Dial(t.Context(), url+"?machine=host&session=s1&cols=80&rows=24", &websocket.DialOptions{
 		OnPingReceived: func(context.Context, []byte) bool {
 			select {
 			case pingSeen <- struct{}{}:
@@ -250,7 +250,10 @@ func TestBridgeOutputContinuesWhilePongPending(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer c.CloseNow()
+	if resp != nil && resp.Body != nil {
+		_ = resp.Body.Close()
+	}
+	defer func() { _ = c.CloseNow() }()
 	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	output := make(chan string, 1)
@@ -274,6 +277,16 @@ func TestBridgeOutputContinuesWhilePongPending(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal("terminal output blocked waiting for keepalive pong")
 	}
+	// Withholding pong still ends the attach at the original ping timeout.
+	endCtx, endCancel := context.WithTimeout(t.Context(), 3*time.Second)
+	defer endCancel()
+	if _, _, err := c.Read(endCtx); err == nil || endCtx.Err() != nil {
+		t.Fatalf("unresponsive peer was not disconnected by ping timeout: %v", err)
+	}
+	eventually(t, "attach stopped after ping timeout", func() bool {
+		_, _, killed := proc.snapshot()
+		return killed
+	})
 }
 
 func TestBridgeIOResizePingAndExit(t *testing.T) {

@@ -367,6 +367,31 @@ func (h *Handler) bridge(ctx context.Context, cancel context.CancelFunc, c *webs
 	}
 	ping := time.NewTicker(interval)
 	defer ping.Stop()
+	// Waiting for a pong must not stop PTY output from reaching the browser.
+	// One worker keeps probes serial and exits with the bridge context.
+	pingFailed := make(chan struct{})
+	wg.Go(func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ping.C:
+			}
+			pctx, pcancel := context.WithTimeout(ctx, timeout)
+			pingStarted := time.Now()
+			err := c.Ping(pctx)
+			pingDuration := time.Since(pingStarted)
+			pcancel()
+			if err != nil {
+				close(pingFailed)
+				return
+			}
+			if pingDuration >= slowSocketPingThreshold && (lastSlowPingLog.IsZero() || time.Since(lastSlowPingLog) >= slowDiagnosticLogEvery) {
+				log.Warn("terminal WebSocket ping slow", "duration_ms", float64(pingDuration)/float64(time.Millisecond))
+				lastSlowPingLog = time.Now()
+			}
+		}
+	})
 	exited := false
 loop:
 	for {
@@ -425,20 +450,9 @@ loop:
 				}
 				break loop
 			}
-		case <-ping.C:
-			pctx, pcancel := context.WithTimeout(ctx, timeout)
-			pingStarted := time.Now()
-			err := c.Ping(pctx)
-			pingDuration := time.Since(pingStarted)
-			pcancel()
-			if err != nil {
-				detach.reason = "websocket_ping_failed"
-				break loop
-			}
-			if pingDuration >= slowSocketPingThreshold && (lastSlowPingLog.IsZero() || time.Since(lastSlowPingLog) >= slowDiagnosticLogEvery) {
-				log.Warn("terminal WebSocket ping slow", "duration_ms", float64(pingDuration)/float64(time.Millisecond))
-				lastSlowPingLog = time.Now()
-			}
+		case <-pingFailed:
+			detach.reason = "websocket_ping_failed"
+			break loop
 		}
 	}
 

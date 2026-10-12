@@ -135,8 +135,9 @@ export function upgradeSocket(path: string, origin: string, cookie: string, base
       res.on('data', (chunk: Buffer) => chunks.push(chunk))
       res.on('end', () => resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString() }))
     })
-    req.on('upgrade', (res, socket) => {
+    req.on('upgrade', (res, socket, head) => {
       socket.pause()
+      if (head.length > 0) socket.unshift(head)
       resolve({ status: res.statusCode ?? 101, socket })
     })
     req.on('error', reject)

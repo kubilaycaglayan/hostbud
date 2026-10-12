@@ -67,6 +67,59 @@ func setup(t *testing.T, opts ...func(*term.Handler)) *env {
 
 func (e *env) sh(line string) string { return strings.TrimSpace(testenv.Sh(e.t, e.c, line)) }
 
+func TestIntegrationOutputContinuesWhilePongPending(t *testing.T) {
+	e := setup(t, func(h *term.Handler) {
+		h.PingInterval = 50 * time.Millisecond
+		h.PingTimeout = 3 * time.Second
+	})
+	e.newSession("pong-pending")
+	pingSeen := make(chan struct{}, 1)
+	c, resp, err := websocket.Dial(t.Context(), e.url+"?machine=host&session=pong-pending&cols=80&rows=24", &websocket.DialOptions{
+		OnPingReceived: func(context.Context, []byte) bool {
+			select {
+			case pingSeen <- struct{}{}:
+			default:
+			}
+			return false
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp != nil && resp.Body != nil {
+		_ = resp.Body.Close()
+	}
+	defer func() { _ = c.CloseNow() }()
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	markerSeen := make(chan struct{})
+	go func() {
+		var output strings.Builder
+		for {
+			_, data, err := c.Read(ctx)
+			if err != nil {
+				return
+			}
+			output.Write(data)
+			if strings.Contains(output.String(), "output-without-pong") {
+				close(markerSeen)
+				return
+			}
+		}
+	}()
+	select {
+	case <-pingSeen:
+	case <-ctx.Done():
+		t.Fatal("no keepalive ping")
+	}
+	e.sh("tmux send-keys -t pong-pending 'echo output-without-pong' Enter")
+	select {
+	case <-markerSeen:
+	case <-ctx.Done():
+		t.Fatal("SSH terminal output blocked by pending pong")
+	}
+}
+
 func (e *env) newSession(name string) {
 	e.sh("tmux new-session -d -s " + name + " -x 80 -y 24")
 }
