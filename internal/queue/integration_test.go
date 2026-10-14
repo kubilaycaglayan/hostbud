@@ -144,7 +144,7 @@ func TestIntegrationRunSessionCreation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// A session with the run's name exists already: the run gets app-q1-1.
+	// A session with the run's name exists already: the run gets app-q11.
 	testenv.Sh(t, e.c, "tmux new-session -d -s app-q1 -c /home/dev")
 	if err := e.inv.Refresh(ctx); err != nil {
 		t.Fatal(err)
@@ -179,7 +179,7 @@ func TestIntegrationRunSessionCreation(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 	close(stop)
 	wg.Wait()
-	if err != nil || run.Status != store.RunStarting || run.SessionName != "app-q1-1" {
+	if err != nil || run.Status != store.RunStarting || run.SessionName != "app-q11" {
 		t.Fatalf("Start = %+v, %v", run, err)
 	}
 

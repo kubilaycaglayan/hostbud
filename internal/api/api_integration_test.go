@@ -46,7 +46,7 @@ func (e *createBarrierExecutor) Exec(ctx context.Context, machine string, args .
 }
 
 // Two creates racing for one typed name both succeed: tmux refuses the
-// second, and the session service retries it as name-1 (M8 T10 rule).
+// second, and the session service retries it as name1 (M8 T10 rule).
 func TestIntegrationConcurrentTypedSessionCreateNumbersTheLoser(t *testing.T) {
 	client := testenv.Connected(t, testenv.SSHD)
 	_, _ = client.Exec(context.Background(), sshx.HostMachineID, "tmux", "kill-server")
@@ -93,7 +93,7 @@ func TestIntegrationConcurrentTypedSessionCreateNumbersTheLoser(t *testing.T) {
 	a, b := <-results, <-results
 	names := []string{a.name, b.name}
 	slices.Sort(names)
-	if a.status != http.StatusCreated || b.status != http.StatusCreated || !slices.Equal(names, []string{name, name + "-1"}) {
-		t.Fatalf("concurrent creates = %+v, %+v; want 201 for %q and %q", a, b, name, name+"-1")
+	if a.status != http.StatusCreated || b.status != http.StatusCreated || !slices.Equal(names, []string{name, name + "1"}) {
+		t.Fatalf("concurrent creates = %+v, %+v; want 201 for %q and %q", a, b, name, name+"1")
 	}
 }

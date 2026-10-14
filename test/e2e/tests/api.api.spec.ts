@@ -96,12 +96,12 @@ test('(T10) Create with a taken name numbers it; rename still conflicts', async 
   expect(await first.json()).toEqual({ name })
   const second = await mutate(request, 'POST', sessionsPath, { name, path: '~' })
   expect(second.status()).toBe(201)
-  expect(await second.json()).toEqual({ name: `${name}-1` })
+  expect(await second.json()).toEqual({ name: `${name}1` })
   const other = await mutate(request, 'POST', sessionsPath, { name: another, path: '~' })
   expect(other.status()).toBe(201)
   const rename = await mutate(request, 'PATCH', `${sessionsPath}/${another}`, { name })
   expect(rename.status()).toBe(409)
-  expect(await target.sessions()).toEqual(expect.arrayContaining([name, `${name}-1`, another]))
+  expect(await target.sessions()).toEqual(expect.arrayContaining([name, `${name}1`, another]))
 })
 
 // V2-M1 T0: start commands run in the user's login shell (PATH from

@@ -219,9 +219,9 @@ Same as M1 ([M1-acceptance.md](M1-acceptance.md#test-coverage-rule)): every crit
 
 ## Taken session names
 
-- [x] Creating a session with a name that's already taken succeeds with the first free `<name>-<n>` (the auto-name numbering), from every entry point (New session, New session here, split picker, palette); the result stays within 64 characters; the tab opens with the actual name and an info toast names it when it differs from what was typed. Invalid names are still refused, and renaming to a taken name still answers 409.
+- [x] Creating a session with a name that's already taken succeeds with the first free `<name><n>` (the auto-name numbering), from every entry point (New session, New session here, split picker, palette); the result stays within 64 characters; the tab opens with the actual name and an info toast names it when it differs from what was typed. Invalid names are still refused, and renaming to a taken name still answers 409.
   - U: T10 numbering, the tmux-duplicate retry and its limit, 64-character trimming, typed suffixes kept, rename unchanged (Go, fake executor) · T10 the toast only when the name differs (Vitest).
-  - I: T10 create `dup` twice on test sshd → `dup-1` in real tmux; project creation with a taken name is numbered and linked (Go).
+  - I: T10 create `dup` twice on test sshd → `dup1` in real tmux; project creation with a taken name is numbered and linked (Go).
   - E: T10 *Taken name gets a number* (desktop) · T10 *Create with a taken name* (API) · T10 updates M1's T16 *Invalid input*.
 
 ## Remove a project
@@ -317,8 +317,8 @@ Profiles: `desktop-chromium`, `iphone-13-pro` (`http://localhost:9055`) and `iph
 - [x] **(T9) Palette runs actions:** Theme: Light applies; Hide then Unhide a session; New session in <project> lands under the project; Kill asks for confirmation and Cancel leaves the session alive (desktop; authored and type-checked, browser run at M7).
 - [x] **(T9) Palette rename reveals and edits a row:** select Rename for a session in a collapsed project, including on the phone; the tree reveals it and opens the inline editor (desktop and `iphone-13-pro`; authored and type-checked, browser run at M7).
 - [x] **(T9) Palette on the phone:** the header button opens it; picking a session closes it and shows the terminal (both phone projects; authored and type-checked, browser run at M7).
-- [x] **(T10) Taken name gets a number:** with a target session `<n>`, New session named `<n>` opens a tab `<n>-1`, the toast names it, and both exist on the target; New session here in a project with the same name gives `<n>-2` under that project (desktop; authored and type-checked, browser run at M7).
-- [x] **(T10) Create with a taken name:** `POST` twice with the same name → 201 both times, the second named `<n>-1`; renaming another session to `<n>` → 409 (API; authored and type-checked, browser run at M7).
+- [x] **(T10) Taken name gets a number:** with a target session `<n>`, New session named `<n>` opens a tab `<n>1`, the toast names it, and both exist on the target; New session here in a project with the same name gives `<n>2` under that project (desktop; authored and type-checked, browser run at M7).
+- [x] **(T10) Create with a taken name:** `POST` twice with the same name → 201 both times, the second named `<n>1`; renaming another session to `<n>` → 409 (API; authored and type-checked, browser run at M7).
 - [x] **(T11) Remove a project:** a project with a session open in a tab; Remove → Cancel leaves it; Remove → confirm: the header is gone, the session is under Other sessions, the tab keeps its tmux client PID, the folder still exists on the target; reload and restart → still removed; adding the folder again gives a fresh project with no recent commands (desktop and `iphone-13-pro` via long-press; authored and type-checked, browser run at M7).
 - [x] **(T11) Delete project API:** signed out → 401, foreign Origin → 403, unknown id → 404, delete → 204 then 404; the list no longer has it (API; authored and type-checked, browser run at M7).
 - [x] **(T12) Add the current directory as project:** at home, *Add this directory as project* → the home project appears with a `~` path and the button reads *Open project*; a subfolder is added the same way; *New session here* lands under it; a second click makes no duplicate (desktop and `iphone-13-pro`; authored and type-checked, browser run at M7).
@@ -346,3 +346,6 @@ On a desktop browser (port forward, a Mac if available) and the owner's iPhone o
 - [x] *(host)* `make deploy` done; the owner's manual checks are recorded above or listed as open.
 - [x] T15 safe Docker cleanup done: the production stack and all volumes intact and healthy, nothing outside hostbud touched, reclaimed space reported.
 - [x] Summary delivered: what changed, new env vars (expected none), manual steps on the host, desktop and phone.
+
+- [ ] **T10 numbering update (14/10/2026), owner:** run the updated browser/API scenarios on demand. Names now append digits directly (`s` → `s1` → `s2`); U/I/E coverage remains assigned to T10 above.
+- **T10 verification (14/10/2026):** Go unit/integration tests, lint, e2e type-checking, shell checks, and deploy passed; deployed HTTP app shell returned 200. Frontend: 733 passed, 6 failed in `TerminalView.spec.ts` (3), `projects.spec.ts` (1), and `tree.servers.spec.ts` (2). All six reproduce with the original naming helper; naming/dialog tests pass. No new environment variables or host setup steps. Browser execution remains open above.

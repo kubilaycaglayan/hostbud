@@ -308,7 +308,7 @@ func (f *fakeSessions) Create(_ context.Context, spec session.Spec) (string, err
 	}
 	name := spec.Name
 	for n := 1; f.taken[name]; n++ {
-		name = spec.Name + "-" + string(rune('0'+n))
+		name = spec.Name + string(rune('0'+n))
 	}
 	if f.taken == nil {
 		f.taken = map[string]bool{}

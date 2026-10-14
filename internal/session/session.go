@@ -181,7 +181,7 @@ func (s *Service) Create(ctx context.Context, spec Spec) (string, error) {
 	version, _ := tmux.ParseVersion(m.TmuxVersion)
 	// A name may race with a session created after the inventory snapshot.
 	// Reserve each collision locally and derive the next suffix from the
-	// original requested name, so a typed "work-1" becomes "work-1-1".
+	// original requested name, so a typed "work1" becomes "work11".
 	reserved := append([]tmux.Session(nil), sessions...)
 	for attempt := 0; ; attempt++ {
 		ns := tmux.NewSession{Name: name, Path: dir, Env: spec.Env, StartCommand: spec.StartCommand, StartArgv: spec.StartArgv}
@@ -633,7 +633,7 @@ func defaultName(dir string) string {
 	return SanitizeName(base)
 }
 
-// uniqueName returns base, or base-1, base-2, … if taken.
+// uniqueName returns base, or base1, base2, … if taken.
 func uniqueName(base string, sessions []tmux.Session) string {
 	taken := map[string]bool{}
 	for _, s := range sessions {
@@ -643,7 +643,7 @@ func uniqueName(base string, sessions []tmux.Session) string {
 		return base
 	}
 	for n := 1; ; n++ {
-		suffix := "-" + strconv.Itoa(n)
+		suffix := strconv.Itoa(n)
 		trimmed := base
 		if len(trimmed)+len(suffix) > 64 {
 			trimmed = trimmed[:64-len(suffix)]

@@ -41,12 +41,12 @@ export function directorySessionName(dir: string, home = ''): string {
   return sanitizeSessionName(trimmed.slice(trimmed.lastIndexOf('/') + 1))
 }
 
-/** base, or base-1, base-2, … when taken (internal/session.uniqueName). */
+/** base, or base1, base2, … when taken (internal/session.uniqueName). */
 export function uniqueSessionName(base: string, taken: Iterable<string>): string {
   const names = new Set(taken)
   if (!names.has(base)) return base
   for (let n = 1; ; n++) {
-    const suffix = `-${n}`
+    const suffix = `${n}`
     const name = base.slice(0, 64 - suffix.length) + suffix
     if (!names.has(name)) return name
   }

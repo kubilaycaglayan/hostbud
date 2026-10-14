@@ -887,7 +887,7 @@ func TestDispatcherOwnerActions(t *testing.T) {
 	}
 	e.d.Sync()
 	retried := e.run(1)
-	if retried.ID == first.ID || string(retried.TokenHash) == string(first.TokenHash) || retried.SessionName != "app-q1-1" {
+	if retried.ID == first.ID || string(retried.TokenHash) == string(first.TokenHash) || retried.SessionName != "app-q11" {
 		t.Fatalf("retried run %+v", retried)
 	}
 	// Skip and mark done need the item to need attention.

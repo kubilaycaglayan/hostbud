@@ -61,9 +61,9 @@ func TestIntegrationCreateWithDefaults(t *testing.T) {
 	if p := display(t, c, name, "#{session_path}"); p != "/home/dev/sess-it/proj.one" {
 		t.Fatalf("session_path = %q", p)
 	}
-	// Same directory again: numbered from -1.
+	// Same directory again: numbered from 1.
 	again, err := svc.Create(context.Background(), session.Spec{Machine: sshx.HostMachineID, Path: "~/sess-it/proj.one"})
-	if err != nil || again != "proj-one-1" {
+	if err != nil || again != "proj-one1" {
 		t.Fatalf("second create: %q, %v", again, err)
 	}
 }
@@ -606,8 +606,8 @@ func TestIntegrationErrorsMapped(t *testing.T) {
 	}
 	var e *session.Error
 	second, err := svc.Create(ctx, session.Spec{Machine: sshx.HostMachineID, Name: "dup"})
-	if err != nil || second != "dup-1" {
-		t.Fatalf("duplicate create = %q, %v; want dup-1", second, err)
+	if err != nil || second != "dup1" {
+		t.Fatalf("duplicate create = %q, %v; want dup1", second, err)
 	}
 	if got := display(t, c, second, "#{session_name}"); got != second {
 		t.Fatalf("numbered session name = %q; want %q", got, second)
@@ -625,7 +625,7 @@ func TestIntegrationErrorsMapped(t *testing.T) {
 	if err := svc.Kill(ctx, sshx.HostMachineID, "dup2"); err != nil {
 		t.Fatal(err)
 	}
-	if err := svc.Kill(ctx, sshx.HostMachineID, "dup-1"); err != nil {
+	if err := svc.Kill(ctx, sshx.HostMachineID, "dup1"); err != nil {
 		t.Fatal(err)
 	}
 }

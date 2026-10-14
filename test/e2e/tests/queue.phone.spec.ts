@@ -198,7 +198,7 @@ test.describe('Queue panel on iPhone 13 Pro', () => {
     await row(page, 'e2e phone fail').getByRole('button', { name: /^Retry item/ }).tap()
     await panel(page).getByRole('button', { name: 'Resume' }).tap()
     await expect(row(page, 'e2e phone fail').getByTestId('item-status')).toHaveText(/^Done/, { timeout: 30_000 })
-    await expect(row(page, 'e2e phone fail')).toContainText(`${project.name}-q1-1`)
+    await expect(row(page, 'e2e phone fail')).toContainText(`${project.name}-q11`)
     // Mark done confirms through the phone sheet.
     await expect(row(page, 'e2e phone exit').getByTestId('item-status')).toHaveText(/^Needs attention/, { timeout: 30_000 })
     await row(page, 'e2e phone exit').getByRole('button', { name: /^Mark item .* done$/ }).tap()
@@ -213,6 +213,6 @@ test.describe('Queue panel on iPhone 13 Pro', () => {
     await row(page, 'e2e phone skip').getByRole('button', { name: /^Skip item/ }).tap()
     await page.getByRole('alertdialog').getByRole('button', { name: 'Skip' }).tap()
     await expect(row(page, 'e2e phone skip').getByTestId('item-status')).toHaveText(/^Skipped/)
-    expect(await target.sessions()).toEqual(expect.arrayContaining([`${project.name}-q1`, `${project.name}-q1-1`, `${project.name}-q2`, `${project.name}-q3`]))
+    expect(await target.sessions()).toEqual(expect.arrayContaining([`${project.name}-q1`, `${project.name}-q11`, `${project.name}-q2`, `${project.name}-q3`]))
   })
 })

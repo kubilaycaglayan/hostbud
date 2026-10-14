@@ -66,8 +66,8 @@ describe('default session name', () => {
 
   it('numbers a taken name like the backend', () => {
     expect(uniqueSessionName('dev', ['web'])).toBe('dev')
-    expect(uniqueSessionName('dev', ['dev', 'dev-1'])).toBe('dev-2')
-    expect(uniqueSessionName('x'.repeat(64), ['x'.repeat(64)])).toBe(`${'x'.repeat(62)}-1`)
+    expect(uniqueSessionName('dev', ['dev', 'dev1'])).toBe('dev2')
+    expect(uniqueSessionName('x'.repeat(64), ['x'.repeat(64)])).toBe(`${'x'.repeat(63)}1`)
   })
 })
 
@@ -120,7 +120,7 @@ describe('CreateSessionDialog', () => {
   })
 
   it('announces a numbered name only when a typed name changes', async () => {
-    stubFetch(() => ({ status: 201, body: { name: 'work-1' } }))
+    stubFetch(() => ({ status: 201, body: { name: 'work1' } }))
     mount(ToastRegion, { attachTo: document.body })
     mountOpen(CreateSessionDialog, { machine: 'host' })
     await flushPromises()
@@ -128,14 +128,14 @@ describe('CreateSessionDialog', () => {
     await click('Create')
     expect(useToastsStore().toasts).toMatchObject([{
       title: 'Session name changed',
-      message: 'Named "work-1": "work" was already taken.',
+      message: 'Named "work1": "work" was already taken.',
       tone: 'info',
     }])
-    expect($('[role="status"]')?.textContent).toContain('Named "work-1"')
+    expect($('[role="status"]')?.textContent).toContain('Named "work1"')
   })
 
   it('does not announce an auto-derived name when the name field is empty', async () => {
-    stubFetch(() => ({ status: 201, body: { name: 'dev-1' } }))
+    stubFetch(() => ({ status: 201, body: { name: 'dev1' } }))
     mountOpen(CreateSessionDialog, { machine: 'host' })
     await flushPromises()
     await type('name', '')
@@ -145,18 +145,18 @@ describe('CreateSessionDialog', () => {
 
   it('prefills an unused directory name, focused and selected, and Enter creates it', async () => {
     useMachinesStore().machines = [{ id: 'host', home: '/home/dev' } as Machine]
-    useSessionsStore().byMachine = { host: [{ name: 'dev' }, { name: 'dev-1' }, { name: 'web' }] as Session[] }
-    const calls = stubFetch(() => ({ status: 201, body: { name: 'dev-2' } }))
+    useSessionsStore().byMachine = { host: [{ name: 'dev' }, { name: 'dev1' }, { name: 'web' }] as Session[] }
+    const calls = stubFetch(() => ({ status: 201, body: { name: 'dev2' } }))
     const w = mountOpen(CreateSessionDialog, { machine: 'host' })
     await flushPromises()
     const name = input('name')
-    expect(name.value).toBe('dev-2')
+    expect(name.value).toBe('dev2')
     expect(document.activeElement).toBe(name)
-    expect([name.selectionStart, name.selectionEnd]).toEqual([0, 'dev-2'.length])
+    expect([name.selectionStart, name.selectionEnd]).toEqual([0, 'dev2'.length])
     name.form!.requestSubmit()
     await flushPromises()
-    expect(calls[0].body).toEqual({ name: 'dev-2', path: '~' })
-    expect(w.emitted('created')).toEqual([['dev-2']])
+    expect(calls[0].body).toEqual({ name: 'dev2', path: '~' })
+    expect(w.emitted('created')).toEqual([['dev2']])
     expect(useToastsStore().toasts).toEqual([])
   })
 
@@ -165,7 +165,7 @@ describe('CreateSessionDialog', () => {
     mountOpen(CreateSessionDialog, { machine: 'host' })
     await flushPromises()
     await type('path', '/srv/web')
-    expect(input('name').value).toBe('web-1')
+    expect(input('name').value).toBe('web1')
     await type('name', 'mine')
     await type('path', '/srv/api')
     expect(input('name').value).toBe('mine')

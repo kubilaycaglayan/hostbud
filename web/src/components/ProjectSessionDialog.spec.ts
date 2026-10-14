@@ -22,25 +22,25 @@ describe('ProjectSessionDialog', () => {
     useSessionsStore().byMachine = { host: [{ name: 'project' }] as Session[] }
     const calls = stubFetch((_method, path) => path.endsWith('/recent-commands')
       ? { status: 200, body: { commands: [] } }
-      : { status: 201, body: { name: 'project-1' } })
+      : { status: 201, body: { name: 'project1' } })
     const wrapper = mount(ProjectSessionDialog, { props: { project }, attachTo: document.body })
     await flushPromises()
     const name = wrapper.get('input').element as HTMLInputElement
-    expect(name.value).toBe('project-1')
+    expect(name.value).toBe('project1')
     expect(document.activeElement).toBe(name)
-    expect([name.selectionStart, name.selectionEnd]).toEqual([0, 'project-1'.length])
+    expect([name.selectionStart, name.selectionEnd]).toEqual([0, 'project1'.length])
     name.form!.requestSubmit()
     await flushPromises()
-    expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ name: 'project-1' })
+    expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ name: 'project1' })
     expect(useToastsStore().toasts).toEqual([])
-    expect(wrapper.emitted('created')).toEqual([['project-1']])
+    expect(wrapper.emitted('created')).toEqual([['project1']])
     wrapper.unmount()
   })
 
   it('announces a numbered name when the typed name is taken', async () => {
     stubFetch((_method, path) => path.endsWith('/recent-commands')
       ? { status: 200, body: { commands: [] } }
-      : { status: 201, body: { name: 'work-2' } })
+      : { status: 201, body: { name: 'work2' } })
     const wrapper = mount(ProjectSessionDialog, { props: { project } })
     await flushPromises()
     await wrapper.get('input').setValue('work')
@@ -48,7 +48,7 @@ describe('ProjectSessionDialog', () => {
     await flushPromises()
     expect(useToastsStore().toasts).toMatchObject([{
       title: 'Session name changed',
-      message: 'Named "work-2": "work" was already taken.',
+      message: 'Named "work2": "work" was already taken.',
       tone: 'info',
     }])
     wrapper.unmount()
@@ -57,7 +57,7 @@ describe('ProjectSessionDialog', () => {
   it('does not announce an auto-derived name when no name was typed', async () => {
     stubFetch((_method, path) => path.endsWith('/recent-commands')
       ? { status: 200, body: { commands: [] } }
-      : { status: 201, body: { name: 'project-1' } })
+      : { status: 201, body: { name: 'project1' } })
     const wrapper = mount(ProjectSessionDialog, { props: { project } })
     await flushPromises()
     await wrapper.get('form').trigger('submit')

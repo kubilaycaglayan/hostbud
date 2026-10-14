@@ -185,9 +185,9 @@ test.describe('parallel queues', () => {
     await target.run(`tmux new-session -d -s ${shq(`${p.name}-Late-q1`)}`)
     for (const q of [first, docs, late]) expect((await control(multi, q.queue.id, 'start')).status()).toBe(200)
     await expect.poll(async () => Promise.all([first, docs, late].map(async (q) => (await itemOf(multi, q.queue.id, q.items[0].id)).run?.sessionName ?? '')), { timeout: 20_000 })
-      .toEqual([`${p.name}-q1`, `${p.name}-Docs-q1`, `${p.name}-Late-q1-1`])
+      .toEqual([`${p.name}-q1`, `${p.name}-Docs-q1`, `${p.name}-Late-q11`])
     const sessions = await target.sessions()
-    for (const name of [`${p.name}-q1`, `${p.name}-Docs-q1`, `${p.name}-Late-q1`, `${p.name}-Late-q1-1`]) expect(sessions).toContain(name)
+    for (const name of [`${p.name}-q1`, `${p.name}-Docs-q1`, `${p.name}-Late-q1`, `${p.name}-Late-q11`]) expect(sessions).toContain(name)
     // Renaming a queue never renames its run's session.
     const renamed = await mutate(multi, 'PATCH', `/api/queues/${docs.queue.id}`, { name: 'Changelog' })
     expect(renamed.status()).toBe(200)

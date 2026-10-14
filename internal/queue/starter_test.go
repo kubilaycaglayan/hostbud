@@ -100,8 +100,8 @@ func TestStartRetriedItemGetsNewTokenAndSuffixedSession(t *testing.T) {
 	if first.ID == second.ID || bytes.Equal(first.TokenHash, second.TokenHash) || sessions.specs[0].Env[EnvToken] == sessions.specs[1].Env[EnvToken] {
 		t.Fatal("a retry reused the run id or token")
 	}
-	if second.SessionName != "My-App-v2-q2-1" {
-		t.Fatalf("retry session %q, want the -1 suffix", second.SessionName)
+	if second.SessionName != "My-App-v2-q21" {
+		t.Fatalf("retry session %q, want the 1 suffix", second.SessionName)
 	}
 }
 

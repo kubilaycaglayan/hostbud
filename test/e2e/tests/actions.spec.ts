@@ -25,7 +25,7 @@ test('create with defaults: only a directory ⇒ named after it, started there',
 
   // The same directory again: numbered.
   await ui.createSession({ directory: `~/e2e-work/${dir}` })
-  await expect(ui.page.getByRole('region', { name: `Terminal: ${name}-1` })).toBeVisible(soon)
+  await expect(ui.page.getByRole('region', { name: `Terminal: ${name}1` })).toBeVisible(soon)
 })
 
 // Create with start command (T16)
@@ -70,8 +70,8 @@ test.describe('refusals', () => {
     const dup = uniqueName('e2e-dup')
     await target.tmux('new-session', '-d', '-s', dup)
     await ui.createSession({ name: dup })
-    await expect(page.getByRole('region', { name: `Terminal: ${dup}-1` })).toBeVisible()
-    await expect(page.locator('section[aria-label="Notifications"] [role="status"]')).toContainText(`Named "${dup}-1": "${dup}" was already taken.`)
+    await expect(page.getByRole('region', { name: `Terminal: ${dup}1` })).toBeVisible()
+    await expect(page.locator('section[aria-label="Notifications"] [role="status"]')).toContainText(`Named "${dup}1": "${dup}" was already taken.`)
 
     const missing = uniqueName('e2e-nowhere')
     forbidInLogs(missing)
@@ -79,7 +79,7 @@ test.describe('refusals', () => {
     const pathError = dialog.getByRole('alert', { name: "Couldn't create the session" })
     await expect(pathError).toContainText(`Directory /home/dev/${missing} doesn't exist on the host.`)
     await expect(pathError).toContainText('Pick an existing directory')
-    expect(await target.sessions()).toEqual(expect.arrayContaining([dup, `${dup}-1`]))
+    expect(await target.sessions()).toEqual(expect.arrayContaining([dup, `${dup}1`]))
   })
 })
 
@@ -135,15 +135,15 @@ test('New session prefills an unused name, focused and selected: Enter creates i
   let dialog = page.getByRole('dialog', { name: 'New session' })
   let name = dialog.getByLabel('Name')
   await expect(name).toBeFocused()
-  await expect(name).toHaveValue('dev-1')
-  expect(await name.evaluate(selection)).toEqual([0, 'dev-1'.length])
+  await expect(name).toHaveValue('dev1')
+  expect(await name.evaluate(selection)).toEqual([0, 'dev1'.length])
   await page.keyboard.press('Enter')
-  await expect(page.getByRole('region', { name: 'Terminal: dev-1' })).toBeVisible(soon)
+  await expect(page.getByRole('region', { name: 'Terminal: dev1' })).toBeVisible(soon)
   await expect(page.locator('section[aria-label="Notifications"] [role="status"]')).toHaveCount(0)
 
   const typed = uniqueName('e2e-typed')
   await ui.showList()
-  await expect(ui.session('dev-1')).toBeVisible(soon)
+  await expect(ui.session('dev1')).toBeVisible(soon)
   await ui.headerAction('New session')
   dialog = page.getByRole('dialog', { name: 'New session' })
   name = dialog.getByLabel('Name')
@@ -153,7 +153,7 @@ test('New session prefills an unused name, focused and selected: Enter creates i
   await expect(name).toHaveValue(typed)
   await page.keyboard.press('Enter')
   await expect(page.getByRole('region', { name: `Terminal: ${typed}` })).toBeVisible(soon)
-  expect((await target.sessions()).sort()).toEqual(['dev', 'dev-1', typed].sort())
+  expect((await target.sessions()).sort()).toEqual(['dev', 'dev1', typed].sort())
 })
 
 // Kill (T16)

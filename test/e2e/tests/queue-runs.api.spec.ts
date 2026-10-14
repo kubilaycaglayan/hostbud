@@ -223,7 +223,7 @@ test.describe('queue runs', () => {
     expect((await control(request, queue.id, 'resume')).status()).toBe(200)
     const again = await waitItem(request, queue.id, items[0].id, 'done')
     expect(again.run!.id).not.toBe(failed.run!.id)
-    expect(again.run!.sessionName).toBe(`${project.name}-q1-1`)
+    expect(again.run!.sessionName).toBe(`${project.name}-q11`)
     expect(await target.sessions()).toEqual(expect.arrayContaining([oldSession, again.run!.sessionName]))
     // Skip, then Mark done (overrides the evaluator).
     await waitItem(request, queue.id, items[1].id, 'needs_attention')

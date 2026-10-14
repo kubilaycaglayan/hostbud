@@ -336,9 +336,9 @@ func TestCreateNameFromPathWithSuffixOnClash(t *testing.T) {
 	}{
 		{"~/code/my.app", "my-app", nil},
 		{"/root/docs/dev", "dev", nil},
-		{"/srv/api", "api-1", []string{"api"}},
-		{"/srv/api/", "api-2", []string{"api", "api-1"}},
-		{"/srv/api", "api-1", []string{"api", "api-2"}},
+		{"/srv/api", "api1", []string{"api"}},
+		{"/srv/api/", "api2", []string{"api", "api1"}},
+		{"/srv/api", "api1", []string{"api", "api2"}},
 		{"~", "dev", nil},
 		{"/", "root", nil},
 		{"/srv/..hidden..", "hidden", nil},
@@ -422,7 +422,7 @@ func TestCreateAutoNameRetriesOnRace(t *testing.T) {
 		return nil
 	}}
 	name, err := newSvc(f, okHost()).Create(context.Background(), Spec{Machine: "host", Path: "/srv/api"})
-	if err != nil || name != "api-2" {
+	if err != nil || name != "api2" {
 		t.Fatalf("got %q, %v", name, err)
 	}
 }
@@ -438,7 +438,7 @@ func TestCreateCustomNameIsKept(t *testing.T) {
 func TestCreateTakenNameAppendsNumberDirectly(t *testing.T) {
 	for _, tc := range []struct {
 		taken []string
-		want string
+		want  string
 	}{
 		{[]string{"s"}, "s1"},
 		{[]string{"s", "s1"}, "s2"},
@@ -457,9 +457,9 @@ func TestCreateTypedTakenNamesAreNumbered(t *testing.T) {
 		taken  []string
 		wanted string
 	}{
-		{"work", []string{"work"}, "work-1"},
-		{"work", []string{"work", "work-1"}, "work-2"},
-		{"work-1", []string{"work-1"}, "work-1-1"},
+		{"work", []string{"work"}, "work1"},
+		{"work", []string{"work", "work1"}, "work2"},
+		{"work1", []string{"work1"}, "work11"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name+"-"+tc.wanted, func(t *testing.T) {
@@ -482,8 +482,8 @@ func TestCreateTypedNameReturnsConflictWhenEveryRetryRaces(t *testing.T) {
 		created = append(created, name)
 		return remote(1, "duplicate session: "+name)
 	}}
-	name, err := newSvc(f, okHost()).Create(context.Background(), Spec{Machine: "host", Name: "work-1", Path: "~"})
-	if name != "" || code(err) != CodeDuplicate || len(created) != 21 || created[0] != "work-1" || created[1] != "work-1-1" || created[20] != "work-1-20" {
+	name, err := newSvc(f, okHost()).Create(context.Background(), Spec{Machine: "host", Name: "work1", Path: "~"})
+	if name != "" || code(err) != CodeDuplicate || len(created) != 21 || created[0] != "work1" || created[1] != "work11" || created[20] != "work120" {
 		t.Fatalf("Create() = %q, %v; attempts %q", name, err, created)
 	}
 }
@@ -500,8 +500,8 @@ func TestCreateTypedNameRaceRetriesWithNumberedName(t *testing.T) {
 		return nil
 	}}
 	name, err := newSvc(f, okHost()).Create(context.Background(), Spec{Machine: "host", Name: "work", Path: "~"})
-	if err != nil || name != "work-1" || tries != 2 {
-		t.Fatalf("Create() = %q, %v after %d attempts; want work-1 after retry", name, err, tries)
+	if err != nil || name != "work1" || tries != 2 {
+		t.Fatalf("Create() = %q, %v after %d attempts; want work1 after retry", name, err, tries)
 	}
 }
 
@@ -523,7 +523,7 @@ func TestCreateTypedNameRaceReturnsConflictAfterRetries(t *testing.T) {
 func TestUniqueNameTrimsTypedBaseToFitLimit(t *testing.T) {
 	base := strings.Repeat("x", 64)
 	name, err := newSvc(&fakeExec{}, okHost(base)).Create(context.Background(), Spec{Machine: "host", Name: base, Path: "~"})
-	if err != nil || len(name) > 64 || !strings.HasSuffix(name, "-1") || tmux.ValidateName(name) != nil {
+	if err != nil || len(name) > 64 || !strings.HasSuffix(name, "1") || tmux.ValidateName(name) != nil {
 		t.Fatalf("Create() = %q (%d chars), %v", name, len(name), err)
 	}
 }

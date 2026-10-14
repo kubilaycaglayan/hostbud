@@ -118,8 +118,8 @@ func TestIntegrationProjectSessionPlacementRenameEndAndRecreate(t *testing.T) {
 		t.Fatalf("project session = %q, %v", name, err)
 	}
 	numbered, err := projectService.CreateSession(ctx, p.ID, session.Spec{Name: "project-it"})
-	if err != nil || numbered != "project-it-1" {
-		t.Fatalf("taken project session = %q, %v; want project-it-1", numbered, err)
+	if err != nil || numbered != "project-it1" {
+		t.Fatalf("taken project session = %q, %v; want project-it1", numbered, err)
 	}
 	if link, err := repo.SessionLink(ctx, sshx.HostMachineID, numbered); err != nil || link.ProjectID != p.ID {
 		t.Fatalf("numbered session link = %+v, %v; want project %s", link, err, p.ID)
