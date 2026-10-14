@@ -435,6 +435,22 @@ func TestCreateCustomNameIsKept(t *testing.T) {
 	}
 }
 
+func TestCreateTakenNameAppendsNumberDirectly(t *testing.T) {
+	for _, tc := range []struct {
+		taken []string
+		want string
+	}{
+		{[]string{"s"}, "s1"},
+		{[]string{"s", "s1"}, "s2"},
+		{[]string{"s", "s2"}, "s1"},
+	} {
+		name, err := newSvc(&fakeExec{}, okHost(tc.taken...)).Create(context.Background(), Spec{Machine: "host", Name: "s", Path: "~"})
+		if err != nil || name != tc.want {
+			t.Fatalf("Create with %v taken = %q, %v; want %q", tc.taken, name, err, tc.want)
+		}
+	}
+}
+
 func TestCreateTypedTakenNamesAreNumbered(t *testing.T) {
 	cases := []struct {
 		name   string
