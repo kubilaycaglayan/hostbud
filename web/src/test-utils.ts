@@ -11,7 +11,8 @@ export function stubFetch(route: (method: string, path: string, body: unknown) =
   const calls: { method: string; path: string; body: unknown }[] = []
   const fn = vi.fn(async (path: string, init?: RequestInit) => {
     const method = init?.method ?? 'GET'
-    const body = init?.body ? JSON.parse(String(init.body)) : undefined
+    const wire = init?.body ? JSON.parse(String(init.body)) : undefined
+    const body = (init?.headers as Record<string, string> | undefined)?.['X-Hostbud-Tree-Compare'] === '1' ? wire.value : wire
     calls.push({ method, path, body })
     const r = route(method, path, body)
     return new Response(r.body === undefined ? null : JSON.stringify(r.body), {

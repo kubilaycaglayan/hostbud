@@ -1,11 +1,13 @@
 import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
-import { getUIState, putUIState } from '@/api/client'
+import { ApiError, compareTreeState, getUIState } from '@/api/client'
 import { emptyTreeState, OTHER_GROUP, ordered, orderedProjectSections, projectTree, refOf, refOfKey, sessionRef, validateTreeState, type ProjectSection, type SectionColor, type TreeState } from '@/lib/tree'
 import { useProjectsStore } from './projects'
 import { useSessionsStore } from './sessions'
 import { useMachinesStore } from './machines'
 import { whenOnline } from './whenOnline'
+
+import { mergeTree } from '@/lib/treeMerge'
 
 const SAVE_RETRY_MS = 2000
 type SessionRenamePosition = {
@@ -26,6 +28,9 @@ export const useTreeStore = defineStore('tree', () => {
   let cancelDeferred = () => {}
   let deferred = false // a save waits for the connection
   let generation = 0
+  let base: unknown = null
+  let baseline = emptyTreeState()
+  let saving = false
   let quiet = false // applying a change that isn't the user's; don't save it
 
   const groups = computed(() => projectTree(projectsStore.items, sessionsStore.all, order.value))
@@ -41,7 +46,9 @@ export const useTreeStore = defineStore('tree', () => {
         scheduleLoadRetry(gen)
         return
       }
-      order.value = valid || emptyTreeState()
+      base = saved
+      baseline = valid || emptyTreeState()
+      order.value = JSON.parse(JSON.stringify(baseline))
     } catch (error) {
       console.warn("hostbud: can't load the saved tree order", error)
       if (gen !== generation) return
@@ -66,7 +73,7 @@ export const useTreeStore = defineStore('tree', () => {
   /** Adopt the order another tab or device saved, unless this one has an
    * unsaved change (it wins, as the latest edit). */
   async function refresh() {
-    if (!loaded.value || timer !== undefined || deferred) return
+    if (!loaded.value || timer !== undefined || deferred || saving) return
     const gen = generation
     const before = JSON.stringify(order.value)
     let saved: unknown
@@ -76,9 +83,11 @@ export const useTreeStore = defineStore('tree', () => {
       console.warn("hostbud: can't refresh the saved tree order", error)
       return
     }
-    if (gen !== generation || timer !== undefined || deferred || JSON.stringify(order.value) !== before) return
+    if (gen !== generation || timer !== undefined || deferred || saving || JSON.stringify(order.value) !== before) return
     const valid = saved !== null ? validateTreeState(saved) : null
     if (!valid || JSON.stringify(valid) === before) return
+    base = saved
+    baseline = JSON.parse(JSON.stringify(valid))
     apply(valid)
     sync()
   }
@@ -92,20 +101,45 @@ export const useTreeStore = defineStore('tree', () => {
       console.warn('hostbud: saved tree exceeds 60 KiB; keeping the last saved value')
       return
     }
-    if (keepalive) {
-      putUIState('tree', order.value, { keepalive }).catch((error) => console.warn("hostbud: can't save the tree", error))
-      return
+    if (saving) { saveSoon(); return }
+    sendWhenOnline(() => { void saveChanges(keepalive) })
+  }
+
+  async function saveChanges(keepalive: boolean) {
+    if (saving) return
+    saving = true
+    const gen = generation
+    const local = JSON.parse(JSON.stringify(order.value)) as TreeState
+    const previous = baseline
+    try {
+      let expected = base
+      let next = local
+      for (let attempt = 0; attempt < 5; attempt++) {
+        try {
+          await compareTreeState(expected, next, keepalive)
+          if (gen !== generation) return
+          base = next
+          baseline = JSON.parse(JSON.stringify(next))
+          // Edits made while this request was pending remain local and queued.
+          apply(mergeTree(local, order.value, next))
+          sync()
+          return
+        } catch (error) {
+          if (!(error instanceof ApiError) || error.status !== 409) throw error
+          expected = await getUIState('tree')
+          if (gen !== generation) return
+          const remote = expected === null ? emptyTreeState() : validateTreeState(expected)
+          if (!remote) throw new Error('Invalid saved tree')
+          next = mergeTree(previous, local, remote)
+        }
+      }
+      throw new Error('Tree is busy in another tab')
+    } catch (error) {
+      console.warn("hostbud: can't save the tree", error)
+      if (gen === generation && timer === undefined) timer = setTimeout(() => { timer = undefined; persist() }, SAVE_RETRY_MS)
+    } finally {
+      if (gen === generation) saving = false
     }
-    sendWhenOnline(() => {
-      const gen = generation
-      putUIState('tree', order.value).catch((error) => {
-        console.warn("hostbud: can't save the tree", error)
-        // The server went away mid-save: try again shortly (persist waits
-        // for the connection), unless a newer save is pending or the user
-        // signed out.
-        if (timer === undefined && gen === generation) timer = setTimeout(() => ((timer = undefined), persist()), SAVE_RETRY_MS)
-      })
-    })
   }
 
   /** Sends now, or once the events connection is back (whenOnline). */
@@ -204,7 +238,12 @@ export const useTreeStore = defineStore('tree', () => {
       state.hidden.sessions = state.hidden.sessions.filter(keep)
       state.expanded = state.expanded.filter(keep)
     }
-    if (JSON.stringify(state) !== before) apply(state)
+    if (JSON.stringify(state) !== before) {
+      // Live inventory changes are derived state, not user edits to replay
+      // over another tab's order during conflict recovery.
+      baseline = mergeTree(JSON.parse(before) as TreeState, state, baseline)
+      apply(state)
+    }
   }
 
   function apply(state: TreeState) {
@@ -357,6 +396,9 @@ export const useTreeStore = defineStore('tree', () => {
 
   function reset() {
     generation++
+    saving = false
+    base = null
+    baseline = emptyTreeState()
     clearTimeout(timer)
     clearTimeout(loadRetryTimer)
     timer = undefined

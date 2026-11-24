@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"testing"
@@ -46,7 +47,7 @@ func TestUIStateRoundTripPerAccount(t *testing.T) {
 		t.Fatalf("stored under %v, want the signed-in account u1", e.ui.m)
 	}
 	treeV2 := `{"version":2,"projects":["project-a"],"sessions":{"__other__":["shell"]},"pinned":["project-a"],"hidden":{"projects":[],"sessions":[]},"collapsed":["__other__"],"expanded":[],"showHidden":false}`
-	if rec := e.do(t, http.MethodPut, "/api/ui-state/tree", treeV2, nil); rec.Code != http.StatusNoContent {
+	if rec := e.do(t, http.MethodPut, "/api/ui-state/tree", treeV2, map[string]string{"X-Hostbud-Tree-Replace": "1"}); rec.Code != http.StatusNoContent {
 		t.Fatalf("PUT tree = %d %s", rec.Code, rec.Body)
 	}
 	if rec := e.do(t, http.MethodGet, "/api/ui-state/tree", "", nil); rec.Code != http.StatusOK || rec.Body.String() != treeV2 {
@@ -96,7 +97,35 @@ func TestUIStateRefusals(t *testing.T) {
 	}
 	// Exactly 64 KiB is fine.
 	body := `"` + strings.Repeat("x", 64<<10-2) + `"`
-	if rec := e.do(t, http.MethodPut, "/api/ui-state/tree", body, nil); rec.Code != http.StatusNoContent {
+	if rec := e.do(t, http.MethodPut, "/api/ui-state/tree", body, map[string]string{"X-Hostbud-Tree-Replace": "1"}); rec.Code != http.StatusNoContent {
 		t.Fatalf("64 KiB tree: %d", rec.Code)
+	}
+}
+
+func (f *fakeUIState) CompareUIStateForUser(ctx context.Context, user, key string, base, value json.RawMessage) (bool, error) {
+	current, err := f.UIStateForUser(ctx, user, key)
+	if errors.Is(err, store.ErrNotFound) {
+		current = json.RawMessage(`null`)
+	}
+	if string(current) != string(base) {
+		return false, nil
+	}
+	return true, f.PutUIStateForUser(ctx, user, key, value)
+}
+
+func TestConditionalTreeSave(t *testing.T) {
+	e := newEnv(t)
+	if r := e.do(t, http.MethodPut, "/api/ui-state/tree", `{}`, nil); r.Code != http.StatusPreconditionRequired {
+		t.Fatalf("old browser write: %d", r.Code)
+	}
+	headers := map[string]string{"X-Hostbud-Tree-Compare": "1"}
+	if r := e.do(t, http.MethodPut, "/api/ui-state/tree", `{"base":null,"value":{"projects":["a"]}}`, headers); r.Code != 204 {
+		t.Fatalf("initial: %d %s", r.Code, r.Body)
+	}
+	if r := e.do(t, http.MethodPut, "/api/ui-state/tree", `{"base":null,"value":{"projects":["b"]}}`, headers); r.Code != 409 {
+		t.Fatalf("stale: %d %s", r.Code, r.Body)
+	}
+	if r := e.do(t, http.MethodGet, "/api/ui-state/tree", "", nil); r.Body.String() != `{"projects":["a"]}` {
+		t.Fatal(r.Body)
 	}
 }

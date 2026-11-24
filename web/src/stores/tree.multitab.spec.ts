@@ -22,9 +22,10 @@ beforeEach(() => {
   releaseSave = undefined
   vi.stubGlobal('fetch', vi.fn(async (_url: string, init?: RequestInit) => {
     if (init?.method === 'PUT') {
-      const body = JSON.parse(String(init.body)) as TreeState
+      const body = JSON.parse(String(init.body)) as { base: TreeState; value: TreeState }
       if (holdSave) await new Promise<void>((resolve) => { releaseSave = resolve })
-      saved = copy(body)
+      if (JSON.stringify(body.base) !== JSON.stringify(saved)) return new Response(null, { status: 409 })
+      saved = copy(body.value)
       return new Response(null, { status: 204 })
     }
     return new Response(JSON.stringify(saved), { status: 200 })
@@ -38,7 +39,7 @@ afterEach(() => {
 async function tab() {
   setActivePinia(createPinia())
   const projects = useProjectsStore()
-  projects.items = ['p', 'q'].map((id) => ({ id, name: id, machineId: 'host', path: '/' + id, sortOrder: 0, pinned: false, createdAt: '', updatedAt: '' }))
+  projects.items = ['p', 'q'].map((id) => ({ id, name: id, machineId: 'host', path: '/home/dev/' + id, sortOrder: 0, pinned: false, createdAt: '', updatedAt: '' }))
   projects.loaded = true
   const tree = useTreeStore()
   tabs.push(tree)
@@ -68,6 +69,19 @@ describe('tree edits across tabs', () => {
     expect(a.order.collapsed).toContain('p')
   })
 
+  it('derived rows in a stale tab do not turn a collapse into a reorder', async () => {
+    const a = await tab()
+    const b = await tab()
+    a.reorderProjects(['q', 'p'])
+    await settleSave()
+    useProjectsStore().remember({ id: 'new', name: 'New', machineId: 'host', path: '/home/dev/new', sortOrder: 0, pinned: false, createdAt: '', updatedAt: '' })
+    b.sync()
+    b.toggleCollapsed('p')
+    await settleSave()
+    expect(saved.projects.slice(0, 2)).toEqual(['q', 'p'])
+    expect(saved.collapsed).toContain('p')
+  })
+
   it('preserves session reorders in different projects from stale tabs', async () => {
     const a = await tab()
     const b = await tab()
@@ -76,6 +90,19 @@ describe('tree edits across tabs', () => {
     b.order.sessions.q = ['four', 'three']
     await settleSave()
     expect(saved.sessions).toMatchObject({ p: ['two', 'one'], q: ['four', 'three'] })
+  })
+
+  it('preserves edits made while an earlier save is in flight', async () => {
+    const a = await tab()
+    holdSave = true
+    a.reorderProjectSections(['b', 'a'])
+    await settleSave()
+    a.toggleCollapsed('p')
+    holdSave = false
+    releaseSave!()
+    await settleSave()
+    expect(saved.sections.map((section) => section.id)).toEqual(['b', 'a'])
+    expect(saved.collapsed).toContain('p')
   })
 
   it('refresh cannot revert an edit while its save is in flight', async () => {

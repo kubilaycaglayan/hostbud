@@ -53,7 +53,7 @@ export async function request<T>(method: Method, path: string, body?: unknown, i
       ...init,
       method,
       credentials: 'same-origin',
-      headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+      headers: body === undefined ? undefined : { 'Content-Type': 'application/json', ...init.headers },
       body: body === undefined ? undefined : JSON.stringify(body),
     })
   } catch (error) {
@@ -340,5 +340,9 @@ export async function getUIState<T = unknown>(key: UIStateKey): Promise<T | null
 /** Saves the account's UI state (JSON, ≤ 64 KiB). `keepalive` lets the
  * request outlive the page (a save on pagehide). */
 export function putUIState(key: UIStateKey, value: unknown, opts: { keepalive?: boolean } = {}): Promise<void> {
-  return request<void>('PUT', `/api/ui-state/${key}`, value, opts.keepalive ? { keepalive: true } : {})
+  return request<void>('PUT', `/api/ui-state/${key}`, value, { keepalive: opts.keepalive, headers: key === 'tree' ? { 'X-Hostbud-Tree-Replace': '1' } : {} })
+}
+
+export function compareTreeState(base: unknown, value: unknown, keepalive = false): Promise<void> {
+  return request('PUT', '/api/ui-state/tree', { base, value }, { keepalive, signal: AbortSignal.timeout(35_000), headers: { 'X-Hostbud-Tree-Compare': '1' } })
 }

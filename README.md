@@ -277,3 +277,5 @@ Everything runs in containers; the host only needs Docker and `make` (`make help
 
 ## License
 MIT
+
+Tree order is shared across tabs signed into the same account. Concurrent edits preserve independent section, project and session changes; when two tabs reorder the same list, the pending reorder rebased last wins. Reload existing tabs after upgrading: the server rejects tree saves from older browser builds to prevent stale overwrites.

@@ -192,6 +192,13 @@ test('(T2) Another open tab never overwrites a manual session order', async ({ p
   await expect.poll(rowNames(stale)).toEqual([first, second, third])
   await stale.waitForTimeout(1500) // past the 500 ms save debounce
   expect(await getUIState(page.request, 'tree')).toMatchObject({ sessions: { [project.id]: [second, first] } })
+  // T43: even a real collapse edit in the stale tab must preserve the
+  // other tab's session order, rather than replacing the whole old tree.
+  await stale.getByRole('button', { name: `Collapse ${projectName}`, exact: true }).click()
+  await expect.poll(async () => (await getUIState(page.request, 'tree') as { collapsed: string[] }).collapsed).toContain(project.id)
+  expect((await getUIState(page.request, 'tree') as { sessions: Record<string, string[]> }).sessions[project.id].slice(0, 2)).toEqual([second, first])
+  await stale.getByRole('button', { name: `Expand ${projectName}`, exact: true }).click()
+  await expect.poll(async () => (await getUIState(page.request, 'tree') as { collapsed: string[] }).collapsed).not.toContain(project.id)
   // Returning to the stale tab picks up the saved order.
   await stale.evaluate(() => document.dispatchEvent(new Event('visibilitychange')))
   await expect.poll(rowNames(stale)).toEqual([second, first, third])

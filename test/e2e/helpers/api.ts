@@ -28,7 +28,7 @@ export async function getUIState(request: APIRequestContext, key: 'layout' | 'tr
 }
 
 export async function putUIState(request: APIRequestContext, key: 'layout' | 'tree' | 'theme', value: unknown): Promise<void> {
-  const res = await mutate(request, 'PUT', `/api/ui-state/${key}`, value)
+  const res = await request.put(`/api/ui-state/${key}`, { data: value, headers: { Origin: requestOrigins.get(request) ?? ORIGIN, ...(key === 'tree' ? { 'X-Hostbud-Tree-Replace': '1' } : {}) } })
   if (!res.ok()) throw new Error(`PUT UI state ${key}: ${res.status()} ${await res.text()}`)
 }
 

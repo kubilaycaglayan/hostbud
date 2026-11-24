@@ -344,3 +344,10 @@ Validation: production build and 14 build/asset tests pass; frontend lint/type-c
 
 - [ ] On an actual iPhone, confirm the new home-screen icon after reinstalling the shortcut if iOS retains the previous icon. This is an open owner item, not a blocker.
 - [ ] Run the updated PWA browser scenario on demand.
+
+## T43 — Multiple browser tabs
+
+- [x] A stale tab's collapse edit preserves another tab's section, project and session ordering; independent project session reorders survive; visibility refresh cannot revert an in-flight edit. Same-list pending reorder wins after rebase; remote section deletion is preserved. Coverage — U: T43 `tree.multitab.spec.ts`, `treeMerge.spec.ts`, API conditional saves; I: T43 `TestCompareUIStateConcurrentWriters`; E: T43 *Stale tab collapse preserves section order through Caddy*.
+- [ ] Owner/on-demand: execute T43 browser scenario (written; run only when requested).
+
+T43 verification (24/11/2026): all five original regressions pass; the expanded focused frontend set passes 44 tests. `make lint` (including E2E lint/type-check), shell checks, deployment and Caddy `/api/health` (HTTP 200) pass. The full frontend suite still has the six previously documented failures in `TerminalView.spec.ts` (3), `projects.spec.ts` (1) and `tree.servers.spec.ts` (2); they are outside this change. No browser scenarios were executed. No new environment variables, migrations or host configuration steps; reload existing browser tabs after upgrading. Added browser coverage also extends *Another open tab never overwrites a manual session order* with a stale-tab project collapse.

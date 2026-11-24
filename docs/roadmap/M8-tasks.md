@@ -476,3 +476,9 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 - [ ] `make lint test` and `make gitleaks` are green; E2E scenarios pass under the post-M7 run policy.
 - [ ] Desktop and phone screenshots were inspected during implementation; README/ARCHITECTURE updated only if user-facing behavior or design changes warrant it. T5's affected inputs were reproduced and checked in the running app; T6's scroll behavior was recorded and compared before/after; T7's long-lived terminal theme change and contrast were inspected and the palette-vs-client color ownership was recorded.
 - [ ] Summary lists changes, any environment variables (`HOSTBUD_UPLOAD_TIMEOUT`, default 5m), host steps, and any open owner items.
+
+## T43 — Preserve tree edits across browser tabs
+
+- Conditional tree saves atomically compare the loaded document before replacing it. On conflict, rebase the local changes onto the latest account tree, retry at most five times, and defer another attempt if busy. Track in-flight writes so visibility refresh cannot revert pending edits. Merge sections by ID and property, project/session order by list, and visibility/collapse flags by membership; remote section deletion wins over stale edits.
+- **Tests:** U: T43 `tree.multitab.spec.ts` reproduces stale edits at all three levels, independent session orders and refresh during a held save; `treeMerge.spec.ts` covers section metadata/deletion and same-list conflicts; API conditional-write tests. I: T43 `TestCompareUIStateConcurrentWriters` uses PostgreSQL to verify only one competing writer succeeds and accounts stay isolated.
+- **E2E:** T43 *Stale tab collapse preserves section order through Caddy* uses two authenticated pages, a stale tab UI edit and persisted/reloaded assertions. Written and type-checked; execution on demand.

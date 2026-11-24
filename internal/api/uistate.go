@@ -70,7 +70,7 @@ func (s *server) putUIState(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxUIState))
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxUIState*2+1024))
 	var tooBig *http.MaxBytesError
 	switch {
 	case errors.As(err, &tooBig):
@@ -81,6 +81,43 @@ func (s *server) putUIState(w http.ResponseWriter, r *http.Request) {
 		return
 	case !json.Valid(body):
 		writeError(w, http.StatusBadRequest, "the body must be JSON", "")
+		return
+	}
+	// Conditional tree writes preserve independent edits from other tabs.
+	if key == "tree" && r.Header.Get("X-Hostbud-Tree-Compare") == "1" {
+		var change struct {
+			Base  json.RawMessage `json:"base"`
+			Value json.RawMessage `json:"value"`
+		}
+		if json.Unmarshal(body, &change) != nil || !json.Valid(change.Base) || !json.Valid(change.Value) || len(change.Base) > maxUIState || len(change.Value) > maxUIState {
+			writeError(w, http.StatusBadRequest, "invalid conditional tree save", "")
+			return
+		}
+		conditional, ok := s.cfg.UIState.(interface {
+			CompareUIStateForUser(context.Context, string, string, json.RawMessage, json.RawMessage) (bool, error)
+		})
+		if !ok {
+			writeError(w, http.StatusServiceUnavailable, "conditional tree saves unavailable", "")
+			return
+		}
+		matched, err := conditional.CompareUIStateForUser(r.Context(), user, key, change.Base, change.Value)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "can't save the tree", "")
+			return
+		}
+		if !matched {
+			writeError(w, http.StatusConflict, "tree changed in another tab", "")
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if len(body) > maxUIState {
+		writeError(w, http.StatusRequestEntityTooLarge, "UI state is limited to 64 KiB", "")
+		return
+	}
+	if key == "tree" && r.Header.Get("X-Hostbud-Tree-Replace") != "1" {
+		writeError(w, http.StatusPreconditionRequired, "Reload hostbud before saving tree changes", "This tab uses an older version of hostbud.")
 		return
 	}
 	if err := s.cfg.UIState.PutUIStateForUser(r.Context(), user, key, body); err != nil {

@@ -197,3 +197,39 @@ test('(T19, T20) Selected content stays marked when its project or section colla
     for (const project of projects) await mutate(api, 'DELETE', `/api/projects/${project.id}`)
   }
 })
+
+// T43: the stale tab makes a real UI edit after another tab saves a reorder.
+test('(T43) Stale tab collapse preserves section order through Caddy', async ({ page, ui }) => {
+  const account = newAccount('e2e-tree-conflict')
+  await owner.allow(account.email)
+  await ui.createAccount(account)
+  const initial = { version: 4, projects: [], sessions: {}, pinned: [], hidden: { projects: [], sessions: [] }, collapsed: [], collapsedSections: [], expanded: [], showHidden: false, sections: [{ id: 'a', name: 'Alpha', color: 'red' }, { id: 'b', name: 'Beta', color: 'blue' }], projectSections: {} }
+  await putUIState(page.request, 'tree', initial)
+  await page.reload()
+  const stale = await page.context().newPage()
+  try {
+    await stale.goto('/')
+    await expect(stale.getByRole('button', { name: 'Collapse section Alpha' })).toBeVisible()
+    // Hold this tab's refresh so it is deterministically stale while editing.
+    let conflicted = false
+    stale.on('response', (response) => {
+      if (response.url().endsWith('/api/ui-state/tree') && response.status() === 409) conflicted = true
+    })
+    await stale.route('**/api/ui-state/tree', async (route) => {
+      if (route.request().method() === 'GET' && !conflicted) await route.fulfill({ json: initial })
+      else await route.continue()
+    })
+    await page.getByRole('button', { name: 'Drag to reorder section Beta' }).dragTo(page.getByRole('button', { name: 'Drag to reorder section Alpha' }))
+    await expect.poll(async () => (await getUIState(page.request, 'tree') as typeof initial).sections.map((s) => s.id)).toEqual(['b', 'a'])
+    // Conflict recovery must fetch the real document, while the local edit
+    // is pending (refresh skips pending edits).
+    const saved = stale.waitForResponse((r) => r.url().endsWith('/api/ui-state/tree') && r.request().method() === 'PUT' && r.status() === 204)
+    await stale.getByRole('button', { name: 'Collapse section Alpha' }).click()
+    await saved
+    expect(conflicted).toBe(true)
+    expect(await getUIState(page.request, 'tree')).toMatchObject({ sections: [{ id: 'b' }, { id: 'a' }], collapsedSections: ['a'] })
+    await stale.reload()
+    await expect(stale.getByRole('button', { name: 'Expand section Alpha' })).toBeVisible()
+    expect(await stale.locator('[data-section-order-list] > section').evaluateAll((rows) => rows.map((row) => row.getAttribute('data-project-section-id')))).toEqual(['b', 'a'])
+  } finally { await stale.close() }
+})
