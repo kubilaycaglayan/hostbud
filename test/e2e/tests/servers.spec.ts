@@ -154,3 +154,25 @@ test('(V2-M13 queues) Create queue on a server session opens its queue with the 
     await server.tmux('kill-session', '-t', `=${session}`).catch(() => {})
   }
 })
+
+test('(V2-M13 T8) Header server interiors follow aggregate live health', async ({ page, ui }) => {
+  let sendStatus: (status: string) => void = () => { throw new Error('Events socket is not ready') }
+  await page.routeWebSocket('**/ws/events', (socket) => {
+    sendStatus = (status) => socket.send(JSON.stringify({ type: 'machine.status', machine: 'server-a', payload: { id: 'server-a', label: 'Server A', status } }))
+    socket.send(JSON.stringify({ type: 'snapshot', machines: [{ id: 'host', label: 'Host', status: 'ok' }, { id: 'server-a', label: 'Server A', status: 'unknown' }], sessions: {} }))
+  })
+  await ui.open()
+  const icon = page.getByRole('banner').locator('[data-server-health]')
+  await expect(icon).toHaveAttribute('data-server-health', 'unknown')
+  for (const [status, health] of [['ok', 'ok'], ['unreachable', 'error'], ['tmux_missing', 'error'], ['unknown', 'unknown'], ['ok', 'ok']]) {
+    sendStatus(status!)
+    await expect(icon).toHaveAttribute('data-server-health', health!)
+    const rectangles = icon.locator('rect')
+    await expect(rectangles).toHaveCount(2)
+    if (health !== 'unknown') {
+      const fill = await rectangles.first().evaluate((el) => getComputedStyle(el).fill)
+      expect(fill).not.toBe('none')
+      await expect(rectangles.nth(1)).toHaveCSS('fill', fill)
+    }
+  }
+})

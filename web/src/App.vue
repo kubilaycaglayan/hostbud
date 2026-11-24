@@ -6,6 +6,7 @@ import UnreachableView from '@/components/UnreachableView.vue'
 import CreateSessionDialog from '@/components/CreateSessionDialog.vue'
 import FileBrowserDialog from '@/components/FileBrowserDialog.vue'
 import ServersDialog from '@/components/ServersDialog.vue'
+import ServerStatusIcon from '@/components/ServerStatusIcon.vue'
 import ProjectSessionDialog from '@/components/ProjectSessionDialog.vue'
 import TreePanel from '@/components/TreePanel.vue'
 import ShortcutsDialog from '@/components/ShortcutsDialog.vue'
@@ -37,7 +38,7 @@ import { useWindowsStore } from '@/stores/windows'
 import { useProjectsStore } from '@/stores/projects'
 import { useToastsStore } from '@/stores/toasts'
 import { useSessionsStore } from '@/stores/sessions'
-import { EyeOff, FolderSearch, Keyboard, ListOrdered, PanelLeftClose, PanelLeftOpen, Search, Server, SquareTerminal, UserRound } from 'lucide-vue-next'
+import { EyeOff, FolderSearch, Keyboard, ListOrdered, PanelLeftClose, PanelLeftOpen, Search, SquareTerminal, UserRound } from 'lucide-vue-next'
 import { isEditableTarget, isTerminalTarget, isTreeTarget, matchingShortcut, shortcutLabels, shortcutPlatform, shortcuts } from '@/lib/shortcuts'
 import { parseSessionRef, projectTree, refOf, sessionKey, sessionMachine, sessionRef, visibleOpenSessionNames, windowKey } from '@/lib/tree'
 import { dispatchPaletteAction } from '@/lib/paletteActions'
@@ -832,7 +833,7 @@ onUnmounted(() => {
         <ListOrdered :size="18" aria-hidden="true" />
       </IconButton>
       <IconButton label="Add server" @click="openServers">
-        <Server :size="18" aria-hidden="true" />
+        <ServerStatusIcon />
       </IconButton>
       <IconButton v-if="focusAvailable" label="Focus mode" :emphasized="focusArmed" :aria-pressed="focusArmed" @click="toggleFocusArmed">
         <EyeOff :size="18" aria-hidden="true" />
