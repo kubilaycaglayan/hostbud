@@ -36,6 +36,25 @@ test('real-terminal create and kill show up within one poll interval', async ({ 
   await expect(ui.session(name)).toHaveCount(0, withinPoll)
 })
 
+test('(T10) Creating s repeatedly through the dialog opens s, s1 and s2', async ({ page, ui, target }, testInfo) => {
+  await createAccount(ui)
+  await ui.open()
+  for (const expectedName of ['s', 's1', 's2']) {
+    const responsePromise = page.waitForResponse((response) =>
+      response.request().method() === 'POST' && response.url().endsWith('/api/machines/host/sessions'))
+    await ui.createSession({ name: 's' })
+    const response = await responsePromise
+    expect(response.status(), await response.text()).toBe(201)
+    expect(await response.json()).toEqual({ name: expectedName })
+    await expect(page.getByRole('region', { name: `Terminal: ${expectedName}`, exact: true })).toBeVisible(withinPoll)
+    console.log(`Typed s → HTTP ${response.status()} → opened ${expectedName}`)
+  }
+  expect((await target.sessions()).sort()).toEqual(['s', 's1', 's2'])
+  await ui.showList()
+  for (const name of ['s', 's1', 's2']) await expect(ui.session(name)).toBeVisible()
+  await testInfo.attach('repeated-session-names', { body: await page.screenshot(), contentType: 'image/png' })
+})
+
 test('(T10) Taken session names get a number from New session and New session here', async ({ page, ui, target, request }) => {
   await createAccount(ui)
   const name = uniqueName('e2e-taken')
