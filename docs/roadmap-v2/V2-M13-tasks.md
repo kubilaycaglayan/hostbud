@@ -68,3 +68,5 @@ Fill both header icon server interiors green when every machine (including the h
 Tests: U: ServerStatusIcon.spec.ts (aggregate status, updates, removal, empty state and reconnect). I: n/a (presentation uses the existing tested machine events; no API changes). E2E: servers.spec.ts *Header server interiors follow aggregate live health* (mocked events); written and type-checked, run on demand.
 
 Verification: lint (including E2E tsc), Go unit/integration and shell checks passed. Frontend: 744 passed, 6 failed in TerminalView.spec.ts (3), projects.spec.ts (1), tree.servers.spec.ts (2); the same six failures reproduce on unchanged HEAD in an isolated baseline. New icon test passed. Default Vitest concurrency was killed with exit 137; the complete inventory above uses two workers. Gitleaks clean. No new environment variables or host setup. Browser run/device visual check remain open. Safe Docker cleanup skipped: toolbox and integration containers in use.
+
+Deployment: `9c2784d` deployed successfully with `make deploy`; loopback `/api/health` and `/` both returned HTTP 200. Owner device visual check and on-demand E2E run remain open.
