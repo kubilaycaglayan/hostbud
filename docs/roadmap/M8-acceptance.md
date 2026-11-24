@@ -356,14 +356,16 @@ Final T43 checks: the complete Go unit/integration suite passed with race detect
 
 ## T44 — Mouse reports during terminal reattachment
 
-- [ ] Tab return and SSH retry never display literal mouse reports from the previous attachment; ordinary interactive input still works once attached.
-  - U: T44 `TestStartPTYDoesNotEchoMouseReportsDuringSetup`: actual PTY, screenshot SGR mouse bytes, child held before raw mode, genuine child output preserved.
+- [x] Tab return and SSH retry never display literal mouse reports from the previous attachment; ordinary interactive input still works once attached.
+  - U: T44 `TestStartPTYDoesNotEchoMouseReportsDuringSetup`: actual PTY, screenshot SGR mouse bytes, child held during setup, genuine child output preserved. T44 `TestStartPTYRawByteTransport` checks control/mouse/Unicode input and exact output line endings.
   - I: T44 `TestIntegrationMouseReportsDoNotEchoBeforeSSHAttach`: real SSH and test/sshd, gated setup, input-processing barrier, two successive attaches to the same session, output checked for echoed reports and shell input checked after recovery.
   - E: T44 *mouse reports never become visible text after tab-return / ssh-retry* in `terminal-mouse-reconnect.spec.ts`: real UI lifecycle, input at socket-open, real pointer movement, raw WebSocket output and rendered terminal checks through Caddy.
-  - Status: test-only regression checkpoint; production fix pending. U/I are expected to fail on the current code.
+  - Status: local PTY raw mode is configured before SSH starts; U/I regressions pass. E scenarios are written and type-checked; browser execution remains on demand.
 
 ### Manual checks (owner, T44)
 
 - [ ] Run T44 browser scenarios on demand (written; no browser run requested).
 
 T44 test-only verification (24/11/2026): the real-PTY unit regression and both SSH integration cases fail on literal echoed `^[[<35;124;17M^[[<35;134;20M`, reproducing the screenshot. The integration cases successfully execute a distinct shell marker after attachment before reporting the echo failure. All pre-existing `internal/term` unit/integration tests pass with race detection when the new regressions are excluded. Go lint, E2E lint/type-check, documentation checks and gitleaks pass. Browser scenarios remain unexecuted; no production code, environment variables or host configuration changed.
+
+T44 fix verification (24/11/2026): the original real-PTY regression and both gated SSH integration cases now pass with race detection. Added `TestStartPTYRawByteTransport` passes for Ctrl-C, SGR mouse reports, CR/LF, DEL and Unicode. The complete Go unit/integration suite passes. `make lint` (including E2E type-check), shell checks and gitleaks pass. The full frontend run has 743 passing and the same six previously documented failures: three touch key-bar/copy-mode assertions in `TerminalView.spec.ts`, one project-removal ordering assertion in `projects.spec.ts`, and two server-tree ordering/removal assertions in `tree.servers.spec.ts`. No new test failures were observed; `make test` remains non-green because of that existing inventory. `make deploy` completed and Caddy's loopback `/api/health` returned HTTP 200. No environment variables, migrations or host configuration steps. T44 browser execution remains an open on-demand item.

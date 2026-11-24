@@ -74,3 +74,33 @@ func TestStartPTYDoesNotEchoMouseReportsDuringSetup(t *testing.T) {
 		}
 	}
 }
+
+// Raw mode must preserve keyboard/control/mouse bytes and output line endings;
+// suppressing echo must not disable terminal input or consume Ctrl-C locally.
+func TestStartPTYRawByteTransport(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	proc, err := StartPTY(ctx, []string{"sh", "-c", "printf 'ready\\n'; exec cat"}, 80, 24)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = proc.Kill(); _, _ = proc.Wait() }()
+	ready := make([]byte, len("ready\n"))
+	if _, err = io.ReadFull(proc, ready); err != nil {
+		t.Fatal(err)
+	}
+	if string(ready) != "ready\n" {
+		t.Fatalf("output was transformed: %q", ready)
+	}
+	payload := "\x03\x1b[<35;124;17M\r\n\x7fhostbud-\u00e9"
+	if _, err = io.WriteString(proc, payload); err != nil {
+		t.Fatal(err)
+	}
+	received := make([]byte, len(payload))
+	if _, err = io.ReadFull(proc, received); err != nil {
+		t.Fatal(err)
+	}
+	if string(received) != payload {
+		t.Fatalf("raw input/output changed: got %q, want %q", received, payload)
+	}
+}

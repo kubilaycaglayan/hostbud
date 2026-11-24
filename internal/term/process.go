@@ -3,12 +3,14 @@ package term
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"syscall"
 
 	"github.com/creack/pty"
+	terminal "golang.org/x/term"
 )
 
 // Process is an interactive program attached to a terminal.
@@ -28,8 +30,26 @@ type Starter func(ctx context.Context, argv []string, cols, rows int) (Process, 
 func StartPTY(ctx context.Context, argv []string, cols, rows int) (Process, error) {
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...) //nolint:gosec // argv from sshx.Client.Args (quoted remote command)
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
-	f, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: uint16(cols), Rows: uint16(rows)}) //nolint:gosec // sizes validated (≤ 1000)
+	f, tty, err := pty.Open()
 	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tty.Close() }()
+	// xterm already handles terminal input locally. Configure the slave before
+	// starting SSH: otherwise mouse reports can be echoed during connection
+	// setup, and again when SSH restores the terminal on failure or exit.
+	if _, err = terminal.MakeRaw(int(tty.Fd())); err != nil {
+		_ = f.Close()
+		return nil, fmt.Errorf("configure terminal raw mode: %w", err)
+	}
+	if err = pty.Setsize(f, &pty.Winsize{Cols: uint16(cols), Rows: uint16(rows)}); err != nil { //nolint:gosec // sizes validated (≤ 1000)
+		_ = f.Close()
+		return nil, err
+	}
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = tty, tty, tty
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true, Setctty: true}
+	if err = cmd.Start(); err != nil {
+		_ = f.Close()
 		return nil, err
 	}
 	return &ptyProcess{cmd: cmd, f: f}, nil
