@@ -353,3 +353,17 @@ Validation: production build and 14 build/asset tests pass; frontend lint/type-c
 T43 verification (24/11/2026): all five original regressions pass; the expanded focused frontend set passes 44 tests. `make lint` (including E2E lint/type-check), shell checks, deployment and Caddy `/api/health` (HTTP 200) pass. The full frontend suite still has the six previously documented failures in `TerminalView.spec.ts` (3), `projects.spec.ts` (1) and `tree.servers.spec.ts` (2); they are outside this change. No browser scenarios were executed. No new environment variables, migrations or host configuration steps; reload existing browser tabs after upgrading. Added browser coverage also extends *Another open tab never overwrites a manual session order* with a stale-tab project collapse.
 
 Final T43 checks: the complete Go unit/integration suite passed with race detection, including API and PostgreSQL conditional-save tests. The final `make lint test` reached frontend tests and stopped on the same six known failures; all focused tree/client regressions passed separately. Shell tests and gitleaks passed. Fix commit: `1758a60`.
+
+## T44 — Mouse reports during terminal reattachment
+
+- [ ] Tab return and SSH retry never display literal mouse reports from the previous attachment; ordinary interactive input still works once attached.
+  - U: T44 `TestStartPTYDoesNotEchoMouseReportsDuringSetup`: actual PTY, screenshot SGR mouse bytes, child held before raw mode, genuine child output preserved.
+  - I: T44 `TestIntegrationMouseReportsDoNotEchoBeforeSSHAttach`: real SSH and test/sshd, gated setup, input-processing barrier, two successive attaches to the same session, output checked for echoed reports and shell input checked after recovery.
+  - E: T44 *mouse reports never become visible text after tab-return / ssh-retry* in `terminal-mouse-reconnect.spec.ts`: real UI lifecycle, input at socket-open, real pointer movement, raw WebSocket output and rendered terminal checks through Caddy.
+  - Status: test-only regression checkpoint; production fix pending. U/I are expected to fail on the current code.
+
+### Manual checks (owner, T44)
+
+- [ ] Run T44 browser scenarios on demand (written; no browser run requested).
+
+T44 test-only verification (24/11/2026): the real-PTY unit regression and both SSH integration cases fail on literal echoed `^[[<35;124;17M^[[<35;134;20M`, reproducing the screenshot. The integration cases successfully execute a distinct shell marker after attachment before reporting the echo failure. All pre-existing `internal/term` unit/integration tests pass with race detection when the new regressions are excluded. Go lint, E2E lint/type-check, documentation checks and gitleaks pass. Browser scenarios remain unexecuted; no production code, environment variables or host configuration changed.

@@ -12,6 +12,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -544,5 +546,53 @@ func TestIntegrationClientPingPong(t *testing.T) {
 		}
 	case <-time.After(10 * time.Second):
 		t.Fatal("no pong")
+	}
+}
+
+// The real SSH process is held before exec so browser input necessarily
+// reaches the local PTY before SSH can enter raw mode. No target configs change.
+func TestIntegrationMouseReportsDoNotEchoBeforeSSHAttach(t *testing.T) {
+	gate := filepath.Join(t.TempDir(), "continue")
+	e := setup(t, func(h *term.Handler) {
+		h.Start = func(ctx context.Context, argv []string, cols, rows int) (term.Process, error) {
+			wrapper := []string{"sh", "-c", `printf 'ssh-setup-ready\n'; while [ ! -f "$1" ]; do sleep 0.01; done; shift; exec "$@"`, "hostbud-test", gate}
+			return term.StartPTY(ctx, append(wrapper, argv...), cols, rows)
+		}
+	})
+	e.newSession("mouse-setup")
+	for _, scenario := range []string{"tab-return", "ssh-retry"} {
+		t.Run(scenario, func(t *testing.T) {
+			_ = os.Remove(gate)
+			conn, out := e.attach("mouse-setup", 80, 24)
+			defer func() { _ = conn.CloseNow() }()
+			out.waitFor(t, "ssh-setup-ready")
+			send(t, conn, "\x1b[<35;124;17M\x1b[<35;134;20M")
+			// A ping round trip proves the bridge has processed the input before
+			// releasing SSH. WebSocket messages are processed in order.
+			if err := conn.Write(t.Context(), websocket.MessageText, []byte(`{"type":"ping","id":42}`)); err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case ctl := <-out.control:
+				if ctl.Type != "pong" {
+					t.Fatalf("expected pong, got %+v", ctl)
+				}
+			case <-time.After(3 * time.Second):
+				t.Fatal("input barrier timed out")
+			}
+			if err := os.WriteFile(gate, nil, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			e.eventually("tmux attached", func() bool { return e.sh("tmux display -p -t =mouse-setup: '#{session_attached}'") == "1" })
+			// Verify ordinary interactive input still works after connection setup.
+			marker := "hostbud-mouse-regression-" + scenario + "-ok"
+			send(t, conn, "printf 'hostbud-mouse-regression-%s-ok\\n' "+scenario+"\r")
+			out.waitFor(t, marker)
+			if strings.Contains(out.seen.String(), "[<35;") {
+				t.Errorf("mouse reports echoed through WebSocket during %s: literal SGR coordinates present in output", scenario)
+			}
+			_ = conn.CloseNow()
+			e.eventually("tmux detached", func() bool { return e.sh("tmux display -p -t =mouse-setup: '#{session_attached}'") == "0" })
+		})
 	}
 }
