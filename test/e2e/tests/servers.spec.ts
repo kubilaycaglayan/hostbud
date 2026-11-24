@@ -173,6 +173,9 @@ test('(V2-M13 T8) Header server interiors follow aggregate live health', async (
       const fill = await rectangles.first().evaluate((el) => getComputedStyle(el).fill)
       expect(fill).not.toBe('none')
       await expect(rectangles.nth(1)).toHaveCSS('fill', fill)
+      await expect(rectangles.first()).toHaveCSS('stroke', fill)
+      const dot = icon.locator('line').first()
+      expect(await dot.evaluate((el) => getComputedStyle(el).stroke)).not.toBe(fill)
     }
   }
 })

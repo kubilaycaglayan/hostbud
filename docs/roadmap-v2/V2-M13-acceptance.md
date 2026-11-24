@@ -33,5 +33,5 @@
 
 ## T8 — Header health follow-up (24/11/2026)
 
-- [x] Both server interiors show green for all healthy machines, red for any failed machine, neutral while unknown/loading or events disconnected; outlines and Add server action remain. — U: T8 (ServerStatusIcon.spec.ts) · I: n/a (frontend presentation only; existing event transport unchanged) · E: T8 (servers.spec.ts, mocked live status transitions; written, run pending on demand).
+- [x] Both server interiors show green for all healthy machines, red for any failed machine, neutral while unknown/loading or events disconnected; outlines match the status fill with contrasting indicator dots, and the Add server action remains. — U: T8 (ServerStatusIcon.spec.ts) · I: n/a (frontend presentation only; existing event transport unchanged) · E: T8 (servers.spec.ts, mocked live status transitions; written, run pending on demand).
 - [ ] (T8, owner) On-demand browser run and visual check on owner's devices remain open.

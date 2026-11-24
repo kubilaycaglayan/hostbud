@@ -70,3 +70,5 @@ Tests: U: ServerStatusIcon.spec.ts (aggregate status, updates, removal, empty st
 Verification: lint (including E2E tsc), Go unit/integration and shell checks passed. Frontend: 744 passed, 6 failed in TerminalView.spec.ts (3), projects.spec.ts (1), tree.servers.spec.ts (2); the same six failures reproduce on unchanged HEAD in an isolated baseline. New icon test passed. Default Vitest concurrency was killed with exit 137; the complete inventory above uses two workers. Gitleaks clean. No new environment variables or host setup. Browser run/device visual check remain open. Safe Docker cleanup skipped: toolbox and integration containers in use.
 
 Deployment: `9c2784d` deployed successfully with `make deploy`; loopback `/api/health` and `/` both returned HTTP 200. Owner device visual check and on-demand E2E run remain open.
+
+T8 contrast follow-up: status outlines now match the unchanged dialog green/red fill; indicator dots use the toolbar background to keep the solid server shapes legible. Tests: U: existing aggregate-state component test. I: n/a (CSS presentation only). E2E: T8 scenario now checks matching fill/outline and contrasting dots; run pending on demand.

@@ -22,6 +22,10 @@ const description = computed(() => health.value === 'ok' ? 'All servers connecte
 </template>
 
 <style scoped>
-[data-server-health='ok'] :deep(rect) { fill: var(--color-ok); }
-[data-server-health='error'] :deep(rect) { fill: var(--color-danger); }
+[data-server-health='ok'] .server-status-icon { color: var(--color-ok); }
+[data-server-health='error'] .server-status-icon { color: var(--color-danger); }
+[data-server-health='ok'] :deep(rect),
+[data-server-health='error'] :deep(rect) { fill: currentColor; }
+[data-server-health='ok'] :deep(line),
+[data-server-health='error'] :deep(line) { stroke: var(--color-bg); }
 </style>
