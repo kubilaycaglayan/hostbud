@@ -70,8 +70,9 @@ function outcome(value?: WindowNudge['lastOutcome']) {
           <div>
             <DialogTitle class="font-bold">
               Window nudge
-            </DialogTitle><DialogDescription class="text-sm text-muted">
-              A fixed daily schedule in UTC+03:00. It does not follow daylight saving time.
+            </DialogTitle>
+            <DialogDescription class="sr-only">
+              Configure the recurring session replacement.
             </DialogDescription>
           </div>
           <DialogClose
