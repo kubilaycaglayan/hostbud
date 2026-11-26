@@ -25,6 +25,7 @@ import (
 	"hostbud/internal/llm"
 	"hostbud/internal/machines"
 	"hostbud/internal/notify"
+	"hostbud/internal/nudge"
 	"hostbud/internal/projects"
 	"hostbud/internal/queue"
 	"hostbud/internal/session"
@@ -134,6 +135,28 @@ func run() error {
 
 	sessions := session.New(ssh, trackers{registry}, log, projectService)
 	projectService.SetSessionCreator(sessions)
+	windowNudge := nudge.New(nudge.Config{
+		Store: st, Sessions: sessions, Bus: bus, Log: log,
+		ValidateTarget: func(validateCtx context.Context, machine, directory string) error {
+			inv, ok := registry.Inventory(machine)
+			if !ok {
+				return errors.New("unknown machine")
+			}
+			info, _ := inv.Snapshot()
+			if info.Status != inventory.StatusOK {
+				return errors.New("machine is not reachable")
+			}
+			fs, ok := registry.FileSystem(machine)
+			if !ok {
+				return errors.New("machine filesystem is unavailable")
+			}
+			_, _, err := fs.List(validateCtx, directory, false)
+			return err
+		},
+	})
+	nudgeDone := make(chan struct{})
+	go func() { windowNudge.Run(ctx); close(nudgeDone) }()
+	defer func() { <-nudgeDone }()
 
 	authKey, err := loadOrCreateKey(filepath.Join(cfg.DataDir, "auth-key"))
 	if err != nil {
@@ -227,6 +250,7 @@ func run() error {
 	srv := &http.Server{
 		Addr: cfg.Listen,
 		Handler: api.New(api.Config{
+			WindowNudge:   windowNudge,
 			Hooks:         hooks,
 			Queues:        queues,
 			Notifications: notifier,

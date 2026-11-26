@@ -45,7 +45,9 @@ type WindowNudge struct {
 type WindowNudgeOccurrence struct {
 	ScheduledAt time.Time
 	MachineID   string
+	Directory   string
 	Provider    string
+	Schedule    string
 	Outcome     string
 	Detail      string
 }
@@ -146,8 +148,8 @@ func (s *Store) ClaimWindowNudgeOccurrence(ctx context.Context, due, next time.T
 	var enabled bool
 	var savedDue sql.NullTime
 	err = tx.QueryRowContext(ctx, `
-		SELECT enabled, machine_id, provider, next_run_at
-		FROM window_nudge_settings WHERE id = 1 FOR UPDATE`).Scan(&enabled, &n.MachineID, &n.Provider, &savedDue)
+		SELECT enabled, machine_id, directory, provider, schedule, next_run_at
+		FROM window_nudge_settings WHERE id = 1 FOR UPDATE`).Scan(&enabled, &n.MachineID, &n.Directory, &n.Provider, &n.Schedule, &savedDue)
 	if errors.Is(err, sql.ErrNoRows) || err == nil && (!enabled || !savedDue.Valid || !savedDue.Time.Equal(due) || due.After(s.now())) {
 		return WindowNudgeOccurrence{}, false, nil
 	}
@@ -173,7 +175,7 @@ func (s *Store) ClaimWindowNudgeOccurrence(ctx context.Context, due, next time.T
 func (s *Store) SkipMissedWindowNudge(ctx context.Context, expected, next time.Time) (bool, error) {
 	result, err := s.db.ExecContext(ctx, `
 		UPDATE window_nudge_settings SET next_run_at = $1, updated_at = $2
-		WHERE id = 1 AND enabled = TRUE AND next_run_at = $3 AND next_run_at < $2`,
+		WHERE id = 1 AND enabled = TRUE AND next_run_at = $3 AND next_run_at <= $2`,
 		formatTime(next.UTC()), formatTime(s.now()), formatTime(expected.UTC()))
 	if err != nil {
 		return false, err
@@ -210,4 +212,29 @@ func (s *Store) FinishWindowNudgeOccurrence(ctx context.Context, scheduled time.
 func (s *Store) RecoverWindowNudgeOccurrences(ctx context.Context) error {
 	_, err := s.db.ExecContext(ctx, `UPDATE window_nudge_occurrences SET outcome = 'interrupted', detail = 'hostbud restarted during this occurrence', finished_at = $1 WHERE outcome = 'claimed'`, formatTime(s.now()))
 	return err
+}
+
+const windowNudgeAdvisoryLock int64 = 0x574e55444745 // "WNUDGE"
+
+// TryWindowNudgeLock elects one app instance as the scheduler. The returned
+// release closes the dedicated connection and releases its PostgreSQL session
+// lock, including on process shutdown.
+func (s *Store) TryWindowNudgeLock(ctx context.Context) (release func(), acquired bool, err error) {
+	conn, err := s.db.Conn(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	var ok bool
+	if err := conn.QueryRowContext(ctx, `SELECT pg_try_advisory_lock($1)`, windowNudgeAdvisoryLock).Scan(&ok); err != nil {
+		_ = conn.Close()
+		return nil, false, err
+	}
+	if !ok {
+		_ = conn.Close()
+		return nil, false, nil
+	}
+	return func() {
+		// Closing the dedicated connection releases its session-scoped lock.
+		_ = conn.Close()
+	}, true, nil
 }

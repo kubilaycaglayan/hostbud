@@ -21,6 +21,8 @@ const (
 	MachineRemoved Type = "machine.removed"
 	// RunChanged carries a queue.RunChanged payload (v2).
 	RunChanged Type = "run.changed"
+	// WindowNudgeChanged carries the singleton fixed-time nudge settings/result.
+	WindowNudgeChanged Type = "window_nudge.changed"
 )
 
 // Event is one published event. Payload's type is determined by Type.

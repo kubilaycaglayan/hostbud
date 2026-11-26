@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +14,7 @@ import (
 
 	"hostbud/internal/config"
 	"hostbud/internal/events"
+	"hostbud/internal/store"
 )
 
 type routeInfo struct {
@@ -31,6 +33,15 @@ func (routeOnlyTerminal) ServeHTTP(http.ResponseWriter, *http.Request) {}
 func (routeOnlyTerminal) AtCapacity(string) bool                       { return false }
 func (routeOnlyTerminal) Limit(string) int                             { return 128 }
 
+type routeOnlyWindowNudge struct{}
+
+func (routeOnlyWindowNudge) Settings(context.Context) (store.WindowNudge, error) {
+	return store.WindowNudge{}, nil
+}
+func (routeOnlyWindowNudge) PutSettings(context.Context, store.WindowNudge) (store.WindowNudge, error) {
+	return store.WindowNudge{}, nil
+}
+
 func TestRouteInventoryMatchesRouter(t *testing.T) {
 	data, err := os.ReadFile("testdata/routes.json")
 	if err != nil {
@@ -42,7 +53,7 @@ func TestRouteInventoryMatchesRouter(t *testing.T) {
 	}
 	cfg := Config{Dist: fstest.MapFS{}, Bus: events.NewBus(), Auth: &fakeAuth{}, Sessions: &fakeService{},
 		Projects: &fakeProjects{}, FileSystem: &fakeFileBrowser{}, Terminal: routeOnlyTerminal{}, UIState: &fakeUIState{}, Hooks: &fakeHooks{}, Queues: &fakeQueues{},
-		Notifications: newNotifier(config.Push{})}
+		WindowNudge: routeOnlyWindowNudge{}, Notifications: newNotifier(config.Push{})}
 	s := &server{cfg: cfg}
 	mountRoutes(s, http.NewServeMux())
 	want := make([]string, 0, len(routes))
@@ -94,6 +105,7 @@ func TestRouteInventoryMatchesRouter(t *testing.T) {
 		"POST /api/machines/scan": true, "POST /api/machines": true, "PATCH /api/machines/{machine}": true,
 		"PUT /api/machines/{machine}/capacity": true, "PUT /api/machines/{machine}/parallel-queues": true,
 		"PUT /api/notifications/settings": true, "POST /api/notifications/subscriptions": true, "DELETE /api/notifications/subscriptions": true, "POST /api/notifications/test": true,
+		"PUT /api/window-nudge": true,
 	}
 	for _, route := range routes {
 		key := route.Method + " " + route.Path

@@ -520,6 +520,21 @@ func TestCreateTypedNameRaceReturnsConflictAfterRetries(t *testing.T) {
 	}
 }
 
+func TestCreateExactNameFailsWithoutTryingSuffixes(t *testing.T) {
+	tries := 0
+	f := &fakeExec{handler: func(args []string) error {
+		if args[0] == "tmux" && args[1] == "new-session" {
+			tries++
+			return remote(1, "duplicate session: "+args[4])
+		}
+		return nil
+	}}
+	name, err := newSvc(f, okHost()).Create(context.Background(), Spec{Machine: "host", Name: "window-nudge-chore", Path: "~", ExactName: true})
+	if name != "" || code(err) != CodeDuplicate || tries != 1 {
+		t.Fatalf("Create(exact) = %q, %v after %d attempts; want one exact-name failure", name, err, tries)
+	}
+}
+
 func TestUniqueNameTrimsTypedBaseToFitLimit(t *testing.T) {
 	base := strings.Repeat("x", 64)
 	name, err := newSvc(&fakeExec{}, okHost(base)).Create(context.Background(), Spec{Machine: "host", Name: base, Path: "~"})

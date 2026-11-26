@@ -25,6 +25,7 @@ import (
 	"hostbud/internal/fsbrowse"
 	"hostbud/internal/inventory"
 	"hostbud/internal/llm"
+	"hostbud/internal/store"
 	"hostbud/internal/tmux"
 )
 
@@ -68,6 +69,8 @@ type Config struct {
 	Hooks HookReceiver
 	// Queues is the v2 queue service (/api/queues, /api/queue-items).
 	Queues QueueService
+	// WindowNudge is the singleton fixed-time nudge service (V2-M15).
+	WindowNudge WindowNudgeService
 	// Notifications is the V2-M3 notifier (/api/notifications/*).
 	Notifications NotificationService
 	Supervisor    llm.Status
@@ -77,6 +80,11 @@ type Config struct {
 // *queue.HookError for a refused hook.
 type HookReceiver interface {
 	Receive(ctx context.Context, runID, event, authorization string, body io.Reader) error
+}
+
+type WindowNudgeService interface {
+	Settings(context.Context) (store.WindowNudge, error)
+	PutSettings(context.Context, store.WindowNudge) (store.WindowNudge, error)
 }
 
 var inlineScriptRE = regexp.MustCompile(`(?is)<script\b([^>]*)>(.*?)</script\s*>`)
@@ -236,6 +244,10 @@ func mountRoutes(s *server, mux *http.ServeMux) {
 	}
 	if cfg.Queues != nil {
 		mountQueueRoutes(s, addFunc)
+	}
+	if cfg.WindowNudge != nil {
+		addFunc("GET /api/window-nudge", s.getWindowNudge)
+		addFunc("PUT /api/window-nudge", s.putWindowNudge)
 	}
 	if cfg.Notifications != nil {
 		mountNotificationRoutes(s, addFunc)

@@ -56,6 +56,7 @@ type Spec struct {
 	Env          map[string]string // needs tmux ≥ 3.2; sent through stdin, never in an argv
 	StartCommand string            // optional: a command line run instead of the shell (UI)
 	StartArgv    []string          // optional: a program and its arguments, quoted by sshx (v2 runs)
+	ExactName    bool              // fail on collision instead of choosing a suffix (scheduled sessions)
 }
 
 // InputExecutor runs a remote command with stdin (sshx.Client.ExecInput).
@@ -167,7 +168,10 @@ func (s *Service) Create(ctx context.Context, spec Spec) (string, error) {
 		return "", errorf(CodeInvalid, "Use letters, digits, '-' and '_' only (up to 64 characters).",
 			"invalid session name %q", baseName)
 	}
-	name := uniqueName(baseName, sessions)
+	name := baseName
+	if !spec.ExactName {
+		name = uniqueName(baseName, sessions)
+	}
 
 	if _, err := s.exec.Exec(ctx, spec.Machine, "test", "-d", dir); err != nil {
 		var e *sshx.Error
@@ -207,6 +211,9 @@ func (s *Service) Create(ctx context.Context, spec Spec) (string, error) {
 			break
 		}
 		if isDuplicate(err) {
+			if spec.ExactName {
+				return "", errorf(CodeDuplicate, "Close the session using this exact name, then try again.", "a session named %q already exists", name)
+			}
 			if attempt < 20 {
 				reserved = append(reserved, tmux.Session{Name: name})
 				name = uniqueName(baseName, reserved)

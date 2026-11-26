@@ -68,6 +68,36 @@ func TestIntegrationCreateWithDefaults(t *testing.T) {
 	}
 }
 
+func TestIntegrationKillAndRecreateExactName(t *testing.T) {
+	svc, c := setup(t)
+	ctx := context.Background()
+	const name = "window-nudge-chore"
+	spec := session.Spec{Machine: sshx.HostMachineID, Name: name, Path: "/home/dev/sess-it", ExactName: true, StartArgv: []string{"sh"}}
+	created, err := svc.Create(ctx, spec)
+	if err != nil || created != name {
+		t.Fatalf("first create = %q, %v", created, err)
+	}
+	if err := svc.Kill(ctx, sshx.HostMachineID, name); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Exec(ctx, sshx.HostMachineID, "tmux", "has-session", "-t", "="+name); err == nil {
+		t.Fatal("exact session still exists after kill")
+	}
+	recreated, err := svc.Create(ctx, spec)
+	if err != nil || recreated != name {
+		t.Fatalf("recreate = %q, %v", recreated, err)
+	}
+	if got := display(t, c, name, "#{session_path}"); got != "/home/dev/sess-it" {
+		t.Fatalf("recreated path = %q", got)
+	}
+	if _, err := svc.Create(ctx, spec); err == nil {
+		t.Fatal("exact-name creation accepted a collision")
+	}
+	if _, err := c.Exec(ctx, sshx.HostMachineID, "tmux", "has-session", "-t", "=window-nudge-chore1"); err == nil {
+		t.Fatal("exact-name collision created a suffixed session")
+	}
+}
+
 func TestIntegrationSendCommandToExistingSession(t *testing.T) {
 	svc, c := setup(t)
 	ctx := context.Background()
