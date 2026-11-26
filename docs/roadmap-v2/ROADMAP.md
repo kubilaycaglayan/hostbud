@@ -10,6 +10,8 @@ V2-M13 (servers: other SSH targets) is implemented; see [V2-M13-tasks.md](V2-M13
 
 V2-M14 (terminal connection diagnostics) is implemented and deployed; see [V2-M14-tasks.md](V2-M14-tasks.md) · [V2-M14-acceptance.md](V2-M14-acceptance.md). Its acceptance gate passes after refreshing stale frontend test setup; live-device owner verification and the on-demand browser run remain open.
 
+V2-M15 (fixed-time window nudge) is implemented and deployed; see [V2-M15-tasks.md](V2-M15-tasks.md) · [V2-M15-acceptance.md](V2-M15-acceptance.md). The real-provider check and browser run remain open for the owner. Docker cleanup was skipped because hostbud test targets and toolbox containers were active.
+
 ---
 
 ## V2-M13 — Servers (other SSH targets)
