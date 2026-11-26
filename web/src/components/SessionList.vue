@@ -68,20 +68,8 @@ function windowError(s: Session) {
   return [error.message, error.hint].filter(Boolean).join(' ')
 }
 function agentLabel(agent: 'codex' | 'claude') { return agent === 'codex' ? 'Codex running' : 'Claude Code running' }
-function statusLabel(status: Session['status']) {
-  if (status === 'working') return 'Working'
-  if (status === 'blocked') return 'Blocked or waiting'
-  if (status === 'ended') return 'Ended'
-  return ''
-}
-function statusEmoji(status: Session['status']) {
-  if (status === 'working') return '🟢'
-  if (status === 'blocked') return '🚧'
-  if (status === 'ended') return '🎯'
-  return ''
-}
 function sessionLabel(s: Session) {
-  return [s.name, chip(s) ? 'on ' + chip(s) : '', statusLabel(s.status), ...(s.agents ?? []).map(agentLabel), ...(isHidden(s) ? ['hidden'] : [])].filter(Boolean).join(', ')
+  return [s.name, chip(s) ? 'on ' + chip(s) : '', ...(s.agents ?? []).map(agentLabel), ...(isHidden(s) ? ['hidden'] : [])].filter(Boolean).join(', ')
 }
 function visibleAgents(s: Session): ('codex' | 'claude')[] {
   if (!props.treeView) return []
@@ -225,12 +213,11 @@ const sortableSessions = computed({
       :class="[rid(s) === props.selected ? 'border-accent bg-selected' : 'border-transparent', isHidden(s) ? 'opacity-50' : '']"
       @click="selectRowClick($event, rid(s))"
     >
-      <!-- Agent logos and status are display-only prefixes; the session's actual name stays unchanged. -->
-      <!-- Two fixed slots (logo, status) stay reserved even when empty, so names line up. -->
+      <!-- The agent logo slot stays reserved so session names line up. -->
       <span
         v-if="props.treeView"
         data-session-prefix
-        class="flex shrink-0 items-center gap-x-1"
+        class="flex shrink-0 items-center"
       >
         <span
           data-agent-slot
@@ -241,20 +228,6 @@ const sortableSessions = computed({
             :key="agent"
             :agent="agent"
           />
-        </span>
-        <span
-          data-status-slot
-          class="inline-flex w-4 shrink-0 items-center justify-center"
-        >
-          <span
-            v-if="s.status"
-            role="img"
-            data-session-status
-            :data-status="s.status"
-            :aria-label="statusLabel(s.status)"
-            :title="statusLabel(s.status)"
-            class="text-xs leading-none"
-          >{{ statusEmoji(s.status) }}</span>
         </span>
       </span>
       <InlineRename

@@ -79,14 +79,14 @@ describe('SessionList', () => {
     expect(row.get('[data-agent-slot]').element.children[0]?.getAttribute('data-agent')).toBe('codex')
   })
 
-  it('reserves the logo and status slots before the name even when a session has neither', () => {
+  it('reserves only the logo slot before the name even when a session has no agent', () => {
     setActivePinia(createPinia())
     const w = mount(SessionList, { props: { sessions: [s('bare')], treeView: true } })
     const row = w.get('li')
     const prefix = row.get('[data-session-prefix]')
     expect(row.element.children[0]).toBe(prefix.element)
     expect(prefix.get('[data-agent-slot]').classes()).toContain('min-w-3.5')
-    expect(prefix.get('[data-status-slot]').classes()).toContain('w-4')
+    expect(prefix.find('[data-status-slot]').exists()).toBe(false)
     expect(prefix.find('[data-agent-mark]').exists()).toBe(false)
     expect(prefix.find('[data-session-status]').exists()).toBe(false)
     expect(prefix.element.nextElementSibling?.hasAttribute('data-session-row')).toBe(true)
@@ -115,21 +115,17 @@ describe('SessionList', () => {
     expect(w.find('[data-agent-mark]').exists()).toBe(false)
   })
 
-  it('shows agent logos before hook status and the unchanged name on collapsed gutter rows', () => {
+  it('hides session status and its spacing on collapsed gutter rows', () => {
     setActivePinia(createPinia())
-    for (const [status, emoji, label] of [
-      ['working', '🟢', 'Working'],
-      ['blocked', '🚧', 'Blocked or waiting'],
-      ['ended', '🎯', 'Ended'],
-    ] as const) {
+    for (const status of ['working', 'blocked', 'ended'] as const) {
       const w = mount(SessionList, { props: { sessions: [{ ...s('status-session'), agents: ['codex'], status }], treeView: true } })
       const row = w.get('li')
-      expect(row.get('[data-session-status]').text()).toBe(emoji)
-      expect(row.get('[data-session-status]').attributes('aria-label')).toBe(label)
-      expect(row.attributes('aria-label')).toBe(`status-session, ${label}, Codex running`)
+      expect(row.find('[data-session-status]').exists()).toBe(false)
+      expect(row.find('[data-status-slot]').exists()).toBe(false)
+      expect(row.attributes('aria-label')).toBe('status-session, Codex running')
       expect(row.get('[data-session-row]').attributes('aria-label')).toBe('status-session')
       expect(row.get('[data-agent-slot]').element.children[0]?.getAttribute('data-agent')).toBe('codex')
-      expect(row.get('[data-status-slot]').element.children[0]?.hasAttribute('data-session-status')).toBe(true)
+      expect(row.get('[data-session-prefix]').classes()).not.toContain('gap-x-1')
       w.unmount()
     }
   })

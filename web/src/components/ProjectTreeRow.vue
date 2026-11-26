@@ -54,8 +54,6 @@ const machines = useMachinesStore()
 const machineChip = computed(() => props.group.project.machineId !== 'host' ? machines.label(props.group.project.machineId) : '')
 const home = computed(() => props.group.project.machineId === 'host' ? props.home : machines.byId(props.group.project.machineId)?.home ?? '')
 
-/** A project with a working (🟢) session shows its name in green. */
-const hasWorkingSession = computed(() => props.group.sessions.some((s) => s.status === 'working'))
 const sectionColorValues = { red: 'var(--hb-section-red)', green: 'var(--hb-section-green)', blue: 'var(--hb-section-blue)', yellow: 'var(--hb-section-yellow)', orange: 'var(--hb-section-orange)', purple: 'var(--hb-section-purple)' }
 
 function renameSessionCommit(from: string, to: string) {
@@ -118,7 +116,7 @@ function onMenuCloseAutoFocus(event: Event) {
       </button>
       <Folder :size="16" class="shrink-0 text-muted" aria-hidden="true" />
       <InlineRename v-if="props.editingKey === 'project:' + props.group.project.id" :name="props.group.project.name" :error="props.editError" :commit="(value) => props.renameProject(props.group.project.id, value)" @cancel="emit('cancelRename', 'project:' + props.group.project.id)" />
-      <span v-else data-project-name class="min-w-0 flex-1 truncate cursor-pointer font-semibold" :class="{ 'text-ok': hasWorkingSession }" :data-working="hasWorkingSession || undefined" @dblclick.stop="renameOnFinePointer">{{ props.group.project.name }}</span>
+      <span v-else data-project-name class="min-w-0 flex-1 truncate cursor-pointer font-semibold" @dblclick.stop="renameOnFinePointer">{{ props.group.project.name }}</span>
       <span v-if="machineChip && props.editingKey !== 'project:' + props.group.project.id" data-machine-chip class="max-w-[40%] shrink-0 truncate rounded-full border-2 border-danger bg-danger px-2.5 font-sans text-xs font-black leading-4 text-bg" :title="'On ' + machineChip">{{ machineChip }}</span>
       <div data-project-actions class="flex shrink-0 items-center">
       <button v-if="props.pinned" type="button" class="row-action touch-target inline-flex min-h-7 min-w-6 items-center justify-center rounded text-muted" :aria-label="'Unpin ' + props.group.project.name" title="Pinned" tabindex="-1" @click.stop="emit('togglePin', props.group.project.id)">

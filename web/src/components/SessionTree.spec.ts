@@ -73,13 +73,14 @@ describe('SessionTree', () => {
     wrapper.unmount()
   })
 
-  it('colors a project name green while one of its sessions is working, live from events', async () => {
+  it('keeps project names free of session status indicators after live events', async () => {
     const wrapper = mount(SessionTree)
     const name = () => wrapper.get('[data-tree-key="project:a"] span.font-semibold')
     expect(name().classes()).not.toContain('text-ok')
     useSessionsStore().apply({ type: 'snapshot', machines: [], sessions: { host: [{ ...session('one', '/work/a'), status: 'working' }, session('two', '/work/a'), session('loose', '/outside')] } })
     await nextTick()
-    expect(name().classes()).toContain('text-ok')
+    expect(name().classes()).not.toContain('text-ok')
+    expect(name().attributes('data-working')).toBeUndefined()
     expect(wrapper.get('[data-tree-key="project:b"] span.font-semibold').classes()).not.toContain('text-ok')
     useSessionsStore().apply({ type: 'snapshot', machines: [], sessions: { host: [{ ...session('one', '/work/a'), status: 'ended' }, session('two', '/work/a'), session('loose', '/outside')] } })
     await nextTick()
@@ -686,7 +687,7 @@ describe('SessionTree', () => {
     expect(group.classes()).toEqual(expect.arrayContaining(['ml-2', 'border-l', 'pl-1.5']))
     // The project path heads its expanded group.
     expect(group.element.firstElementChild?.getAttribute('title')).toBe('/work/a')
-    // Session rows lead with the reserved logo/status slots, then the name; their chevron (3 windows) follows it.
+    // Session rows lead with the reserved logo slot, then the name; their chevron (3 windows) follows it.
     const row = wrapper.get('[data-tree-key="session:one"]')
     expect(row.element.firstElementChild?.hasAttribute('data-session-prefix')).toBe(true)
     expect(row.element.children[1]?.getAttribute('aria-label')).toBe('one')

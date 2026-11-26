@@ -4,9 +4,9 @@ import { owner } from '../helpers/db.ts'
 import { forbidInLogs, MACHINE, mutate, ORIGIN, putUIState } from '../helpers/api.ts'
 import { shq, uniqueName } from '../helpers/target.ts'
 
-// A project whose session is working (🟢) shows its name in green, live.
+// Working session metadata remains available without coloring its project name.
 
-test('Project name turns green while one of its sessions is working', async ({ page, ui, target }) => {
+test('Project name stays unchanged while one of its sessions is working', async ({ page, ui, target }) => {
   const fresh = newAccount('e2e-project-working')
   forbidInLogs(fresh.email, fresh.password)
   await owner.allow(fresh.email)
@@ -33,8 +33,13 @@ test('Project name turns green while one of its sessions is working', async ({ p
 
     const pane = (await target.tmux('list-panes', '-t', `=${session}:`, '-F', '#{pane_id}')).trim().split('\n')[0]
     await target.tmux('set-option', '-p', '-t', pane, '@hostbud_agent_status', 'working')
-    await expect(label).toHaveAttribute('data-working', 'true')
-    await expect(label).toHaveClass(/text-ok/)
+    await expect.poll(async () => {
+      const response = await api.get('/api/machines/host/sessions')
+      const body = await response.json() as { sessions: { name: string; status?: string }[] }
+      return body.sessions.find((item) => item.name === session)?.status
+    }).toBe('working')
+    await expect(label).not.toHaveAttribute('data-working', /.*/)
+    await expect(label).not.toHaveClass(/text-ok/)
 
     await target.tmux('set-option', '-p', '-t', pane, '@hostbud_agent_status', 'ended')
     await expect(label).not.toHaveAttribute('data-working', /.*/)

@@ -198,6 +198,8 @@ Update this table in the same commit that finishes a task. T2–T4 were done ear
 
 ## T13 — Provider hook status on session rows
 
+Current UI note (26/11/2026): the status emoji and its reserved gutter slot were removed at the owner's request. Hook reporting and session status metadata remain; see the updated M8 acceptance coverage and `test/e2e/tests/agent.status.spec.ts`.
+
 - Ship one Python 3 hook handler for Codex and Claude Code. Document user-wide target-host installation by merging handlers into `~/.codex/hooks.json` and `~/.claude/settings.json`; do not overwrite existing hook settings. Hooks write a fixed status value to a pane-scoped tmux user option, and events outside tmux are ignored.
 - Map prompt/tool activity to `working`, approval/turn-end/idle/interruption events to `blocked`, and provider session end to `ended`. Inventory reads pane status during the normal pane metadata poll and publishes aggregated status with session snapshots/events. If a known interactive shell resumes while an active status remains, report ended to cover common forced exits. Unit and integration tests cover stale Codex `ended` recovery while its process is still live.
 - Clear a cached `ended` marker when the same pane still has a recognized live Codex process. Codex can keep its terminal process open while stopping, starting or resuming a conversation, so an old end event must not keep 🎯 visible over the live client; fresh hook events provide the current working or waiting state.
