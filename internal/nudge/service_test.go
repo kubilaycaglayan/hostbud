@@ -108,7 +108,7 @@ func TestReplaceSessionStopsOnKillOrCreateError(t *testing.T) {
 	}
 }
 
-func TestPutSettingsArmsOnlyTheNextFutureSlotAndValidatesEnabledTarget(t *testing.T) {
+func TestPutSettingsArmsNextFutureSlotOrSkipsItOnce(t *testing.T) {
 	now := time.Date(2026, 11, 26, 1, 0, 0, 0, time.UTC)
 	repo := &memoryRepository{}
 	validated := 0
@@ -121,7 +121,7 @@ func TestPutSettingsArmsOnlyTheNextFutureSlotAndValidatesEnabledTarget(t *testin
 	}})
 	saved, err := svc.PutSettings(context.Background(), store.WindowNudge{
 		Enabled: true, MachineID: "host", Directory: "/home/dev", Provider: " CLAUDE ", Schedule: string(Preset01),
-	})
+	}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,9 +129,16 @@ func TestPutSettingsArmsOnlyTheNextFutureSlotAndValidatesEnabledTarget(t *testin
 	if saved.Provider != "claude" || saved.NextRunAt == nil || !saved.NextRunAt.Equal(want) || validated != 1 {
 		t.Fatalf("saved settings = %+v; validated %d times", saved, validated)
 	}
+	saved, err = svc.PutSettings(context.Background(), store.WindowNudge{
+		Enabled: true, MachineID: "host", Directory: "/home/dev", Provider: "claude", Schedule: string(Preset01),
+	}, true)
+	second := time.Date(2026, 11, 26, 8, 0, 0, 0, time.UTC) // 11:00 at fixed UTC+03:00.
+	if err != nil || saved.NextRunAt == nil || !saved.NextRunAt.Equal(second) {
+		t.Fatalf("skip-first settings = %+v, %v; want next slot %v", saved, err, second)
+	}
 	// Disabling is always available and does not require the target to be up.
 	svc.validate = func(context.Context, string, string) error { t.Fatal("validated disabled target"); return nil }
-	saved, err = svc.PutSettings(context.Background(), store.WindowNudge{Enabled: false, MachineID: "host", Directory: "/home/dev", Provider: "codex", Schedule: string(Preset01)})
+	saved, err = svc.PutSettings(context.Background(), store.WindowNudge{Enabled: false, MachineID: "host", Directory: "/home/dev", Provider: "codex", Schedule: string(Preset01)}, false)
 	if err != nil || saved.NextRunAt != nil {
 		t.Fatalf("disabled settings = %+v, %v", saved, err)
 	}

@@ -15,6 +15,7 @@ const directory = ref('')
 const provider = ref<'claude' | 'codex'>('codex')
 const schedule = ref(schedules[0]!)
 const enabled = ref(false)
+const skipFirst = ref(false)
 const choosingDirectory = ref(false)
 const confirmEnable = ref(false)
 const message = ref('')
@@ -32,6 +33,7 @@ watch(open, async (shown) => {
   provider.value = current?.provider || 'codex'
   schedule.value = current?.schedule || schedules[0]!
   enabled.value = current?.enabled || false
+  skipFirst.value = false
 }, { immediate: true })
 
 function selected(path: string) {
@@ -44,7 +46,7 @@ async function save(allowEnable = false) {
     confirmEnable.value = true
     return
   }
-  const ok = await store.save({ enabled: enabled.value, machineId: machineId.value, directory: directory.value, provider: provider.value, schedule: schedule.value })
+  const ok = await store.save({ enabled: enabled.value, machineId: machineId.value, directory: directory.value, provider: provider.value, schedule: schedule.value, skipFirst: skipFirst.value })
   if (ok) { open.value = false; confirmEnable.value = false }
   else message.value = store.loadError || 'Could not save window nudge settings.'
 }
@@ -180,6 +182,11 @@ function outcome(value?: WindowNudge['lastOutcome']) {
               </button>
             </div>
           </div>
+          <label class="flex items-center gap-2"><input
+            v-model="skipFirst"
+            type="checkbox"
+            autocomplete="off"
+          > Skip the next scheduled time once</label>
           <section
             v-if="confirmEnable"
             role="alertdialog"

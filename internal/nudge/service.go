@@ -97,7 +97,7 @@ func (s *Service) Settings(ctx context.Context) (store.WindowNudge, error) {
 
 // PutSettings validates and saves the one schedule. Enabling it only arms its
 // next strictly future occurrence; it never invokes the provider immediately.
-func (s *Service) PutSettings(ctx context.Context, input store.WindowNudge) (store.WindowNudge, error) {
+func (s *Service) PutSettings(ctx context.Context, input store.WindowNudge, skipFirst bool) (store.WindowNudge, error) {
 	provider, err := NormalizeProvider(input.Provider)
 	if err != nil {
 		return store.WindowNudge{}, &Error{Status: http.StatusBadRequest, Message: "Choose Claude or Codex."}
@@ -124,6 +124,12 @@ func (s *Service) PutSettings(ctx context.Context, input store.WindowNudge) (sto
 		next, err := NextAfter(preset, s.now())
 		if err != nil {
 			return store.WindowNudge{}, &Error{Status: http.StatusBadRequest, Message: "The selected schedule is invalid."}
+		}
+		if skipFirst {
+			next, err = NextAfter(preset, next)
+			if err != nil {
+				return store.WindowNudge{}, &Error{Status: http.StatusBadRequest, Message: "The selected schedule is invalid."}
+			}
 		}
 		input.NextRunAt = &next
 	}

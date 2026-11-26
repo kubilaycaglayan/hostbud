@@ -13,7 +13,7 @@ export const useWindowNudgeStore = defineStore('windowNudge', () => {
     try { settings.value = await windowNudgeApi.get(); loadError.value = '' }
     catch (error) { loadError.value = describeError(error).message }
   }
-  async function save(value: Pick<WindowNudge, 'enabled' | 'machineId' | 'directory' | 'provider' | 'schedule'>) {
+  async function save(value: Pick<WindowNudge, 'enabled' | 'machineId' | 'directory' | 'provider' | 'schedule'> & { skipFirst?: boolean }) {
     saving.value = true
     try { settings.value = await windowNudgeApi.save(value); loadError.value = ''; return true }
     catch (error) { loadError.value = describeError(error).message; return false }

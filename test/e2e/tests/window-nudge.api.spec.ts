@@ -14,6 +14,14 @@ test('Window nudge API configures the singleton and arms only a future UTC+03:00
   expect(saved).toMatchObject({ enabled: true, schedule: '04-09-14-19-00', provider: 'claude' })
   expect(Date.parse(saved.nextRunAt)).toBeGreaterThan(Date.now())
 
+  const skipped = await mutate(request, 'PUT', '/api/window-nudge', {
+    enabled: true, machineId: 'host', directory: '/home/dev', provider: 'claude', schedule: '04-09-14-19-00', skipFirst: true,
+  }, ORIGIN)
+  expect(skipped.status(), await skipped.text()).toBe(200)
+  const skippedSettings = await skipped.json() as { nextRunAt: string; skipFirst?: boolean }
+  expect(skippedSettings).not.toHaveProperty('skipFirst')
+  expect(Date.parse(skippedSettings.nextRunAt)).toBeGreaterThan(Date.parse(saved.nextRunAt))
+
   expect((await mutate(request, 'PUT', '/api/window-nudge', {
     enabled: false, machineId: 'host', directory: '/home/dev', provider: 'claude', schedule: '04-09-14-19-00',
   }, FOREIGN_ORIGIN)).status()).toBe(403)

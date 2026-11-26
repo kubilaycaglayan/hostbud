@@ -38,7 +38,7 @@ type routeOnlyWindowNudge struct{}
 func (routeOnlyWindowNudge) Settings(context.Context) (store.WindowNudge, error) {
 	return store.WindowNudge{}, nil
 }
-func (routeOnlyWindowNudge) PutSettings(context.Context, store.WindowNudge) (store.WindowNudge, error) {
+func (routeOnlyWindowNudge) PutSettings(context.Context, store.WindowNudge, bool) (store.WindowNudge, error) {
 	return store.WindowNudge{}, nil
 }
 

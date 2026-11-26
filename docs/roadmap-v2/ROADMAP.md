@@ -12,6 +12,8 @@ V2-M14 (terminal connection diagnostics) is implemented and deployed; see [V2-M1
 
 V2-M15 (fixed-time window nudge) is implemented and deployed; see [V2-M15-tasks.md](V2-M15-tasks.md) · [V2-M15-acceptance.md](V2-M15-acceptance.md). The real-provider check and browser run remain open for the owner. Docker cleanup was skipped because hostbud test targets and toolbox containers were active.
 
+V2-M16 (one-time first-occurrence skip for window nudge) is implemented and deployed; see [V2-M16-tasks.md](V2-M16-tasks.md) · [V2-M16-acceptance.md](V2-M16-acceptance.md). Browser run and owner check remain open. Docker cleanup was skipped because hostbud toolbox containers and warm test targets were active.
+
 ---
 
 ## V2-M13 — Servers (other SSH targets)
@@ -25,6 +27,10 @@ V2-M15 (fixed-time window nudge) is implemented and deployed; see [V2-M15-tasks.
 ## V2-M15 — Fixed-time window nudge
 
 **Goal.** Add one opt-in scheduled nudge, separate from queues. The user selects one machine, directory, provider (Claude or Codex), and one of five fixed daily UTC+03:00 time sets. An orange-filled top-bar button shows when it is active. Enabling waits for the next listed time; missed times during downtime are skipped. At each occurrence, replace the exact `window-nudge-chore` tmux session and launch the selected interactive CLI with the session-specific nudge prompt. Breakdown: [V2-M15-tasks.md](V2-M15-tasks.md); design: v2 §3 decision 15.
+
+## V2-M16 — Skip first window nudge once
+
+**Goal.** Add an optional checkbox that skips only the next scheduled occurrence at save time and arms the following slot. Breakdown: [V2-M16-tasks.md](V2-M16-tasks.md); design: v2 §3 decision 16.
 
 ---
 

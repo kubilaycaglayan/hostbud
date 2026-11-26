@@ -84,7 +84,7 @@ type HookReceiver interface {
 
 type WindowNudgeService interface {
 	Settings(context.Context) (store.WindowNudge, error)
-	PutSettings(context.Context, store.WindowNudge) (store.WindowNudge, error)
+	PutSettings(context.Context, store.WindowNudge, bool) (store.WindowNudge, error)
 }
 
 var inlineScriptRE = regexp.MustCompile(`(?is)<script\b([^>]*)>(.*?)</script\s*>`)

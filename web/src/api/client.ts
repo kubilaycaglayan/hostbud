@@ -310,7 +310,7 @@ export const queuesApi = {
 
 export const windowNudgeApi = {
   get: () => request<WindowNudge>('GET', '/api/window-nudge'),
-  save: (settings: Pick<WindowNudge, 'enabled' | 'machineId' | 'directory' | 'provider' | 'schedule'>) =>
+  save: (settings: Pick<WindowNudge, 'enabled' | 'machineId' | 'directory' | 'provider' | 'schedule'> & { skipFirst?: boolean }) =>
     request<WindowNudge>('PUT', '/api/window-nudge', settings),
 }
 

@@ -23,6 +23,7 @@ func (s *server) putWindowNudge(w http.ResponseWriter, r *http.Request) {
 		Directory string `json:"directory"`
 		Provider  string `json:"provider"`
 		Schedule  string `json:"schedule"`
+		SkipFirst bool   `json:"skipFirst"`
 	}
 	if !decode(w, r, &input) {
 		return
@@ -30,7 +31,7 @@ func (s *server) putWindowNudge(w http.ResponseWriter, r *http.Request) {
 	settings, err := s.cfg.WindowNudge.PutSettings(r.Context(), store.WindowNudge{
 		Enabled: input.Enabled, MachineID: input.MachineID, Directory: input.Directory,
 		Provider: input.Provider, Schedule: input.Schedule,
-	})
+	}, input.SkipFirst)
 	if err != nil {
 		s.windowNudgeError(w, err)
 		return

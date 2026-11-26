@@ -201,6 +201,8 @@ The app-bar clock button configures one independent recurring session replacemen
 
 Every scheduled occurrence kills only the exact tmux session `window-nudge-chore` on the selected machine, starts the selected interactive CLI in the chosen directory with that same name, and sends `hi, please kill this tmux session window-nudge-chore`. The enable confirmation warns that anything currently running in that exact session is terminated each time. Turning the schedule off cancels future runs and leaves the current session alone. The clock button is filled orange while the schedule is active. This does not require new environment variables; Claude Code or Codex and tmux must be installed on the selected machine.
 
+The optional **Skip the next scheduled time once** checkbox arms the following occurrence when the schedule is saved. It applies to that save only.
+
 ### Notifications (opt-in)
 
 hostbud can tell you when a queue item is **done**, when one **needs attention**, and when a **queue has finished**. It is off for every account until you turn it on, and each account chooses its own events.

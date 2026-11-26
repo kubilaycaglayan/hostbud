@@ -12,7 +12,7 @@ beforeEach(() => setActivePinia(createPinia()))
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); document.body.innerHTML = '' })
 
 describe('WindowNudgeDialog', () => {
-  it('asks for confirmation before enabling and sends the chosen fixed schedule only after confirmation', async () => {
+  it('asks for confirmation before enabling and sends skip-first only after confirmation', async () => {
     const calls = stubFetch((method, path, body) => method === 'GET' ? { status: 200, body: disabled } : { status: 200, body: { ...disabled, ...(body as object), enabled: true, nextRunAt: '2026-11-27T01:00:00Z' } })
     mount(WindowNudgeDialog, { props: { open: true }, attachTo: document.body })
     await flushPromises()
@@ -22,16 +22,19 @@ describe('WindowNudgeDialog', () => {
     const schedule = document.body.querySelectorAll<HTMLSelectElement>('select')[1]!
     schedule.value = '05-10-15-20-00'
     schedule.dispatchEvent(new Event('change'))
-    const active = [...document.body.querySelectorAll<HTMLInputElement>('input')].find((input) => input.type === 'checkbox')!
+    const active = [...document.body.querySelectorAll<HTMLInputElement>('input')].find((input) => input.type === 'checkbox' && input.parentElement?.textContent?.includes('Active'))!
     active.checked = true
     active.dispatchEvent(new Event('change'))
+    const skip = [...document.body.querySelectorAll<HTMLInputElement>('input')].find((input) => input.type === 'checkbox' && input.parentElement?.textContent?.includes('Skip'))!
+    skip.checked = true
+    skip.dispatchEvent(new Event('change'))
     byText('Save')!.click()
     await flushPromises()
     expect(document.body.querySelector('[role="alertdialog"]')?.textContent).toContain('window-nudge-chore')
     expect(calls.filter((call) => call.method === 'PUT')).toEqual([])
     byText('Confirm and enable')!.click()
     await flushPromises()
-    expect(calls.filter((call) => call.method === 'PUT')).toEqual([{ method: 'PUT', path: '/api/window-nudge', body: { enabled: true, machineId: 'host', directory: '/home/dev', provider: 'claude', schedule: '05-10-15-20-00' } }])
+    expect(calls.filter((call) => call.method === 'PUT')).toEqual([{ method: 'PUT', path: '/api/window-nudge', body: { enabled: true, machineId: 'host', directory: '/home/dev', provider: 'claude', schedule: '05-10-15-20-00', skipFirst: true } }])
   })
 
   it('can disable without asking to kill or replace the current session', async () => {
