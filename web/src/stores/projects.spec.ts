@@ -35,6 +35,7 @@ describe('project events', () => {
       sessions: { host: [{ id: '$one', name: 'one', path: '/work/app', projectId: 'child', attached: 0, windows: 1, created: '', activity: '' }] },
     })
     const tree = useTreeStore()
+    tree.loaded = true
     tree.order.projects = ['parent', 'child']
     projects.apply({ type: 'projects.changed', machine: 'host', payload: { action: 'deleted', project: child } })
     tree.sync()

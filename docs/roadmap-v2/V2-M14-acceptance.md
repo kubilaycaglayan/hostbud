@@ -4,7 +4,7 @@
 
 - [x] **1. Diagnostics are opt-in and content-safe.** The modeless panel keeps the terminal interactive, only probes while open, reports no input or terminal content, and stops probing when closed. — U: T1 (term protocol and client); I: T1 (websocket input probe); E: T1 (diagnostics panel and modeless interaction).
 - [x] **2. Measurements separate the major latency stages.** The panel reports browser/server WebSocket round trip, hostbud-to-added-server SSH probe round trip, input-to-PTY acknowledgment, hostbud PTY write duration, browser WebSocket buffered bytes, xterm output processing through the next animation frame, and the last WebSocket close code/reason across reconnects, with guidance on interpretation and limits. Its copyable report excludes typed text and terminal output. Safe detach reasons, SSH probe timings and thresholded slow input/ping warnings are logged without machine/session identifiers or input content. — U: T1 (client metrics and reconnect persistence); I: T1 (PTY/remote SSH acknowledgments and logging); E: T1 (visible values and content-free copied report).
-- [ ] **3. Docs and deployed app are aligned.** README and architecture explain usage and limits; lint/tests pass, E2E is type-checked, gitleaks is clean, and deployed health is healthy. — U/I/E: n/a (docs/operations; T2 records checks). E2E type-check, gitleaks, docs check, build and deployed health passed. The full lint target has existing errors in `web/src/stores/tree.spec.ts`; the full test target has existing failures in terminal UI and tree/project store tests. The diagnostics API and Go integration tests passed.
+- [x] **3. Docs and deployed app are aligned.** README and architecture explain usage and limits; lint/tests pass, E2E is type-checked, gitleaks is clean, and deployed health is healthy. — U/I/E: n/a (docs/operations; T2 records checks). T2 verification and the full `make lint test` rerun on 26/11/2026 passed. The rerun corrected stale test setup: tree-store tests now mark persisted tree state loaded before syncing, and terminal key-bar tests dispatch complete pointer taps. E2E type-check, gitleaks, docs check, build and deployed health passed in T2 verification.
 
 - [x] **4. Keepalive waits do not pause terminal output.** A client withholding pong still receives new terminal output before the existing ping timeout. — U: T4 `TestBridgeOutputContinuesWhilePongPending`; I: T4 `TestIntegrationOutputContinuesWhilePongPending` against `test/sshd`; E: T4 *keepalive pong delay does not pause terminal output through Caddy*. Go unit and SSH integration regressions pass with race detection; E2E lint/type-check passes. The unit regression also verifies that withholding pong still disconnects at the ping timeout.
 
@@ -24,7 +24,7 @@
 ## Definition of done
 
 - [x] Unit/integration tests and E2E scenario are written; E2E TypeScript check passed.
-- [x] `make gitleaks`, docs consistency, deploy and health check passed; full lint/test remains open due the failures recorded above.
+- [x] `make gitleaks`, docs consistency, deploy and health check passed; the full lint/test gate passed on 26/11/2026 after refreshing the stale frontend test fixtures described above.
 - [x] Safe Docker cleanup skipped because `make test` left the hostbud toolbox and throwaway integration target active; production containers/volumes were left intact.
 - [x] Summary includes owner checks, pending on-demand E2E run and any new environment variables.
 
@@ -32,6 +32,7 @@
 
 - `make lint` passed (existing frontend style warnings only).
 - Full Go unit/integration suite passed with race detection. The unit regression was also rerun after adding ping-timeout coverage; it passes.
+- Follow-up on 26/11/2026: `make lint test` passed. The frontend test failures recorded above were stale setup in the server/project tree tests and incomplete synthetic pointer taps in `TerminalView.spec.ts`; corrected fixtures and all 750 web tests pass.
 - E2E lint and TypeScript check passed; no browser scenarios were run.
 - `make web-test`: 733 passed, 6 failed across unchanged `tree.servers.spec.ts`, `projects.spec.ts`, and `TerminalView.spec.ts`. These frontend-only failures remain outside this backend correction. Shell tests passed.
 - Investigation evidence and limits: [latency investigation](V2-M14-latency-investigation.md).

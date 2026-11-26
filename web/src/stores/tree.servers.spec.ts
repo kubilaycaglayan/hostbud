@@ -23,6 +23,7 @@ function snapshot(machines: Machine[], sessions: Record<string, Session[]>) {
 describe('tree store with servers', () => {
   it('groups server sessions under the server project and orders them by ref', () => {
     const tree = useTreeStore()
+    tree.loaded = true
     const projects = useProjectsStore()
     projects.loaded = true
     projects.remember(project('srv', '/home/dev/app', 's-abc'))
@@ -44,6 +45,7 @@ describe('tree store with servers', () => {
 
   it('keeps saved order while a server is unreachable and drops a removed server\'s keys', () => {
     const tree = useTreeStore()
+    tree.loaded = true
     useProjectsStore().loaded = true
     snapshot([machine('host'), machine('s-abc', 'unreachable')], { host: [session('local', '/x')], 's-abc': [] })
     tree.order.sessions.__other__ = ['local', 's-abc/away']

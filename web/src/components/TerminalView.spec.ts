@@ -445,6 +445,7 @@ describe('TerminalView', () => {
     FakeWS.all[0].onopen?.({} as Event)
     const control = w.get('button[aria-label="Control"]')
     control.element.dispatchEvent(new Event('pointerdown', { bubbles: true, cancelable: true }))
+    control.element.dispatchEvent(new Event('pointerup', { bubbles: true, cancelable: true }))
     h.terms[0].input('c')
     const sent = FakeWS.all[0].sent.at(-1) as Uint8Array
     expect(new TextDecoder().decode(sent)).toBe('\x03')
@@ -463,7 +464,9 @@ describe('TerminalView', () => {
     }))
     const w = await mountTerm()
     FakeWS.all[0].onopen?.({} as Event)
-    w.get('button[aria-label="Scroll history"]').element.dispatchEvent(new Event('pointerdown', { bubbles: true, cancelable: true }))
+    const scrollButton = w.get('button[aria-label="Scroll history"]').element
+    scrollButton.dispatchEvent(new Event('pointerdown', { bubbles: true, cancelable: true }))
+    scrollButton.dispatchEvent(new Event('pointerup', { bubbles: true, cancelable: true }))
     await flushPromises()
     expect(requests).toEqual([{ action: 'enter' }])
     expect(w.find('[data-testid="scroll-bar"]').exists()).toBe(true)
@@ -482,7 +485,9 @@ describe('TerminalView', () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: 'tmux needs 2.4', hint: 'Upgrade tmux on the host.' }), { status: 409 })))
     const w = await mountTerm()
     FakeWS.all[0].onopen?.({} as Event)
-    w.get('button[aria-label="Scroll history"]').element.dispatchEvent(new Event('pointerdown', { bubbles: true, cancelable: true }))
+    const scrollButton = w.get('button[aria-label="Scroll history"]').element
+    scrollButton.dispatchEvent(new Event('pointerdown', { bubbles: true, cancelable: true }))
+    scrollButton.dispatchEvent(new Event('pointerup', { bubbles: true, cancelable: true }))
     await flushPromises()
     expect(w.find('[data-testid="scroll-bar"]').exists()).toBe(false)
     expect(w.find('[data-testid="key-bar"]').exists()).toBe(true)
