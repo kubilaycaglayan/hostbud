@@ -8,7 +8,7 @@ This roadmap replaces the *v2 — Orchestration* section of the v1 ROADMAP (V2.1
 
 V2-M13 (servers: other SSH targets) is implemented; see [V2-M13-tasks.md](V2-M13-tasks.md) · [V2-M13-acceptance.md](V2-M13-acceptance.md). Its browser scenarios are written and type-checked, with the on-demand run and the owner's check against a real server open. Docker cleanup was skipped because hostbud toolbox containers and warm test targets were active.
 
-V2-M14 (terminal connection diagnostics) is implemented and deployed; see [V2-M14-tasks.md](V2-M14-tasks.md) · [V2-M14-acceptance.md](V2-M14-acceptance.md). Its acceptance gate remains open because the current full frontend lint/test targets report unrelated existing failures. Live-server owner verification and the on-demand browser run also remain open.
+V2-M14 (terminal connection diagnostics) is implemented and deployed; see [V2-M14-tasks.md](V2-M14-tasks.md) · [V2-M14-acceptance.md](V2-M14-acceptance.md). Its acceptance gate passes after refreshing stale frontend test setup; live-device owner verification and the on-demand browser run remain open.
 
 ---
 
@@ -19,6 +19,10 @@ V2-M14 (terminal connection diagnostics) is implemented and deployed; see [V2-M1
 ## V2-M14 — Terminal connection diagnostics
 
 **Goal.** Let a user identify whether typing lag is in the browser-to-server path, hostbud's PTY write, or browser terminal rendering. Measurements are user-initiated and never record terminal contents. Breakdown: [V2-M14-tasks.md](V2-M14-tasks.md).
+
+## V2-M15 — Fixed-time window nudge
+
+**Goal.** Add one opt-in scheduled nudge, separate from queues. The user selects one machine, directory, provider (Claude or Codex), and one of five fixed daily UTC+03:00 time sets. An orange-filled top-bar button shows when it is active. Enabling waits for the next listed time; missed times during downtime are skipped. At each occurrence, replace the exact `window-nudge-chore` tmux session and launch the selected interactive CLI with the session-specific nudge prompt. Breakdown: [V2-M15-tasks.md](V2-M15-tasks.md); design: v2 §3 decision 15.
 
 ---
 
