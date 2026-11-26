@@ -383,6 +383,7 @@ POST   /api/queue-items/:id/retry|skip|mark-done needs_attention items only (409
 POST   /api/queue-items/:id/approve|reject      V2-M4: awaiting_approval items only (409 naming the state otherwise); approve ⇒ done and the queue advances, reject ⇒ needs_attention and the queue pauses
 POST   /api/queue-items/:id/reverify           V2-M4: Re-run verify on a needs_attention item whose latest run achieved and that has a verify command (409 otherwise); no new run or session
 POST   /api/hooks/:run_id/:event      token-authenticated run hook (session_start|turn_end|session_end): 204/401/404/410/429/413/400
+GET|PUT /api/window-nudge             V2-M15 singleton schedule; PUT accepts {enabled, machineId, directory, provider, schedule} only (the server computes the next future slot); authenticated and Origin-checked
 
 # v2 notifications (V2-M3, opt-in per account; docs/roadmap-v2)
 GET|PUT /api/notifications/settings   the caller's account only: {enabled, onDone, onAttention, onFinished} (PUT: any subset), plus push {available, reason} and vapidPublicKey when push is available; no row = off

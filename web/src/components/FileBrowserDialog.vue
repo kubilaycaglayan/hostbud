@@ -6,9 +6,9 @@ import ServerPicker from './ServerPicker.vue'
 import { useMachinesStore } from '@/stores/machines'
 
 // machine is the default server; the picker browses another (V2-M13).
-const props = defineProps<{ machine: string; startProjectId?: string; compact?: boolean }>()
+const props = defineProps<{ machine: string; startProjectId?: string; compact?: boolean; selectDirectory?: boolean }>()
 const open = defineModel<boolean>('open', { default: false })
-const emit = defineEmits<{ created: [name: string] }>()
+const emit = defineEmits<{ created: [name: string]; selected: [path: string, machine: string] }>()
 const machine = ref(props.machine)
 const machines = useMachinesStore()
 watch(open, (o) => { if (o) machine.value = props.machine })
@@ -25,7 +25,7 @@ watch(open, (o) => { if (o) machine.value = props.machine })
               Browse files
             </DialogTitle>
             <DialogDescription class="text-sm text-muted">
-              Choose a directory to open or add as a project.
+              {{ props.selectDirectory ? 'Choose this directory.' : 'Choose a directory to open or add as a project.' }}
             </DialogDescription>
           </div>
           <DialogClose
@@ -43,9 +43,11 @@ watch(open, (o) => { if (o) machine.value = props.machine })
           v-if="open"
           :key="machine"
           :machine="machine"
+          :select-directory="props.selectDirectory"
           :start-project-id="props.startProjectId"
           class="min-h-0 flex-1 overflow-y-auto"
           @created="emit('created', $event)"
+          @selected="emit('selected', $event, machine); open = false"
         />
       </DialogContent>
     </DialogPortal>

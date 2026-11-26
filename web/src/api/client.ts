@@ -1,7 +1,7 @@
 // Typed client for hostbud's JSON API. Errors carry the server's
 // {error, hint} shape (and Retry-After for 429s).
 
-import type { Capacity, DefaultPrompt, HostKey, Machine, NotificationSettings, ParallelQueues, Project, Queue, QueueItem, QueueList, Session, TmuxWindows } from './types'
+import type { Capacity, DefaultPrompt, HostKey, Machine, NotificationSettings, ParallelQueues, Project, Queue, QueueItem, QueueList, Session, TmuxWindows, WindowNudge } from './types'
 
 export class ApiError extends Error {
   constructor(
@@ -306,6 +306,12 @@ export const queuesApi = {
   approve: (id: string) => request<Queue>('POST', `/api/queue-items/${q(id)}/approve`),
   reject: (id: string) => request<Queue>('POST', `/api/queue-items/${q(id)}/reject`),
   reverify: (id: string) => request<Queue>('POST', `/api/queue-items/${q(id)}/reverify`),
+}
+
+export const windowNudgeApi = {
+  get: () => request<WindowNudge>('GET', '/api/window-nudge'),
+  save: (settings: Pick<WindowNudge, 'enabled' | 'machineId' | 'directory' | 'provider' | 'schedule'>) =>
+    request<WindowNudge>('PUT', '/api/window-nudge', settings),
 }
 
 /** V2-M3 notifications: the caller's account only. */

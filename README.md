@@ -195,6 +195,12 @@ Requirements on the host: Claude Code **2.1.283** or newer and/or Codex **0.157.
 - **Codex asks once to trust hostbud's hooks** ("Hooks need review" → *Trust all and continue*) in the first run's session. The hook command is the same for every run, so this is a one-time step.
 - Codex starts with the plain condition as its prompt, and hostbud sets the goal through Codex's own app server (`codex app-server proxy`) right after the session starts.
 
+### Window nudge (opt-in)
+
+The app-bar clock button configures one independent recurring session replacement. Choose one machine, an existing directory, Claude or Codex, and one fixed daily schedule: `01-06-11-16-21`, `02-07-12-17-22`, `03-08-13-18-23`, `04-09-14-19-00`, or `05-10-15-20-00`. These are wall-clock hours at a fixed UTC+03:00 offset; the schedule does not read or change the host timezone and does not follow daylight saving time. Enabling waits for the next listed time, never runs immediately, and missed slots during downtime are skipped.
+
+Every scheduled occurrence kills only the exact tmux session `window-nudge-chore` on the selected machine, starts the selected interactive CLI in the chosen directory with that same name, and sends `hi, please kill this tmux session window-nudge-chore`. The enable confirmation warns that anything currently running in that exact session is terminated each time. Turning the schedule off cancels future runs and leaves the current session alone. The clock button is filled orange while the schedule is active. This does not require new environment variables; Claude Code or Codex and tmux must be installed on the selected machine.
+
 ### Notifications (opt-in)
 
 hostbud can tell you when a queue item is **done**, when one **needs attention**, and when a **queue has finished**. It is off for every account until you turn it on, and each account chooses its own events.

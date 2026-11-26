@@ -9,6 +9,7 @@ import { panesOf } from './lib/layout'
 import { useLayoutStore } from './stores/layout'
 import { useTreeStore } from './stores/tree'
 import { useProjectsStore } from './stores/projects'
+import { useWindowNudgeStore } from './stores/windowNudge'
 import { stubFetch } from './test-utils'
 
 // A socket that stays "connecting": the live connection is covered by
@@ -106,6 +107,21 @@ describe('App shell', () => {
     // Signed in ⇒ live updates start (no polling).
     expect(IdleSocket.instances.map((x) => x.url)).toEqual(['ws://localhost:3000/ws/events'])
     expect(wrapper.get('[role=status]').text()).toBe('Connecting…')
+  })
+
+  it('fills the Window nudge app-bar button orange only while its schedule is enabled', async () => {
+    signedIn()
+    const store = useWindowNudgeStore()
+    store.settings = { enabled: false, machineId: 'host', directory: '/home/dev', provider: 'codex', schedule: '01-06-11-16-21', updatedAt: '' }
+    const wrapper = mount(App)
+    await flushPromises()
+    const button = wrapper.get('header button[aria-label="Window nudge"]')
+    expect(button.attributes('aria-pressed')).toBe('false')
+    expect(button.classes()).not.toContain('bg-orange-500')
+    store.settings = { ...store.settings!, enabled: true, nextRunAt: '2026-11-27T01:00:00Z' }
+    await nextTick()
+    expect(button.attributes('aria-pressed')).toBe('true')
+    expect(button.classes()).toContain('bg-orange-500')
   })
 
   it('arms focus mode and shows the overlay two seconds after the mouse leaves the viewport', async () => {

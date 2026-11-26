@@ -9,8 +9,8 @@ import { useProjectsStore } from '@/stores/projects'
 import { useTreeStore } from '@/stores/tree'
 import { FolderOpen, FolderPlus } from 'lucide-vue-next'
 
-const props = defineProps<{ machine: string }>()
-const emit = defineEmits<{ created: [name: string] }>()
+const props = defineProps<{ machine: string; selectDirectory?: boolean }>()
+const emit = defineEmits<{ created: [name: string]; selected: [path: string] }>()
 const path = ref('')
 const pathInput = ref('')
 const entries = ref<FileEntry[]>([])
@@ -199,6 +199,7 @@ function openCurrentProject() {
         Go
       </button>
       <button
+        v-if="!props.selectDirectory"
         type="button"
         class="touch-target inline-flex min-h-8 min-w-8 items-center justify-center rounded border border-border"
         :aria-label="currentProject ? 'Open project' : 'Add this directory as project'"
@@ -259,7 +260,7 @@ function openCurrentProject() {
         class="flex flex-wrap items-center gap-1.5 border-b border-border py-0.5"
       >
         <button
-          v-if="entry.kind === 'directory'"
+          v-if="entry.kind === 'directory' && !props.selectDirectory"
           type="button"
           class="touch-target min-h-8 min-w-0 flex-1 truncate text-left"
           @click="navigate(entry.path)"
@@ -319,6 +320,7 @@ function openCurrentProject() {
       </li>
     </ul>
     <form
+      v-if="!props.selectDirectory"
       class="flex gap-1.5"
       @submit.prevent="createFolder"
     >
@@ -340,6 +342,9 @@ function openCurrentProject() {
         Create folder
       </button>
     </form>
+    <button v-if="props.selectDirectory" type="button" class="touch-target min-h-9 rounded bg-accent px-3 font-bold text-bg" :disabled="loading || Boolean(error) || !path" @click="emit('selected', path)">
+      Use this directory
+    </button>
     <p
       v-if="folderError"
       role="alert"
@@ -348,7 +353,7 @@ function openCurrentProject() {
       {{ folderError }}
     </p>
     <div
-      v-if="selectedProject"
+      v-if="selectedProject && !props.selectDirectory"
       class="flex items-center justify-between gap-2 rounded border border-border px-2 py-1"
     >
       <span class="min-w-0 truncate">Project: {{ selectedProject.name }}</span>
@@ -361,6 +366,7 @@ function openCurrentProject() {
       </button>
     </div>
     <ProjectSessionDialog
+      v-if="!props.selectDirectory"
       v-model:project="sessionProject"
       @created="emit('created', $event)"
     />

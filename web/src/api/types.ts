@@ -229,6 +229,19 @@ export interface ParallelQueues {
   parallelQueues: boolean
 }
 
+export interface WindowNudge {
+  enabled: boolean
+  machineId: string
+  directory: string
+  provider: 'claude' | 'codex'
+  schedule: string
+  nextRunAt?: string
+  lastRunAt?: string
+  lastOutcome?: 'succeeded' | 'failed' | 'interrupted' | string
+  lastDetail?: string
+  updatedAt: string
+}
+
 /** GET|PUT /api/machines/:id/capacity (V2-M2): null = no cap. */
 export interface Capacity {
   maxConcurrentRuns: number | null
@@ -306,4 +319,5 @@ export type ServerEvent =
   | { type: 'projects.changed'; machine: string; payload: { action: string; project: Project } }
   | { type: 'queue.changed'; machine: string; payload: QueueChanged }
   | { type: 'run.changed'; machine: string; payload: RunChanged }
+  | { type: 'window_nudge.changed'; machine: string; payload: WindowNudge }
   | { type: 'heartbeat' }

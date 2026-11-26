@@ -16,6 +16,7 @@ import KillProjectSessionsDialog from '@/components/KillProjectSessionsDialog.vu
 import KillSessionDialog from '@/components/KillSessionDialog.vue'
 import QueuePanel from '@/components/QueuePanel.vue'
 import SettingsDialog from '@/components/SettingsDialog.vue'
+import WindowNudgeDialog from '@/components/WindowNudgeDialog.vue'
 import HostBanner from '@/components/HostBanner.vue'
 import TabView from '@/components/TabView.vue'
 import IconButton from '@/components/IconButton.vue'
@@ -31,6 +32,7 @@ import { useLiveStore } from '@/stores/live'
 import { useMachinesStore } from '@/stores/machines'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useQueuesStore } from '@/stores/queues'
+import { useWindowNudgeStore } from '@/stores/windowNudge'
 import { queueTarget } from '@/lib/notifications'
 import { useTreeStore } from '@/stores/tree'
 import { useThemeStore } from '@/stores/theme'
@@ -38,7 +40,7 @@ import { useWindowsStore } from '@/stores/windows'
 import { useProjectsStore } from '@/stores/projects'
 import { useToastsStore } from '@/stores/toasts'
 import { useSessionsStore } from '@/stores/sessions'
-import { EyeOff, FolderSearch, Keyboard, ListOrdered, PanelLeftClose, PanelLeftOpen, Search, SquareTerminal, UserRound } from 'lucide-vue-next'
+import { Clock3, EyeOff, FolderSearch, Keyboard, ListOrdered, PanelLeftClose, PanelLeftOpen, Search, SquareTerminal, UserRound } from 'lucide-vue-next'
 import { isEditableTarget, isTerminalTarget, isTreeTarget, matchingShortcut, shortcutLabels, shortcutPlatform, shortcuts } from '@/lib/shortcuts'
 import { parseSessionRef, projectTree, refOf, sessionKey, sessionMachine, sessionRef, visibleOpenSessionNames, windowKey } from '@/lib/tree'
 import { dispatchPaletteAction } from '@/lib/paletteActions'
@@ -59,6 +61,8 @@ const toasts = useToastsStore()
 const sessions = useSessionsStore()
 const notifications = useNotificationsStore()
 const queuesStore = useQueuesStore()
+const windowNudge = useWindowNudgeStore()
+const windowNudgeOpen = ref(false)
 const hasRunningQueue = computed(() => queuesStore.queues.some((queue) => queue.status === 'running'))
 
 // The host: banner, queue and settings. Sessions and projects may also be
@@ -832,6 +836,18 @@ onUnmounted(() => {
       <IconButton label="Queue" :emphasized="hasRunningQueue" @click="openQueue">
         <ListOrdered :size="18" aria-hidden="true" />
       </IconButton>
+      <button
+        type="button"
+        aria-label="Window nudge"
+        title="Window nudge"
+        :aria-pressed="windowNudge.settings?.enabled === true"
+        class="touch-target inline-flex shrink-0 items-center justify-center rounded border px-2 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        :class="windowNudge.settings?.enabled ? 'border-orange-600 bg-orange-500 text-white' : 'border-border text-fg hover:bg-tree-header'"
+        @click="windowNudgeOpen = true"
+      >
+        <Clock3 :size="18" aria-hidden="true" />
+        <span class="sr-only">Window nudge</span>
+      </button>
       <IconButton label="Add server" @click="openServers">
         <ServerStatusIcon />
       </IconButton>
@@ -965,6 +981,7 @@ onUnmounted(() => {
     />
     <ServersDialog v-model:open="serversOpen" :compact="compact" />
     <SettingsDialog v-model:open="settingsOpen" :compact="compact" :machine="MACHINE" />
+    <WindowNudgeDialog v-model:open="windowNudgeOpen" :compact="compact" />
     <ShortcutsDialog :open="shortcutsOpen" @update:open="closeShortcuts" />
     <KillProjectSessionsDialog :machine="killingProject?.machineId ?? MACHINE" :project="killingProject" :sessions="killingProjectSessions" :compact="compact" @killed="onKilledOn(killingProject?.machineId ?? MACHINE, $event)" @done="killingProject = null" @cancel="killingProject = null" />
     <RemoveProjectDialog :project="removingProject" :session-count="removePreview.count" :destinations="removePreview.destinations" :display-path="removingProjectPath" @cancel="removingProject = null" @removed="onProjectRemoved" />

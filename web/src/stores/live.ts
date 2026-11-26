@@ -9,6 +9,7 @@ import { useNotificationsStore } from './notifications'
 import { useSessionsStore } from './sessions'
 import { useProjectsStore } from './projects'
 import { useQueuesStore } from './queues'
+import { useWindowNudgeStore } from './windowNudge'
 import { useTreeStore } from './tree'
 import { useWindowsStore } from './windows'
 
@@ -31,6 +32,8 @@ export const useLiveStore = defineStore('live', () => {
         sessions.apply(e)
         projects.apply(e)
         useQueuesStore().apply(e)
+        // The fixed-time nudge is independent of queue dispatch (V2-M15).
+        useWindowNudgeStore().apply(e)
         useNotificationsStore().apply(e)
         useTreeStore().sync()
         useWindowsStore().applyEvent(e)
